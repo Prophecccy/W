@@ -1,0 +1,42 @@
+.daily-note-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  padding: 16px;
+}
+
+.daily-note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.daily-note-meta {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.daily-note-input {
+  width: 100%;
+  min-height: 120px;
+  background-color: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 12px;
+  color: var(--text-primary);
+  resize: vertical;
+  transition: border-color var(--transition-fast);
+}
+
+.daily-note-input:focus {
+  outline: none;
+  border-color: var(--border-hover);
+}
+
+.daily-note-input::placeholder {
+  color: var(--text-muted);
+}

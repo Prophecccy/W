@@ -1,0 +1,103 @@
+.widget-habit-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  height: 36px;
+  border-left: 2px solid var(--card-accent);
+  background: var(--bg-surface);
+  cursor: pointer;
+  user-select: none;
+  overflow: hidden;
+  transition: opacity 0.3s ease, background 0.2s ease;
+}
+
+.widget-habit-card:hover {
+  background: var(--bg-elevated);
+}
+
+/* ─── Completed State ────────────────────────────────────── */
+.widget-habit-card.completed {
+  opacity: 0.4;
+  border-left-color: var(--text-muted);
+}
+
+.widget-habit-card.completed .widget-habit-card__icon {
+  color: #4ade80;
+}
+
+/* ─── Limiter Accent ─────────────────────────────────────── */
+.widget-habit-card.limiter {
+  border-left-color: var(--strike-red);
+}
+
+/* ─── Hold Fill Animation ────────────────────────────────── */
+.widget-habit-card__hold-fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(91, 141, 239, 0.15) 0%,
+    rgba(91, 141, 239, 0.15) 100%
+  );
+  animation: widgetHoldSweep 500ms linear forwards;
+  pointer-events: none;
+}
+
+.widget-habit-card.limiter .widget-habit-card__hold-fill {
+  background: linear-gradient(
+    90deg,
+    rgba(232, 115, 108, 0.15) 0%,
+    rgba(232, 115, 108, 0.15) 100%
+  );
+}
+
+@keyframes widgetHoldSweep {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* ─── Icon ───────────────────────────────────────────────── */
+.widget-habit-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--card-accent);
+  flex-shrink: 0;
+}
+
+/* ─── Title ──────────────────────────────────────────────── */
+.widget-habit-card__title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.widget-habit-card.completed .widget-habit-card__title {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+/* ─── Streak / Undo ──────────────────────────────────────── */
+.widget-habit-card__streak {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.widget-habit-card__undo {
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 1px;
+}

@@ -1,0 +1,145 @@
+@font-face {
+  font-family: 'Departure Mono';
+  src: url('./assets/fonts/DepartureMono-Regular.woff2') format('woff2'),
+       url('./assets/fonts/DepartureMono-Regular.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* Colors */
+  --bg-base: #08090a;
+  --bg-surface: #111214;
+  --bg-elevated: #1a1b1e;
+  --bg-overlay: #222326;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.10);
+  --text-primary: #e8e8e8;
+  --text-secondary: #888888;
+  --text-muted: #555555;
+  --accent: #5B8DEF; /* Default placeholder, user-picked later */
+  --strike-red: #E8736C;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Departure Mono', monospace;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  background-size: cover;
+  background-position: center;
+  background-image: var(--app-wallpaper);
+  opacity: var(--app-wallpaper-dim, 0.2);
+  pointer-events: none;
+}
+
+/* Typography Tiers */
+.t-display {
+  font-size: 33px;
+  letter-spacing: -2px;
+  font-weight: normal;
+}
+
+.t-label {
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.t-body {
+  font-size: 13px;
+  letter-spacing: -0.5px;
+  font-weight: normal;
+}
+
+.t-meta {
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.t-data {
+  font-size: 11px;
+  letter-spacing: 0; /* Tabular numerals */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Page placeholder styling */
+.page-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  opacity: 0.4;
+  user-select: none;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ─── Micro-Interactions (Batch 17) ─── */
+.animate-pulse {
+  animation: global-pulse 0.4s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+}
+
+.animate-shake {
+  animation: global-shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+.animate-flash-red {
+  animation: global-flash-red 0.5s ease-out forwards;
+}
+
+@keyframes global-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+@keyframes global-shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
+  40%, 60% { transform: translate3d(3px, 0, 0); }
+}
+
+@keyframes global-flash-red {
+  0% { box-shadow: inset 0 0 0 0 var(--strike-red); }
+  20% { box-shadow: inset 0 0 0 4px var(--strike-red); border-color: var(--strike-red); }
+  100% { box-shadow: inset 0 0 0 0 transparent; border-color: inherit; }
+}

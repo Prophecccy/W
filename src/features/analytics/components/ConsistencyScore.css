@@ -1,0 +1,25 @@
+.consistency-score {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.consistency-text {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.consistency-text .t-display {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.consistency-text .t-meta {
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  margin-top: 4px;
+}

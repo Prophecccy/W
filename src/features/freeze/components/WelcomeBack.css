@@ -1,0 +1,122 @@
+/* ─── WelcomeBack — warm, non-threatening return screen ──────── */
+
+.welcome-back {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: var(--bg-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: welcomeFadeIn 0.5s ease-out;
+}
+
+@keyframes welcomeFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.welcome-back__container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 420px;
+  padding: 48px 32px;
+  text-align: center;
+}
+
+/* Frost icon ring — soft blue glow (no red) */
+.welcome-back__icon-ring {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  box-shadow: 0 0 24px rgba(91, 141, 239, 0.15);
+  animation: frostPulse 3s ease-in-out infinite;
+  margin-bottom: 8px;
+}
+
+@keyframes frostPulse {
+  0%, 100% { box-shadow: 0 0 24px rgba(91, 141, 239, 0.15); }
+  50% { box-shadow: 0 0 40px rgba(91, 141, 239, 0.25); }
+}
+
+.welcome-back__title {
+  color: var(--text-primary);
+  margin-top: 8px;
+}
+
+.welcome-back__subtitle {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* Date range display */
+.welcome-back__range {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 16px 0 4px;
+  padding: 14px 24px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+}
+
+.welcome-back__range-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+}
+
+.welcome-back__range-arrow {
+  color: var(--text-muted);
+}
+
+.welcome-back__days {
+  color: var(--accent);
+  letter-spacing: 3px;
+}
+
+/* Resume button */
+.welcome-back__resume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 24px;
+  padding: 14px 32px;
+  background: var(--accent);
+  color: var(--bg-base);
+  border: none;
+  border-radius: 4px;
+  font-family: "Departure Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.welcome-back__resume:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.welcome-back__resume:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.welcome-back__resume:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.welcome-back__hint {
+  color: var(--text-muted);
+  margin-top: 4px;
+}

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "W",
+  "version": "0.1.0",
+  "identifier": "com.redre.w-app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "W",
+        "width": 800,
+        "height": 600
+      },
+      {
+        "label": "sticky-overlay",
+        "title": "Sticky Notes",
+        "url": "/sticky-canvas",
+        "decorations": false,
+        "transparent": true,
+        "fullscreen": true,
+        "visible": false,
+        "skipTaskbar": true,
+        "alwaysOnBottom": true
+      },
+      {
+        "label": "alarm-popup",
+        "title": "Alarm",
+        "url": "/alarm-popup",
+        "decorations": false,
+        "width": 600,
+        "height": 400,
+        "center": true,
+        "alwaysOnTop": true,
+        "visible": false,
+        "skipTaskbar": true
+      },
+      {
+        "label": "widget",
+        "title": "W Widget",
+        "url": "/widget",
+        "decorations": false,
+        "transparent": true,
+        "width": 380,
+        "height": 520,
+        "minWidth": 300,
+        "minHeight": 400,
+        "maxWidth": 600,
+        "maxHeight": 900,
+        "visible": false,
+        "skipTaskbar": true,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' 'unsafe-inline'; media-src 'self' asset: http://asset.localhost",
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

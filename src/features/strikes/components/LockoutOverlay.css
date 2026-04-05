@@ -1,0 +1,98 @@
+.lockout-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 6, 6, 0.92);
+  backdrop-filter: blur(12px);
+  animation: lockoutFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.lockout-overlay__vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(232, 115, 108, 0.08) 100%);
+}
+
+.lockout-overlay__content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  max-width: 420px;
+  padding: 48px;
+  text-align: center;
+}
+
+.lockout-overlay__icon-ring {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  border: 2px solid var(--strike-red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--strike-red);
+  animation: lockoutPulse 2s ease-in-out infinite;
+}
+
+.lockout-overlay__title {
+  color: var(--strike-red);
+  letter-spacing: 4px;
+}
+
+.lockout-overlay__desc {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.lockout-overlay__strike-bar {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.lockout-overlay__strike-pip {
+  width: 24px;
+  height: 6px;
+  border-radius: 3px;
+  background-color: var(--border-subtle);
+  transition: background-color 0.3s ease;
+}
+
+.lockout-overlay__strike-pip.filled {
+  background-color: var(--strike-red);
+  box-shadow: 0 0 8px rgba(232, 115, 108, 0.4);
+}
+
+.lockout-overlay__resolve {
+  margin-top: 16px;
+  padding: 14px 32px;
+  background: transparent;
+  border: 1px solid var(--strike-red);
+  color: var(--strike-red);
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  transition: all var(--transition-fast);
+}
+
+.lockout-overlay__resolve:hover {
+  background: var(--strike-red);
+  color: #000;
+  box-shadow: 0 0 24px rgba(232, 115, 108, 0.3);
+}
+
+@keyframes lockoutFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes lockoutPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 115, 108, 0.4); }
+  50%      { box-shadow: 0 0 24px 4px rgba(232, 115, 108, 0.15); }
+}

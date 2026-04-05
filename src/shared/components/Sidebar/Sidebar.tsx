@@ -1,0 +1,64 @@
+import { NavLink } from "react-router-dom";
+import {
+  LayoutDashboard,
+  ListChecks,
+  Clock,
+  BarChart3,
+  Settings,
+  AlertTriangle,
+} from "lucide-react";
+import { FlameIcon } from "../FlameIcon/FlameIcon";
+import "./Sidebar.css";
+
+interface SidebarProps {
+  strikeCount?: number;
+  globalStreak?: number;
+}
+
+const navItems = [
+  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { to: "/todos", icon: ListChecks, label: "Todos" },
+  { to: "/clock", icon: Clock, label: "Clock" },
+  { to: "/analytics", icon: BarChart3, label: "Analytics" },
+  { to: "/settings", icon: Settings, label: "Settings" },
+];
+
+export function Sidebar({ strikeCount = 0, globalStreak = 0 }: SidebarProps) {
+  const isWarning = strikeCount >= 3;
+  const isLocked = strikeCount >= 5;
+  return (
+    <aside className="sidebar">
+      <div className="sidebar__logo t-display">[ W ]</div>
+
+      <nav className="sidebar__nav">
+        {navItems.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.to === "/"}
+            className={({ isActive }) =>
+              `sidebar__link t-body${isActive ? " sidebar__link--active" : ""}`
+            }
+          >
+            <item.icon size={16} strokeWidth={1.5} />
+            <span>{item.label}</span>
+          </NavLink>
+        ))}
+      </nav>
+
+      <div className="sidebar__divider" />
+
+      <div className="sidebar__stats">
+        <span className="sidebar__stats-label t-label">QUICK STATS</span>
+        <div className="sidebar__stat" title="Global App Streak">
+          <FlameIcon streak={globalStreak} />
+          <span className="t-data">{globalStreak}</span>
+        </div>
+        <div className={`sidebar__stat sidebar__stat--strikes${isWarning ? ' sidebar__stat--warning' : ''}${isLocked ? ' sidebar__stat--locked' : ''}`}>
+          <AlertTriangle size={14} strokeWidth={1.5} />
+          <span className="t-data">{strikeCount}/5</span>
+        </div>
+      </div>
+    </aside>
+  );
+}

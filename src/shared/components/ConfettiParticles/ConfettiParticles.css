@@ -1,0 +1,46 @@
+.confetti-container {
+  position: absolute;
+  pointer-events: none;
+  z-index: 50;
+  width: 0;
+  height: 0;
+}
+
+.confetti-p {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background-color: var(--accent);
+  opacity: 1;
+  transform: translate(0, 0) rotate(0deg) scale(1);
+  animation: confetti-burst 0.8s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+  border-radius: 1px;
+}
+
+/* Mixed shapes/colors via nth-child */
+.confetti-p:nth-child(even) {
+  border-radius: 50%;
+  background-color: #FFF;
+}
+.confetti-p:nth-child(3n) {
+  background-color: var(--text-primary);
+  width: 8px;
+  height: 4px;
+}
+.confetti-p:nth-child(5n) {
+  background-color: #FFD700;
+}
+
+@keyframes confetti-burst {
+  0% {
+    transform: translate(0, 0) rotate(0deg) scale(0.5);
+    opacity: 1;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--tx), var(--ty)) rotate(var(--rot)) scale(1.2);
+    opacity: 0;
+  }
+}

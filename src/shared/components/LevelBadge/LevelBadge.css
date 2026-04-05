@@ -1,0 +1,143 @@
+.level-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Departure Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: transparent;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.level-badge__text {
+  position: relative;
+  z-index: 2;
+}
+
+/* ─── Level Visual Tiers ─── */
+
+/* Lv0: Nil (greyed) */
+.level-tier-0 {
+  color: #555;
+}
+
+/* Lv1: Normal */
+.level-tier-1 {
+  color: var(--text-secondary);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Lv2: Border */
+.level-tier-2 {
+  color: var(--text-secondary);
+  border-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Lv3: Bolder text */
+.level-tier-3 {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.3);
+  font-weight: bold;
+}
+
+/* Lv4: Faint glow */
+.level-tier-4 {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.1);
+}
+
+/* Lv5: Accent glow */
+.level-tier-5 {
+  color: #FFF;
+  border-color: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+}
+
+/* Lv6: Shimmer border */
+.level-tier-6 {
+  color: #FFF;
+  border-color: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0 12px var(--accent);
+}
+.level-tier-6 .level-badge__shimmer {
+  position: absolute;
+  top: 0; left: -100%;
+  width: 50%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  animation: shimmer 2s infinite;
+}
+
+/* Lv7: Float and intense glow */
+.level-tier-7 {
+  color: #FFF;
+  border-color: #FFF;
+  box-shadow: 0 4px 12px var(--accent), 0 0 4px #FFF;
+}
+.level-tier-7 .level-badge__shimmer {
+  position: absolute;
+  top: 0; left: -100%;
+  width: 50%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+  animation: shimmer 1.5s infinite;
+}
+
+/* Lv8: Gradient Background */
+.level-tier-8 {
+  color: #000;
+  border: none;
+  background: linear-gradient(135deg, var(--accent), #FFD700);
+  box-shadow: 0 2px 10px var(--accent);
+  font-weight: bold;
+}
+
+/* Lv9: Premium Glassmorphism */
+.level-tier-9 {
+  color: #FFF;
+  background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0));
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Lv10: All effects peak */
+.level-tier-10 {
+  color: #000;
+  background: linear-gradient(45deg, #FFD700, #FFA500, var(--accent), #FFD700);
+  background-size: 300% 300%;
+  animation: gradient-shift 3s ease infinite;
+  border: 1px solid #FFF;
+  box-shadow: 0 0 20px var(--accent), inset 0 0 10px rgba(255,255,255,0.8);
+  font-weight: bold;
+}
+
+/* Low graphics resets for tier > 5 */
+.level-badge.low-graphics.level-tier-6,
+.level-badge.low-graphics.level-tier-7,
+.level-badge.low-graphics.level-tier-8,
+.level-badge.low-graphics.level-tier-9,
+.level-badge.low-graphics.level-tier-10 {
+  background: var(--accent);
+  color: #000;
+  border-color: transparent;
+  box-shadow: none;
+  animation: none;
+  backdrop-filter: none;
+}
+
+@keyframes shimmer {
+  100% { left: 200%; }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}

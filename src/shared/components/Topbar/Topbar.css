@@ -1,0 +1,71 @@
+.topbar {
+  height: 44px;
+  position: fixed;
+  top: 0;
+  left: 200px;
+  right: 0;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px 0 16px;
+  z-index: 100;
+  -webkit-app-region: drag;
+}
+
+.topbar__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  -webkit-app-region: no-drag;
+}
+
+.topbar__search-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.topbar__search-btn:hover {
+  border-color: var(--text-muted);
+  color: var(--text-secondary);
+}
+
+.topbar__window-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+}
+
+.topbar__win-btn {
+  width: 32px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.topbar__win-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.topbar__win-btn--close:hover {
+  background: var(--strike-red);
+  color: #fff;
+}

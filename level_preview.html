@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>W — Level Progression Preview</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @font-face {
+            font-family: 'DepartureMono';
+            src: url('./fonts/DepartureMono-1.500/DepartureMono-1.500/DepartureMono-Regular.woff2') format('woff2'),
+                 url('./fonts/DepartureMono-1.500/DepartureMono-1.500/DepartureMono-Regular.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        html, body {
+            height: auto;
+            min-height: 100%;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0a0a0c;
+            font-family: 'DepartureMono', monospace;
+            color: #fff;
+            padding: 40px 60px 80px;
+        }
+
+        /* TIER 1: Display header — large, negative tracking */
+        h1 {
+            font-size: 33px;
+            font-weight: 400;
+            letter-spacing: -1px;
+            margin-bottom: 4px;
+        }
+
+        /* TIER 2: Subtitle — spaced uppercase data line */
+        .subtitle {
+            font-size: 9px;
+            color: #444;
+            margin-bottom: 40px;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+        }
+
+        .levels-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            max-width: 520px;
+        }
+
+        .level-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        /* TIER 3: Level label — small, very wide spaced, uppercase */
+        .level-label {
+            width: 70px;
+            flex-shrink: 0;
+            text-align: right;
+            font-size: 9px;
+            font-weight: 400;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        /* Description annotations — micro spaced tag, no italic (mono doesn't need it) */
+        .level-desc {
+            font-size: 8px;
+            color: #2e2e2e;
+            margin-top: 12px;
+            padding-left: 86px;
+            margin-bottom: 4px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        /* ===== BASE HABIT CARD ===== */
+        .habit-card {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 14px;
+            padding: 14px 16px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .icon-circle {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background: rgba(91, 141, 239, 0.12);
+            transition: all 0.3s ease;
+        }
+
+        .icon-circle i {
+            width: 20px;
+            height: 20px;
+            color: #5B8DEF;
+            transition: all 0.3s ease;
+        }
+
+        /* TIER 4: Habit name — clean mono, slight negative tracking */
+        .habit-name {
+            font-size: 13px;
+            font-weight: 400;
+            flex: 1;
+            letter-spacing: -0.3px;
+        }
+
+        /* TIER 5: Progress — tabular mono, accent color, tiny */
+        .habit-progress {
+            font-size: 11px;
+            font-weight: 400;
+            color: #5B8DEF;
+            letter-spacing: 0.5px;
+        }
+
+        /* Streak — micro tabular number readout */
+        .streak {
+            font-size: 9px;
+            color: #555;
+            margin-left: 6px;
+            letter-spacing: 0.5px;
+        }
+
+        /* ===== LEVEL NIL — Greyed out ===== */
+        .lvl-nil .habit-card {
+            background: rgba(255, 255, 255, 0.015);
+            border-color: rgba(255, 255, 255, 0.025);
+        }
+
+        .lvl-nil .icon-circle {
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .lvl-nil .icon-circle i {
+            color: #444;
+        }
+
+        .lvl-nil .habit-name {
+            color: #555;
+        }
+
+        .lvl-nil .habit-progress {
+            color: #444;
+        }
+
+        .lvl-nil .level-label {
+            color: #444;
+        }
+
+        /* ===== LEVEL 1 — Normal appearance ===== */
+        .lvl-1 .level-label {
+            color: #5B8DEF;
+        }
+
+        /* ===== LEVEL 2 — + Subtle border ===== */
+        .lvl-2 .habit-card {
+            border-color: rgba(91, 141, 239, 0.15);
+        }
+
+        .lvl-2 .level-label {
+            color: #5B8DEF;
+        }
+
+        /* ===== LEVEL 3 — + Slightly bolder icon ===== */
+        .lvl-3 .habit-card {
+            border-color: rgba(91, 141, 239, 0.15);
+        }
+
+        .lvl-3 .icon-circle i {
+            stroke-width: 2.25;
+        }
+
+        .lvl-3 .level-label {
+            color: #5B8DEF;
+        }
+
+        /* ===== LEVEL 4 — + Faint outer glow ===== */
+        .lvl-4 .habit-card {
+            border-color: rgba(91, 141, 239, 0.15);
+            box-shadow: 0 0 16px rgba(91, 141, 239, 0.08); /* Faint glow */
+        }
+
+        .lvl-4 .icon-circle i {
+            stroke-width: 2.25;
+        }
+
+        .lvl-4 .level-label {
+            color: #5B8DEF;
+        }
+
+        /* ===== LEVEL 5 — + Glow intensifies ===== */
+        .lvl-5 .habit-card {
+            border-color: rgba(91, 141, 239, 0.20);
+            box-shadow: 0 0 24px rgba(91, 141, 239, 0.15); /* Stronger glow to separate from 4 */
+        }
+
+        .lvl-5 .icon-circle i {
+            stroke-width: 2.25;
+        }
+
+        .lvl-5 .level-label {
+            color: #5B8DEF;
+        }
+
+        /* ===== LEVEL 6 — + Inner shadow on card ===== */
+        .lvl-6 .habit-card {
+            border-color: rgba(91, 141, 239, 0.28);
+            /* Keep outer glow from 5, but add a distinctly visible inner shadow */
+            box-shadow: 0 0 24px rgba(91, 141, 239, 0.15), inset 0 0 16px rgba(91, 141, 239, 0.08);
+        }
+
+        .lvl-6 .icon-circle i {
+            stroke-width: 2.25;
+        }
+
+        .lvl-6 .level-label {
+            color: #5B8DEF;
+        }
+
+        /* ===== LEVEL 7 — + Subtle gradient border ===== */
+        .lvl-7 .habit-card {
+            border: 1px solid transparent;
+            background-image: linear-gradient(rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.04)),
+                linear-gradient(135deg, rgba(91, 141, 239, 0.05), rgba(91, 141, 239, 0.01), rgba(91, 141, 239, 0.03));
+            background-origin: border-box;
+            background-clip: padding-box, border-box;
+            box-shadow: 0 0 18px rgba(91, 141, 239, 0.05), inset 0 0 10px rgba(91, 141, 239, 0.025);
+        }
+
+        .lvl-7 .icon-circle {
+            background: rgba(91, 141, 239, 0.18);
+            box-shadow: inset 0 0 8px rgba(91, 141, 239, 0.075);
+        }
+
+        .lvl-7 .icon-circle i {
+            stroke-width: 2.25;
+        }
+
+        .lvl-7 .level-label {
+            color: #5B8DEF;
+        }
+
+        /* ===== LEVEL 8 — + Icon inner highlight ===== */
+        .lvl-8 .habit-card {
+            border: 1px solid transparent;
+            background-image: linear-gradient(rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.04)),
+                linear-gradient(135deg, rgba(91, 141, 239, 0.07), rgba(91, 141, 239, 0.015), rgba(91, 141, 239, 0.055));
+            background-origin: border-box;
+            background-clip: padding-box, border-box;
+            box-shadow: 0 0 20px rgba(91, 141, 239, 0.06), inset 0 0 12px rgba(91, 141, 239, 0.03);
+        }
+
+        .lvl-8 .icon-circle {
+            background: rgba(91, 141, 239, 0.18);
+            box-shadow: inset 0 0 8px rgba(91, 141, 239, 0.075);
+        }
+
+        .lvl-8 .icon-circle i {
+            stroke-width: 2.25;
+        }
+
+        .lvl-8 .level-label {
+            color: #5B8DEF;
+        }
+
+        /* ===== LEVEL 9 — + Premium multi-tone border ===== */
+        .lvl-9 .habit-card {
+            border: 1px solid transparent;
+            background-image: linear-gradient(rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.04)),
+                linear-gradient(135deg, rgba(91, 141, 239, 0.085), rgba(167, 139, 250, 0.037), rgba(91, 141, 239, 0.075));
+            background-origin: border-box;
+            background-clip: padding-box, border-box;
+            box-shadow: 0 0 22px rgba(91, 141, 239, 0.07), inset 0 0 14px rgba(91, 141, 239, 0.04);
+        }
+
+        .lvl-9 .icon-circle {
+            background: rgba(91, 141, 239, 0.20);
+            box-shadow: inset 0 0 10px rgba(91, 141, 239, 0.09);
+        }
+
+        .lvl-9 .icon-circle i {
+            stroke-width: 2.25;
+        }
+
+        .lvl-9 .level-label {
+            color: #7BA4F2;
+        }
+
+        /* ===== LEVEL 10 — Full evolved ===== */
+        .lvl-10 .habit-card {
+            border: 1px solid transparent;
+            background-image: linear-gradient(135deg, rgba(91, 141, 239, 0.08), rgba(167, 139, 250, 0.03), rgba(91, 141, 239, 0.05)),
+                linear-gradient(135deg, rgba(91, 141, 239, 0.10), rgba(167, 139, 250, 0.05), rgba(56, 189, 248, 0.037), rgba(91, 141, 239, 0.087));
+            background-origin: border-box;
+            background-clip: padding-box, border-box;
+            box-shadow: 0 0 28px rgba(91, 141, 239, 0.08), 0 0 6px rgba(167, 139, 250, 0.04), inset 0 0 16px rgba(91, 141, 239, 0.05);
+        }
+
+        .lvl-10 .icon-circle {
+            background: rgba(91, 141, 239, 0.22);
+            box-shadow: inset 0 0 12px rgba(91, 141, 239, 0.10), 0 0 8px rgba(91, 141, 239, 0.05);
+        }
+
+        .lvl-10 .icon-circle i {
+            stroke-width: 2.25;
+            color: #7BAAFF;
+        }
+
+        .lvl-10 .level-label {
+            color: #7BAAFF;
+            text-shadow: 0 0 8px rgba(91, 141, 239, 0.15);
+        }
+
+        .divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.04);
+            margin: 8px 0;
+            margin-left: 86px;
+        }
+
+        /* Footer — micro spaced uppercase, barely there */
+        .footnote {
+            font-size: 8px;
+            color: #2a2a2a;
+            margin-top: 36px;
+            text-align: center;
+            max-width: 520px;
+            line-height: 2;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>W — Level Visual Progression</h1>
+    <p class="subtitle">Each level cumulatively stacks subtle visual enhancements • Same habit shown at each level</p>
+
+    <div class="levels-grid">
+
+        <p class="level-desc">Never completed — greyed out</p>
+        <div class="level-row lvl-nil">
+            <div class="level-label">Nil</div>
+            <div class="habit-card">
+                <div class="icon-circle"><i data-lucide="dumbbell"></i></div>
+                <div class="habit-name">Gym</div>
+                <div class="habit-progress">☐</div>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+        <p class="level-desc">First completion — colors restored</p>
+        <div class="level-row lvl-1">
+            <div class="level-label">Lv 1</div>
+            <div class="habit-card">
+                <div class="icon-circle"><i data-lucide="dumbbell"></i></div>
+                <div class="habit-name">Gym</div>
+                <div class="habit-progress">✅</div>
+                <span class="streak">🔥 1</span>
+            </div>
+        </div>
+
+        <p class="level-desc">+ Subtle border appears</p>
+        <div class="level-row lvl-2">
+            <div class="level-label">Lv 2</div>
+            <div class="habit-card">
+                <div class="icon-circle"><i data-lucide="dumbbell"></i></div>
+                <div class="habit-name">Gym</div>
+                <div class="habit-progress">✅</div>
+                <span class="streak">🔥 11</span>
+            </div>
+        </div>
+
+        <p class="level-desc">+ Icon slightly bolder</p>
+        <div class="level-row lvl-3">
+            <div class="level-label">Lv 3</div>
+            <div class="habit-card">
+                <div class="icon-circle"><i data-lucide="dumbbell"></i></div>
+                <div class="habit-name">Gym</div>
+                <div class="habit-progress">✅</div>
+                <span class="streak">🔥 31</span>
+            </div>
+        </div>
+
+        <p class="level-desc">+ Faint outer glow</p>
+        <div class="level-row lvl-4">
+            <div class="level-label">Lv 4</div>
+            <div class="habit-card">
+                <div class="icon-circle"><i data-lucide="dumbbell"></i></div>
+                <div class="habit-name">Gym</div>
+                <div class="habit-progress">✅</div>
+                <span class="streak">🔥 71</span>
+            </div>
+        </div>
+
+        <p class="level-desc">+ Glow intensifies</p>
+        <div class="level-row lvl-5">
+            <div class="level-label">Lv 5</div>
+            <div class="habit-card">
+                <div class="icon-circle"><i data-lucide="dumbbell"></i></div>
+                <div class="habit-name">Gym</div>
+                <div class="habit-progress">✅</div>
+                <span class="streak">🔥 151</span>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+        <p class="level-desc">+ Inner shadow on card</p>
+        <div class="level-row lvl-6">
+            <div class="level-label">Lv 6</div>
+            <div class="habit-card">
+                <div class="icon-circle"><i data-lucide="dumbbell"></i></div>
+                <div class="habit-name">Gym</div>
+                <div class="habit-progress">✅</div>
+                <span class="streak">🔥 311</span>
+            </div>
+        </div>
+
+        <p class="level-desc">+ Subtle gradient border</p>
+        <div class="level-row lvl-7">
+            <div class="level-label">Lv 7</div>
+            <div class="habit-card">
+                <div class="icon-circle"><i data-lucide="dumbbell"></i></div>
+                <div class="habit-name">Gym</div>
+                <div class="habit-progress">✅</div>
+                <span class="streak">🔥 631</span>
+            </div>
+        </div>
+
+        <p class="level-desc">+ Icon inner highlight</p>
+        <div class="level-row lvl-8">
+            <div class="level-label">Lv 8</div>
+            <div class="habit-card">
+                <div class="icon-circle"><i data-lucide="dumbbell"></i></div>
+                <div class="habit-name">Gym</div>
+                <div class="habit-progress">✅</div>
+                <span class="streak">🔥 1271</span>
+            </div>
+        </div>
+
+        <p class="level-desc">+ Premium multi-tone border</p>
+        <div class="level-row lvl-9">
+            <div class="level-label">Lv 9</div>
+            <div class="habit-card">
+                <div class="icon-circle"><i data-lucide="dumbbell"></i></div>
+                <div class="habit-name">Gym</div>
+                <div class="habit-progress">✅</div>
+                <span class="streak">🔥 2551</span>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+        <p class="level-desc">Full evolved — all effects at peak</p>
+        <div class="level-row lvl-10">
+            <div class="level-label">Lv 10</div>
+            <div class="habit-card">
+                <div class="icon-circle"><i data-lucide="dumbbell"></i></div>
+                <div class="habit-name">Gym</div>
+                <div class="habit-progress">✅</div>
+                <span class="streak">🔥 5111</span>
+            </div>
+        </div>
+
+    </div>
+
+    <p class="footnote">
+        Each level adds ONE subtle enhancement on top of everything below it.<br>
+        The progression is intentionally subtle — premium patina, not neon.<br>
+        Final effects will be refined during full UI design.
+    </p>
+
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+
+</html>

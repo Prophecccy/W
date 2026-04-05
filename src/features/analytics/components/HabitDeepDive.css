@@ -1,0 +1,94 @@
+.habit-deep-dive {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: var(--bg-default);
+  z-index: 50;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  overflow-y: auto;
+}
+
+.hdd-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 0.5rem;
+}
+
+.hdd-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.metric-card {
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.metric-card .t-display {
+  font-size: 2.5rem;
+  color: var(--accent);
+}
+.metric-card .t-display span {
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
+.heatmap-wrapper {
+  grid-column: span 3;
+}
+
+.tod-chart {
+  grid-column: span 3;
+  height: 200px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tod-bars {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  height: 100%;
+  margin-top: 1rem;
+  gap: 2px;
+}
+
+.tod-bar-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  height: 100%;
+}
+
+.tod-bar-container {
+  width: 80%;
+  height: 100%;
+  background: var(--bg-overlay);
+  display: flex;
+  align-items: flex-end;
+  border-radius: 2px;
+}
+
+.tod-bar-fill {
+  width: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+.tod-label {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}

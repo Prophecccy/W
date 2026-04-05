@@ -1,0 +1,80 @@
+.analytics-page {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.analytics-header {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.smart-insights-row {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding-bottom: 1rem;
+  scrollbar-width: none; /* Firefox */
+}
+.smart-insights-row::-webkit-scrollbar {
+  display: none; /* Chrome */
+}
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+.analytics-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.analytics-card h2 {
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.heatmap-card {
+  grid-column: span 3;
+}
+
+.rate-card {
+  grid-column: span 1;
+  justify-content: center;
+  align-items: center;
+}
+
+.rate-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rate-content .t-display {
+  font-size: 3rem;
+  color: var(--accent);
+}
+
+.trend {
+  font-family: monospace;
+  font-size: 0.9rem;
+}
+.trend.up { color: #22c55e; }
+.trend.down { color: var(--strike-red); }
+
+.chart-card {
+  grid-column: span 2;
+  min-height: 250px;
+}

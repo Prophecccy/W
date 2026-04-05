@@ -1,0 +1,66 @@
+.color-picker-component {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.color-picker-component__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.color-picker-component__btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.color-picker-component__btn:hover {
+  transform: scale(1.1);
+}
+
+.color-picker-component__btn--active {
+  border-color: #ffffff;
+  transform: scale(1.1);
+  box-shadow: 0 0 8px rgba(0,0,0,0.5);
+}
+
+.color-picker-component__custom-wrap {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.color-picker-component__custom-wrap:hover {
+  transform: scale(1.1);
+}
+
+.color-picker-component__native {
+  width: 150%;
+  height: 150%;
+  position: absolute;
+  top: -25%;
+  left: -25%;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+}
+
+.color-picker-component__native::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.color-picker-component__native::-webkit-color-swatch {
+  border: none;
+}

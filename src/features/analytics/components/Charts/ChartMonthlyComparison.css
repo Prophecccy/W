@@ -1,0 +1,16 @@
+.chart-monthly {
+  width: 100%;
+  height: 180px;
+  padding-top: 1rem;
+}
+
+.monthly-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.grid-line {
+  stroke: var(--border-default);
+  stroke-width: 1;
+}

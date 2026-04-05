@@ -1,0 +1,94 @@
+.stopwatch-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 40px;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 40px 0;
+}
+
+.stopwatch-display-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 48px;
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.stopwatch-display {
+  font-size: 5rem;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.stopwatch-controls {
+  display: flex;
+  gap: 24px;
+}
+
+.stopwatch-controls .bracket-btn {
+  font-size: 1.1rem;
+  padding: 12px 20px;
+}
+
+.stopwatch-controls .bracket-btn.is-active {
+  color: var(--accent);
+}
+
+.stopwatch-controls .bracket-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.laps-container {
+  width: 100%;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.laps-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.laps-table th {
+  padding: 16px 24px;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  color: var(--text-2);
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+}
+
+.laps-table td {
+  padding: 16px 24px;
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  color: var(--text-1);
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+
+.laps-table tr:last-child td {
+  border-bottom: none;
+}
+
+.laps-table tbody tr {
+  transition: background-color 0.2s;
+}
+
+.laps-table tbody tr:hover {
+  background-color: var(--surface-2);
+}

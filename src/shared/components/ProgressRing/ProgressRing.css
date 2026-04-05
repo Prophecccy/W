@@ -1,0 +1,11 @@
+.progress-ring {
+  display: block;
+}
+
+.progress-ring__circle-bg,
+.progress-ring__circle-fg {
+  transition: stroke-dashoffset 0.35s ease, stroke 0.35s ease;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  stroke-linecap: round;
+}

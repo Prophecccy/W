@@ -1,0 +1,44 @@
+.clock-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.clock-header {
+  padding: var(--spacing-xl);
+  padding-bottom: var(--spacing-lg);
+  display: flex;
+  justify-content: flex-start;
+}
+
+.clock-tabs {
+  display: flex;
+  gap: var(--spacing-lg);
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  padding: 0;
+  transition: color 0.2s ease;
+}
+
+.tab-btn:hover {
+  color: var(--text-secondary);
+}
+
+.tab-btn.active {
+  color: var(--accent);
+}
+
+.clock-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}

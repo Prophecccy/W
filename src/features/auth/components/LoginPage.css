@@ -1,0 +1,40 @@
+.login-page {
+  height: 100vh;
+  width: 100vw;
+  background: var(--bg-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  user-select: none;
+}
+
+.login-page__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 48px;
+}
+
+.login-page__logo {
+  font-size: 64px;
+  letter-spacing: -4px;
+  color: var(--text-primary);
+}
+
+.login-page__btn {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  padding: 12px 24px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  font-family: 'Departure Mono', monospace;
+}
+
+.login-page__btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window, sticky overlay, alarm popup, and widget",
+  "windows": ["main", "sticky-overlay", "alarm-popup", "widget"],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "dialog:default",
+    "notification:default",
+    "fs:default",
+    "fs:allow-app-data-read",
+    "fs:allow-app-data-write",
+    "fs:allow-read",
+    "fs:allow-write",
+    "fs:allow-exists",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-close",
+    "core:window:allow-set-ignore-cursor-events",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-set-always-on-bottom",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-set-focus",
+    "core:window:allow-center",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position",
+    "core:window:allow-inner-size",
+    "core:window:allow-outer-position",
+    "core:window:allow-set-decorations"
+  ]
+}

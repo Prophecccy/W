@@ -1,0 +1,77 @@
+.icon-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.icon-picker__search {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: 10px 12px;
+  border-radius: 4px;
+  outline: none;
+  font-family: 'Departure Mono', monospace;
+}
+
+.icon-picker__search:focus {
+  border-color: var(--accent);
+}
+
+.icon-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Custom scrollbar for icon grid */
+.icon-picker__grid::-webkit-scrollbar {
+  width: 4px;
+}
+.icon-picker__grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+.icon-picker__grid::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 4px;
+}
+.icon-picker__grid::-webkit-scrollbar-thumb:hover {
+  background: var(--border-subtle);
+}
+
+.icon-picker__btn {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+  height: 44px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.icon-picker__btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border-color: var(--border-subtle);
+}
+
+.icon-picker__btn--active {
+  background: var(--bg-elevated);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.icon-picker__empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 24px 0;
+  color: var(--text-muted);
+}

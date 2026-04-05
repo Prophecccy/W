@@ -1,0 +1,115 @@
+.widget-app {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'Departure Mono', monospace;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--border-default);
+}
+
+.widget-app--loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ─── Wallpaper Dim Overlay ──────────────────────────────── */
+.widget-app__dim-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-base);
+  pointer-events: none;
+  z-index: 1;
+  border-radius: 12px;
+}
+
+/* ─── Content ────────────────────────────────────────────── */
+.widget-app__content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.widget-app__habits-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+/* Custom scrollbar for widget */
+.widget-app__habits-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.widget-app__habits-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.widget-app__habits-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 2px;
+}
+
+/* ─── Habit List Sections ────────────────────────────────── */
+.widget-habit-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.widget-habit-list__section-header {
+  padding: 8px 12px 4px;
+  color: var(--strike-red);
+  letter-spacing: 2px;
+  font-size: 8px;
+}
+
+.widget-habit-list__empty {
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* ─── Lockout Overlay ────────────────────────────────────── */
+.widget-app__lockout {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(232, 115, 108, 0.12);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  border-radius: 12px;
+  animation: lockoutPulse 2s ease-in-out infinite;
+}
+
+.widget-app__lockout svg {
+  color: var(--strike-red);
+}
+
+.widget-app__lockout .t-label {
+  color: var(--strike-red);
+  letter-spacing: 2px;
+}
+
+@keyframes lockoutPulse {
+  0%, 100% { background: rgba(232, 115, 108, 0.10); }
+  50% { background: rgba(232, 115, 108, 0.20); }
+}
+
+/* ─── Frozen State ───────────────────────────────────────── */
+.widget-app--frozen {
+  filter: saturate(0.5);
+}
+
+.widget-app--frozen .powerhub__ring-progress {
+  stroke: var(--text-muted) !important;
+}

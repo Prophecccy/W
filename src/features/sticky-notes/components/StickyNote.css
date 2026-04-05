@@ -1,0 +1,142 @@
+.sticky-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: transparent;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── Individual Sticky Note ─────────────────────────────────── */
+
+.sticky-note {
+  position: absolute;
+  pointer-events: auto;
+  cursor: grab;
+  user-select: none;
+  min-width: 140px;
+  max-width: 280px;
+  background: rgba(17, 18, 20, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--card-accent, rgba(255,255,255,0.12));
+  border-radius: 4px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: box-shadow 0.2s ease, transform 0.1s ease;
+}
+
+.sticky-note:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.sticky-note--dragging {
+  cursor: grabbing;
+  opacity: 0.92;
+  transform: scale(1.03);
+  z-index: 100;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.sticky-note--holding {
+  transform: scale(0.97);
+}
+
+/* ─── Content ────────────────────────────────────────────────── */
+
+.sticky-note__title {
+  font-family: 'Departure Mono', monospace;
+  font-size: 13px;
+  color: #e8e8e8;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.sticky-note__badges {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sticky-note__badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'Departure Mono', monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 3px 6px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sticky-note__badge--deadline {
+  color: var(--card-accent, #5B8DEF);
+}
+
+.sticky-note__badge--overdue {
+  color: #E8736C;
+  border-color: rgba(232, 115, 108, 0.2);
+}
+
+.sticky-note__badge--numbered {
+  color: var(--card-accent, #5B8DEF);
+}
+
+/* ─── Progress bar for numbered ──────────────────────────────── */
+
+.sticky-note__progress {
+  height: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.sticky-note__progress-fill {
+  height: 100%;
+  background: var(--card-accent, #5B8DEF);
+  transition: width 0.3s ease;
+}
+
+/* ─── Hold fill overlay ──────────────────────────────────────── */
+
+.sticky-note__fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--card-accent, #5B8DEF);
+  opacity: 0.18;
+  z-index: -1;
+  border-radius: 3px;
+}
+
+/* ─── Completion animation ───────────────────────────────────── */
+
+.sticky-note--completing {
+  animation: sticky-complete 0.5s ease-out forwards;
+}
+
+@keyframes sticky-complete {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.92);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.7) translateY(-20px);
+  }
+}

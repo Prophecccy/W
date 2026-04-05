@@ -1,0 +1,58 @@
+.wheel-container {
+  position: relative;
+  height: 180px; /* Show 3 items (60px each) */
+  width: 80px;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
+}
+
+.wheel-scrollview {
+  height: 100%;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.wheel-scrollview::-webkit-scrollbar {
+  display: none;
+}
+
+.wheel-highlight {
+  position: absolute;
+  top: 60px; /* Second item */
+  height: 60px;
+  width: 100%;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.02);
+  pointer-events: none;
+}
+
+.wheel-item {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 32px;
+  color: var(--text-muted);
+  scroll-snap-align: center;
+  transition: color 0.2s ease, transform 0.2s ease;
+  user-select: none;
+  cursor: grab;
+}
+
+.wheel-item:active {
+  cursor: grabbing;
+}
+
+.wheel-item.selected {
+  color: var(--text-primary);
+  font-weight: 300;
+}
+
+.wheel-spacer {
+  height: 60px;
+}

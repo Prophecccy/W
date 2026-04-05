@@ -1,0 +1,142 @@
+.punishment-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--z-overlay);
+  backdrop-filter: blur(8px);
+  animation: fadeIn var(--transition-fast) ease-out forwards;
+}
+
+.punishment-modal {
+  width: 100%;
+  max-width: 520px;
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  animation: modalSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.punishment-modal__header {
+  text-align: center;
+}
+
+.punishment-modal__options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.punishment-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.punishment-card:hover {
+  border-color: var(--border-hover);
+  background-color: var(--bg-base);
+}
+
+.punishment-card--selected {
+  border-color: var(--strike-red);
+  background-color: rgba(232, 115, 108, 0.06);
+}
+
+.punishment-card--selected:hover {
+  border-color: var(--strike-red);
+}
+
+.punishment-card__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background-color: var(--bg-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.punishment-card--selected .punishment-card__icon {
+  color: var(--strike-red);
+  background-color: rgba(232, 115, 108, 0.1);
+}
+
+.punishment-card__text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.punishment-card__check {
+  color: var(--strike-red);
+  flex-shrink: 0;
+}
+
+.punishment-modal__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.punishment-modal__cancel {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 8px;
+  transition: color var(--transition-fast);
+}
+
+.punishment-modal__cancel:hover {
+  color: var(--text-primary);
+}
+
+.punishment-modal__confirm {
+  background: transparent;
+  border: 1px solid var(--strike-red);
+  color: var(--strike-red);
+  padding: 10px 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: all var(--transition-fast);
+}
+
+.punishment-modal__confirm:hover:not(:disabled) {
+  background: var(--strike-red);
+  color: #000;
+}
+
+.punishment-modal__confirm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes modalSlideUp {
+  from { opacity: 0; transform: translateY(24px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}

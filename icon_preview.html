@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Icon Preview — W</title>
+  <style>
+    @font-face {
+      font-family: 'DepartureMono';
+      src: url('./fonts/DepartureMono-1.500/DepartureMono-1.500/DepartureMono-Regular.woff2') format('woff2'),
+           url('./fonts/DepartureMono-1.500/DepartureMono-1.500/DepartureMono-Regular.woff') format('woff');
+      font-weight: normal;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0d0d0f;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100%;
+      font-family: 'DepartureMono', monospace;
+      color: #fff;
+      gap: 32px;
+      padding: 40px 40px 80px;
+      overflow-y: auto;
+    }
+
+    /* TIER 1: Section label — wide tracking, uppercase, dim */
+    h2 {
+      font-size: 11px;
+      font-weight: 400;
+      color: #555;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      margin-bottom: -12px;
+    }
+
+    .card-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .habit-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
+      padding: 16px 18px;
+      position: relative;
+      transition: all 0.2s ease;
+      backdrop-filter: blur(20px);
+    }
+
+    .habit-card:hover {
+      background: rgba(255, 255, 255, 0.07);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .icon-circle {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .icon-circle svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .habit-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    /* TIER 2: Habit name — normal size, slight negative tracking, clean */
+    .habit-name {
+      font-size: 14px;
+      font-weight: 400;
+      letter-spacing: -0.3px;
+    }
+
+    /* TIER 3: Meta info — very small, wide tracking, muted */
+    .habit-meta {
+      font-size: 9px;
+      color: #555;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    /* TIER 4: Progress — tabular, mono-data style, accent color */
+    .habit-progress {
+      font-size: 11px;
+      font-weight: 400;
+      color: #aaa;
+      text-align: right;
+      flex-shrink: 0;
+      letter-spacing: 0.5px;
+    }
+
+    /* TIER 5: Badge — smallest, purely numeric/data */
+    .streak-badge {
+      font-size: 9px;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      margin-left: auto;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.04);
+      letter-spacing: 1px;
+    }
+
+    /* Per-habit accent colors */
+    .blue .icon-circle { background: rgba(91, 141, 239, 0.12); }
+    .blue .icon-circle svg { stroke: #5B8DEF; }
+    .blue .habit-progress { color: #5B8DEF; }
+
+    .coral .icon-circle { background: rgba(232, 115, 108, 0.12); }
+    .coral .icon-circle svg { stroke: #E8736C; }
+    .coral .habit-progress { color: #E8736C; }
+
+    .mint .icon-circle { background: rgba(92, 201, 167, 0.12); }
+    .mint .icon-circle svg { stroke: #5CC9A7; }
+    .mint .habit-progress { color: #5CC9A7; }
+
+    .amber .icon-circle { background: rgba(240, 165, 90, 0.12); }
+    .amber .icon-circle svg { stroke: #F0A55A; }
+    .amber .habit-progress { color: #F0A55A; }
+
+    .lavender .icon-circle { background: rgba(167, 139, 250, 0.12); }
+    .lavender .icon-circle svg { stroke: #A78BFA; }
+    .lavender .habit-progress { color: #A78BFA; }
+
+    .rose .icon-circle { background: rgba(244, 114, 182, 0.12); }
+    .rose .icon-circle svg { stroke: #F472B6; }
+    .rose .habit-progress { color: #F472B6; }
+
+    /* Limiter section */
+    .limiter-section {
+      margin-top: 8px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .limiter-label {
+      font-size: 9px;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      margin-bottom: 8px;
+    }
+
+    .limiter .icon-circle { background: rgba(239, 68, 68, 0.12); }
+    .limiter .icon-circle svg { stroke: #EF4444; }
+    .limiter .habit-progress { color: #EF4444; }
+    .limiter .habit-card { border-color: rgba(239, 68, 68, 0.1); }
+
+    /* Footer note — micro, spaced, barely visible */
+    .note {
+      font-size: 9px;
+      color: #333;
+      text-align: center;
+      max-width: 400px;
+      line-height: 1.8;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Lucide Icons — Dark Mode Preview</h2>
+
+  <div class="card-container">
+
+    <!-- Dumbbell — Fitness -->
+    <div class="habit-card blue">
+      <div class="icon-circle">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.4 14.4 9.6 9.6"/><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767-1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l1.767 1.767a2 2 0 1 1 2.828 2.829z"/><path d="m21.5 21.5-1.4-1.4"/><path d="M3.9 3.9 2.5 2.5"/><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z"/></svg>
+      </div>
+      <div class="habit-info">
+        <div class="habit-name">Gym</div>
+        <div class="habit-meta">Daily • Standard</div>
+      </div>
+      <div class="streak-badge">🔥 12</div>
+      <div class="habit-progress">✅</div>
+    </div>
+
+    <!-- BookOpen — Learning -->
+    <div class="habit-card amber">
+      <div class="icon-circle">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
+      </div>
+      <div class="habit-info">
+        <div class="habit-name">Reading</div>
+        <div class="habit-meta">Daily • Metric</div>
+      </div>
+      <div class="streak-badge">🔥 8</div>
+      <div class="habit-progress">12/30 pages</div>
+    </div>
+
+    <!-- Droplets — Health -->
+    <div class="habit-card mint">
+      <div class="icon-circle">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"/><path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97"/></svg>
+      </div>
+      <div class="habit-info">
+        <div class="habit-name">Water Intake</div>
+        <div class="habit-meta">Daily • Metric</div>
+      </div>
+      <div class="streak-badge">🔥 25</div>
+      <div class="habit-progress">3/5 liters</div>
+    </div>
+
+    <!-- Code — Work -->
+    <div class="habit-card lavender">
+      <div class="icon-circle">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      </div>
+      <div class="habit-info">
+        <div class="habit-name">Focus Work</div>
+        <div class="habit-meta">Daily • Metric (Timer)</div>
+      </div>
+      <div class="streak-badge">🔥 5</div>
+      <div class="habit-progress">0/60 mins</div>
+    </div>
+
+    <!-- Music — Creative -->
+    <div class="habit-card rose">
+      <div class="icon-circle">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      </div>
+      <div class="habit-info">
+        <div class="habit-name">Guitar Practice</div>
+        <div class="habit-meta">Weekly 3x • Metric</div>
+      </div>
+      <div class="streak-badge">🔥 3</div>
+      <div class="habit-progress">1/30 mins</div>
+    </div>
+
+    <!-- Limiter Section -->
+    <div class="limiter-section">
+      <div class="limiter-label">⚠️ Limiters</div>
+      <div class="habit-card limiter">
+        <div class="icon-circle">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
+        </div>
+        <div class="habit-info">
+          <div class="habit-name">Coffee</div>
+          <div class="habit-meta">Daily • Limiter</div>
+        </div>
+        <div class="streak-badge">🔥 14</div>
+        <div class="habit-progress">1/3 cups</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note">All icons are hollow/outline Lucide SVGs · Each habit has its own color from the curated palette · Limiter section is always separate</p>
+
+</body>
+</html>

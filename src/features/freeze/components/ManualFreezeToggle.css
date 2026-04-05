@@ -1,0 +1,82 @@
+/* ─── ManualFreezeToggle ─────────────────────────────────────── */
+
+.freeze-toggle {
+  width: 100%;
+  max-width: 480px;
+  padding: 20px 24px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+}
+
+.freeze-toggle__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+
+.freeze-toggle__body {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.freeze-toggle__info {
+  flex: 1;
+}
+
+.freeze-toggle__info .t-body {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.freeze-toggle__since {
+  margin-top: 8px;
+  color: var(--accent);
+}
+
+.freeze-toggle__btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  font-family: "Departure Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.freeze-toggle__btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--bg-base);
+}
+
+.freeze-toggle__btn--active {
+  border-color: var(--text-secondary);
+  color: var(--text-secondary);
+}
+
+.freeze-toggle__btn--active:hover:not(:disabled) {
+  background: var(--text-secondary);
+  color: var(--bg-base);
+}
+
+.freeze-toggle__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.freeze-toggle__history {
+  margin-top: 12px;
+  color: var(--text-muted);
+}

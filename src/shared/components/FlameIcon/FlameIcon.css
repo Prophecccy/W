@@ -1,0 +1,154 @@
+.flame-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.flame-svg-outer {
+  width: 100%;
+  height: 100%;
+  color: var(--text-muted); /* base fallback */
+  transition: all 0.3s ease;
+}
+
+/* ─── TIER 1 (1-6) ─── */
+/* Greyed out / low opacity orange */
+.flame-tier-1 .flame-svg-outer {
+  color: #666;
+  opacity: 0.8;
+}
+
+/* ─── TIER 2 (7-29) ─── */
+/* Base accent, subtle flicker */
+.flame-tier-2 .flame-svg-outer {
+  color: var(--accent);
+}
+.flame-tier-2:not(.low-graphics) .flame-svg-outer {
+  animation: flame-flicker 3s infinite alternate ease-in-out;
+}
+
+/* ─── TIER 3 (30-59) ─── */
+/* Inner core enabled from React, slightly brighter base, stronger flicker */
+.flame-tier-3 .flame-svg-outer {
+  color: var(--accent);
+}
+.flame-tier-3:not(.low-graphics) .flame-svg-outer {
+  animation: flame-flicker 2s infinite alternate ease-in-out;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.2));
+}
+
+/* ─── TIER 4 (60-99) ─── */
+/* Outer glow + Particles */
+.flame-tier-4 .flame-svg-outer {
+  color: var(--accent);
+}
+.flame-tier-4:not(.low-graphics) .flame-svg-outer {
+  animation: flame-flicker 1.5s infinite alternate ease-in-out;
+  filter: drop-shadow(0 0 6px var(--accent));
+}
+
+/* ─── TIER 5 (100-199) ─── */
+/* Golden Aura */
+.flame-tier-5 .flame-svg-outer {
+  color: #FFD700;
+}
+.flame-tier-5:not(.low-graphics) .flame-svg-outer {
+  animation: flame-flicker-gold 1.5s infinite alternate ease-in-out;
+  filter: drop-shadow(0 0 8px #FFD700) drop-shadow(0 0 12px var(--accent));
+}
+
+/* ─── TIER 6 (200-364) ─── */
+/* Ember trail */
+.flame-tier-6 .flame-svg-outer {
+  color: #FFA500;
+}
+.flame-tier-6:not(.low-graphics) .flame-svg-outer {
+  animation: flame-flicker-intense 1s infinite alternate ease-in-out;
+  filter: drop-shadow(0 0 12px #FF4500) drop-shadow(0 4px 18px var(--accent));
+}
+
+.flame-tier-6:not(.low-graphics)::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 12px;
+  background: linear-gradient(to bottom, #FF4500, transparent);
+  filter: blur(2px);
+  animation: ember-trail 2s infinite linear;
+}
+
+/* ─── TIER 7 (365+) ─── */
+/* Peak visual: intense contrast glow */
+.flame-tier-7 .flame-svg-outer {
+  color: #FFFFFF;
+}
+.flame-tier-7:not(.low-graphics) .flame-svg-outer {
+  animation: flame-flicker-peak 1.2s infinite alternate ease-in-out;
+  filter: drop-shadow(0 0 10px #00FFFF) drop-shadow(0 0 20px #FF00FF) drop-shadow(0 0 30px var(--accent));
+}
+
+/* ─── Particles (Tier 4+) ─── */
+.flame-particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.particle {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background-color: #FFF;
+  border-radius: 50%;
+  opacity: 0;
+}
+.flame-tier-4 .particle, 
+.flame-tier-5 .particle,
+.flame-tier-6 .particle,
+.flame-tier-7 .particle {
+  animation: particle-rise 2s infinite ease-in;
+}
+
+.particle.p1 { left: 20%; animation-delay: 0s; }
+.particle.p2 { left: 50%; animation-delay: 0.7s; }
+.particle.p3 { left: 80%; animation-delay: 1.4s; }
+
+
+/* ─── KEYFRAMES ─── */
+@keyframes flame-flicker {
+  0% { transform: scale(1) translateY(0); opacity: 0.9; }
+  100% { transform: scale(1.05) translateY(-1px); opacity: 1; }
+}
+
+@keyframes flame-flicker-gold {
+  0% { transform: scale(1) rotate(-2deg); opacity: 0.9; }
+  100% { transform: scale(1.1) rotate(2deg); opacity: 1; filter: drop-shadow(0 0 12px #FFD700) drop-shadow(0 0 16px var(--accent)); }
+}
+
+@keyframes flame-flicker-intense {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.1) skewX(2deg); opacity: 1; }
+  100% { transform: scale(1.05) skewX(-2deg); opacity: 0.9; }
+}
+
+@keyframes flame-flicker-peak {
+  0% { transform: scale(1) translateY(0); filter: drop-shadow(0 0 10px #00FFFF) drop-shadow(0 0 20px #FF00FF); }
+  100% { transform: scale(1.15) translateY(-2px); filter: drop-shadow(0 0 15px #FF00FF) drop-shadow(0 0 25px #00FFFF); }
+}
+
+@keyframes particle-rise {
+  0% { transform: translateY(5px) scale(1); opacity: 1; }
+  100% { transform: translateY(-15px) scale(0); opacity: 0; }
+}
+
+@keyframes ember-trail {
+  0% { transform: translateX(-50%) translateY(0); opacity: 0.8; }
+  100% { transform: translateX(-50%) translateY(10px); opacity: 0; height: 2px; }
+}

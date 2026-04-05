@@ -1,0 +1,130 @@
+.habit-card {
+  --card-accent: var(--accent); /* Overriden via style tag for limiters/custom colors */
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  padding: 16px;
+  min-height: 80px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.1s ease, border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.habit-card:hover {
+  border-color: var(--border-subtle);
+  transform: translateY(-1px);
+}
+
+.habit-card:active {
+  transform: scale(0.98);
+}
+
+.habit-card--completed {
+  opacity: 0.5 !important; /* Forces fade even if Lv1 container tries to override */
+  pointer-events: none; /* Can't hold a completed habit */
+}
+
+/* Framer motion element for hold animation */
+.habit-card__fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.habit-card__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.habit-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.habit-card__title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.habit-card__icon {
+  margin-right: 4px;
+}
+
+.habit-card__title {
+  font-weight: 500;
+}
+
+.habit-card__stats-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.habit-card__streak {
+  color: var(--text-secondary);
+}
+
+.habit-card__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.habit-card__badges {
+  display: flex;
+  gap: 8px;
+}
+
+.badge {
+  color: var(--text-muted);
+}
+
+.limiter-badge {
+  color: var(--strike-red);
+}
+
+.habit-card__metric-display {
+  color: var(--card-accent);
+}
+
+.habit-card__complete-check {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  color: var(--text-muted);
+}
+
+/* Metric Track at bottom edge */
+.habit-card__progress-track {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: var(--bg-base);
+}
+
+.habit-card__progress-fill {
+  height: 100%;
+  background: var(--card-accent);
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.habit-card__progress-fill[data-limit-exceeded="true"] {
+  background: var(--strike-red);
+}

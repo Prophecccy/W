@@ -1,0 +1,108 @@
+/* ─── Level Visual Tiers for Habit Card ─── */
+
+/* Lv0: Nil (greyed) */
+.habit-card.level-tier-0 {
+  opacity: 0.6;
+}
+
+/* Lv1: Normal */
+/* .habit-card.level-tier-1 is skipped as it uses default styles */
+
+/* Lv2: Border */
+.habit-card.level-tier-2 {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Lv3: Bolder icon/title */
+.habit-card.level-tier-3 .habit-card__title,
+.habit-card.level-tier-3 .habit-card__icon {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Lv4: Faint glow */
+.habit-card.level-tier-4 {
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.05);
+}
+
+/* Lv5: Accent glow */
+.habit-card.level-tier-5 {
+  border-color: var(--card-accent);
+  box-shadow: 0 0 10px calc(var(--card-accent) + 33); /* Hex alpha trick or rely on rgba if we use RGB vars */
+  /* Fallback if var(--card-accent) is hex: */
+  box-shadow: 0 0 12px rgba(255,255,255,0.1); 
+  border-color: var(--card-accent) !important;
+}
+
+/* Lv6: Shimmer border */
+.habit-card.level-tier-6 {
+  border-color: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0 12px rgba(255,255,255,0.15);
+}
+.habit-card.level-tier-6::before {
+  content: "";
+  position: absolute;
+  top: 0; left: -100%;
+  width: 50%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  animation: card-shimmer 3s infinite;
+  pointer-events: none;
+}
+
+/* Lv7: Icon highlight / heavier glow */
+.habit-card.level-tier-7 {
+  border-color: #FFF;
+  box-shadow: 0 4px 12px rgba(255,255,255,0.2);
+}
+.habit-card.level-tier-7 .habit-card__icon {
+  filter: drop-shadow(0 0 4px var(--card-accent));
+}
+
+/* Lv8: Gradient Background */
+.habit-card.level-tier-8 {
+  border: 1px solid var(--card-accent);
+  background: linear-gradient(135deg, var(--bg-surface), rgba(255, 255, 255, 0.05));
+  box-shadow: 0 2px 15px rgba(255, 255, 255, 0.1);
+}
+
+/* Lv9: Premium Glassmorphism */
+.habit-card.level-tier-9 {
+  background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Lv10: All effects peak */
+.habit-card.level-tier-10 {
+  background: linear-gradient(45deg, rgba(255,215,0,0.1), rgba(255,165,0,0.1), rgba(255,255,255,0.1));
+  background-size: 200% 200%;
+  animation: card-bg-shift 5s ease infinite;
+  border: 1px solid #FFF;
+  box-shadow: 0 0 20px rgba(255,255,255,0.2), inset 0 0 10px rgba(255,255,255,0.05);
+}
+.habit-card.level-tier-10 .habit-card__icon {
+  filter: drop-shadow(0 0 8px #FFD700);
+}
+
+/* Low graphics resets */
+body.low-graphics .habit-card[class*="level-tier-"]::before {
+  animation: none !important;
+  display: none !important;
+}
+body.low-graphics .habit-card.level-tier-10 {
+  animation: none !important;
+  background: var(--bg-surface) !important;
+  border-color: #FFF !important;
+}
+
+@keyframes card-shimmer {
+  100% { left: 200%; }
+}
+
+@keyframes card-bg-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}

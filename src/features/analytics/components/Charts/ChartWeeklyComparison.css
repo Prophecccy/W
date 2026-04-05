@@ -1,0 +1,45 @@
+.chart-weekly {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-top: 1rem;
+}
+
+.chart-bars {
+  display: flex;
+  gap: 1.5rem;
+  height: 180px;
+  align-items: flex-end;
+}
+
+.bar-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.bar-container {
+  width: 24px;
+  height: 100%;
+  background: var(--bg-overlay);
+  border-radius: 4px;
+  display: flex;
+  align-items: flex-end;
+  position: relative;
+  overflow: hidden;
+}
+
+.bar-fill {
+  width: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+}
+
+.day-label {
+  color: var(--text-muted);
+}

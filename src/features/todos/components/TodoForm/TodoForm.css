@@ -1,0 +1,142 @@
+.todo-form {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.todo-form__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+  color: var(--text-muted);
+}
+
+.todo-form__close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.todo-form__close:hover {
+  color: var(--text-primary);
+}
+
+.todo-form__content {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.todo-form__step {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: fade-in 0.2s ease forwards;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.todo-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.todo-form__input {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: 12px;
+  border-radius: 4px;
+  outline: none;
+  width: 100%;
+  font-family: inherit;
+  transition: border-color 0.2s ease;
+}
+
+.todo-form__input:focus {
+  border-color: var(--accent);
+}
+
+.todo-form__textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.todo-form__radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.todo-form__radio-btn {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  padding: 16px;
+  border-radius: 4px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.todo-form__radio-btn:hover {
+  border-color: var(--border-subtle);
+  background: var(--bg-elevated);
+}
+
+.todo-form__radio-btn--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg-elevated);
+}
+
+.todo-form__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-default);
+}
+
+.todo-form__btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 8px 16px;
+  transition: color 0.2s ease;
+}
+
+.todo-form__btn:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.todo-form__btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.todo-form__btn--primary {
+  color: var(--accent);
+}
+
+.todo-form__btn--primary:hover:not(:disabled) {
+  color: var(--accent);
+  opacity: 0.8;
+}
+
+/* Margin helpers */
+.mt-4 { margin-top: 16px; }
+.mb-1 { margin-bottom: 4px; }

@@ -1,0 +1,3 @@
+﻿src/features/auth/context.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/shared/components/IconPicker/LucideIcon.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/shared/components/Toast/Toast.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
