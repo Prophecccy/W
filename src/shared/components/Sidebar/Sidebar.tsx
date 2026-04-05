@@ -6,6 +6,7 @@ import {
   BarChart3,
   Settings,
   AlertTriangle,
+  Download,
 } from "lucide-react";
 import { FlameIcon } from "../FlameIcon/FlameIcon";
 import "./Sidebar.css";
@@ -58,6 +59,20 @@ export function Sidebar({ strikeCount = 0, globalStreak = 0 }: SidebarProps) {
           <AlertTriangle size={14} strokeWidth={1.5} />
           <span className="t-data">{strikeCount}/5</span>
         </div>
+      </div>
+
+      <div className="sidebar__divider" />
+
+      <div style={{ padding: "0 10px 16px 10px" }}>
+        <a 
+          href="https://github.com/Prophecccy/W/releases/latest"
+          target="_blank"
+          rel="noreferrer"
+          className="sidebar__download-btn"
+        >
+          <Download size={14} />
+          <span className="t-body">GET DESKTOP APP</span>
+        </a>
       </div>
     </aside>
   );

@@ -102,3 +102,25 @@
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.4; }
 }
+
+.sidebar__download-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  background-color: var(--accent);
+  color: var(--bg-base);
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: bold;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.sidebar__download-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
