@@ -31,7 +31,7 @@ export function TodoForm({ onClose, onSuccess }: TodoFormProps) {
     if (!title.trim()) return;
     setIsSubmitting(true);
     try {
-      await createTodo({
+      const todoData: Parameters<typeof createTodo>[0] = {
         title,
         description,
         type,
@@ -39,9 +39,14 @@ export function TodoForm({ onClose, onSuccess }: TodoFormProps) {
         order: 0,
         deadline: deadline || null,
         future: future || null,
-        numbered: type === "numbered" ? { current: 0, target } : undefined,
-        stickyPosition: showOnDesktop ? { x: 100, y: 100 } : undefined,
-      });
+      };
+      if (type === "numbered") {
+        todoData.numbered = { current: 0, target };
+      }
+      if (showOnDesktop) {
+        todoData.stickyPosition = { x: 100, y: 100 };
+      }
+      await createTodo(todoData);
       if (onSuccess) onSuccess();
       onClose();
     } catch (e) {
