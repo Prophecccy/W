@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useWidgetData } from '../hooks/useWidgetData';
 import { PowerHub } from './PowerHub/PowerHub';
 import { WidgetHabitList } from './HabitList/WidgetHabitList';
 import { loadWidgetPosition, saveWidgetPosition } from '../services/widgetPositionStore';
 import { ShieldAlert } from 'lucide-react';
+import { getLocalWallpaper } from '../../../shared/utils/storageUtils';
 import './WidgetApp.css';
 
 export function WidgetApp() {
@@ -25,7 +26,33 @@ export function WidgetApp() {
   const isFrozen = userDoc?.freeze?.active === true;
 
   // Wallpaper
-  const wallpaperUrl = userDoc?.wallpapers?.widget ?? null;
+  const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function applyWallpaper() {
+      try {
+        const widgetUrl = await getLocalWallpaper("widget");
+        setWallpaperUrl(widgetUrl || null);
+      } catch {
+        setWallpaperUrl(null);
+      }
+    }
+
+    applyWallpaper();
+    
+    const channel = new BroadcastChannel('w_channel');
+    channel.onmessage = (e) => {
+      if (e.data.type === 'WALLPAPER_CHANGED') {
+        applyWallpaper();
+      }
+    };
+    
+    window.addEventListener("wallpaper-changed", applyWallpaper);
+    return () => {
+      channel.close();
+      window.removeEventListener("wallpaper-changed", applyWallpaper);
+    };
+  }, []);
   const dimIntensity = userDoc?.aesthetics?.widget?.dimIntensity ?? 0.7;
   const accentColor = userDoc?.aesthetics?.widget?.accentColor ?? userDoc?.aesthetics?.desktop?.accentColor ?? '#5B8DEF';
 

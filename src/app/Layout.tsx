@@ -26,6 +26,7 @@ import { getTodos } from "../features/todos/services/todoService";
 import { completeHabit } from "../features/habits/services/logService";
 import { getToday } from "../shared/utils/dateUtils";
 import { useNotifications } from "../shared/hooks/useNotifications";
+import { getLocalWallpaper } from "../shared/utils/storageUtils";
 import "./Layout.css";
 
 // ─── Startup phases ──────────────────────────────────────────────
@@ -64,12 +65,7 @@ export function Layout() {
         setUserDoc(doc);
         document.documentElement.style.setProperty("--accent", doc.aesthetics.desktop.accentColor);
         
-        // Wallpaper injection
-        if (doc.wallpapers?.desktop) {
-          document.documentElement.style.setProperty("--app-wallpaper", `url('${doc.wallpapers.desktop}')`);
-        } else {
-          document.documentElement.style.removeProperty("--app-wallpaper");
-        }
+        // Wallpaper is now fetched locally below
         
         // Dim intensity
         const dimStr = (doc.aesthetics.desktop.dimIntensity ?? 0.2).toString();
@@ -89,6 +85,37 @@ export function Layout() {
     }
     init();
   }, [user]);
+
+  // ── Apply Desktop Wallpaper (Local cache) ──────────────────────
+  useEffect(() => {
+    async function applyWallpaper() {
+      try {
+        const desktopUrl = await getLocalWallpaper("desktop");
+        if (desktopUrl) {
+          document.documentElement.style.setProperty("--app-wallpaper", `url('${desktopUrl}')`);
+        } else {
+          document.documentElement.style.removeProperty("--app-wallpaper");
+        }
+      } catch {
+        document.documentElement.style.removeProperty("--app-wallpaper");
+      }
+    }
+
+    applyWallpaper();
+
+    const channel = new BroadcastChannel('w_channel');
+    channel.onmessage = (e) => {
+      if (e.data.type === 'WALLPAPER_CHANGED') {
+        applyWallpaper();
+      }
+    };
+
+    window.addEventListener("wallpaper-changed", applyWallpaper);
+    return () => {
+      channel.close();
+      window.removeEventListener("wallpaper-changed", applyWallpaper);
+    };
+  }, []);
 
   // ── Initialize clock schedulers ─────────────────────────────────
   useEffect(() => {

@@ -1,10 +1,8 @@
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { doc, updateDoc } from "firebase/firestore";
-import { auth, storage, db } from "../../../shared/config/firebase";
 import { Wallpapers } from "../../../shared/types";
+import { setLocalWallpaper, removeLocalWallpaper } from "../../../shared/utils/storageUtils";
 
 // ─── Image Compression ─────────────────────────────────────────
-// Resizes images to a max dimension and converts to WebP for faster uploads.
+// Resizes images to a max dimension and converts to WebP for faster local loading.
 function compressImage(file: File, maxDim = 1920, quality = 0.8): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -39,62 +37,21 @@ function compressImage(file: File, maxDim = 1920, quality = 0.8): Promise<Blob> 
   });
 }
 
-// ─── Upload with Progress ───────────────────────────────────────
-export type UploadProgressCallback = (progress: number) => void;
-
+// ─── Local Storage Upload ───────────────────────────────────────
 export async function uploadWallpaper(
   slot: keyof Wallpapers,
-  file: File,
-  onProgress?: UploadProgressCallback
+  file: File
 ): Promise<string> {
-  const user = auth.currentUser;
-  if (!user) throw new Error("No user logged in");
-
-  // 1. Compress before uploading
+  // 1. Compress image to WebP before saving
   const compressed = await compressImage(file);
 
-  // 2. Create storage ref
-  const filePath = `users/${user.uid}/wallpapers/${slot}_${Date.now()}.webp`;
-  const storageRef = ref(storage, filePath);
-
-  // 3. Upload with progress tracking
-  return new Promise((resolve, reject) => {
-    const task = uploadBytesResumable(storageRef, compressed, {
-      contentType: "image/webp",
-    });
-
-    task.on(
-      "state_changed",
-      (snapshot) => {
-        const pct = Math.round(
-          (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-        );
-        onProgress?.(pct);
-      },
-      (error) => reject(error),
-      async () => {
-        try {
-          const downloadUrl = await getDownloadURL(task.snapshot.ref);
-          // 4. Update Firestore user doc
-          const userRef = doc(db, "users", user.uid);
-          await updateDoc(userRef, {
-            [`wallpapers.${slot}`]: downloadUrl,
-          });
-          resolve(downloadUrl);
-        } catch (err) {
-          reject(err);
-        }
-      }
-    );
-  });
+  // 2. Save directly to IndexedDb (Local Cache)
+  const objectUrl = await setLocalWallpaper(slot, compressed);
+  
+  // 3. Return the exact object URL so it renders instantly
+  return objectUrl;
 }
 
 export async function removeWallpaper(slot: keyof Wallpapers): Promise<void> {
-  const user = auth.currentUser;
-  if (!user) throw new Error("No user logged in");
-
-  const userRef = doc(db, "users", user.uid);
-  await updateDoc(userRef, {
-    [`wallpapers.${slot}`]: null,
-  });
+  await removeLocalWallpaper(slot);
 }

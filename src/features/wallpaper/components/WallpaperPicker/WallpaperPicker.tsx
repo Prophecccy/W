@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useAuthContext } from "../../../auth/context";
-import { getUserDoc } from "../../../auth/services/userService";
 import { uploadWallpaper, removeWallpaper } from "../../services/wallpaperService";
+import { getAllLocalWallpapers } from "../../../../shared/utils/storageUtils";
 import { Wallpapers } from "../../../../shared/types";
 import { useToast } from "../../../../shared/components/Toast/Toast";
 import { Image as ImageIcon, Upload, Trash2 } from "lucide-react";
@@ -14,7 +13,6 @@ const SLOTS: Array<{ key: keyof Wallpapers; label: string }> = [
 ];
 
 export function WallpaperPicker() {
-  const { user } = useAuthContext();
   const { showToast } = useToast();
   
   const [wallpapers, setWallpapers] = useState<Wallpapers>({
@@ -24,19 +22,17 @@ export function WallpaperPicker() {
   });
   
   const [loadingObj, setLoadingObj] = useState<Record<string, boolean>>({});
-  const [progressObj, setProgressObj] = useState<Record<string, number>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeSlot, setActiveSlot] = useState<keyof Wallpapers | null>(null);
 
   useEffect(() => {
-    if (user) {
-      getUserDoc(user.uid).then((doc: any) => {
-        if (doc && doc.wallpapers) {
-          setWallpapers(doc.wallpapers);
-        }
-      });
-    }
-  }, [user]);
+    // Fetch directly from IndexedDB on mount
+    getAllLocalWallpapers().then((localWallpapers) => {
+      setWallpapers(localWallpapers);
+    }).catch(err => {
+      console.error("Failed to load local wallpapers", err);
+    });
+  }, []);
 
   const handleUploadClick = (slot: keyof Wallpapers) => {
     setActiveSlot(slot);
@@ -47,37 +43,35 @@ export function WallpaperPicker() {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !activeSlot || !user) return;
+    if (!file || !activeSlot) return;
     
     // Reset input
     e.target.value = '';
 
     const slotKey = activeSlot;
     setLoadingObj((p) => ({ ...p, [slotKey]: true }));
-    setProgressObj((p) => ({ ...p, [slotKey]: 0 }));
 
     try {
-      const url = await uploadWallpaper(slotKey, file, (pct) => {
-        setProgressObj((p) => ({ ...p, [slotKey]: pct }));
-      });
+      const url = await uploadWallpaper(slotKey, file);
       setWallpapers((prev: Wallpapers) => ({ ...prev, [slotKey]: url }));
-      showToast("[ WALLPAPER UPLOADED ]");
+      // Tell parent windows (like WidgetApp or Dashboard) about the change via an event
+      window.dispatchEvent(new Event('wallpaper-changed'));
+      
+      showToast("[ WALLPAPER SAVED ]");
     } catch (err: any) {
-      showToast(`[ UPLOAD FAILED: ${err.message?.toUpperCase() || "ERROR"} ]`);
+      showToast(`[ SAVE FAILED: ${err.message?.toUpperCase() || "ERROR"} ]`);
     } finally {
       setLoadingObj((p) => ({ ...p, [slotKey]: false }));
-      setProgressObj((p) => ({ ...p, [slotKey]: 0 }));
       setActiveSlot(null);
     }
   };
 
   const handleRemove = async (slot: keyof Wallpapers) => {
-    if (!user) return;
-    
     setLoadingObj((p) => ({ ...p, [slot]: true }));
     try {
       await removeWallpaper(slot);
       setWallpapers((prev: Wallpapers) => ({ ...prev, [slot]: null }));
+      window.dispatchEvent(new Event('wallpaper-changed'));
       showToast("[ WALLPAPER REMOVED ]");
     } catch (err: any) {
       showToast("[ FAILED TO REMOVE ]");
@@ -101,7 +95,6 @@ export function WallpaperPicker() {
           const keyStr = slot.key as string;
           const currentUrl = wallpapers[slot.key];
           const isLoading = loadingObj[keyStr];
-          const progress = progressObj[keyStr] || 0;
 
           return (
             <div key={keyStr} className="wallpaper-slot">
@@ -109,15 +102,7 @@ export function WallpaperPicker() {
               
               <div className="wallpaper-slot__preview">
                 {isLoading ? (
-                  <div className="upload-progress">
-                    <div
-                      className="upload-progress__bar"
-                      style={{ width: `${progress}%` }}
-                    />
-                    <span className="upload-progress__text t-data">
-                      {progress < 100 ? `${progress}%` : "SAVING..."}
-                    </span>
-                  </div>
+                  <span className="t-meta">SAVING...</span>
                 ) : currentUrl ? (
                   <img src={currentUrl} alt={`${slot.label} wallpaper`} />
                 ) : (

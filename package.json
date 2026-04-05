@@ -19,6 +19,7 @@
     "@tauri-apps/plugin-opener": "^2",
     "firebase": "^12.11.0",
     "framer-motion": "^12.38.0",
+    "idb-keyval": "^6.2.2",
     "lucide-react": "^0.577.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
