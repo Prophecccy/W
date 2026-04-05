@@ -24,6 +24,7 @@ export function WallpaperPicker() {
   });
   
   const [loadingObj, setLoadingObj] = useState<Record<string, boolean>>({});
+  const [progressObj, setProgressObj] = useState<Record<string, number>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeSlot, setActiveSlot] = useState<keyof Wallpapers | null>(null);
 
@@ -51,17 +52,21 @@ export function WallpaperPicker() {
     // Reset input
     e.target.value = '';
 
-    setLoadingObj((p) => ({ ...p, [activeSlot]: true }));
-    showToast("[ UPLOADING WALLPAPER ]");
+    const slotKey = activeSlot;
+    setLoadingObj((p) => ({ ...p, [slotKey]: true }));
+    setProgressObj((p) => ({ ...p, [slotKey]: 0 }));
 
     try {
-      const url = await uploadWallpaper(activeSlot, file);
-      setWallpapers((prev: Wallpapers) => ({ ...prev, [activeSlot]: url }));
+      const url = await uploadWallpaper(slotKey, file, (pct) => {
+        setProgressObj((p) => ({ ...p, [slotKey]: pct }));
+      });
+      setWallpapers((prev: Wallpapers) => ({ ...prev, [slotKey]: url }));
       showToast("[ WALLPAPER UPLOADED ]");
     } catch (err: any) {
       showToast(`[ UPLOAD FAILED: ${err.message?.toUpperCase() || "ERROR"} ]`);
     } finally {
-      setLoadingObj((p) => ({ ...p, [activeSlot]: false }));
+      setLoadingObj((p) => ({ ...p, [slotKey]: false }));
+      setProgressObj((p) => ({ ...p, [slotKey]: 0 }));
       setActiveSlot(null);
     }
   };
@@ -96,6 +101,7 @@ export function WallpaperPicker() {
           const keyStr = slot.key as string;
           const currentUrl = wallpapers[slot.key];
           const isLoading = loadingObj[keyStr];
+          const progress = progressObj[keyStr] || 0;
 
           return (
             <div key={keyStr} className="wallpaper-slot">
@@ -103,7 +109,15 @@ export function WallpaperPicker() {
               
               <div className="wallpaper-slot__preview">
                 {isLoading ? (
-                  <span className="t-meta">UPLOADING...</span>
+                  <div className="upload-progress">
+                    <div
+                      className="upload-progress__bar"
+                      style={{ width: `${progress}%` }}
+                    />
+                    <span className="upload-progress__text t-data">
+                      {progress < 100 ? `${progress}%` : "SAVING..."}
+                    </span>
+                  </div>
                 ) : currentUrl ? (
                   <img src={currentUrl} alt={`${slot.label} wallpaper`} />
                 ) : (
