@@ -75,5 +75,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdBMjJBN0E5RTE3NkFGNzIKUldSeXIzYmhxYWNpZWdZbWdnam1DQlc4dlV2NGFLUzR1VVdxa3NkbCtMcVNMMEc4aWoxMk9EQmwK",
+      "endpoints": [
+        "https://github.com/Prophecccy/W/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

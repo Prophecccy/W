@@ -21,14 +21,15 @@ mod platform {
             // Find Progman
             let progman_class: Vec<u16> = "Progman\0".encode_utf16().collect();
             let progman = FindWindowW(PCWSTR(progman_class.as_ptr()), PCWSTR(ptr::null()));
-            if progman.is_invalid() || progman.0 == ptr::null_mut() {
-                return None;
-            }
+            let progman_hwnd = match progman {
+                Ok(hwnd) if hwnd.0 != ptr::null_mut() => hwnd,
+                _ => return None,
+            };
 
             // Send 0x052C to spawn WorkerW
             let mut _result = 0usize;
             let _ = SendMessageTimeoutW(
-                progman,
+                progman_hwnd,
                 0x052C,
                 WPARAM(0xD),
                 LPARAM(0x1),
@@ -44,13 +45,17 @@ mod platform {
             unsafe extern "system" fn enum_callback(hwnd: HWND, _: LPARAM) -> BOOL {
                 let shelldll_class: Vec<u16> = "SHELLDLL_DefView\0".encode_utf16().collect();
                 let child = FindWindowExW(hwnd, HWND(ptr::null_mut()), PCWSTR(shelldll_class.as_ptr()), PCWSTR(ptr::null()));
-                if !child.is_invalid() && child.0 != ptr::null_mut() {
-                    // The WorkerW we want is the one AFTER the one containing SHELLDLL_DefView
-                    let workerw_class: Vec<u16> = "WorkerW\0".encode_utf16().collect();
-                    let next = FindWindowExW(HWND(ptr::null_mut()), hwnd, PCWSTR(workerw_class.as_ptr()), PCWSTR(ptr::null()));
-                    if !next.is_invalid() && next.0 != ptr::null_mut() {
-                        WORKER_W = Some(next);
-                        return BOOL(0); // stop enumerating
+                if let Ok(child_hwnd) = child {
+                    if child_hwnd.0 != ptr::null_mut() {
+                        // The WorkerW we want is the one AFTER the one containing SHELLDLL_DefView
+                        let workerw_class: Vec<u16> = "WorkerW\0".encode_utf16().collect();
+                        let next = FindWindowExW(HWND(ptr::null_mut()), hwnd, PCWSTR(workerw_class.as_ptr()), PCWSTR(ptr::null()));
+                        if let Ok(next_hwnd) = next {
+                            if next_hwnd.0 != ptr::null_mut() {
+                                WORKER_W = Some(next_hwnd);
+                                return BOOL(0); // stop enumerating
+                            }
+                        }
                     }
                 }
                 BOOL(1) // continue

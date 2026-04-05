@@ -27,6 +27,7 @@ import { completeHabit } from "../features/habits/services/logService";
 import { getToday } from "../shared/utils/dateUtils";
 import { useNotifications } from "../shared/hooks/useNotifications";
 import { getLocalWallpaper } from "../shared/utils/storageUtils";
+import { UpdateManager } from "../shared/components/UpdateManager/UpdateManager";
 import "./Layout.css";
 
 // ─── Startup phases ──────────────────────────────────────────────
@@ -396,6 +397,8 @@ export function Layout() {
           onCancel={() => setShowPunishment(false)}
         />
       )}
+
+      <UpdateManager />
     </div>
   );
 }

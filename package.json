@@ -17,6 +17,8 @@
     "@tauri-apps/plugin-fs": "^2.4.5",
     "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "firebase": "^12.11.0",
     "framer-motion": "^12.38.0",
     "idb-keyval": "^6.2.2",
