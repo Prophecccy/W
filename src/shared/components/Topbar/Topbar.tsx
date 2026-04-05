@@ -35,6 +35,8 @@ export function Topbar({ onCommandPaletteOpen }: TopbarProps) {
     }
   };
 
+  const isTauri = "__TAURI_INTERNALS__" in window;
+
   return (
     <header className="topbar" data-tauri-drag-region>
       <div className="topbar__left">
@@ -48,20 +50,22 @@ export function Topbar({ onCommandPaletteOpen }: TopbarProps) {
         </button>
       </div>
 
-      <div className="topbar__window-controls">
-        <button className="topbar__win-btn" onClick={handleMinimize}>
-          <Minus size={14} strokeWidth={1.5} />
-        </button>
-        <button className="topbar__win-btn" onClick={handleMaximize}>
-          <Square size={12} strokeWidth={1.5} />
-        </button>
-        <button
-          className="topbar__win-btn topbar__win-btn--close"
-          onClick={handleClose}
-        >
-          <X size={14} strokeWidth={1.5} />
-        </button>
-      </div>
+      {isTauri && (
+        <div className="topbar__window-controls">
+          <button className="topbar__win-btn" onClick={handleMinimize}>
+            <Minus size={14} strokeWidth={1.5} />
+          </button>
+          <button className="topbar__win-btn" onClick={handleMaximize}>
+            <Square size={12} strokeWidth={1.5} />
+          </button>
+          <button
+            className="topbar__win-btn topbar__win-btn--close"
+            onClick={handleClose}
+          >
+            <X size={14} strokeWidth={1.5} />
+          </button>
+        </div>
+      )}
     </header>
   );
 }

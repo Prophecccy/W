@@ -48,6 +48,7 @@ body::before {
   background-position: center;
   background-image: var(--app-wallpaper);
   opacity: var(--app-wallpaper-dim, 0.2);
+  filter: blur(var(--app-wallpaper-blur, 0px));
   pointer-events: none;
 }
 

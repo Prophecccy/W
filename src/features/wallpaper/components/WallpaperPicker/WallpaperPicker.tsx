@@ -3,7 +3,9 @@ import { uploadWallpaper, removeWallpaper } from "../../services/wallpaperServic
 import { getAllLocalWallpapers } from "../../../../shared/utils/storageUtils";
 import { Wallpapers } from "../../../../shared/types";
 import { useToast } from "../../../../shared/components/Toast/Toast";
-import { Image as ImageIcon, Upload, Trash2 } from "lucide-react";
+import { Image as ImageIcon, Upload, Trash2, Contrast, Droplet } from "lucide-react";
+import { useAuthContext } from "../../../auth/context";
+import { getUserDoc, updateUserDoc } from "../../../auth/services/userService";
 import "./WallpaperPicker.css";
 
 const SLOTS: Array<{ key: keyof Wallpapers; label: string }> = [
@@ -24,6 +26,10 @@ export function WallpaperPicker() {
   const [loadingObj, setLoadingObj] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeSlot, setActiveSlot] = useState<keyof Wallpapers | null>(null);
+  
+  const { user } = useAuthContext();
+  const [dim, setDim] = useState(0.2);
+  const [blur, setBlur] = useState(0);
 
   useEffect(() => {
     // Fetch directly from IndexedDB on mount
@@ -32,7 +38,30 @@ export function WallpaperPicker() {
     }).catch(err => {
       console.error("Failed to load local wallpapers", err);
     });
-  }, []);
+
+    if (user) {
+      getUserDoc(user.uid).then(doc => {
+        if (doc) {
+          setDim(doc.aesthetics?.desktop?.dimIntensity ?? 0.2);
+          setBlur(doc.aesthetics?.desktop?.blurIntensity ?? 0);
+        }
+      });
+    }
+  }, [user]);
+
+  const handleDimChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = parseFloat(e.target.value);
+    setDim(v);
+    document.documentElement.style.setProperty("--app-wallpaper-dim", v.toString());
+    if (user) await updateUserDoc(user.uid, { "aesthetics.desktop.dimIntensity": v } as any);
+  };
+
+  const handleBlurChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = parseFloat(e.target.value);
+    setBlur(v);
+    document.documentElement.style.setProperty("--app-wallpaper-blur", `${v}px`);
+    if (user) await updateUserDoc(user.uid, { "aesthetics.desktop.blurIntensity": v } as any);
+  };
 
   const handleUploadClick = (slot: keyof Wallpapers) => {
     setActiveSlot(slot);
@@ -131,6 +160,37 @@ export function WallpaperPicker() {
             </div>
           );
         })}
+      </div>
+
+      <div className="wallpaper-picker-controls">
+        <div className="wallpaper-control">
+          <div className="wallpaper-control__label">
+            <Contrast size={14} />
+            <span className="t-body">Dim Intensity</span>
+            <span className="t-meta wallpaper-control__val">{Math.round(dim * 100)}%</span>
+          </div>
+          <input 
+            type="range" 
+            min="0" max="1" step="0.05"
+            value={dim}
+            onChange={handleDimChange}
+            className="w-range"
+          />
+        </div>
+        <div className="wallpaper-control">
+          <div className="wallpaper-control__label">
+            <Droplet size={14} />
+            <span className="t-body">Blur Intensity</span>
+            <span className="t-meta wallpaper-control__val">{blur}px</span>
+          </div>
+          <input 
+            type="range" 
+            min="0" max="20" step="1"
+            value={blur}
+            onChange={handleBlurChange}
+            className="w-range"
+          />
+        </div>
       </div>
     </div>
   );

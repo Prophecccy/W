@@ -14,9 +14,9 @@ export interface Settings {
 }
 
 export interface Aesthetics {
-  widget: { dimIntensity: number; accentColor: string };
-  mobile: { dimIntensity: number; accentColor: string };
-  desktop: { dimIntensity: number; accentColor: string };
+  widget: { dimIntensity: number; blurIntensity?: number; accentColor: string };
+  mobile: { dimIntensity: number; blurIntensity?: number; accentColor: string };
+  desktop: { dimIntensity: number; blurIntensity?: number; accentColor: string };
 }
 
 export interface Wallpapers {

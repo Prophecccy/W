@@ -67,9 +67,11 @@ export function Layout() {
         
         // Wallpaper is now fetched locally below
         
-        // Dim intensity
+        // Dim and Blur intensity
         const dimStr = (doc.aesthetics.desktop.dimIntensity ?? 0.2).toString();
+        const blurStr = `${doc.aesthetics.desktop.blurIntensity ?? 0}px`;
         document.documentElement.style.setProperty("--app-wallpaper-dim", dimStr);
+        document.documentElement.style.setProperty("--app-wallpaper-blur", blurStr);
 
         // Low Graphics Mode
         if (doc.settings.lowGraphicsMode) {
