@@ -1,5 +1,5 @@
 .smart-insight-card {
-  min-width: 200px;
+  min-width: 220px; /* Slight increase for better spacing */
   flex: 0 0 auto;
   background: var(--bg-overlay);
   border: 1px solid var(--border-default);
@@ -10,13 +10,38 @@
   gap: 1rem;
   position: relative;
   overflow: hidden;
+  transform: translateZ(0); /* Force GPU layer to prevent 'stuck' render glitches */
 }
 
-.smart-insight-card::before {
+/* Only show accent bar when color is actually defined or not loading */
+.smart-insight-card:not(.is-loading)::before {
   content: '';
   position: absolute;
   top: 0; left: 0; width: 4px; height: 100%;
   background: var(--insight-color);
+}
+
+.smart-insight-card.is-loading {
+  min-height: 80px;
+  background: var(--bg-elevated);
+}
+
+.sic-shimmer {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.03) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -100% 0; }
+  100% { background-position: 100% 0; }
 }
 
 .sic-header {

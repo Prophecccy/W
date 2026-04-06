@@ -108,53 +108,64 @@ export const AnalyticsPage: React.FC = () => {
     ];
   }, [monthSummary, weekSummary, habits]);
 
-  if (loading) return <div className="analytics-page loading">Loading Analytics...</div>;
+  // If loading summaries, show mock skeleton data for the insights row
+  const displayInsights = (loading || !insights.length) 
+    ? Array(4).fill({ id: 'skel', title: '', value: 'N/A', subValue: '', icon: '', color: '' }) as InsightCard[]
+    : insights;
 
   return (
     <div className="analytics-page">
       <header className="analytics-header">
         <h1 className="t-display">[ ANALYTICS ]</h1>
+        <p className="t-meta" style={{ opacity: 0.5, marginTop: '8px' }}>
+          {loading ? 'CALCULATING TRENDS...' : 'DATA REFRESHED'}
+        </p>
       </header>
 
       <section className="smart-insights-row">
-        {insights.map(i => (
-          <SmartInsightCard key={i.id} insight={i} />
+        {displayInsights.map((i, idx) => (
+          <SmartInsightCard key={i.id === 'skel' ? `skel-${idx}` : i.id} insight={i} />
         ))}
       </section>
 
-      <div className="analytics-grid">
-        <div className="analytics-card heatmap-card">
-          <h2 className="t-label">[ ACTIVITY HEATMAP ]</h2>
-          <ActivityHeatmap endDate={getToday()} daysCount={90} />
+      {loading ? (
+        <div className="analytics-placeholder">
+          <div className="sic-shimmer" style={{ height: '300px', borderRadius: '8px', opacity: 0.1 }} />
         </div>
+      ) : (
+        <div className="analytics-grid">
+          <div className="analytics-card heatmap-card">
+            <h2 className="t-label">[ ACTIVITY HEATMAP ]</h2>
+            <ActivityHeatmap endDate={getToday()} daysCount={90} />
+          </div>
 
-        <div className="analytics-card rate-card">
-          <h2 className="t-label">[ MONTHLY COMPLETION ]</h2>
-          <div className="rate-content">
-            <span className="t-display">{monthSummary?.completionRate || 0}%</span>
-            <div className={`trend ${(monthSummary?.completionRate || 0) >= (monthSummary?.previousMonthCompletionRate || 0) ? 'up' : 'down'}`}>
-              {(monthSummary?.completionRate || 0) >= (monthSummary?.previousMonthCompletionRate || 0) ? "↗" : "↘"} 
-              {Math.abs((monthSummary?.completionRate || 0) - (monthSummary?.previousMonthCompletionRate || 0))}% vs last
+          <div className="analytics-card rate-card">
+            <h2 className="t-label">[ MONTHLY COMPLETION ]</h2>
+            <div className="rate-content">
+              <span className="t-display">{monthSummary?.completionRate || 0}%</span>
+              <div className={`trend ${(monthSummary?.completionRate || 0) >= (monthSummary?.previousMonthCompletionRate || 0) ? 'up' : 'down'}`}>
+                {(monthSummary?.completionRate || 0) >= (monthSummary?.previousMonthCompletionRate || 0) ? "↗" : "↘"} 
+                {Math.abs((monthSummary?.completionRate || 0) - (monthSummary?.previousMonthCompletionRate || 0))}% vs last
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="analytics-card chart-card">
-          <h2 className="t-label">[ WEEKLY COMPARISON ]</h2>
-          <ChartWeeklyComparison currentWeek={weekSummary} />
-        </div>
+          <div className="analytics-card chart-card">
+            <h2 className="t-label">[ WEEKLY COMPARISON ]</h2>
+            <ChartWeeklyComparison currentWeek={weekSummary} />
+          </div>
 
-        <div className="analytics-card chart-card">
-          <h2 className="t-label">[ MONTHLY TREND ]</h2>
-          <ChartMonthlyComparison currentMonth={monthSummary} />
+          <div className="analytics-card chart-card">
+            <h2 className="t-label">[ MONTHLY TREND ]</h2>
+            <ChartMonthlyComparison currentMonth={monthSummary} />
+          </div>
+          
+          <div className="analytics-card rate-card">
+            <h2 className="t-label">[ MASTER SCORE ]</h2>
+            <ConsistencyScore rate={monthSummary?.completionRate || 0} size={100} />
+          </div>
         </div>
-        
-        {/* Mocking a place to show consistency temporarily */}
-        <div className="analytics-card rate-card">
-          <h2 className="t-label">[ MASTER SCORE ]</h2>
-          <ConsistencyScore rate={monthSummary?.completionRate || 0} size={100} />
-        </div>
-      </div>
+      )}
       
       <TimelineReview />
       
@@ -185,7 +196,6 @@ export const AnalyticsPage: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
-
     </div>
   );
 };

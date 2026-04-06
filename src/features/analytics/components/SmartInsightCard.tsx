@@ -10,6 +10,15 @@ interface Props {
 export const SmartInsightCard: React.FC<Props> = ({ insight }) => {
   const Icon = LucideIcons[insight.icon as keyof typeof LucideIcons] as React.ElementType || LucideIcons.Activity;
 
+  // Handle empty state (the "weird boxes")
+  if (!insight.title || insight.value === "N/A") {
+    return (
+      <div className="smart-insight-card is-loading">
+        <div className="sic-shimmer" />
+      </div>
+    );
+  }
+
   return (
     <div className="smart-insight-card" style={{ '--insight-color': insight.color || 'var(--text-primary)' } as any}>
       <div className="sic-header">
