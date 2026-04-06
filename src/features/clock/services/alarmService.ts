@@ -2,15 +2,24 @@ import { readTextFile, writeTextFile, exists, mkdir } from '@tauri-apps/plugin-f
 import { BaseDirectory } from '@tauri-apps/api/path';
 import { Alarm } from '../types';
 
-const ALARMS_FILE = 'alarms.json';
+const ALARMS_DIR = 'alarms';
+const ALARMS_FILE = 'alarms/alarms.json';
 const MAX_ALARMS = 6;
 
+/**
+ * Checks if we are inside a Tauri runtime (native desktop).
+ * In a browser (npm run dev without Tauri), the IPC calls will fail.
+ */
+function isTauri(): boolean {
+  return typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__;
+}
+
 export async function ensureAppDataDir() {
-  // Try to create the config directory just in case it doesn't exist
+  if (!isTauri()) return;
   try {
-    const dirExists = await exists('', { baseDir: BaseDirectory.AppData });
+    const dirExists = await exists(ALARMS_DIR, { baseDir: BaseDirectory.AppData });
     if (!dirExists) {
-      await mkdir('', { baseDir: BaseDirectory.AppData, recursive: true });
+      await mkdir(ALARMS_DIR, { baseDir: BaseDirectory.AppData, recursive: true });
     }
   } catch (err) {
     console.warn("Could not ensure AppData dir:", err);
@@ -18,6 +27,13 @@ export async function ensureAppDataDir() {
 }
 
 export async function getAlarms(): Promise<Alarm[]> {
+  if (!isTauri()) {
+    // Fallback to localStorage in browser dev mode
+    try {
+      const stored = localStorage.getItem('w-alarms');
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  }
   try {
     await ensureAppDataDir();
     const fileExists = await exists(ALARMS_FILE, { baseDir: BaseDirectory.AppData });
@@ -33,6 +49,13 @@ export async function getAlarms(): Promise<Alarm[]> {
 }
 
 export async function saveAlarms(alarms: Alarm[]): Promise<void> {
+  if (!isTauri()) {
+    // Fallback to localStorage in browser dev mode
+    try {
+      localStorage.setItem('w-alarms', JSON.stringify(alarms));
+    } catch {}
+    return;
+  }
   try {
     await ensureAppDataDir();
     const content = JSON.stringify(alarms, null, 2);
