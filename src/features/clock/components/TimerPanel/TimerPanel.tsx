@@ -125,7 +125,7 @@ export function TimerPanel() {
             />
 
             <div className="timer-audio-section">
-              <button className={`w-btn btn-glass ${audioPath ? 'has-audio' : ''}`} onClick={pickAudio} title="Select Audio">
+              <button className={`timer-action-btn ${audioPath ? 'has-audio' : ''}`} onClick={pickAudio} title="Select Audio">
                  <Music size={14}/> 
                  <span className="t-meta">{audioPath ? 'AUDIO SET' : 'AUDIO'}</span>
               </button>
@@ -141,7 +141,7 @@ export function TimerPanel() {
               )}
             </div>
 
-            <button className="w-btn btn-ghost add-timer-btn" onClick={handleCreate} disabled={timers.length >= 6}>
+            <button className="timer-action-btn add-timer-btn" onClick={handleCreate} disabled={timers.length >= 6}>
                <Plus size={16}/> 
                <span className="t-strong">ADD</span>
             </button>

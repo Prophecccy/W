@@ -77,6 +77,26 @@
   transform: scale(0.9);
 }
 
+.timer-action-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px 16px;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  outline: none;
+}
+
+.timer-action-btn:hover:not(:disabled) {
+  border-color: var(--text-1);
+  color: var(--text-1);
+}
+
 .has-audio {
   border-color: var(--accent) !important;
   color: var(--accent) !important;
@@ -93,14 +113,17 @@
 }
 
 .add-timer-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--bg-base);
   border-color: var(--accent);
-  color: var(--accent);
 }
 
 .add-timer-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   pointer-events: none;
+  background: transparent;
+  border-color: var(--border-color);
 }
 
 .timers-grid {

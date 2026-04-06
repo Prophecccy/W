@@ -1,10 +1,34 @@
-import { BaseDirectory, readTextFile, writeTextFile, exists } from '@tauri-apps/plugin-fs';
+import { BaseDirectory, readTextFile, writeTextFile, exists, mkdir } from '@tauri-apps/plugin-fs';
 import { Timer } from '../types';
 
-const TIMERS_FILE = 'timers.json';
+const TIMERS_DIR = 'alarms'; // Reuse same dir for simplicity or use 'timers'
+const TIMERS_FILE = 'alarms/timers.json';
+
+function isTauri(): boolean {
+  return typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__;
+}
+
+export async function ensureAppDataDir() {
+  if (!isTauri()) return;
+  try {
+    const dirExists = await exists(TIMERS_DIR, { baseDir: BaseDirectory.AppData });
+    if (!dirExists) {
+      await mkdir(TIMERS_DIR, { baseDir: BaseDirectory.AppData, recursive: true });
+    }
+  } catch (err) {
+    console.warn("Could not ensure AppData dir:", err);
+  }
+}
 
 export async function getTimers(): Promise<Timer[]> {
+  if (!isTauri()) {
+    try {
+      const stored = localStorage.getItem('w-timers');
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  }
   try {
+    await ensureAppDataDir();
     if (await exists(TIMERS_FILE, { baseDir: BaseDirectory.AppData })) {
       const contents = await readTextFile(TIMERS_FILE, { baseDir: BaseDirectory.AppData });
       return JSON.parse(contents);
@@ -16,16 +40,24 @@ export async function getTimers(): Promise<Timer[]> {
 }
 
 export async function saveTimers(timers: Timer[]): Promise<void> {
+  const now = Date.now();
+  const updated = timers.map(t => {
+    if (t.status === 'running' && t.endTimeMs) {
+      const remaining = Math.max(0, Math.ceil((t.endTimeMs - now) / 1000));
+      return { ...t, remainingSeconds: remaining };
+    }
+    return t;
+  });
+
+  if (!isTauri()) {
+    try {
+      localStorage.setItem('w-timers', JSON.stringify(updated));
+    } catch {}
+    return;
+  }
+
   try {
-    // Make sure we update remainingSeconds gracefully if running
-    const now = Date.now();
-    const updated = timers.map(t => {
-      if (t.status === 'running' && t.endTimeMs) {
-        const remaining = Math.max(0, Math.ceil((t.endTimeMs - now) / 1000));
-        return { ...t, remainingSeconds: remaining };
-      }
-      return t;
-    });
+    await ensureAppDataDir();
     await writeTextFile(TIMERS_FILE, JSON.stringify(updated), { baseDir: BaseDirectory.AppData });
   } catch (e) {
     console.error('Failed to save timers:', e);
