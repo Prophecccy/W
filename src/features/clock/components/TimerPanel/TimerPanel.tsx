@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Timer } from '../../types';
 import { getTimers, createTimer, deleteTimer, startTimer, pauseTimer, resetTimer, saveTimers } from '../../services/timerService';
+import { stopAudio, isAudioPlaying } from '../../services/audioService';
 import { TimerCard } from '../TimerCard/TimerCard';
 import { TimePickerWheel } from '../AlarmForm/TimePickerWheel';
 import { open } from '@tauri-apps/plugin-dialog';
-import { Plus, Music } from 'lucide-react';
+import { Plus, Music, VolumeX } from 'lucide-react';
 import './TimerPanel.css';
 
 const HOURS_OPTIONS = Array.from({ length: 100 }, (_, i) => i.toString().padStart(2, '0'));
@@ -20,11 +21,20 @@ export function TimerPanel() {
   const [name, setName] = useState('Timer');
   const [audioPath, setAudioPath] = useState<string | null>(null);
   const [useAudioForAll, setUseAudioForAll] = useState(false);
+  const [audioPlaying, setAudioPlaying] = useState(false);
 
   useEffect(() => {
     loadTimers();
     // Poll to keep stopped/finished sync from background
     const interval = setInterval(loadTimers, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Poll audio playback state so the stop button auto-hides when the track ends
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAudioPlaying(isAudioPlaying());
+    }, 500);
     return () => clearInterval(interval);
   }, []);
 
@@ -165,6 +175,13 @@ export function TimerPanel() {
           </div>
         </div>
       </div>
+
+      {audioPlaying && (
+        <button className="stop-audio-banner" onClick={() => { stopAudio(); setAudioPlaying(false); }}>
+          <VolumeX size={16} />
+          <span className="t-strong">STOP AUDIO</span>
+        </button>
+      )}
 
       <div className="timers-grid">
         {timers.map(t => (

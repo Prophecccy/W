@@ -134,3 +134,30 @@
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: var(--spacing-lg);
 }
+
+.stop-audio-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  background: rgba(var(--accent-rgb, 163, 230, 53), 0.1);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.stop-audio-banner:hover {
+  background: var(--accent);
+  color: var(--bg-base);
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(var(--accent-rgb, 163, 230, 53), 0.2); }
+  50% { box-shadow: 0 0 20px rgba(var(--accent-rgb, 163, 230, 53), 0.5); }
+}
