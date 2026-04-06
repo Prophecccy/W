@@ -37,7 +37,7 @@ export function useAuth() {
 
   const devSkip = useCallback(() => {
     if (window.location.hostname === "localhost") {
-      const mockUser = { uid: "dev-user", email: "dev@local.host", displayName: "Dev Admin" } as FirebaseUser;
+      const mockUser = { uid: "dev-user", email: "dev@local.host", displayName: "Dev Admin", photoURL: "" } as FirebaseUser;
       localStorage.setItem("w-auth-mock", "true");
       setUser(mockUser);
     }
@@ -45,7 +45,7 @@ export function useAuth() {
 
   useEffect(() => {
     if (window.location.hostname === "localhost" && localStorage.getItem("w-auth-mock")) {
-       setUser({ uid: "dev-user", email: "dev@local.host", displayName: "Dev Admin" } as FirebaseUser);
+       setUser({ uid: "dev-user", email: "dev@local.host", displayName: "Dev Admin", photoURL: "" } as FirebaseUser);
     }
   }, []);
 

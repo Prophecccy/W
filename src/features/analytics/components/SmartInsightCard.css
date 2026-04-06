@@ -1,29 +1,40 @@
 .smart-insight-card {
-  min-width: 220px; /* Slight increase for better spacing */
-  flex: 0 0 auto;
+  min-width: 220px;
+  flex: 1 1 0;
   background: var(--bg-overlay);
   border: 1px solid var(--border-default);
+  border-left: 4px solid var(--insight-color); /* Reliable box-model border instead of pseudo-element */
   border-radius: 8px;
-  padding: 1.25rem;
+  padding: 1.25rem 1.25rem 1.25rem 1rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
   position: relative;
-  overflow: hidden;
-  transform: translateZ(0); /* Force GPU layer to prevent 'stuck' render glitches */
+  
+  /* Hardware & Layer Stability Fixes */
+  transform: translateZ(0);
+  will-change: transform;
+  contain: layout paint;
+  backface-visibility: hidden;
 }
 
-/* Only show accent bar when color is actually defined or not loading */
-.smart-insight-card:not(.is-loading)::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; width: 4px; height: 100%;
-  background: var(--insight-color);
+.smart-insights-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+  padding-bottom: 1rem;
 }
 
 .smart-insight-card.is-loading {
-  min-height: 80px;
+  border-left-color: var(--border-default);
+  min-height: 110px;
+}
+
+.smart-insight-card.is-loading {
+  min-height: 100px;
+  min-width: 220px;
   background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
 }
 
 .sic-shimmer {

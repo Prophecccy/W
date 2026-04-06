@@ -15,11 +15,10 @@
 }
 
 .smart-insights-row {
-  display: flex;
-  gap: 1rem;
-  overflow-x: auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
   padding-bottom: 1rem;
-  scrollbar-width: none; /* Firefox */
 }
 .smart-insights-row::-webkit-scrollbar {
   display: none; /* Chrome */

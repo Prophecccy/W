@@ -43,7 +43,7 @@ export async function createUserDoc(
   uid: string,
   email: string | null,
   displayName: string | null,
-  photoURL: string | null,
+  photoURL: string | null = "",
   initialSettings?: Partial<Settings>
 ): Promise<User> {
   const newUser: User = {
