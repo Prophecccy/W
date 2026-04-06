@@ -172,6 +172,13 @@
 8. **TypeScript Zero Errors**: `tsc --noEmit` passes clean.
 9. **Production Build**: `npm run build` passes clean.
 
+### Accomplished in Branding & UI Polish:
+1. **NSIS Installer Branding**: Replaced default 90s-style installer graphics with custom branded assets. Configured `tauri.conf.json` to use `header.bmp` (150x57) and `sidebar.bmp` (164x314) for a premium "Black & Gold" installation experience.
+2. **Alarm Persistence Fix**: Refactored `alarmService.ts` to use a dedicated `alarms/` subdirectory and implemented robust `isTauri()` runtime checks. Added `localStorage` fallback for browser-based development mode.
+3. **Global Spacing Scale**: Defined a centralized spacing system (`--spacing-xs` to `--spacing-xl`) and `--border-color` in `index.css` to ensure layout consistency across all features.
+4. **Clock UI Overhaul**: Redesigned `ClockPage` navigation header with 48px gaps between tabs, increased letter-spacing (0.2em), and a pulsing active indicator (border-bottom).
+5. **AlarmForm Redesign**: Completely restructured the alarm creation form into logical sections (Time, Label, Schedule, Settings). Replaced confusing single-letter day labels with proper **SUN, MON, TUE, ...** abbreviations and fixed a vertical stacking overlap issue with a responsive horizontal selector.
+
 ## Architecture Rules (Non-Negotiable)
 
 1. **Feature Isolation:** Code is grouped by feature (`src/features/habits`), not by type.
@@ -314,9 +321,12 @@ workerw.rs      → WorkerW embedding: find_workerw, embed_in_workerw, WS_EX_TOO
 
 ### Colors
 - `--bg-base`: `#08090a` · `--bg-surface`: `#111214` · `--bg-elevated`: `#1a1b1e` · `--bg-overlay`: `#222326`
-- `--border-subtle`: `rgba(255,255,255,0.06)` · `--border-default`: `rgba(255,255,255,0.10)`
+- `--border-subtle`: `rgba(255,255,255,0.06)` · `--border-default`: `rgba(255,255,255,0.10)` · `--border-color`: `rgba(255,255,255,0.10)`
 - `--text-primary`: `#e8e8e8` · `--text-secondary`: `#888` · `--text-muted`: `#555`
 - `--accent`: `#5B8DEF` (user-chosen) · `--strike-red`: `#E8736C`
+
+### Spacing
+- `--spacing-xs`: `4px` · `--spacing-sm`: `8px` · `--spacing-md`: `16px` · `--spacing-lg`: `24px` · `--spacing-xl`: `32px`
 
 ### Typography
 - `.t-display` 33px · `.t-label` 9px uppercase · `.t-body` 13px · `.t-meta` 9px uppercase · `.t-data` 11px tabular

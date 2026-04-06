@@ -14,7 +14,7 @@ interface Props {
 const HOURS = Array.from({ length: 12 }, (_, i) => (i === 0 ? 12 : i).toString().padStart(2, '0'));
 const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 const AMPM = ['AM', 'PM'];
-const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
 function parse24to12(time: string) {
   const [hStr, mStr] = time.split(':');
@@ -132,76 +132,86 @@ export function AlarmForm({ initialAlarm, onClose }: Props) {
       </header>
 
       <div className="alarm-form-content">
-        <div className="time-picker-wrapper">
-          <TimePickerWheel items={HOURS} value={hour} onChange={setHour} />
-          <span className="time-colon">:</span>
-          <TimePickerWheel items={MINUTES} value={minute} onChange={setMinute} />
-          <div className="spacer-sm" />
-          <TimePickerWheel items={AMPM} value={amPm} onChange={setAmPm} />
-        </div>
+        <section className="form-section center-section">
+          <div className="time-picker-wrapper">
+            <TimePickerWheel items={HOURS} value={hour} onChange={setHour} />
+            <span className="time-colon">:</span>
+            <TimePickerWheel items={MINUTES} value={minute} onChange={setMinute} />
+            <div className="spacer-sm" />
+            <TimePickerWheel items={AMPM} value={amPm} onChange={setAmPm} />
+          </div>
+        </section>
 
-        <div className="form-group">
+        <section className="form-section">
+          <label className="t-label">LABEL</label>
           <input 
             type="text" 
-            className="w-input text-center t-meta" 
-            placeholder="LABEL (e.g. WAKE UP)" 
+            className="w-input t-meta" 
+            placeholder="E.G. WAKE UP" 
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             maxLength={20}
           />
-        </div>
+        </section>
 
-        <div className="form-group days-selector">
-          {DAYS.map((d, i) => (
-            <button 
-              key={i}
-              className={`day-btn ${daysOfWeek.includes(i) ? 'active' : ''}`}
-              onClick={() => toggleDay(i)}
-            >
-              {d}
-            </button>
-          ))}
-        </div>
-
-        <div className="settings-panel">
-          <div className="setting-row">
-            <div className="setting-label">SOUND</div>
-            <button className="w-btn btn-glass audio-btn" onClick={handlePickAudio}>
-              <span className="t-meta audio-path-text">
-                {audioPath ? audioPath.split('\\').pop()?.split('/').pop() : 'DEFAULT'}
-              </span>
-            </button>
+        <section className="form-section">
+          <label className="t-label">REPEAT ON</label>
+          <div className="days-selector">
+            {DAYS.map((d, i) => (
+              <button 
+                key={i}
+                className={`day-btn ${daysOfWeek.includes(i) ? 'active' : ''}`}
+                onClick={() => toggleDay(i)}
+              >
+                {d}
+              </button>
+            ))}
           </div>
+        </section>
 
-          <div className="setting-row">
-            <div className="setting-label">SNOOZE ALLOWED</div>
-            <div className="stepper">
-              <button onClick={() => setSnoozeCount(Math.max(0, snoozeCount - 1))}>-</button>
-              <span>{snoozeCount}x</span>
-              <button onClick={() => setSnoozeCount(snoozeCount + 1)}>+</button>
+        <section className="form-section">
+          <label className="t-label">SETTINGS</label>
+          <div className="settings-panel">
+            <div className="setting-row">
+              <div className="setting-label">SOUND</div>
+              <button className="w-btn btn-glass audio-btn" onClick={handlePickAudio}>
+                <span className="t-meta audio-path-text">
+                  {audioPath ? audioPath.split('\\').pop()?.split('/').pop() : 'DEFAULT'}
+                </span>
+              </button>
+            </div>
+
+            <div className="setting-row">
+              <div className="setting-label">SNOOZE ALLOWED</div>
+              <div className="stepper">
+                <button onClick={() => setSnoozeCount(Math.max(0, snoozeCount - 1))}>-</button>
+                <span>{snoozeCount}x</span>
+                <button onClick={() => setSnoozeCount(snoozeCount + 1)}>+</button>
+              </div>
+            </div>
+
+            <div className="setting-row">
+              <div className="setting-label">SNOOZE GAP (MIN)</div>
+              <div className="stepper">
+                <button onClick={() => setSnoozeGapMinutes(Math.max(1, snoozeGapMinutes - 1))}>-</button>
+                <span>{snoozeGapMinutes}m</span>
+                <button onClick={() => setSnoozeGapMinutes(snoozeGapMinutes + 1)}>+</button>
+              </div>
             </div>
           </div>
+        </section>
 
-          <div className="setting-row">
-            <div className="setting-label">SNOOZE GAP (MIN)</div>
-            <div className="stepper">
-              <button onClick={() => setSnoozeGapMinutes(Math.max(1, snoozeGapMinutes - 1))}>-</button>
-              <span>{snoozeGapMinutes}m</span>
-              <button onClick={() => setSnoozeGapMinutes(snoozeGapMinutes + 1)}>+</button>
-            </div>
-          </div>
-        </div>
-
-        <div className="form-group">
+        <section className="form-section">
+          <label className="t-label">POPUP MESSAGE</label>
           <textarea
             className="w-input message-input t-meta"
-            placeholder="Wake up message (displays on popup)..."
+            placeholder="Displays when alarm fires..."
             value={wakeUpMessage}
             onChange={(e) => setWakeUpMessage(e.target.value)}
             maxLength={100}
-            rows={3}
+            rows={2}
           />
-        </div>
+        </section>
       </div>
     </div>
   );

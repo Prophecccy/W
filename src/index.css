@@ -18,8 +18,17 @@
   --text-primary: #e8e8e8;
   --text-secondary: #888888;
   --text-muted: #555555;
+
+  /* Spacing Scale */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  
   --accent: #5B8DEF; /* Default placeholder, user-picked later */
   --strike-red: #E8736C;
+  --border-color: rgba(255, 255, 255, 0.1);
 }
 
 * {

@@ -17,19 +17,19 @@ export function ClockPage() {
             className={`tab-btn ${activeTab === 'ALARMS' ? 'active' : ''}`}
             onClick={() => setActiveTab('ALARMS')}
           >
-            {activeTab === 'ALARMS' ? '[ ALARMS ]' : 'ALARMS'}
+            ALARMS
           </button>
           <button 
             className={`tab-btn ${activeTab === 'TIMER' ? 'active' : ''}`}
             onClick={() => setActiveTab('TIMER')}
           >
-            {activeTab === 'TIMER' ? '[ TIMER ]' : 'TIMER'}
+            TIMER
           </button>
           <button 
             className={`tab-btn ${activeTab === 'STOPWATCH' ? 'active' : ''}`}
             onClick={() => setActiveTab('STOPWATCH')}
           >
-            {activeTab === 'STOPWATCH' ? '[ STOPWATCH ]' : 'STOPWATCH'}
+            STOPWATCH
           </button>
         </nav>
       </header>
