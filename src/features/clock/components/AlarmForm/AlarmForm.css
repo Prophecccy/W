@@ -62,15 +62,12 @@
 }
 
 .days-selector {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
 }
 
 .day-btn {
-  flex: 1;
-  min-width: 44px;
   height: 32px;
   border-radius: 6px;
   border: 1px solid var(--border-color);
