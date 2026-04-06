@@ -3,6 +3,9 @@
   flex-direction: column;
   gap: var(--spacing-xl);
   width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  padding-bottom: var(--spacing-2xl);
 }
 
 .timer-create-section {

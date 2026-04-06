@@ -72,19 +72,36 @@ export function AlarmForm({ initialAlarm, onClose }: Props) {
 
   const handlePickAudio = async () => {
     try {
-      const selected = await open({
-        multiple: false,
-        directory: false,
-        filters: [{
-          name: 'Audio',
-          extensions: ['mp3', 'wav', 'ogg', 'flac']
-        }]
-      });
-      if (selected && typeof selected === 'string') {
-        setAudioPath(selected);
+      if (typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__) {
+        const selected = await open({
+          multiple: false,
+          directory: false,
+          filters: [{
+            name: 'Audio',
+            extensions: ['mp3', 'wav', 'ogg', 'flac']
+          }]
+        });
+        if (selected && typeof selected === 'string') {
+          setAudioPath(selected);
+        }
+      } else {
+        throw new Error("Not in Tauri native environment");
       }
     } catch (err) {
-      console.error("Failed to open dialog:", err);
+      // Fallback for browser
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'audio/*';
+      input.onchange = async (e: any) => {
+        const file = e.target.files[0];
+        if (file) {
+          const key = `audio-${Date.now()}-${file.name}`;
+          const { set } = await import('idb-keyval');
+          await set(key, file);
+          setAudioPath(`idb://${key}`);
+        }
+      };
+      input.click();
     }
   };
 
