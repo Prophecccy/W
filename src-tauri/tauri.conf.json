@@ -58,7 +58,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' 'unsafe-inline'; media-src 'self' asset: http://asset.localhost",
+      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.firebaseapp.com https://*.googleapis.com https://*.google.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.firebaseapp.com https://*.googleapis.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.firebasestorage.app https://*.google.com https://*.gstatic.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://github.com; img-src 'self' data: blob: asset: http://asset.localhost https://*.googleusercontent.com https://*.firebasestorage.app; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; media-src 'self' asset: http://asset.localhost; frame-src https://*.firebaseapp.com https://accounts.google.com",
       "assetProtocol": {
         "enable": true,
         "scope": ["**"]
