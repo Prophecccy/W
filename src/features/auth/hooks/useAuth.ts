@@ -28,9 +28,24 @@ export function useAuth() {
 
   const handleSignOut = useCallback(async () => {
     try {
+      localStorage.removeItem("w-auth-mock");
       await signOut();
     } catch (error) {
       // Error handled by service
+    }
+  }, []);
+
+  const devSkip = useCallback(() => {
+    if (window.location.hostname === "localhost") {
+      const mockUser = { uid: "dev-user", email: "dev@local.host", displayName: "Dev Admin" } as FirebaseUser;
+      localStorage.setItem("w-auth-mock", "true");
+      setUser(mockUser);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (window.location.hostname === "localhost" && localStorage.getItem("w-auth-mock")) {
+       setUser({ uid: "dev-user", email: "dev@local.host", displayName: "Dev Admin" } as FirebaseUser);
     }
   }, []);
 
@@ -39,5 +54,6 @@ export function useAuth() {
     loading,
     signIn,
     signOut: handleSignOut,
+    devSkip,
   };
 }

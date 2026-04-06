@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import "./LoginPage.css";
 
 export function LoginPage() {
-  const { user, loading, signIn } = useAuthContext();
+  const { user, loading, signIn, devSkip } = useAuthContext();
 
   if (loading) {
     return (
@@ -24,6 +24,15 @@ export function LoginPage() {
         <button className="login-page__btn t-label" onClick={signIn}>
           [ SIGN IN WITH GOOGLE ]
         </button>
+        {window.location.hostname === "localhost" && (
+          <button 
+            className="login-page__btn t-label" 
+            onClick={devSkip}
+            style={{ marginTop: '20px', opacity: 0.5, fontSize: '10px' }}
+          >
+            [ DEV-SKIP LOGIN ]
+          </button>
+        )}
       </div>
     </div>
   );

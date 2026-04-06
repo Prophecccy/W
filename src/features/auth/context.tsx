@@ -7,6 +7,7 @@ interface AuthContextType {
   loading: boolean;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  devSkip: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
