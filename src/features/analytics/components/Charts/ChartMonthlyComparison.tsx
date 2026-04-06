@@ -8,7 +8,13 @@ interface Props {
 }
 
 export const ChartMonthlyComparison: React.FC<Props> = ({ currentMonth }) => {
-  if (!currentMonth || currentMonth.days.length === 0) return <div>No data</div>;
+  if (!currentMonth || currentMonth.days.length === 0) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.4 }}>
+        <span className="t-meta">Activity trend builds over time</span>
+      </div>
+    );
+  }
 
   const w = 400; // viewBox width
   const h = 180; // viewBox height

@@ -87,7 +87,7 @@ export function getMostConsistent(habits: Habit[], logs: HabitLog[]): Habit | nu
 
   for (const habit of habits) {
     const rate = getCompletionRate(logs, habit.id);
-    if (rate > highestRate && habit.totalCompletions > 5) { // Needs some baseline
+    if (rate > highestRate && rate > 0) {
       highestRate = rate;
       mostConsistent = habit;
     }
@@ -98,7 +98,7 @@ export function getMostConsistent(habits: Habit[], logs: HabitLog[]): Habit | nu
 
 export function getMostImproved(habits: Habit[], logs: HabitLog[]): Habit | null {
   // We need to split logs into two halves roughly to figure out "improvement"
-  if (logs.length < 14) return null; // Need at least 2 weeks
+  if (logs.length < 2) return null; // Need at least 2 days
   
   const midPoint = Math.floor(logs.length / 2);
   const firstHalf = logs.slice(0, midPoint);

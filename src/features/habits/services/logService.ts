@@ -8,6 +8,7 @@ import {
   where,
   orderBy,
   getDocs,
+  increment,
 } from "firebase/firestore";
 import { db, auth } from "../../../shared/config/firebase";
 import { HabitLog, HabitLogEntry, CompletionEntry } from "../types";
@@ -95,6 +96,48 @@ export async function completeHabit(
     await updateDoc(ref, {
       [`habits.${habitId}`]: newEntry,
     });
+  }
+
+  // ── Sync habit document stats ───────────────────────────────────
+  try {
+    const habitRef = doc(db, "users", userId, "habits", habitId);
+    const habitSnap = await getDoc(habitRef);
+    if (habitSnap.exists()) {
+      const habit = habitSnap.data();
+      const lastDate = habit.lastCompletedDate as string | null;
+      let streakUpdate: Record<string, any> = {
+        totalCompletions: increment(1),
+        lastCompletedDate: today,
+        levelProgress: increment(1),
+      };
+
+      // Calculate streak: if last completion was yesterday, increment streak
+      if (lastDate) {
+        const last = new Date(lastDate + "T00:00:00");
+        const now = new Date(today + "T00:00:00");
+        const diffDays = Math.round((now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays === 1) {
+          // Consecutive day → increment streak
+          const newStreak = (habit.currentStreak || 0) + 1;
+          streakUpdate.currentStreak = newStreak;
+          if (newStreak > (habit.longestStreak || 0)) {
+            streakUpdate.longestStreak = newStreak;
+          }
+        } else if (diffDays > 1) {
+          // Gap → reset streak to 1
+          streakUpdate.currentStreak = 1;
+        }
+        // diffDays === 0 means same day, don't change streak
+      } else {
+        // First ever completion
+        streakUpdate.currentStreak = 1;
+        streakUpdate.longestStreak = 1;
+      }
+
+      await updateDoc(habitRef, streakUpdate);
+    }
+  } catch (e) {
+    console.error("Failed to sync habit stats:", e);
   }
 }
 

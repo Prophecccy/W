@@ -75,42 +75,54 @@ export const AnalyticsPage: React.FC = () => {
   const insights: InsightCard[] = useMemo(() => {
     if (!monthSummary || !weekSummary) return [];
     
+    // Best streak card (always works if habits exist)
+    const sortedByStreak = [...habits].sort((a,b) => b.currentStreak - a.currentStreak);
+    const topStreak = sortedByStreak[0];
+
     return [
       {
         id: "consistency",
         title: "MOST CONSISTENT",
-        value: monthSummary.mostConsistent?.title || "N/A",
-        subValue: monthSummary.mostConsistent?.metric ? "Metric" : "Daily",
+        value: monthSummary.mostConsistent?.title || (habits.length > 0 ? "Complete a habit!" : "Add a habit first"),
+        subValue: monthSummary.mostConsistent 
+          ? 'Top performer'
+          : "Needs completions",
         icon: "Crown",
-        color: monthSummary.mostConsistent?.color
+        color: monthSummary.mostConsistent?.color || 'var(--accent)'
       },
       {
         id: "improved",
         title: "MOST IMPROVED",
-        value: monthSummary.mostImproved?.title || "N/A",
-        subValue: "+20% this month", // mock subvalue
+        value: monthSummary.mostImproved?.title || "More data needed",
+        subValue: monthSummary.mostImproved ? "Trending up this period" : "Track for a few days",
         icon: "TrendingUp",
+        color: monthSummary.mostImproved?.color
       },
       {
         id: "best-day",
         title: "BEST DAY",
-        value: weekSummary.bestDay ? new Date(weekSummary.bestDay.date).toLocaleDateString('en-US', { weekday: 'long' }) : "N/A",
-        subValue: "Highest completion",
+        value: weekSummary.bestDay 
+          ? new Date(weekSummary.bestDay.date + "T00:00:00").toLocaleDateString('en-US', { weekday: 'long' }) 
+          : "No activity yet",
+        subValue: weekSummary.bestDay 
+          ? `${weekSummary.bestDay.completionRate}% completion` 
+          : "Complete habits to see trends",
         icon: "CalendarCheck"
       },
       {
         id: "streak",
         title: "HIGHEST STREAK",
-        value: habits.sort((a,b) => b.currentStreak - a.currentStreak)[0]?.title || "N/A",
-        subValue: `${habits.sort((a,b) => b.currentStreak - a.currentStreak)[0]?.currentStreak || 0} days`,
-        icon: "Flame"
+        value: topStreak ? topStreak.title : "No habits yet",
+        subValue: topStreak ? `${topStreak.currentStreak} day${topStreak.currentStreak !== 1 ? 's' : ''} active` : "Create your first habit",
+        icon: "Flame",
+        color: topStreak?.color
       }
     ];
   }, [monthSummary, weekSummary, habits]);
 
-  // If loading summaries, show mock skeleton data for the insights row
-  const displayInsights = (loading || !insights.length) 
-    ? Array(4).fill({ id: 'skel', title: '', value: 'N/A', subValue: '', icon: '', color: '' }) as InsightCard[]
+  // Only show skeletons while genuinely loading, not when data is empty
+  const displayInsights = loading
+    ? Array(4).fill({ id: 'skel', title: '', value: '', subValue: '', icon: '', color: '' }) as InsightCard[]
     : insights;
 
   return (
