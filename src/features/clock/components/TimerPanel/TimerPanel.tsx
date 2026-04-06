@@ -2,17 +2,21 @@ import { useState, useEffect } from 'react';
 import { Timer } from '../../types';
 import { getTimers, createTimer, deleteTimer, startTimer, pauseTimer, resetTimer, saveTimers } from '../../services/timerService';
 import { TimerCard } from '../TimerCard/TimerCard';
+import { TimePickerWheel } from '../AlarmForm/TimePickerWheel';
 import { open } from '@tauri-apps/plugin-dialog';
 import { Plus, Music } from 'lucide-react';
 import './TimerPanel.css';
+
+const HOURS_OPTIONS = Array.from({ length: 100 }, (_, i) => i.toString().padStart(2, '0'));
+const MIN_SEC_OPTIONS = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 
 export function TimerPanel() {
   const [timers, setTimers] = useState<Timer[]>([]);
   
   // Form state
-  const [hours, setHours] = useState('0');
-  const [minutes, setMinutes] = useState('5');
-  const [seconds, setSeconds] = useState('0');
+  const [hours, setHours] = useState('00');
+  const [minutes, setMinutes] = useState('05');
+  const [seconds, setSeconds] = useState('00');
   const [name, setName] = useState('Timer');
   const [audioPath, setAudioPath] = useState<string | null>(null);
   const [useAudioForAll, setUseAudioForAll] = useState(false);
@@ -30,9 +34,9 @@ export function TimerPanel() {
   };
 
   const handleCreate = async () => {
-    const h = parseInt(hours) || 0;
-    const m = parseInt(minutes) || 0;
-    const s = parseInt(seconds) || 0;
+    const h = parseInt(hours, 10) || 0;
+    const m = parseInt(minutes, 10) || 0;
+    const s = parseInt(seconds, 10) || 0;
     const totalSeconds = h * 3600 + m * 60 + s;
     
     if (totalSeconds <= 0) return;
@@ -81,56 +85,67 @@ export function TimerPanel() {
   };
 
   const pickAudio = async () => {
-    const selected = await open({
-      multiple: false,
-      filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'ogg'] }]
-    });
-    if (selected && typeof selected === 'string') {
-      setAudioPath(selected);
+    try {
+      const selected = await open({
+        multiple: false,
+        directory: false,
+        filters: [{
+          name: 'Audio',
+          extensions: ['mp3', 'wav', 'ogg', 'flac']
+        }]
+      });
+      if (selected && typeof selected === 'string') {
+        setAudioPath(selected);
+      }
+    } catch (err) {
+      console.error("Failed to open dialog:", err);
     }
   };
 
   return (
     <div className="timer-panel">
       <div className="timer-create-section">
-        <h3 className="t-strong">CREATE TIMER</h3>
+        <h3 className="t-label">NEW TIMER</h3>
         <div className="timer-form-row">
-          <div className="time-inputs">
-            <input type="number" min="0" max="99" value={hours} onChange={e => setHours(e.target.value)} placeholder="H" className="time-input" />
-            <span className="colon">:</span>
-            <input type="number" min="0" max="59" value={minutes} onChange={e => setMinutes(e.target.value)} placeholder="M" className="time-input" />
-            <span className="colon">:</span>
-            <input type="number" min="0" max="59" value={seconds} onChange={e => setSeconds(e.target.value)} placeholder="S" className="time-input" />
+          <div className="timer-picker-wrapper">
+            <TimePickerWheel items={HOURS_OPTIONS} value={hours} onChange={setHours} />
+            <span className="time-colon">:</span>
+            <TimePickerWheel items={MIN_SEC_OPTIONS} value={minutes} onChange={setMinutes} />
+            <span className="time-colon">:</span>
+            <TimePickerWheel items={MIN_SEC_OPTIONS} value={seconds} onChange={setSeconds} />
           </div>
           
-          <input 
-            type="text" 
-            value={name} 
-            onChange={e => setName(e.target.value)} 
-            placeholder="Timer Name" 
-            className="timer-name-input"
-          />
+          <div className="timer-form-controls">
+            <input 
+              type="text" 
+              value={name} 
+              onChange={e => setName(e.target.value)} 
+              placeholder="Timer Name" 
+              className="w-input t-meta timer-name-input"
+            />
 
-          <div style={{display: 'flex', flexDirection: 'column', gap: '4px'}}>
-            <button className={`bracket-btn ${audioPath ? 'has-audio' : ''}`} onClick={pickAudio} title="Select Audio">
-               [ <Music size={14}/> {audioPath ? 'AUDIO SET' : 'AUDIO'} ]
+            <div className="timer-audio-section">
+              <button className={`w-btn btn-glass ${audioPath ? 'has-audio' : ''}`} onClick={pickAudio} title="Select Audio">
+                 <Music size={14}/> 
+                 <span className="t-meta">{audioPath ? 'AUDIO SET' : 'AUDIO'}</span>
+              </button>
+              {audioPath && (
+                <label className="audio-for-all-label t-meta">
+                  <input 
+                    type="checkbox" 
+                    checked={useAudioForAll}
+                    onChange={e => setUseAudioForAll(e.target.checked)}
+                  />
+                  APPLY TO ALL
+                </label>
+              )}
+            </div>
+
+            <button className="w-btn btn-ghost add-timer-btn" onClick={handleCreate} disabled={timers.length >= 6}>
+               <Plus size={16}/> 
+               <span className="t-strong">ADD</span>
             </button>
-            {audioPath && (
-              <label style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', color: 'var(--text-dim)', cursor: 'pointer'}}>
-                <input 
-                  type="checkbox" 
-                  checked={useAudioForAll}
-                  onChange={e => setUseAudioForAll(e.target.checked)}
-                  style={{ accentColor: 'var(--accent)', transform: 'scale(0.8)' }}
-                />
-                Use for all
-              </label>
-            )}
           </div>
-
-          <button className="bracket-btn confirm" onClick={handleCreate} disabled={timers.length >= 6}>
-             [ <Plus size={14}/> ADD ]
-          </button>
         </div>
       </div>
 

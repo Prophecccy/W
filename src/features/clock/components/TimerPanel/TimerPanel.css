@@ -1,95 +1,110 @@
 .timer-panel {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: var(--spacing-xl);
   width: 100%;
 }
 
 .timer-create-section {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--spacing-md);
   background: var(--surface-1);
-  padding: 24px;
+  padding: var(--spacing-lg);
   border-radius: 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-color);
+  width: 100%;
 }
 
 .timer-form-row {
   display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  width: 100%;
 }
 
-.time-inputs {
+.timer-picker-wrapper {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
   background: var(--surface-2);
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
+  padding: var(--spacing-md);
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  gap: var(--spacing-lg);
+  width: 100%;
 }
 
-.time-input {
-  width: 48px;
-  background: transparent;
-  border: none;
-  color: var(--text-1);
-  font-family: var(--font-mono);
-  font-size: 1.2rem;
-  text-align: center;
-  outline: none;
-}
-
-.time-input::-webkit-outer-spin-button,
-.time-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.colon {
-  color: var(--text-2);
+.time-colon {
+  font-size: 2rem;
   font-weight: bold;
+  color: var(--text-2);
+  padding-bottom: 4px;
+}
+
+.timer-form-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  width: 100%;
+  flex-wrap: wrap;
 }
 
 .timer-name-input {
   flex: 1;
   min-width: 150px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px 16px;
-  color: var(--text-1);
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.2s;
 }
 
-.timer-name-input:focus {
-  border-color: var(--accent);
+.timer-audio-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.audio-for-all-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.7rem;
+  color: var(--text-2);
+  cursor: pointer;
+  letter-spacing: 0.05em;
+}
+
+.audio-for-all-label input {
+  accent-color: var(--accent);
+  transform: scale(0.9);
 }
 
 .has-audio {
+  border-color: var(--accent) !important;
   color: var(--accent) !important;
 }
 
-.confirm {
-  color: var(--text-1) !important;
+.has-audio svg {
+  color: var(--accent);
 }
 
-.confirm:hover {
-  color: var(--accent) !important;
+.add-timer-btn {
+  padding-left: var(--spacing-lg);
+  padding-right: var(--spacing-lg);
+  color: var(--text-1);
 }
 
-.confirm:disabled {
+.add-timer-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.add-timer-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  pointer-events: none;
 }
 
 .timers-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 24px;
+  gap: var(--spacing-lg);
 }
