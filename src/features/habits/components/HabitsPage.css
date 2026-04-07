@@ -1,4 +1,4 @@
-.dashboard-loading {
+.habits-loading {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -6,26 +6,26 @@
   color: var(--text-muted);
 }
 
-.dashboard-page {
+.habits-page {
   display: flex;
   flex-direction: column;
   height: 100%;
 }
 
-.dashboard-page__header {
+.habits-page__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 32px;
 }
 
-.dashboard-page__controls {
+.habits-page__controls {
   display: flex;
   align-items: center;
   gap: 16px;
 }
 
-.dashboard-page__layout-toggle {
+.habits-page__layout-toggle {
   display: flex;
   gap: 8px;
   background: var(--bg-surface);
@@ -56,7 +56,7 @@
   color: var(--accent);
 }
 
-.dashboard-page__add-btn {
+.habits-page__add-btn {
   background: transparent;
   border: 1px solid var(--accent);
   color: var(--accent);
@@ -66,19 +66,16 @@
   transition: all 0.2s ease;
 }
 
-.dashboard-page__add-btn:hover {
+.habits-page__add-btn:hover {
   background: var(--accent);
   color: var(--bg-base);
 }
 
-.dashboard-page__content {
+.habits-page__content {
   flex-grow: 1;
   overflow-y: auto;
   padding-bottom: 24px;
   /* Scrollbar override */
-}
-.dashboard-page__content::-webkit-scrollbar {
-  width: 4px;
 }
 .dashboard-page__content::-webkit-scrollbar-track {
   background: transparent;

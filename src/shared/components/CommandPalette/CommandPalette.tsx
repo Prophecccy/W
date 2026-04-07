@@ -8,6 +8,7 @@ import {
   Settings,
   Search,
   Plus,
+  Target,
   CheckCircle2,
   type LucideIcon as LucideIconType,
 } from "lucide-react";
@@ -76,7 +77,15 @@ export function CommandPalette({
         icon: LayoutDashboard,
         category: "pages",
         action: () => { navigate("/"); onClose(); },
-        keywords: ["home", "habits", "dashboard", "main"],
+        keywords: ["home", "dashboard", "main"],
+      },
+      {
+        id: "page-habits",
+        label: "Habits",
+        icon: Target,
+        category: "pages",
+        action: () => { navigate("/habits"); onClose(); },
+        keywords: ["habits", "routines"],
       },
       {
         id: "page-todos",

@@ -11,11 +11,11 @@ import { getTodayLog, completeHabit, uncompleteHabit } from '../services/logServ
 import { isHabitScheduledToday } from '../utils/scheduleEngine';
 import { getToday } from '../../../shared/utils/dateUtils';
 import { LucideIcon } from '../../../shared/components/IconPicker/LucideIcon';
-import './DashboardPage.css';
+import './HabitsPage.css';
 
 type LayoutMode = 'default' | 'grouped' | 'custom';
 
-export function DashboardPage() {
+export function HabitsPage() {
   const [loading, setLoading] = useState(true);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [groups, setGroups] = useState<HabitGroup[]>([]);
@@ -45,7 +45,7 @@ export function DashboardPage() {
         setGroups(fetchedGroups);
         setLog(fetchedLog);
       } catch (err) {
-        console.error("Dashboard Load Error:", err);
+        console.error("HabitsPage Load Error:", err);
       } finally {
         setLoading(false);
       }
@@ -194,18 +194,18 @@ export function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="dashboard-loading">
+      <div className="habits-loading">
         <h1 className="t-display">[ LOADING ]</h1>
       </div>
     );
   }
 
   return (
-    <div className="dashboard-page">
-      <div className="dashboard-page__header">
-        <h1 className="t-display">[ TODAY ]</h1>
-        <div className="dashboard-page__controls">
-          <div className="dashboard-page__layout-toggle">
+    <div className="habits-page">
+      <div className="habits-page__header">
+        <h1 className="t-display">[ HABITS ]</h1>
+        <div className="habits-page__controls">
+          <div className="habits-page__layout-toggle">
             <button 
               className={`t-label preset-btn ${layoutMode === 'default' ? 'preset-btn--active' : ''}`}
               onClick={() => setLayoutMode('default')}
@@ -225,19 +225,19 @@ export function DashboardPage() {
               <LucideIcon name="Map" size={16} /> CUSTOM
             </button>
           </div>
-          <button className="dashboard-page__add-btn t-label" onClick={() => setIsFormOpen(true)}>
+          <button className="habits-page__add-btn t-label" onClick={() => setIsFormOpen(true)}>
             [ + NEW HABIT ]
           </button>
         </div>
       </div>
 
-      <div className="dashboard-page__content">
+      <div className="habits-page__content">
         {scheduled.length === 0 && limiters.length === 0 && completed.length === 0 && unscheduled.length === 0 ? (
-          <div className="dashboard-page__empty t-body">
+          <div className="habits-page__empty t-body">
             No habits yet. Create your first habit!
           </div>
         ) : (
-          <div className="dashboard-grid">
+          <div className="habits-grid">
             {layoutMode === 'default' && (
               <>
                 {scheduled.map(h => (
@@ -254,13 +254,13 @@ export function DashboardPage() {
             )}
 
             {layoutMode === 'grouped' && (
-              <div className="dashboard-grouped">
+              <div className="habits-grouped">
                 {groups.map(g => {
                   const groupHabits = scheduled.filter(h => h.group === g.id);
                   if (groupHabits.length === 0) return null;
                   return (
                     <HabitGroupHeader key={g.id} title={g.name} count={groupHabits.length}>
-                      <div className="dashboard-grid">
+                      <div className="habits-grid">
                          {groupHabits.map(h => (
                           <HabitCard key={h.id} habit={h} isCompletedToday={false} onComplete={() => handleComplete(h.id)} onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)} currentValue={log?.habits[h.id]?.value || 0} />
                         ))}
@@ -274,7 +274,7 @@ export function DashboardPage() {
                    if (ungrouped.length === 0) return null;
                    return (
                       <HabitGroupHeader title="UNGROUPED" count={ungrouped.length}>
-                        <div className="dashboard-grid">
+                        <div className="habits-grid">
                            {ungrouped.map(h => (
                             <HabitCard key={h.id} habit={h} isCompletedToday={false} onComplete={() => handleComplete(h.id)} onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)} currentValue={log?.habits[h.id]?.value || 0} />
                           ))}
@@ -292,9 +292,9 @@ export function DashboardPage() {
             )}
 
             {unscheduled.length > 0 && (
-              <div className="dashboard-section">
-                <h3 className="dashboard-section-title t-label">[ NOT SCHEDULED TODAY ]</h3>
-                 <div className="dashboard-grid dashboard-grid--dimmed">
+              <div className="habits-section">
+                <h3 className="habits-section-title t-label">[ NOT SCHEDULED TODAY ]</h3>
+                 <div className="habits-grid habits-grid--dimmed">
                   {unscheduled.map(h => (
                     <HabitCard 
                       key={h.id} 
@@ -310,9 +310,9 @@ export function DashboardPage() {
             )}
 
             {limiters.length > 0 && (
-              <div className="dashboard-section">
-                <h3 className="dashboard-section-title t-label" style={{ color: 'var(--strike-red)' }}>[ LIMITERS ]</h3>
-                <div className="dashboard-grid">
+              <div className="habits-section">
+                <h3 className="habits-section-title t-label" style={{ color: 'var(--strike-red)' }}>[ LIMITERS ]</h3>
+                <div className="habits-grid">
                   {limiters.map(h => (
                     <HabitCard 
                       key={h.id} 
@@ -329,7 +329,7 @@ export function DashboardPage() {
 
             {completed.length > 0 && (
               <HabitGroupHeader title="COMPLETED" count={completed.length} defaultExpanded={false}>
-                <div className="dashboard-grid">
+                <div className="habits-grid">
                   {completed.map(h => (
                     <HabitCard 
                       key={h.id} 
@@ -347,13 +347,13 @@ export function DashboardPage() {
         )}
       </div>
 
-      <div className="dashboard-page__footer">
+      <div className="habits-page__footer">
         <DailyNote initialNote={log?.notes || ''} />
       </div>
 
       {isFormOpen && (
-        <div className="dashboard-modal-overlay">
-          <div className="dashboard-modal-content">
+        <div className="habits-modal-overlay">
+          <div className="habits-modal-content">
             <HabitForm 
               groups={groups} 
               onSubmit={handleCreateSubmit} 

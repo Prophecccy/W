@@ -254,12 +254,10 @@ export function Layout() {
 
   const handleNewItem = useCallback(() => {
     if (location.pathname === "/todos") {
-      // Dispatch event for TodosPage to open its form
       window.dispatchEvent(new CustomEvent("w:open-todo-form"));
     } else {
-      // Default: navigate to dashboard and open habit form
-      if (location.pathname !== "/") navigate("/");
-      window.dispatchEvent(new CustomEvent("w:open-habit-form"));
+      if (location.pathname !== "/habits") navigate("/habits");
+      setTimeout(() => window.dispatchEvent(new CustomEvent("w:open-habit-form")), 50);
     }
   }, [location.pathname, navigate]);
 
@@ -284,13 +282,13 @@ export function Layout() {
   }, []);
 
   const handlePaletteNewHabit = useCallback(() => {
-    if (location.pathname !== "/") navigate("/");
-    window.dispatchEvent(new CustomEvent("w:open-habit-form"));
+    if (location.pathname !== "/habits") navigate("/habits");
+    setTimeout(() => window.dispatchEvent(new CustomEvent("w:open-habit-form")), 50);
   }, [location.pathname, navigate]);
 
   const handlePaletteNewTodo = useCallback(() => {
     if (location.pathname !== "/todos") navigate("/todos");
-    window.dispatchEvent(new CustomEvent("w:open-todo-form"));
+    setTimeout(() => window.dispatchEvent(new CustomEvent("w:open-todo-form")), 50);
   }, [location.pathname, navigate]);
 
   // ── Render: Loading ────────────────────────────────────────────

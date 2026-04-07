@@ -7,6 +7,7 @@ import {
   Settings,
   AlertTriangle,
   Download,
+  Target,
 } from "lucide-react";
 import { FlameIcon } from "../FlameIcon/FlameIcon";
 import "./Sidebar.css";
@@ -18,6 +19,7 @@ interface SidebarProps {
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { to: "/habits", icon: Target, label: "Habits" },
   { to: "/todos", icon: ListChecks, label: "Todos" },
   { to: "/clock", icon: Clock, label: "Clock" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },

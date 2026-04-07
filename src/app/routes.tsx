@@ -1,6 +1,7 @@
 import { createBrowserRouter } from "react-router-dom";
 import { Layout } from "./Layout";
-import { DashboardPage } from "../features/habits/components/DashboardPage";
+import { DashboardPage } from "../features/dashboard/components/DashboardPage";
+import { HabitsPage } from "../features/habits/components/HabitsPage";
 import { TodosPage } from "../features/todos/components/TodosPage";
 import { ClockPage } from "../features/clock/components/ClockPage";
 import { AnalyticsPage } from "../features/analytics/components/AnalyticsPage";
@@ -47,6 +48,10 @@ export const router = createBrowserRouter([
       {
         index: true,
         element: <DashboardPage />,
+      },
+      {
+        path: "habits",
+        element: <HabitsPage />,
       },
       {
         path: "todos",
