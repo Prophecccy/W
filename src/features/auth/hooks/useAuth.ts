@@ -1,15 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { User as FirebaseUser } from "firebase/auth";
-import { signInWithGoogle, signOut, onAuthStateChanged, handleRedirectResult } from "../services/authService";
+import { signInWithGoogle, signOut, onAuthStateChanged } from "../services/authService";
 
 export function useAuth() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Handle redirect result (for Tauri production sign-in flow)
-    handleRedirectResult().catch(() => {});
-
     const unsubscribe = onAuthStateChanged((firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
