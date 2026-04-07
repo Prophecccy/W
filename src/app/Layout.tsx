@@ -225,6 +225,18 @@ export function Layout() {
 
     launchStickyOverlay();
     launchWidget();
+
+    // Listen for re-launch requests from settings/etc
+    const handleWidgetRelaunch = () => launchWidget();
+    const handleStickyRelaunch = () => launchStickyOverlay();
+
+    window.addEventListener("w:launch-widget", handleWidgetRelaunch);
+    window.addEventListener("w:launch-sticky", handleStickyRelaunch);
+
+    return () => {
+      window.removeEventListener("w:launch-widget", handleWidgetRelaunch);
+      window.removeEventListener("w:launch-sticky", handleStickyRelaunch);
+    };
   }, [phase]);
 
   // ── Phase 4: Load palette data (habits + todos for CommandPalette) ─

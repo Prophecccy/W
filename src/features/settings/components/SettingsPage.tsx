@@ -1,5 +1,6 @@
 import { AccountSection } from "./AccountSection";
 import { AppearanceSection } from "./AppearanceSection";
+import { DesktopSection } from "./DesktopSection";
 import { ScheduleSection } from "./ScheduleSection";
 import { NotificationsSection } from "./NotificationsSection";
 import { DataSection } from "./DataSection";
@@ -22,6 +23,11 @@ export function SettingsPage() {
 
       {/* Appearance */}
       <AppearanceSection />
+
+      <hr className="settings-divider" />
+
+      {/* Desktop & Widget */}
+      <DesktopSection />
 
       <hr className="settings-divider" />
 

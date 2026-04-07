@@ -41,3 +41,15 @@ export async function saveWidgetPosition(pos: WidgetPosition): Promise<void> {
     }
   }, 500);
 }
+
+export async function resetWidgetPosition(): Promise<WidgetPosition> {
+  try {
+    if (await exists(POSITION_FILE, { baseDir: BaseDirectory.AppData })) {
+      // We don't delete, just overwrite with defaults
+      await writeTextFile(POSITION_FILE, JSON.stringify(DEFAULT_POSITION), { baseDir: BaseDirectory.AppData });
+    }
+  } catch (e) {
+    console.error('Failed to reset widget position:', e);
+  }
+  return DEFAULT_POSITION;
+}

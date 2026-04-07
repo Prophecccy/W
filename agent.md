@@ -172,6 +172,21 @@
 8. **TypeScript Zero Errors**: `tsc --noEmit` passes clean.
 9. **Production Build**: `npm run build` passes clean.
 
+### Accomplished in Post-Build Restructure (Dashboard decoupling):
+1. **Habits Separation**: Extracted all habit management logic from the original `DashboardPage` into a dedicated `HabitsPage.tsx` (route `/habits`).
+2. **Unified Dashboard**: Built a new `DashboardPage.tsx` at the root `/` route serving as a "Command Center". Implemented a side-by-side split layout showing Today's Habits (Left) and Active Todos (Right).
+3. **Navigation Updates**: Added "Habits" (Target icon) to `Sidebar.tsx`. Updated `CommandPalette.tsx` to include the Habits page.
+4. **Event-Driven Forms**: Fixed cross-page form summoning. Keyboard shortcut `N` and dashboard "+ ADD" buttons now navigate to the respective feature page before firing `w:open-habit-form` or `w:open-todo-form` with a 50ms safety timeout to ensure mounting.
+5. **Analytics UI Polish**: Standardized `ChartWeeklyComparison` to always pad to a 7-day grid. Added frosted-glass empty states for missing analytics data.
+
+### Accomplished in Desktop & Widget Settings:
+1. **Shared Tauri Utility** (`tauri.ts`): Centralized environment detection (`isTauri`) and safe external link handling (`openExternalLink`) with fallback logic for web/Tauri environments.
+2. **Environment-Aware Settings UI** (`DesktopSection.tsx`): Built a dynamic component that adapts its content based on the runtime.
+   - **Web:** Prominent "Download for Windows" hero card highlighting widget features and linking to GitHub releases.
+   - **Desktop:** Management panel with "Re-launch Widget" and "Reset Widget Position" tools.
+3. **Widget Rescue Tools**: Implemented `resetWidgetPosition` in `widgetPositionStore.ts` and wired `Layout.tsx` event listeners (`w:launch-widget`) to allow manual window recovery without app restarts.
+4. **Branded Aesthetics**: Applied the "W" gold/black aesthetic with bracketed headers and stylized feature tags to the new section.
+
 ### Accomplished in Branding & UI Polish:
 1. **NSIS Installer Branding**: Replaced default 90s-style installer graphics with custom branded assets. Configured `tauri.conf.json` to use `header.bmp` (150x57) and `sidebar.bmp` (164x314) for a premium "Black & Gold" installation experience.
 2. **Alarm Persistence Fix**: Refactored `alarmService.ts` to use a dedicated `alarms/` subdirectory and implemented robust `isTauri()` runtime checks. Added `localStorage` fallback for browser-based development mode.
@@ -215,14 +230,15 @@ src/
 │   │   ├── useKeyboardShortcuts.ts → Ctrl+K + H/T/A/S + N (new item) + Space (quick-complete)
 │   │   └── useNotifications.ts    → 60s polling for nudges, strike warnings, weekly summary
 │   ├── utils/
-│   │   └── dateUtils.ts   → getToday(), formatDate(), subtractDays(), isBeforeResetTime()
+│   │   ├── dateUtils.ts   → getToday(), formatDate(), subtractDays(), isBeforeResetTime()
+│   │   └── tauri.ts       → isTauri(), openExternalLink()
 │   ├── types/
 │   │   └── index.ts       → User, Settings, Aesthetics, Wallpapers
 │   └── config/
 │       └── firebase.ts    → Firebase init (placeholder keys)
 │   ├── habits/
 │   │   ├── components/
-│   │   │   ├── DashboardPage.tsx  → Main view with grouped layout, 3 modes, HabitDetail integration
+│   │   │   ├── HabitsPage.tsx     → Main habit management view (formerly DashboardPage)
 │   │   │   ├── HabitCard/         → Grid card with hold-to-verify, metric bars, onClick detail
 │   │   │   ├── HabitForm/         → 7-step creation wizard
 │   │   │   ├── HabitDetail/       → Slide-out analytics: heatmap, sparklines, edit, archive/delete
@@ -270,6 +286,7 @@ src/
 │   ├── analytics/components/AnalyticsPage.tsx
 │   ├── settings/components/
 │   │   ├── SettingsPage.tsx       → Config shell with GroupManager
+│   │   ├── DesktopSection.tsx     → Environment-aware desktop/widget management
 │   │   └── GroupManager/          → Group CRUD interface
 │   ├── strikes/
 │   │   ├── types.ts               → StrikeState, PunishmentChoice, MAX_STRIKES

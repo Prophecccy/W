@@ -1,0 +1,113 @@
+.desktop-section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.desktop-card {
+  padding: 24px;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.05) 0%, transparent 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.desktop-card__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.desktop-card__icon {
+  width: 40px;
+  height: 40px;
+  background: var(--accent);
+  color: var(--bg-base);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.desktop-card__title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.desktop-card__desc {
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-width: 400px;
+}
+
+.desktop-card__features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.desktop-feature-tag {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  padding: 4px 10px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.desktop-btn--hero {
+  background: var(--accent);
+  color: var(--bg-base);
+  padding: 12px 24px;
+  border-radius: 6px;
+  font-weight: 800;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: transform 0.2s ease, filter 0.2s ease;
+  width: fit-content;
+  border: none;
+}
+
+.desktop-btn--hero:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+.desktop-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.desktop-btn {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: 8px 16px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.desktop-btn:hover {
+  background: var(--border-subtle);
+}
+
+.desktop-btn:active {
+  transform: scale(0.98);
+}
