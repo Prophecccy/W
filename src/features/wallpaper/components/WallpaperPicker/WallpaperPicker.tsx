@@ -6,13 +6,31 @@ import { useToast } from "../../../../shared/components/Toast/Toast";
 import { Image as ImageIcon, Upload, Trash2, Contrast, Droplet } from "lucide-react";
 import { useAuthContext } from "../../../auth/context";
 import { getUserDoc, updateUserDoc } from "../../../auth/services/userService";
+import { isTauri, isMobileWeb } from "../../../../shared/utils/tauri";
 import "./WallpaperPicker.css";
 
-const SLOTS: Array<{ key: keyof Wallpapers; label: string }> = [
+const ALL_SLOTS: Array<{ key: keyof Wallpapers; label: string }> = [
   { key: "desktop", label: "DESKTOP" },
   { key: "widget", label: "WIDGET" },
   { key: "mobile", label: "MOBILE" },
 ];
+
+/**
+ * Environment-aware slot filtering:
+ * - Desktop Web  → [DESKTOP] only  (stored in browser cache)
+ * - Mobile Web   → [MOBILE] only   (stored in browser cache)
+ * - Tauri Native → [DESKTOP] + [WIDGET] (stored locally on device)
+ */
+function getVisibleSlots() {
+  if (isTauri()) {
+    return ALL_SLOTS.filter(s => s.key === "desktop" || s.key === "widget");
+  }
+  if (isMobileWeb()) {
+    return ALL_SLOTS.filter(s => s.key === "mobile");
+  }
+  // Desktop web
+  return ALL_SLOTS.filter(s => s.key === "desktop");
+}
 
 export function WallpaperPicker() {
   const { showToast } = useToast();
@@ -120,7 +138,7 @@ export function WallpaperPicker() {
       />
       
       <div className="wallpaper-slots">
-        {SLOTS.map((slot) => {
+        {getVisibleSlots().map((slot) => {
           const keyStr = slot.key as string;
           const currentUrl = wallpapers[slot.key];
           const isLoading = loadingObj[keyStr];
