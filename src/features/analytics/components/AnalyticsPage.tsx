@@ -57,8 +57,8 @@ export const AnalyticsPage: React.FC = () => {
       const pMonthStart = new Date(pMonthEnd);
       pMonthStart.setDate(pMonthStart.getDate() - 29);
 
-      // Format util
-      const d = (dt: Date) => dt.toISOString().split("T")[0];
+      const { formatDate } = await import('../../../shared/utils/dateUtils');
+      const d = (dt: Date) => formatDate(dt);
 
       const [wSum, mSum] = await Promise.all([
         generateWeeklySummary(d(weekStart), d(weekEnd), d(pWeekStart), d(pWeekEnd)),
@@ -128,7 +128,7 @@ export const AnalyticsPage: React.FC = () => {
   return (
     <div className="analytics-page">
       <header className="analytics-header">
-        <h1 className="t-display">[ ANALYTICS ]</h1>
+        <h1 className="t-display">[ ANALYTICS V2 ]</h1>
         <p className="t-meta" style={{ opacity: 0.5, marginTop: '8px' }}>
           {loading ? 'CALCULATING TRENDS...' : 'DATA REFRESHED'}
         </p>

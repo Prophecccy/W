@@ -121,24 +121,53 @@ export function getMostImproved(habits: Habit[], logs: HabitLog[]): Habit | null
   return mostImproved;
 }
 
-function processDayActivities(logs: HabitLog[]): DayActivity[] {
-  return logs.map((log) => {
-    let scheduled = 0;
-    let completed = 0;
-    const habitIds = Object.keys(log.habits);
-    scheduled += habitIds.length;
+function processDayActivities(logs: HabitLog[], startDate: string, endDate: string): DayActivity[] {
+  const logMap: Record<string, HabitLog> = {};
+  for (const log of logs) logMap[log.date] = log;
 
-    for (const id of habitIds) {
-      if (log.habits[id].completed) completed += 1;
+  const result: DayActivity[] = [];
+  const endD = new Date(endDate + "T00:00:00");
+  const startD = new Date(startDate + "T00:00:00");
+
+  let maxIterations = 365; // safety
+
+  while (startD <= endD && maxIterations > 0) {
+    const y = startD.getFullYear();
+    const m = String(startD.getMonth() + 1).padStart(2, '0');
+    const day = String(startD.getDate()).padStart(2, '0');
+    const dStr = `${y}-${m}-${day}`;
+    const log = logMap[dStr];
+
+    if (log) {
+      let scheduled = 0;
+      let completed = 0;
+      const habitIds = Object.keys(log.habits);
+      scheduled += habitIds.length;
+
+      for (const id of habitIds) {
+        if (log.habits[id].completed) completed += 1;
+      }
+
+      result.push({
+        date: dStr,
+        totalScheduled: scheduled,
+        totalCompleted: completed,
+        completionRate: scheduled === 0 ? 0 : Math.round((completed / scheduled) * 100),
+      });
+    } else {
+      result.push({
+        date: dStr,
+        totalScheduled: 0,
+        totalCompleted: 0,
+        completionRate: 0,
+      });
     }
 
-    return {
-      date: log.date,
-      totalScheduled: scheduled,
-      totalCompleted: completed,
-      completionRate: scheduled === 0 ? 0 : Math.round((completed / scheduled) * 100),
-    };
-  });
+    startD.setDate(startD.getDate() + 1);
+    maxIterations--;
+  }
+
+  return result;
 }
 
 export async function generateWeeklySummary(
@@ -150,7 +179,7 @@ export async function generateWeeklySummary(
   const currentLogs = await getLogRange(startDate, endDate);
   const prevLogs = await getLogRange(previousStartDate, previousEndDate);
 
-  const days = processDayActivities(currentLogs);
+  const days = processDayActivities(currentLogs, startDate, endDate);
   let bestDay: DayActivity | null = null;
   let worstDay: DayActivity | null = null;
 
@@ -190,7 +219,7 @@ export async function generateMonthlySummary(
     month: startDate.substring(0, 7), // YYYY-MM
     completionRate: getCompletionRate(currentLogs),
     previousMonthCompletionRate: getCompletionRate(prevLogs),
-    days: processDayActivities(currentLogs),
+    days: processDayActivities(currentLogs, startDate, endDate),
     mostConsistent: getMostConsistent(habits, currentLogs),
     mostImproved: getMostImproved(habits, currentLogs),
   };

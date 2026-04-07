@@ -20,8 +20,8 @@ export const ChartWeeklyComparison: React.FC<Props> = ({ currentWeek }) => {
   const hasAnyData = currentWeek.days.some(d => d.totalScheduled > 0);
 
   return (
-    <div className="chart-weekly">
-      <div className="chart-bars">
+    <div className="chart-weekly" style={{ position: 'relative' }}>
+      <div className="chart-bars" style={{ opacity: hasAnyData ? 1 : 0.3, pointerEvents: hasAnyData ? 'auto' : 'none' }}>
         {currentWeek.days.map((day, idx) => {
           const dayName = days[new Date(day.date + "T00:00:00").getDay()];
           // Show at least a tiny sliver for days with scheduled habits (even if 0% completed)
@@ -45,9 +45,25 @@ export const ChartWeeklyComparison: React.FC<Props> = ({ currentWeek }) => {
           )
         })}
       </div>
+      
       {!hasAnyData && (
-        <div style={{ textAlign: 'center', marginTop: '0.5rem', opacity: 0.4 }}>
-          <span className="t-meta">No activity this week yet</span>
+        <div style={{ 
+          position: 'absolute', 
+          inset: 0, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          pointerEvents: 'none'
+        }}>
+          <span className="t-meta" style={{ 
+            background: 'var(--bg-main)', 
+            padding: '6px 14px', 
+            borderRadius: '6px', 
+            border: '1px solid var(--border)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+          }}>
+            No activity this week yet
+          </span>
         </div>
       )}
     </div>
