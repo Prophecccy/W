@@ -27,6 +27,7 @@
     "core:window:allow-set-position",
     "core:window:allow-inner-size",
     "core:window:allow-outer-position",
-    "core:window:allow-set-decorations"
+    "core:window:allow-set-decorations",
+    "oauth:default"
   ]
 }
