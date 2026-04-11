@@ -53,6 +53,12 @@ export function StickyCanvas() {
     }
   }, []);
 
+  // Make body transparent for Tauri transparent window
+  useEffect(() => {
+    document.body.classList.add("transparent-window");
+    return () => document.body.classList.remove("transparent-window");
+  }, []);
+
   // ─── Handlers ───────────────────────────────────────────────────
 
   const handleDragEnd = useCallback(

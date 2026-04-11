@@ -45,6 +45,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Tauri windows that need true transparency (sticky-overlay, widget) */
+body.transparent-window,
+body.transparent-window #root {
+  background: transparent !important;
+}
+
+body.transparent-window::before {
+  display: none;
+}
+
 body::before {
   content: "";
   position: fixed;
