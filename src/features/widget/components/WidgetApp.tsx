@@ -145,56 +145,39 @@ export function WidgetApp() {
 
 
   const handlePointerDown = async (e: React.PointerEvent) => {
+    // Don't drag when clicking on habit cards (they have their own interactions)
     if (e.target instanceof Element && e.target.closest('.widget-habit-card')) return;
+    
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
       const win = getCurrentWindow();
+      
+      // Step 1: Detach from WorkerW so it becomes a normal top-level window
+      await invoke('detach_widget_from_desktop');
+      
+      // Step 2: Use Tauri's native drag (works perfectly on top-level windows)
+      await win.startDragging();
+      
+      // Step 3: After drag completes, save position, then re-embed
       const pos = await win.outerPosition();
-      dragRef.current = {
-        isDragging: true,
-        startX: e.screenX,
-        startY: e.screenY,
-        initialWinX: pos.x,
-        initialWinY: pos.y
-      };
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch {}
-  };
-
-  const handlePointerMove = async (e: React.PointerEvent) => {
-    if (!dragRef.current.isDragging) return;
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      
-      const dx = e.screenX - dragRef.current.startX;
-      const dy = e.screenY - dragRef.current.startY;
-      
-      await invoke('move_widget', {
-        x: dragRef.current.initialWinX + dx,
-        y: dragRef.current.initialWinY + dy
+      const size = await win.innerSize();
+      saveWidgetPosition({
+        x: pos.x,
+        y: pos.y,
+        width: size.width,
+        height: size.height,
       });
-    } catch {}
-  };
-
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (dragRef.current.isDragging) {
-      dragRef.current.isDragging = false;
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
       
-      // Save position when drag ends
-      import('@tauri-apps/api/core').then(async ({ invoke }) => {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        const win = getCurrentWindow();
-        const pos = await win.outerPosition();
-        const size = await win.innerSize();
-        saveWidgetPosition({
-          x: pos.x,
-          y: pos.y,
-          width: size.width,
-          height: size.height,
-        });
-      }).catch(() => {});
+      // Step 4: Re-embed into WorkerW
+      await invoke('embed_widget_in_desktop');
+    } catch (err) {
+      console.warn('Widget drag failed:', err);
+      // Try to re-embed in case we detached but drag failed
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('embed_widget_in_desktop');
+      } catch {}
     }
   };
 
@@ -202,9 +185,6 @@ export function WidgetApp() {
     <div
       className={`widget-app ${isFrozen ? 'widget-app--frozen' : ''}`}
       onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
       style={wallpaperUrl ? {
         backgroundImage: `url(${wallpaperUrl})`,
         backgroundSize: 'cover',
