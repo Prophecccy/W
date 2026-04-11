@@ -143,6 +143,7 @@ export function WidgetApp() {
   return (
     <div
       className={`widget-app ${isFrozen ? 'widget-app--frozen' : ''}`}
+      data-tauri-drag-region
       style={wallpaperUrl ? {
         backgroundImage: `url(${wallpaperUrl})`,
         backgroundSize: 'cover',
