@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useWidgetData } from '../hooks/useWidgetData';
 import { PowerHub } from './PowerHub/PowerHub';
 import { WidgetHabitList } from './HabitList/WidgetHabitList';
@@ -140,10 +140,70 @@ export function WidgetApp() {
     );
   }
 
+  const dragRef = useRef({ isDragging: false, startX: 0, startY: 0, initialWinX: 0, initialWinY: 0 });
+
+  const handlePointerDown = async (e: React.PointerEvent) => {
+    if (e.target instanceof Element && e.target.closest('.widget-habit-card')) return;
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      const win = getCurrentWindow();
+      const pos = await win.outerPosition();
+      dragRef.current = {
+        isDragging: true,
+        startX: e.screenX,
+        startY: e.screenY,
+        initialWinX: pos.x,
+        initialWinY: pos.y
+      };
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
+  };
+
+  const handlePointerMove = async (e: React.PointerEvent) => {
+    if (!dragRef.current.isDragging) return;
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      const { PhysicalPosition } = await import('@tauri-apps/api/dpi');
+      const win = getCurrentWindow();
+      
+      const dx = e.screenX - dragRef.current.startX;
+      const dy = e.screenY - dragRef.current.startY;
+      const dpr = window.devicePixelRatio || 1;
+      
+      await win.setPosition(new PhysicalPosition(
+        dragRef.current.initialWinX + (dx * dpr),
+        dragRef.current.initialWinY + (dy * dpr)
+      ));
+    } catch {}
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (dragRef.current.isDragging) {
+      dragRef.current.isDragging = false;
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      
+      // Save position when drag ends
+      import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
+        const win = getCurrentWindow();
+        const pos = await win.outerPosition();
+        const size = await win.innerSize();
+        saveWidgetPosition({
+          x: pos.x,
+          y: pos.y,
+          width: size.width,
+          height: size.height,
+        });
+      }).catch(() => {});
+    }
+  };
+
   return (
     <div
       className={`widget-app ${isFrozen ? 'widget-app--frozen' : ''}`}
-      data-tauri-drag-region
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       style={wallpaperUrl ? {
         backgroundImage: `url(${wallpaperUrl})`,
         backgroundSize: 'cover',
