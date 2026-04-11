@@ -2,17 +2,19 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  padding: 20px 16px 12px;
-  border-bottom: 1px solid var(--border-subtle);
+  gap: 20px;
+  padding: 24px 16px 16px;
+  /* Removed border-bottom for a cleaner look */
 }
 
 /* ─── Digital Clock ──────────────────────────────────────── */
 .powerhub__clock {
   letter-spacing: 4px;
-  color: var(--text-primary);
+  color: #ffffff;
   text-align: center;
-  font-size: 28px;
+  font-size: 32px;
+  font-weight: 600;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
 }
 
 /* ─── Progress Ring ──────────────────────────────────────── */
@@ -20,6 +22,7 @@
   position: relative;
   width: 120px;
   height: 120px;
+  filter: drop-shadow(0 0 12px rgba(91, 141, 239, 0.2)); /* Uses accent loosely, but we'll apply filter at container */
 }
 
 .powerhub__ring {
@@ -28,6 +31,7 @@
 
 .powerhub__ring-progress {
   transition: stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  filter: drop-shadow(0 0 6px var(--accent));
 }
 
 .powerhub__ring-center {
@@ -36,32 +40,40 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 500;
-  color: var(--text-primary);
-  letter-spacing: 1px;
+  color: #ffffff;
+  letter-spacing: 2px;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
 }
 
 /* ─── Quick Stats Row ────────────────────────────────────── */
 .powerhub__stats {
   display: flex;
   align-items: center;
-  justify-content: space-around;
+  justify-content: center;
+  gap: 24px;
   width: 100%;
-  padding: 4px 0;
+  padding: 6px 0;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .powerhub__stat {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
 }
 
 .powerhub__stat-icon {
   font-size: 14px;
   line-height: 1;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.2));
 }
 
 .powerhub__stat .t-data {
   color: var(--text-secondary);
+  font-size: 12px;
+  letter-spacing: 1px;
 }

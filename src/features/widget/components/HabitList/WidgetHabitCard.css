@@ -2,19 +2,24 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  height: 36px;
-  border-left: 2px solid var(--card-accent);
-  background: var(--bg-surface);
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05); /* very subtle initial border */
+  border-left: 3px solid var(--card-accent); /* left border still acts as the visual indicator */
+  border-radius: 8px; /* softer pill look */
   cursor: pointer;
   user-select: none;
   overflow: hidden;
-  transition: opacity 0.3s ease, background 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .widget-habit-card:hover {
-  background: var(--bg-elevated);
+  background: rgba(255, 255, 255, 0.08); /* slight brightening */
+  transform: translateX(2px); /* subtle shift */
+  border-left-width: 4px; /* thicker on hover */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 /* ─── Completed State ────────────────────────────────────── */
