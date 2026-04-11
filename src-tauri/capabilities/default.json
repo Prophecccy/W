@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "opener:default",
+    "opener:allow-open-url",
     "dialog:default",
     "notification:default",
     "fs:default",
@@ -28,6 +29,8 @@
     "core:window:allow-inner-size",
     "core:window:allow-outer-position",
     "core:window:allow-set-decorations",
-    "oauth:default"
+    "oauth:default",
+    "oauth:allow-start",
+    "oauth:allow-cancel"
   ]
 }
