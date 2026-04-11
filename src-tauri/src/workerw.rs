@@ -145,3 +145,30 @@ pub fn detach_widget_from_desktop(app: tauri::AppHandle) -> Result<(), String> {
 
     Ok(())
 }
+
+#[tauri::command]
+pub fn move_widget(app: tauri::AppHandle, x: i32, y: i32) -> Result<(), String> {
+    let widget_window = app
+        .get_webview_window("widget")
+        .ok_or("Widget window not found")?;
+
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOSIZE, SWP_NOZORDER, SWP_NOACTIVATE, HWND_TOP};
+        let hwnd = widget_window.hwnd().map_err(|e| e.to_string())?;
+        unsafe {
+            let target = windows::Win32::Foundation::HWND(hwnd.0 as *mut _);
+            let _ = SetWindowPos(
+                target,
+                HWND_TOP,
+                x,
+                y,
+                0,
+                0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            );
+        }
+    }
+
+    Ok(())
+}

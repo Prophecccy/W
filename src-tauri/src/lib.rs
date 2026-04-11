@@ -32,7 +32,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             workerw::embed_widget_in_desktop,
-            workerw::detach_widget_from_desktop
+            workerw::detach_widget_from_desktop,
+            workerw::move_widget
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

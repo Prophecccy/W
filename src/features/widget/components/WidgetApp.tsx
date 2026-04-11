@@ -132,6 +132,8 @@ export function WidgetApp() {
     embed();
   }, []);
 
+  const dragRef = useRef({ isDragging: false, startX: 0, startY: 0, initialWinX: 0, initialWinY: 0 });
+
   if (loading) {
     return (
       <div className="widget-app widget-app--loading">
@@ -140,11 +142,12 @@ export function WidgetApp() {
     );
   }
 
-  const dragRef = useRef({ isDragging: false, startX: 0, startY: 0, initialWinX: 0, initialWinY: 0 });
+
 
   const handlePointerDown = async (e: React.PointerEvent) => {
     if (e.target instanceof Element && e.target.closest('.widget-habit-card')) return;
     try {
+      const { invoke } = await import('@tauri-apps/api/core');
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
       const win = getCurrentWindow();
       const pos = await win.outerPosition();
@@ -162,18 +165,15 @@ export function WidgetApp() {
   const handlePointerMove = async (e: React.PointerEvent) => {
     if (!dragRef.current.isDragging) return;
     try {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      const { PhysicalPosition } = await import('@tauri-apps/api/dpi');
-      const win = getCurrentWindow();
+      const { invoke } = await import('@tauri-apps/api/core');
       
       const dx = e.screenX - dragRef.current.startX;
       const dy = e.screenY - dragRef.current.startY;
-      const dpr = window.devicePixelRatio || 1;
       
-      await win.setPosition(new PhysicalPosition(
-        dragRef.current.initialWinX + (dx * dpr),
-        dragRef.current.initialWinY + (dy * dpr)
-      ));
+      await invoke('move_widget', {
+        x: dragRef.current.initialWinX + dx,
+        y: dragRef.current.initialWinY + dy
+      });
     } catch {}
   };
 
@@ -183,7 +183,8 @@ export function WidgetApp() {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
       
       // Save position when drag ends
-      import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
+      import('@tauri-apps/api/core').then(async ({ invoke }) => {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
         const win = getCurrentWindow();
         const pos = await win.outerPosition();
         const size = await win.innerSize();
