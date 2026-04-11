@@ -23,7 +23,14 @@ export function useAuth() {
     try {
       await signInWithGoogle();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Sign-in failed. Please try again.";
+      let message: string;
+      if (err instanceof Error) {
+        message = err.message;
+      } else if (typeof err === "string") {
+        message = err;
+      } else {
+        try { message = JSON.stringify(err); } catch { message = String(err); }
+      }
       console.error("[W Auth] Sign-in failed:", err);
       setError(message);
     } finally {
