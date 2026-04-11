@@ -38,3 +38,19 @@
   color: var(--text-primary);
   border-color: var(--text-muted);
 }
+
+.login-page__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 20px;
+  background: var(--bg-surface);
+  border: 1px solid var(--strike-red);
+  border-radius: 4px;
+  cursor: pointer;
+  max-width: 360px;
+  text-align: center;
+  word-break: break-word;
+}
+

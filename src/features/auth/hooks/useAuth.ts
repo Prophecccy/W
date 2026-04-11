@@ -5,6 +5,8 @@ import { signInWithGoogle, signOut, onAuthStateChanged } from "../services/authS
 export function useAuth() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [signingIn, setSigningIn] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged((firebaseUser) => {
@@ -16,10 +18,16 @@ export function useAuth() {
   }, []);
 
   const signIn = useCallback(async () => {
+    setError(null);
+    setSigningIn(true);
     try {
       await signInWithGoogle();
-    } catch (error) {
-      // Error handled by service
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Sign-in failed. Please try again.";
+      console.error("[W Auth] Sign-in failed:", err);
+      setError(message);
+    } finally {
+      setSigningIn(false);
     }
   }, []);
 
@@ -27,10 +35,12 @@ export function useAuth() {
     try {
       localStorage.removeItem("w-auth-mock");
       await signOut();
-    } catch (error) {
-      // Error handled by service
+    } catch (err: unknown) {
+      console.error("[W Auth] Sign-out failed:", err);
     }
   }, []);
+
+  const clearError = useCallback(() => setError(null), []);
 
   const devSkip = useCallback(() => {
     if (window.location.hostname === "localhost") {
@@ -49,8 +59,11 @@ export function useAuth() {
   return {
     user,
     loading,
+    error,
+    signingIn,
     signIn,
     signOut: handleSignOut,
+    clearError,
     devSkip,
   };
 }

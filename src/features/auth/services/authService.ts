@@ -28,8 +28,11 @@ export async function signInWithGoogle(): Promise<FirebaseUser> {
 // 3. Capture the OAuth callback with tokens
 // 4. Sign in to Firebase with the credential
 async function signInWithGoogleDesktop(): Promise<FirebaseUser> {
+  console.info("[W Auth] Starting desktop OAuth flow...");
+
   const oauthPlugin = await import("@fabianlars/tauri-plugin-oauth");
   const { openUrl } = await import("@tauri-apps/plugin-opener");
+  console.info("[W Auth] Plugins loaded.");
 
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   if (!clientId) {
@@ -38,6 +41,7 @@ async function signInWithGoogleDesktop(): Promise<FirebaseUser> {
 
   // 1. Start local OAuth server (random available port)
   const port = await oauthPlugin.start();
+  console.info(`[W Auth] OAuth server started on port ${port}`);
 
   // 2. Build Google OAuth URL (implicit flow → returns access_token directly)
   const state = crypto.randomUUID(); // CSRF protection
@@ -66,11 +70,13 @@ async function signInWithGoogleDesktop(): Promise<FirebaseUser> {
 
   // onUrl is async — returns an unlisten function
   const unlisten = await oauthPlugin.onUrl((url: string) => {
+    console.info("[W Auth] Received callback URL");
     clearTimeout(timeout);
     resolveToken(url);
   });
 
   // 4. Open system browser
+  console.info("[W Auth] Opening system browser...");
   await openUrl(authUrl.toString());
 
   // 5. Wait for Google to redirect back
@@ -88,10 +94,12 @@ async function signInWithGoogleDesktop(): Promise<FirebaseUser> {
   if (!accessToken) {
     throw new Error("No access token received from Google. Please try again.");
   }
+  console.info("[W Auth] Access token received, signing in to Firebase...");
 
   // 7. Sign in to Firebase with the Google credential
   const credential = GoogleAuthProvider.credential(null, accessToken);
   const result = await signInWithCredential(auth, credential);
+  console.info("[W Auth] Firebase sign-in successful.");
   return result.user;
 }
 

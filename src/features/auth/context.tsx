@@ -5,8 +5,11 @@ import { User as FirebaseUser } from "firebase/auth";
 interface AuthContextType {
   user: FirebaseUser | null;
   loading: boolean;
+  error: string | null;
+  signingIn: boolean;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  clearError: () => void;
   devSkip: () => void;
 }
 
@@ -29,3 +32,4 @@ export function useAuthContext() {
   }
   return context;
 }
+
