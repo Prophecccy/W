@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useStickyNotes } from "../hooks/useStickyNotes";
 import { StickyNote } from "./StickyNote";
 import {
@@ -13,31 +14,67 @@ import {
 } from "../../todos/services/todoService";
 import "./StickyNote.css";
 
-// ─── Click-Through Logic ────────────────────────────────────────
-// We dynamically toggle cursor event ignoring based on whether
-// the mouse is over a sticky note element or empty space.
-// This lets clicks on transparent areas pass through to the desktop.
+// ─── Click-Through Architecture ─────────────────────────────────
+//
+// The sticky-overlay is a fullscreen transparent window (alwaysOnBottom).
+// It MUST be click-through (WS_EX_TRANSPARENT) for empty space so the
+// taskbar and desktop icons remain usable.
+//
+// Problem: Tauri v2's setIgnoreCursorEvents(true) blocks ALL events —
+// the webview never receives onMouseEnter, so we can't toggle it back
+// from JavaScript when the cursor enters a sticky note.
+//
+// Solution: A Rust-side WH_MOUSE_LL hook that runs at the OS level,
+// checks cursor position against registered sticky note bounding
+// boxes, and toggles WS_EX_TRANSPARENT in real time. The hook fires
+// BEFORE the OS dispatches the mouse event, so there's zero delay.
+//
+// Flow:
+// 1. On mount → call start_sticky_hit_test() to install the hook
+// 2. On layout change → call update_sticky_regions() with note rects
+// 3. On pointer down → call force_sticky_interactive() to ensure
+//    the first click registers even if the hook hasn't toggled yet
+// 4. The hook handles everything else automatically
 
-let tauriWindowRef: { setIgnoreCursorEvents: (ignore: boolean) => Promise<void> } | null = null;
+// ─── Helpers ────────────────────────────────────────────────────
 
-async function initClickThrough() {
+interface StickyRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+async function initHitTest() {
   try {
-    const { getCurrentWindow } = await import("@tauri-apps/api/window");
-    tauriWindowRef = getCurrentWindow();
-    // Start with events ignored (transparent = click-through)
-    await tauriWindowRef.setIgnoreCursorEvents(true);
-  } catch {
-    // Not running in Tauri (browser dev mode) — skip
-    tauriWindowRef = null;
+    await invoke("start_sticky_hit_test");
+  } catch (e) {
+    console.warn("Failed to start sticky hit test:", e);
   }
 }
 
-export function enableCursorEvents() {
-  tauriWindowRef?.setIgnoreCursorEvents(false);
+/**
+ * Send updated sticky note bounding boxes to Rust for hit-testing.
+ * Call this whenever notes change position or the set of notes changes.
+ */
+export async function sendStickyRegions(regions: StickyRect[]) {
+  try {
+    await invoke("update_sticky_regions", { regions });
+  } catch {
+    // Not running in Tauri
+  }
 }
 
-export function disableCursorEvents() {
-  tauriWindowRef?.setIgnoreCursorEvents(true);
+/**
+ * Force the overlay to be interactive right now.
+ * Called on pointerdown to ensure the first click registers.
+ */
+export async function forceInteractive() {
+  try {
+    await invoke("force_sticky_interactive");
+  } catch {
+    // Not running in Tauri
+  }
 }
 
 // ─── StickyCanvas Component ─────────────────────────────────────
@@ -45,13 +82,7 @@ export function disableCursorEvents() {
 export function StickyCanvas() {
   const { todos, positions, loading } = useStickyNotes();
   const initRef = useRef(false);
-
-  useEffect(() => {
-    if (!initRef.current) {
-      initRef.current = true;
-      initClickThrough();
-    }
-  }, []);
+  const regionsTimerRef = useRef<number | null>(null);
 
   // Make body transparent for Tauri transparent window
   useEffect(() => {
@@ -59,13 +90,43 @@ export function StickyCanvas() {
     return () => document.body.classList.remove("transparent-window");
   }, []);
 
+  // Start the Rust-side mouse hook on mount
+  useEffect(() => {
+    if (!initRef.current) {
+      initRef.current = true;
+      initHitTest();
+    }
+  }, []);
+
+  // Update sticky note bounding boxes whenever notes or positions change
+  useEffect(() => {
+    // Debounce: wait for layout to settle after a React render
+    if (regionsTimerRef.current) clearTimeout(regionsTimerRef.current);
+    regionsTimerRef.current = window.setTimeout(() => {
+      const noteElements = document.querySelectorAll(".sticky-note");
+      const regions: StickyRect[] = [];
+      noteElements.forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        regions.push({
+          left: Math.round(rect.left * window.devicePixelRatio),
+          top: Math.round(rect.top * window.devicePixelRatio),
+          right: Math.round(rect.right * window.devicePixelRatio),
+          bottom: Math.round(rect.bottom * window.devicePixelRatio),
+        });
+      });
+      sendStickyRegions(regions);
+    }, 50);
+
+    return () => {
+      if (regionsTimerRef.current) clearTimeout(regionsTimerRef.current);
+    };
+  }, [todos, positions]);
+
   // ─── Handlers ───────────────────────────────────────────────────
 
   const handleDragEnd = useCallback(
     (todoId: string, pos: { x: number; y: number }) => {
-      // Save locally (instant)
       savePositionLocal(todoId, pos);
-      // Debounced Firestore sync (1s)
       syncPositionToFirestore(todoId, pos);
     },
     []
@@ -86,7 +147,6 @@ export function StickyCanvas() {
       if (!todo) return;
       try {
         await incrementNumberedTodo(todoId, todo);
-        // If it auto-completed, clean up
         if (
           todo.numbered &&
           todo.numbered.current + 1 >= todo.numbered.target

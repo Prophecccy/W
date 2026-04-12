@@ -1,3 +1,4 @@
+import { Pipette } from "lucide-react";
 import "./ColorPicker.css";
 
 const PRESET_COLORS = [
@@ -11,11 +12,14 @@ interface ColorPickerProps {
 }
 
 export function ColorPicker({ selectedColor, onSelect }: ColorPickerProps) {
+  const isCustomActive = !PRESET_COLORS.includes(selectedColor.toUpperCase()) && 
+                         !PRESET_COLORS.includes(selectedColor.toLowerCase());
+
   return (
     <div className="color-picker-component">
       <div className="color-picker-component__grid">
         {PRESET_COLORS.map((c) => {
-          const isSelected = selectedColor === c;
+          const isSelected = selectedColor.toLowerCase() === c.toLowerCase();
           return (
             <button
               key={c}
@@ -28,11 +32,16 @@ export function ColorPicker({ selectedColor, onSelect }: ColorPickerProps) {
             />
           );
         })}
+        
         {/* Native color picker for custom options */}
         <div 
-          className="color-picker-component__custom-wrap" 
+          className={`color-picker-component__custom-wrap ${
+            isCustomActive ? "color-picker-component__custom-wrap--active" : ""
+          }`}
           title="Custom Color"
         >
+          <div className="color-picker-component__custom-preview" style={{ background: isCustomActive ? selectedColor : 'transparent' }} />
+          <Pipette size={14} className="color-picker-component__pipette" />
           <input
             type="color"
             className="color-picker-component__native"

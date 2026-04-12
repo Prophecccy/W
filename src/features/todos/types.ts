@@ -23,6 +23,9 @@ export interface Todo {
   // Numbered logic
   numbered?: NumberedTodoConfig;
 
+  // Grouping
+  group: string | null;
+
   // Time & scheduling
   deadline: string | null; // ISO 8601 string or timestamp representation chosen for the app usually (in habits it's often epoch or YYYY-MM-DD. Let's use epoch ms for exact time deadlines, or YYYY-MM-DD. The prompt just says "deadline", "future")
   future: string | null;   // YYYY-MM-DD

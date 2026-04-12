@@ -11,6 +11,117 @@ import { isTauri } from "../../../shared/utils/tauri";
 
 const googleProvider = new GoogleAuthProvider();
 
+const AUTH_SUCCESS_HTML = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>[ W ] Authenticated</title>
+    <style>
+        :root {
+            --bg: #08090a;
+            --text: #e8e8e8;
+            --text-secondary: #888888;
+            --accent: #ffffff;
+        }
+        body {
+            background-color: var(--bg);
+            background: radial-gradient(circle at center, #111214 0%, #08090a 100%);
+            color: var(--text);
+            font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Monaco, Consolas, 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+        .container {
+            text-align: center;
+            animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .logo {
+            font-size: 48px;
+            letter-spacing: -3px;
+            font-weight: 500;
+            margin-bottom: 32px;
+            opacity: 0.9;
+        }
+        .success-circle {
+            width: 56px;
+            height: 56px;
+            border: 1.5px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 40px;
+            position: relative;
+        }
+        .success-circle::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 1.5px solid #fff;
+            animation: ripple 2s infinite;
+        }
+        .status {
+            font-size: 10px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+        .instruction {
+            font-size: 13px;
+            letter-spacing: -0.2px;
+            color: var(--text-secondary);
+            opacity: 0.5;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes ripple {
+            0% { transform: scale(1); opacity: 0.5; }
+            100% { transform: scale(1.6); opacity: 0; }
+        }
+        .checkmark {
+            stroke: #fff;
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            animation: draw 0.6s cubic-bezier(0.65, 0, 0.45, 1) 0.3s forwards;
+        }
+        @keyframes draw {
+            to { stroke-dashoffset: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-circle">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5 13L9 17L19 7" class="checkmark" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </div>
+        <div class="logo">[ W ]</div>
+        <div class="status">Authentication Successful</div>
+        <div class="instruction">You can safely close this window now.</div>
+    </div>
+    <script>
+        setTimeout(() => {
+            window.close();
+        }, 5000);
+    </script>
+</body>
+</html>
+`;
+
 // ─── Main Sign-In ──────────────────────────────────────────────
 export async function signInWithGoogle(): Promise<FirebaseUser> {
   if (isTauri()) {
@@ -40,7 +151,9 @@ async function signInWithGoogleDesktop(): Promise<FirebaseUser> {
   }
 
   // 1. Start local OAuth server (random available port)
-  const port = await oauthPlugin.start();
+  const port = await oauthPlugin.start({
+    response: AUTH_SUCCESS_HTML
+  });
   console.info(`[W Auth] OAuth server started on port ${port}`);
 
   // 2. Build Google OAuth URL (implicit flow → returns access_token directly)

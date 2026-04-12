@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { TodoType } from "../../types";
 import { createTodo } from "../../services/todoService";
+import { HabitGroup } from "../../habits/types";
 import { ColorPicker } from "../../../../shared/components/ColorPicker/ColorPicker";
 import "./TodoForm.css";
 
 interface TodoFormProps {
   onClose: () => void;
   onSuccess?: () => void;
+  groups?: HabitGroup[];
 }
 
-export function TodoForm({ onClose, onSuccess }: TodoFormProps) {
+export function TodoForm({ onClose, onSuccess, groups = [] }: TodoFormProps) {
   const [step, setStep] = useState(1);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -19,10 +21,14 @@ export function TodoForm({ onClose, onSuccess }: TodoFormProps) {
   const [deadline, setDeadline] = useState("");
   const [future, setFuture] = useState("");
   const [showOnDesktop, setShowOnDesktop] = useState(true);
+  const [group, setGroup] = useState<string | null>(null);
+  
+  const [newGroupName, setNewGroupName] = useState("");
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const totalSteps = 4;
+  const totalSteps = 5;
 
   const handleNext = () => setStep((s) => Math.min(s + 1, totalSteps));
   const handlePrev = () => setStep((s) => Math.max(s - 1, 1));
@@ -39,6 +45,7 @@ export function TodoForm({ onClose, onSuccess }: TodoFormProps) {
         order: 0,
         deadline: deadline || null,
         future: future || null,
+        group,
       };
       if (type === "numbered") {
         todoData.numbered = { current: 0, target };
@@ -173,6 +180,53 @@ export function TodoForm({ onClose, onSuccess }: TodoFormProps) {
                 <div className="t-label">{showOnDesktop ? "[ ENABLED ]" : "[ DISABLED ]"}</div>
               </button>
             </div>
+          </div>
+        )}
+
+        {step === 5 && (
+          <div className="todo-form__step">
+            <span className="t-label">STEP 5: GROUPING (OPTIONAL)</span>
+            <div className="todo-form__radio-group mt-4">
+              <button
+                className={`todo-form__radio-btn ${group === null && !isCreatingGroup ? "todo-form__radio-btn--active" : ""}`}
+                onClick={() => { setGroup(null); setIsCreatingGroup(false); }}
+              >
+                <div className="t-label">NO GROUP</div>
+              </button>
+              
+              {groups.map(g => (
+                <button
+                  key={g.id}
+                  className={`todo-form__radio-btn ${group === g.id && !isCreatingGroup ? "todo-form__radio-btn--active" : ""}`}
+                  onClick={() => { setGroup(g.id); setIsCreatingGroup(false); }}
+                >
+                  <div className="t-label">{g.name.toUpperCase()}</div>
+                </button>
+              ))}
+
+              <button
+                className={`todo-form__radio-btn ${isCreatingGroup ? "todo-form__radio-btn--active" : ""}`}
+                onClick={() => setIsCreatingGroup(true)}
+              >
+                <div className="t-label">+ NEW GROUP</div>
+              </button>
+            </div>
+
+            {isCreatingGroup && (
+              <div className="todo-form__field mt-4">
+                <input 
+                  type="text" 
+                  className="todo-form__input t-body" 
+                  placeholder="New Group Name" 
+                  value={newGroupName} 
+                  onChange={e => {
+                    setNewGroupName(e.target.value);
+                    setGroup(`new_${e.target.value.toLowerCase().replace(/\s+/g, '_')}`);
+                  }}
+                  autoFocus
+                />
+              </div>
+            )}
           </div>
         )}
       </div>

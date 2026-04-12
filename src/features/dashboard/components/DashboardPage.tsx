@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { HabitCard } from '../../habits/components/HabitCard/HabitCard';
 import { TodoCard } from '../../todos/components/TodoCard/TodoCard';
 import { Habit, HabitLog } from '../../habits/types';
@@ -9,10 +9,13 @@ import { getTodayLog, completeHabit, uncompleteHabit } from '../../habits/servic
 import { getTodos, completeTodo, completeNumberedTodoFull, incrementNumberedTodo } from '../../todos/services/todoService';
 import { isHabitScheduledToday } from '../../habits/utils/scheduleEngine';
 import { getToday } from '../../../shared/utils/dateUtils';
+import { TimeTube } from '../../time-tube/components/TimeTube/TimeTube';
+import { User } from '../../auth/types';
 import './DashboardPage.css';
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const { userDoc } = useOutletContext<{ userDoc: User }>();
   const [loading, setLoading] = useState(true);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [log, setLog] = useState<HabitLog | null>(null);
@@ -136,7 +139,18 @@ export function DashboardPage() {
         <h1 className="t-display">[ COMMAND CENTER ]</h1>
       </div>
 
-      <div className="dashboard-page__content">
+      <div className="dashboard-page__content layout-with-tube">
+        
+        {/* TIME LEFT TUBE */}
+        <div className="dashboard-tube-column">
+          <TimeTube 
+            wakeUpTime={userDoc?.settings?.wakeUpTime || "07:00"}
+            bedTime={userDoc?.settings?.bedTime || "23:00"}
+            accentColor={userDoc?.settings?.accentColor || "#bb86fc"}
+            lowGraphicsMode={userDoc?.settings?.lowGraphicsMode || false}
+          />
+        </div>
+
         <div className="dashboard-split">
           
           {/* LEFT COLUMN: HABITS */}

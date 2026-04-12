@@ -1,33 +1,41 @@
 import { useState, useEffect } from "react";
 import { Todo } from "../types";
-import { Habit } from "../../habits/types";
+import { Habit, HabitGroup } from "../../habits/types";
 import { getTodos, getCompletedTodos, completeTodo, completeNumberedTodoFull, incrementNumberedTodo } from "../services/todoService";
 import { getHabits } from "../../habits/services/habitService";
+import { getGroups } from "../../habits/services/groupService";
+import { HabitGroupHeader } from "../../habits/components/HabitGroupHeader/HabitGroupHeader";
 import { getNextDueDate } from "../../habits/utils/scheduleEngine";
 import { TodoCard } from "./TodoCard/TodoCard";
 import { TodoForm } from "./TodoForm/TodoForm";
 import { getToday } from "../../../shared/utils/dateUtils";
 import { LucideIcon } from "../../../shared/components/IconPicker/LucideIcon";
 
+type LayoutMode = 'default' | 'grouped';
+
 export function TodosPage() {
   const [activeTodos, setActiveTodos] = useState<Todo[]>([]);
   const [completedTodos, setCompletedTodos] = useState<Todo[]>([]);
   const [intervalHabits, setIntervalHabits] = useState<(Habit & { nextDue: string })[]>([]);
+  const [groups, setGroups] = useState<HabitGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('default');
 
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [todos, completed, habits] = await Promise.all([
+      const [todos, completed, habits, fetchedGroups] = await Promise.all([
         getTodos(),
         getCompletedTodos(),
         getHabits(),
+        getGroups(),
       ]);
 
       setActiveTodos(todos);
       setCompletedTodos(completed);
+      setGroups(fetchedGroups);
 
       const today = getToday();
       const upcomingIntervals = habits
@@ -109,7 +117,7 @@ export function TodosPage() {
   if (isFormOpen) {
     return (
       <div className="todos-page" style={{ height: "100%" }}>
-         <TodoForm onClose={() => setIsFormOpen(false)} onSuccess={loadData} />
+         <TodoForm groups={groups} onClose={() => setIsFormOpen(false)} onSuccess={loadData} />
       </div>
     );
   }
@@ -118,13 +126,31 @@ export function TodosPage() {
     <div className="todos-page" style={{ padding: "24px", maxWidth: "800px", margin: "0 auto", height: "100%", display: "flex", flexDirection: "column", gap: "32px", overflowY: "auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1 className="t-body" style={{ color: "var(--text-muted)" }}>[ TODOS ]</h1>
-        <button 
-          onClick={() => setIsFormOpen(true)}
-          style={{ background: "var(--accent)", color: "var(--bg-base)", border: "none", padding: "8px 16px", cursor: "pointer" }}
-          className="t-label"
-        >
-          [ NEW TODO ]
-        </button>
+        <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button 
+              className={`t-label ${layoutMode === 'default' ? '' : 't-meta'}`}
+              style={{ background: "none", border: "none", color: layoutMode === 'default' ? "var(--text-main)" : "var(--text-muted)", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}
+              onClick={() => setLayoutMode('default')}
+            >
+              <LucideIcon name="List" size={16} /> DEFAULT
+            </button>
+            <button 
+              className={`t-label ${layoutMode === 'grouped' ? '' : 't-meta'}`}
+              style={{ background: "none", border: "none", color: layoutMode === 'grouped' ? "var(--text-main)" : "var(--text-muted)", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}
+              onClick={() => setLayoutMode('grouped')}
+            >
+              <LucideIcon name="Folder" size={16} /> GROUPED
+            </button>
+          </div>
+          <button 
+            onClick={() => setIsFormOpen(true)}
+            style={{ background: "var(--accent)", color: "var(--bg-base)", border: "none", padding: "8px 16px", cursor: "pointer" }}
+            className="t-label"
+          >
+            [ NEW TODO ]
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -138,14 +164,55 @@ export function TodosPage() {
                   [ NO ACTIVE TODOS ]
                 </div>
               ) : (
-                currentTodos.map(todo => (
-                  <TodoCard 
-                    key={todo.id} 
-                    todo={todo} 
-                    onComplete={() => handleComplete(todo.id)}
-                    onClick={() => handleCardClick(todo.id)}
-                  />
-                ))
+                layoutMode === "default" ? (
+                  currentTodos.map(todo => (
+                    <TodoCard 
+                      key={todo.id} 
+                      todo={todo} 
+                      onComplete={() => handleComplete(todo.id)}
+                      onClick={() => handleCardClick(todo.id)}
+                    />
+                  ))
+                ) : (
+                  <div className="habits-grouped">
+                    {groups.map(g => {
+                      const groupTodos = currentTodos.filter(t => t.group === g.id);
+                      if (groupTodos.length === 0) return null;
+                      return (
+                        <HabitGroupHeader key={g.id} title={g.name} count={groupTodos.length}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                             {groupTodos.map(todo => (
+                              <TodoCard 
+                                key={todo.id} 
+                                todo={todo} 
+                                onComplete={() => handleComplete(todo.id)}
+                                onClick={() => handleCardClick(todo.id)}
+                              />
+                            ))}
+                          </div>
+                        </HabitGroupHeader>
+                      );
+                    })}
+                    {(() => {
+                       const ungrouped = currentTodos.filter(t => !t.group);
+                       if (ungrouped.length === 0) return null;
+                       return (
+                          <HabitGroupHeader title="UNGROUPED" count={ungrouped.length}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                               {ungrouped.map(todo => (
+                                <TodoCard 
+                                  key={todo.id} 
+                                  todo={todo} 
+                                  onComplete={() => handleComplete(todo.id)}
+                                  onClick={() => handleCardClick(todo.id)}
+                                />
+                              ))}
+                            </div>
+                          </HabitGroupHeader>
+                       )
+                    })()}
+                  </div>
+                )
               )}
             </div>
           </section>

@@ -1,10 +1,14 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useWidgetData } from '../hooks/useWidgetData';
 import { PowerHub } from './PowerHub/PowerHub';
 import { WidgetHabitList } from './HabitList/WidgetHabitList';
+import { TimeTubeSimple } from '../../time-tube/components/TimeTubeSimple/TimeTubeSimple';
 import { loadWidgetPosition, saveWidgetPosition } from '../services/widgetPositionStore';
 import { ShieldAlert } from 'lucide-react';
 import { getLocalWallpaper } from '../../../shared/utils/storageUtils';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi';
+import { invoke } from '@tauri-apps/api/core';
 import './WidgetApp.css';
 
 export function WidgetApp() {
@@ -25,7 +29,47 @@ export function WidgetApp() {
   const isLocked = strikeCount >= 5;
   const isFrozen = userDoc?.freeze?.active === true;
 
-  // Wallpaper
+  // ─── Manual Drag State ───────────────────────────────────
+  // ALL drag handlers are synchronous — no awaits allowed in the drag path.
+  // The actual window move is handled natively by Rust (move_widget_by).
+  const isDragging = useRef(false);
+  const lastPos = useRef({ x: 0, y: 0 });
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // Skip interactive children — but NOT the scroll container itself
+    if (e.target instanceof Element && (
+      e.target.closest('.widget-habit-card') ||
+      e.target.closest('button') ||
+      e.target.closest('a') ||
+      e.target.closest('.widget-app__lockout')
+    )) return;
+
+    // Only primary button (left click)
+    if (e.button !== 0) return;
+
+    isDragging.current = true;
+    lastPos.current = { x: e.screenX, y: e.screenY };
+    // MUST be called synchronously — captures pointer even outside window bounds
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!isDragging.current) return;
+
+    const dx = Math.round(e.screenX - lastPos.current.x);
+    const dy = Math.round(e.screenY - lastPos.current.y);
+    if (dx === 0 && dy === 0) return;
+
+    lastPos.current = { x: e.screenX, y: e.screenY };
+    // Fire-and-forget — Rust handles the native move synchronously
+    invoke('move_widget_by', { dx, dy });
+  }, []);
+
+  const handlePointerUp = useCallback(() => {
+    isDragging.current = false;
+  }, []);
+
+  // ─── Wallpaper ───────────────────────────────────────────
   const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -61,20 +105,18 @@ export function WidgetApp() {
     document.documentElement.style.setProperty('--accent', accentColor);
   }, [accentColor]);
 
-  // Restore and track widget position
+  // ─── Restore & persist widget position ───────────────────
   useEffect(() => {
     let cleanup = false;
 
     async function initPosition() {
       try {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window');
         const win = getCurrentWindow();
         const saved = await loadWidgetPosition();
 
-        // Restore position
-        const { LogicalPosition, LogicalSize } = await import('@tauri-apps/api/dpi');
-        await win.setPosition(new LogicalPosition(saved.x, saved.y));
-        await win.setSize(new LogicalSize(saved.width, saved.height));
+        // Restore position using Physical coordinate metrics to prevent runaway DPI growth
+        await win.setPosition(new PhysicalPosition(saved.x, saved.y));
+        await win.setSize(new PhysicalSize(saved.width, saved.height));
 
         // Listen for move/resize events to persist
         const unlistenMove = await win.onMoved(async (pos) => {
@@ -112,28 +154,14 @@ export function WidgetApp() {
     initPosition();
   }, []);
 
-  // Try to embed in WorkerW on mount
+  // ─── Pin widget to bottom z-order on mount ───────────────
   useEffect(() => {
-    async function embed() {
-      try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        await invoke('embed_widget_in_desktop');
-        console.info('Widget embedded in WorkerW desktop layer');
-      } catch (e) {
-        console.warn('WorkerW embedding failed, using fallback:', e);
-        // Fallback: just keep the window visible as-is
-        try {
-          const { getCurrentWindow } = await import('@tauri-apps/api/window');
-          const win = getCurrentWindow();
-          await win.show();
-        } catch {}
-      }
-    }
-    embed();
+    invoke('embed_widget_in_desktop').catch((e) => {
+      console.warn('Widget pin failed:', e);
+    });
   }, []);
 
-  const dragRef = useRef({ isDragging: false, startX: 0, startY: 0, initialWinX: 0, initialWinY: 0 });
-
+  // ─── Render ──────────────────────────────────────────────
   if (loading) {
     return (
       <div className="widget-app widget-app--loading">
@@ -142,49 +170,13 @@ export function WidgetApp() {
     );
   }
 
-
-
-  const handlePointerDown = async (e: React.PointerEvent) => {
-    // Don't drag when clicking on habit cards (they have their own interactions)
-    if (e.target instanceof Element && e.target.closest('.widget-habit-card')) return;
-    
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      const win = getCurrentWindow();
-      
-      // Step 1: Detach from WorkerW so it becomes a normal top-level window
-      await invoke('detach_widget_from_desktop');
-      
-      // Step 2: Use Tauri's native drag (works perfectly on top-level windows)
-      await win.startDragging();
-      
-      // Step 3: After drag completes, save position, then re-embed
-      const pos = await win.outerPosition();
-      const size = await win.innerSize();
-      saveWidgetPosition({
-        x: pos.x,
-        y: pos.y,
-        width: size.width,
-        height: size.height,
-      });
-      
-      // Step 4: Re-embed into WorkerW
-      await invoke('embed_widget_in_desktop');
-    } catch (err) {
-      console.warn('Widget drag failed:', err);
-      // Try to re-embed in case we detached but drag failed
-      try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        await invoke('embed_widget_in_desktop');
-      } catch {}
-    }
-  };
-
   return (
     <div
       className={`widget-app ${isFrozen ? 'widget-app--frozen' : ''}`}
       onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       style={wallpaperUrl ? {
         backgroundImage: `url(${wallpaperUrl})`,
         backgroundSize: 'cover',
@@ -201,22 +193,34 @@ export function WidgetApp() {
 
       {/* Main content */}
       <div className="widget-app__content">
-        <PowerHub
-          completedCount={completedCount}
-          totalScheduled={totalScheduled}
-          globalStreak={globalStreak}
-          strikeCount={strikeCount}
-          weeklyCompletions={weeklyCompletions}
-          isFrozen={isFrozen}
-        />
+        <div className="widget-app__layout-with-tube">
+          <div className="widget-tube-container">
+            <TimeTubeSimple 
+              wakeUpTime={userDoc?.settings?.wakeUpTime || "07:00"}
+              bedTime={userDoc?.settings?.bedTime || "23:00"}
+              accentColor={userDoc?.settings?.accentColor || "#bb86fc"}
+            />
+          </div>
+          
+          <div className="widget-app__main-column">
+            <PowerHub
+              completedCount={completedCount}
+              totalScheduled={totalScheduled}
+              globalStreak={globalStreak}
+              strikeCount={strikeCount}
+              weeklyCompletions={weeklyCompletions}
+              isFrozen={isFrozen}
+            />
 
-        <div className="widget-app__habits-scroll">
-          <WidgetHabitList
-            scheduledHabits={scheduledHabits}
-            todayLog={todayLog}
-            onComplete={completeHabit}
-            onUndo={undoHabit}
-          />
+            <div className="widget-app__habits-scroll">
+              <WidgetHabitList
+                scheduledHabits={scheduledHabits}
+                todayLog={todayLog}
+                onComplete={completeHabit}
+                onUndo={undoHabit}
+              />
+            </div>
+          </div>
         </div>
       </div>
 

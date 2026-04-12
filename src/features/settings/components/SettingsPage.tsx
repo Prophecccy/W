@@ -4,7 +4,6 @@ import { DesktopSection } from "./DesktopSection";
 import { ScheduleSection } from "./ScheduleSection";
 import { NotificationsSection } from "./NotificationsSection";
 import { DataSection } from "./DataSection";
-import { GroupManager } from "./GroupManager/GroupManager";
 import { ManualFreezeToggle } from "../../freeze/components/ManualFreezeToggle";
 import { UndoHistory } from "./UndoHistory/UndoHistory";
 import { WallpaperPicker } from "../../wallpaper/components/WallpaperPicker/WallpaperPicker";
@@ -55,14 +54,6 @@ export function SettingsPage() {
       <DataSection />
 
       <hr className="settings-divider" />
-
-      {/* Groups */}
-      <div className="settings-section" id="settings-groups">
-        <h2 className="settings-section__header t-label">[ GROUPS ]</h2>
-        <div className="settings-section__content">
-          <GroupManager />
-        </div>
-      </div>
 
       <hr className="settings-divider" />
 

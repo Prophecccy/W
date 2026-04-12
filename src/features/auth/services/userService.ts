@@ -16,6 +16,8 @@ const DEFAULT_SETTINGS: Settings = {
   weeklySummary: true,
   completionSound: true,
   lowGraphicsMode: false,
+  wakeUpTime: "07:00",
+  bedTime: "23:00",
 };
 
 const DEFAULT_AESTHETICS: Aesthetics = {

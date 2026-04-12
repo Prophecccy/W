@@ -174,7 +174,7 @@ export function Layout() {
           url: "/sticky-canvas",
           decorations: false,
           transparent: true,
-          fullscreen: true,
+          maximized: true,
           skipTaskbar: true,
           visible: true,
         });

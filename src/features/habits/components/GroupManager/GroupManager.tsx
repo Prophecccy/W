@@ -1,11 +1,15 @@
 import { useState, useEffect } from "react";
-import { HabitGroup } from "../../../habits/types";
-import { getGroups, createGroup, updateGroup, deleteGroup, reorderGroups } from "../../../habits/services/groupService";
-import { LucideIcon } from "../../../../shared/components/IconPicker/LucideIcon";
-import { useToast } from "../../../../shared/components/Toast/Toast";
+import { HabitGroup } from "../../types";
+import { getGroups, createGroup, updateGroup, deleteGroup, reorderGroups } from "../../services/groupService";
+import { LucideIcon } from "../../../shared/components/IconPicker/LucideIcon";
+import { useToast } from "../../../shared/components/Toast/Toast";
 import "./GroupManager.css";
 
-export function GroupManager() {
+interface GroupManagerProps {
+  onClose?: () => void;
+}
+
+export function GroupManager({ onClose }: GroupManagerProps) {
   const [groups, setGroups] = useState<HabitGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
@@ -97,8 +101,15 @@ export function GroupManager() {
 
   return (
     <div className="group-manager">
-      <h2 className="t-h2">[ GROUP MANAGER ]</h2>
-      <p className="t-body" style={{ color: "var(--text-muted)", marginBottom: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 className="t-h2">[ GROUP MANAGER ]</h2>
+        {onClose && (
+          <button className="t-label" onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>
+            [ CLOSE ]
+          </button>
+        )}
+      </div>
+      <p className="t-body" style={{ color: "var(--text-muted)", marginBottom: 24, marginTop: 4 }}>
         Organize your habits into dashboard sections.
       </p>
 

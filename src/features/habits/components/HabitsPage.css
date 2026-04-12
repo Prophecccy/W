@@ -77,43 +77,43 @@
   padding-bottom: 24px;
   /* Scrollbar override */
 }
-.dashboard-page__content::-webkit-scrollbar-track {
+.habits-page__content::-webkit-scrollbar-track {
   background: transparent;
 }
-.dashboard-page__content::-webkit-scrollbar-thumb {
+.habits-page__content::-webkit-scrollbar-thumb {
   background: var(--border-default);
 }
 
-.dashboard-grid {
+.habits-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
   margin-bottom: 32px;
 }
 
-.dashboard-grid--dimmed {
+.habits-grid--dimmed {
   opacity: 0.5;
 }
 
-.dashboard-group-section {
+.habits-group-section {
   margin-bottom: 32px;
 }
 
-.dashboard-group-title {
+.habits-group-title {
   margin-bottom: 12px;
   color: var(--text-secondary);
 }
 
-.dashboard-section {
+.habits-section {
   margin-top: 48px;
 }
 
-.dashboard-section-title {
+.habits-section-title {
   margin-bottom: 16px;
   color: var(--text-muted);
 }
 
-.dashboard-section-toggle {
+.habits-section-toggle {
   background: transparent;
   border: none;
   color: var(--text-muted);
@@ -126,18 +126,18 @@
   transition: color 0.2s ease;
 }
 
-.dashboard-section-toggle:hover {
+.habits-section-toggle:hover {
   color: var(--text-primary);
 }
 
-.dashboard-page__empty {
+.habits-page__empty {
   color: var(--text-muted);
   text-align: center;
   margin-top: 64px;
 }
 
 /* Daily Note */
-.dashboard-page__footer {
+.habits-page__footer {
   margin-top: auto;
   padding-top: 24px;
   border-top: 1px solid var(--border-default);
@@ -186,7 +186,7 @@
 }
 
 /* Form Modal Overlay */
-.dashboard-modal-overlay {
+.habits-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -201,7 +201,7 @@
   padding: 24px;
 }
 
-.dashboard-modal-content {
+.habits-modal-content {
   background: var(--bg-base);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
@@ -213,12 +213,12 @@
 }
 
 /* Scrollbar for modal */
-.dashboard-modal-content::-webkit-scrollbar {
+.habits-modal-content::-webkit-scrollbar {
   width: 4px;
 }
-.dashboard-modal-content::-webkit-scrollbar-track {
+.habits-modal-content::-webkit-scrollbar-track {
   background: transparent;
 }
-.dashboard-modal-content::-webkit-scrollbar-thumb {
+.habits-modal-content::-webkit-scrollbar-thumb {
   background: var(--border-subtle);
 }

@@ -38,9 +38,21 @@
 .sticky-note--dragging {
   cursor: grabbing;
   opacity: 0.92;
-  transform: scale(1.03);
   z-index: 100;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  /* Kill ALL transitions during drag — they fight with direct DOM writes */
+  transition: none !important;
+  /* Disable backdrop-filter during drag — it's extremely expensive.
+     The blur forces a full re-sample + Gaussian blur of all background
+     pixels on EVERY frame. In transparent Tauri windows this tanks FPS. */
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  /* Solid fallback background while dragging (no blur needed) */
+  background: rgba(17, 18, 20, 0.95);
+  /* Simpler shadow — large blurs are expensive */
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  /* GPU layer hint for transform-based movement */
+  will-change: transform;
+  contain: layout style;
 }
 
 .sticky-note--holding {

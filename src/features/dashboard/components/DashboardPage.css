@@ -26,9 +26,24 @@
   min-height: 0;
 }
 
+.layout-with-tube {
+  display: flex;
+  gap: 32px;
+  height: 100%;
+}
+
+.dashboard-tube-column {
+  flexShrink: 0;
+  width: 40px; /* Slim liquid tube */
+  height: 100%;
+  border-right: 1px solid var(--border-subtle);
+  padding-right: 32px;
+}
+
 .dashboard-split {
   display: flex;
   gap: 32px;
+  flex: 1; /* take the rest of the layout-with-tube space */
   height: 100%;
 }
 

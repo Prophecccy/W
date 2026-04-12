@@ -11,6 +11,8 @@ export interface Settings {
   weeklySummary: boolean;
   completionSound: boolean;
   lowGraphicsMode: boolean;
+  wakeUpTime: string;  // "HH:MM" e.g. "07:00"
+  bedTime: string;     // "HH:MM" e.g. "23:00"
 }
 
 export interface Aesthetics {

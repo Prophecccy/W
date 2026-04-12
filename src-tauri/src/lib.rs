@@ -2,6 +2,7 @@
 use tauri::{Manager, Emitter};
 
 mod workerw;
+mod sticky_overlay;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -33,7 +34,13 @@ pub fn run() {
             greet,
             workerw::embed_widget_in_desktop,
             workerw::detach_widget_from_desktop,
-            workerw::move_widget
+            workerw::pin_widget_bottom,
+            workerw::move_widget_by,
+            sticky_overlay::start_sticky_hit_test,
+            sticky_overlay::stop_sticky_hit_test,
+            sticky_overlay::update_sticky_regions,
+            sticky_overlay::force_sticky_interactive,
+            sticky_overlay::set_sticky_drag_mode
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

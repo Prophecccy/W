@@ -106,16 +106,15 @@
 3. **Timer Service**: Designed `TimerPanel` and `TimerCard` componentry supporting up to 6 distinct countdown timers mapped to `timers.json`.
 4. **Stopwatch Service**: Designed `StopwatchPanel` taking advantage of `requestAnimationFrame` for 60fps local display while safely syncing to `stopwatch.json` seamlessly mapping timestamps so it can be resumed indefinitely without drift. Including lap lists.
 
-### Accomplished in Batch 13:
-1. **WorkerW Embedding Plugin**: Created `src-tauri/src/workerw.rs` Rust plugin that finds the desktop `WorkerW` layer via `FindWindowEx` + `0x052C` message to Progman, embeds the widget via `SetParent`, and sets `WS_EX_TOOLWINDOW` to hide from alt-tab/taskbar. Graceful non-Windows fallback stubs.
-2. **Tauri Widget Window**: Added 4th window config `widget` in `tauri.conf.json` — frameless, transparent, resizable (300×400 to 600×900, default 380×520). Updated capabilities with all required permissions.
-3. **Widget App Shell** (`WidgetApp.tsx`): Standalone React tree with no Layout/sidebar/topbar. Renders PowerHub + WidgetHabitList. Includes wallpaper background with dim overlay, lockout overlay (`[ LOCKED — OPEN APP ]`), and frozen state desaturation.
-4. **PowerHub** (`PowerHub.tsx`): Live-updating `[ HH:MM ]` digital clock, 120px SVG progress ring with accent-colored fill, quick stats row (🔥streak · ⚠️strikes · 📈weekly). Frozen state replaces streak with `⏸ FROZEN`.
-5. **WidgetHabitCard** (`WidgetHabitCard.tsx`): 36px compact row with hold-to-verify (500ms fill animation), 8s undo window, per-habit streak badge, completed strike-through with faded opacity.
-6. **WidgetHabitList** (`WidgetHabitList.tsx`): Auto-sorts completed habits to bottom. Separates regular habits from `[ LIMITERS ]` section.
-7. **useWidgetData Hook**: Real-time Firestore `onSnapshot` listeners on habits, today's log, and user doc. Computes derived data (scheduledHabits, completedCount, globalStreak). Exposes completeHabit/undoHabit actions.
-8. **Widget Position Persistence** (`widgetPositionStore.ts`): Saves `{ x, y, width, height }` to `widget_position.json` in AppData with 500ms debounce. Restores on startup via Tauri `setPosition`/`setSize`.
-9. **Layout.tsx Integration**: Phase 3 now launches both sticky-overlay and widget windows. Widget embedding into WorkerW is attempted with 500ms delay, falling back to normal float if unavailable.
+### Accomplished in Batch 13 (Widget & Shell):
+1. **Window Z-Order Layering**: Replaced WorkerW child-window embedding (which locked window movement) with a robust "Pin-to-Bottom" architecture. The widget is now a normal top-level window that uses native Windows API `SetWindowPos(HWND_BOTTOM)` to stay behind all other applications.
+2. **Tauri Widget Window**: Added 4th window config `widget` in `tauri.conf.json` — frameless, transparent.
+3. **Widget App Shell** (`WidgetApp.tsx`): Standalone React tree with wallpaper background, lockout overlay, and desaturation.
+4. **PowerHub** (`PowerHub.tsx`): Digital clock, SVG progress ring, and streak/strike stats.
+5. **WidgetHabitCard**: Compact row with 500ms hold-to-verify and undo window.
+6. **Programmatic Dragging**: Implemented `onMouseDown` -> `startDragging()` logic to allow the widget to be moved manually by the user, solving the "locked in place" issue from the previous WorkerW attempt.
+7. **Position Persistence**: Debounced saves to `widget_position.json` tracking `{ x, y, width, height }`.
+8. **Auto-Repinning**: Listeners for `tauri://move` and focus events re-apply the `HWND_BOTTOM` state to ensure the widget doesn't "pop" to the front when interacted with.
 
 ### Accomplished in Batch 14:
 1. **Analytics Engine** (`analyticsService.ts`, `types.ts`): Comprehensive aggregation engine matching V2 API semantics. Generates `MonthlySummary` and `WeeklySummary`. Computes metrics like completion rates (overall/month/week), streak proximity (`longest - current`), consistency ranking, most improved, and day-of-week averages (best/worst days).
@@ -324,12 +323,22 @@ src/
 │   │   │   └── useWidgetData.ts    → Real-time Firestore listeners for widget
 │   │   └── services/
 │   │       └── widgetPositionStore.ts → AppData position persistence
+│   └── sticky-notes/
+│       ├── components/
+│       │   ├── StickyCanvas.tsx    → Fullscreen overlay, registers note regions with Rust hit-test
+│       │   ├── StickyNote.tsx      → Individual note with pointer-capture drag + hold-to-complete
+│       │   └── StickyNote.css      → Note styles, drag state, hold animation
+│       ├── hooks/
+│       │   └── useStickyNotes.ts   → Firestore listener for pinned todos + local positions
+│       └── services/
+│           └── positionStore.ts    → AppData persistence for note positions
 ```
 
 ### Rust Backend (`src-tauri/src/`)
 ```
-lib.rs          → Tauri builder with plugin registration + background-tick pacemaker
-workerw.rs      → WorkerW embedding: find_workerw, embed_in_workerw, WS_EX_TOOLWINDOW
+lib.rs              → Tauri builder with plugin registration + background-tick pacemaker
+workerw.rs          → Widget window management: pin_to_bottom, unpin_from_bottom, move_by (native Z-order + drag)
+sticky_overlay.rs   → Sticky note overlay hit-testing: cursor polling thread toggles WS_EX_TRANSPARENT
 ```
 
 ---
@@ -354,3 +363,19 @@ workerw.rs      → WorkerW embedding: find_workerw, embed_in_workerw, WS_EX_TOO
 - **Run dev:** `npm run tauri dev` (or `npx vite dev` for browser-only)
 - **Build:** `npx vite build`
 - Tauri v2 — all native features use Rust APIs, no Electron
+
+---
+
+## Native Windows Architecture
+
+### Widget Dragging (`workerw.rs` + `WidgetApp.tsx`)
+- **Synchronous drag:** `move_widget_by(dx, dy)` uses native `GetWindowRect` + `SetWindowPos` with `SWP_NOZORDER` to preserve bottom-pinning
+- **DPI scaling:** Widget position restore uses `PhysicalPosition`/`PhysicalSize` (NOT Logical) to prevent exponential inflation on high-DPI displays
+- **Z-order:** `HWND_BOTTOM` keeps widget behind all other windows; `WS_EX_TOOLWINDOW` hides from Alt+Tab
+
+### Sticky Overlay Hit-Testing (`sticky_overlay.rs` + `StickyCanvas.tsx`)
+- **Problem:** Tauri v2's `setIgnoreCursorEvents(true)` blocks ALL events — no `forward` option exists. Cannot toggle from JS because the webview never receives hover events when click-through is active.
+- **Solution:** A Rust-side polling thread calls `GetCursorPos()` at ~60fps, checks cursor position against registered sticky note bounding boxes (DPI-scaled), and toggles `WS_EX_TRANSPARENT` on the overlay window.
+- **Commands:** `start_sticky_hit_test` (starts thread), `update_sticky_regions` (sends note rects from JS), `force_sticky_interactive` (instant toggle for first click)
+- **Key constraint:** `WH_MOUSE_LL` hooks require a message pump on the installer thread — Tauri command threads don't have one. That's why we use polling instead of a hook.
+- **CSS jitter fix:** `.sticky-note--dragging` has `transition: none` to prevent CSS transforms from fighting with instant `left/top` position updates.

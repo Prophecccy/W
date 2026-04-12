@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useAuthContext } from "../../auth/context";
 import { getUserDoc, updateUserDoc } from "../../auth/services/userService";
 import { useToast } from "../../../shared/components/Toast/Toast";
-import { Clock, CalendarDays, Globe } from "lucide-react";
+import { Clock, CalendarDays, Globe, Sunrise, Moon } from "lucide-react";
 
 // Get all available timezones
 function getTimezones(): string[] {
@@ -27,6 +27,8 @@ export function ScheduleSection() {
   const [resetTime, setResetTime] = useState("04:00");
   const [weeklyDay, setWeeklyDay] = useState(1);
   const [timezone, setTimezone] = useState("UTC");
+  const [wakeUpTime, setWakeUpTime] = useState("07:00");
+  const [bedTime, setBedTime] = useState("23:00");
   const [loaded, setLoaded] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -37,6 +39,8 @@ export function ScheduleSection() {
           setResetTime(doc.settings.dailyResetTime);
           setWeeklyDay(doc.settings.weeklyResetDay);
           setTimezone(doc.settings.timezone);
+          setWakeUpTime(doc.settings.wakeUpTime ?? "07:00");
+          setBedTime(doc.settings.bedTime ?? "23:00");
           setLoaded(true);
         }
       });
@@ -77,6 +81,40 @@ export function ScheduleSection() {
             onChange={(e) => {
               setResetTime(e.target.value);
               saveField("dailyResetTime", e.target.value);
+            }}
+          />
+        </div>
+
+        {/* Wake-Up Time */}
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <Sunrise size={14} strokeWidth={1.5} />
+            <span className="t-body">Wake-Up Time</span>
+          </div>
+          <input
+            type="time"
+            className="settings-input"
+            value={wakeUpTime}
+            onChange={(e) => {
+              setWakeUpTime(e.target.value);
+              saveField("wakeUpTime", e.target.value);
+            }}
+          />
+        </div>
+
+        {/* Bed Time */}
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <Moon size={14} strokeWidth={1.5} />
+            <span className="t-body">Bed Time</span>
+          </div>
+          <input
+            type="time"
+            className="settings-input"
+            value={bedTime}
+            onChange={(e) => {
+              setBedTime(e.target.value);
+              saveField("bedTime", e.target.value);
             }}
           />
         </div>

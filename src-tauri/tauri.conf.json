@@ -19,14 +19,13 @@
       },
       {
         "label": "sticky-overlay",
-        "title": "Sticky Notes",
+        "title": "",
         "url": "/sticky-canvas",
         "decorations": false,
         "transparent": true,
-        "fullscreen": true,
+        "maximized": true,
         "visible": false,
-        "skipTaskbar": true,
-        "alwaysOnBottom": true
+        "skipTaskbar": true
       },
       {
         "label": "alarm-popup",

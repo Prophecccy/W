@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { HabitCard } from './HabitCard/HabitCard';
 import { HabitForm } from './HabitForm/HabitForm';
+import { GroupManager } from './GroupManager/GroupManager';
 import { DailyNote } from './DailyNote/DailyNote';
 import { HabitGroupHeader } from './HabitGroupHeader/HabitGroupHeader';
 import { Habit, HabitLog, HabitGroup } from '../types';
@@ -22,6 +23,7 @@ export function HabitsPage() {
   const [log, setLog] = useState<HabitLog | null>(null);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('default');
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isGroupManagerOpen, setIsGroupManagerOpen] = useState(false);
   const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
   const [deleteSubId, setDeleteSubId] = useState<string | null>(null);
   const [focusedIndex, _setFocusedIndex] = useState(0);
@@ -225,6 +227,9 @@ export function HabitsPage() {
               <LucideIcon name="Map" size={16} /> CUSTOM
             </button>
           </div>
+          <button className="habits-page__add-btn t-label" style={{ background: "transparent", border: "1px solid var(--border-default)" }} onClick={() => setIsGroupManagerOpen(true)}>
+            [ GROUPS ]
+          </button>
           <button className="habits-page__add-btn t-label" onClick={() => setIsFormOpen(true)}>
             [ + NEW HABIT ]
           </button>
@@ -359,6 +364,14 @@ export function HabitsPage() {
               onSubmit={handleCreateSubmit} 
               onCancel={() => setIsFormOpen(false)} 
             />
+          </div>
+        </div>
+      )}
+
+      {isGroupManagerOpen && (
+        <div className="habits-modal-overlay">
+          <div className="habits-modal-content" style={{ padding: "24px", background: "var(--bg-elevated)", borderRadius: "8px", maxWidth: "600px", width: "100%", maxHeight: "90vh", overflowY: "auto", border: "1px solid var(--border-subtle)" }}>
+            <GroupManager onClose={() => setIsGroupManagerOpen(false)} />
           </div>
         </div>
       )}
