@@ -450,3 +450,11 @@
 
 **✅ BUILD COMPLETE 🏁**
 
+---
+
+## BATCH 22 — Workflow Optimization (2 tasks)
+
+- [x] 321. Consolidate Windows build targets: Change `bundle.targets` to `["nsis"]` in `tauri.conf.json`
+- [x] 322. Verify release workflow: Ensure GitHub Actions will only upload the single NSIS installer and updater artifacts
+
+

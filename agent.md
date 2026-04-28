@@ -2,8 +2,8 @@
 
 > **Purpose:** This file tracks the current state of the application architecture, tokens, and rules. All AI agents working on this project MUST read this file to understand the current context before making changes.
 
-## Current State: BATCH 20 COMPLETE — EVOLUTION PROTOCOL 🧬
-- **Status:** All 20 batches complete. Auto-update system (Evolution Protocol) implemented with Tauri v2 Updater, GitHub Releases, and a tactical HUD overlay. Full environment guarding verified.
+## Current State: BATCH 22 COMPLETE — EVOLUTION PROTOCOL 🧬
+- **Status:** All 22 batches complete. Workflow optimized to single-artifact (NSIS) distribution. Auto-update system (Evolution Protocol) implemented with Tauri v2 Updater, GitHub Releases, and a tactical HUD overlay. Full environment guarding verified.
 - **All features:** Auth → Onboarding (v2) → Dashboard (v2) → Habits → Todos → Clock → Analytics → Settings → Widget → Strikes → Freeze → Backup → Export → Notifications → Gamification → Performance Mode → Daily Cycle / Waking Fuel → Auto-Updater (Evolution Protocol)
 
 ### Accomplished in Batch 1:
@@ -196,6 +196,10 @@
 2. **Active Z-Order Defense (Sticky Notes)**: Integrated the same defense into `StickyNote.tsx` pointer handlers. Interacting with notes now ensures the global overlay doesn't steal focus dominance from the main UI.
 3. **Time Tube Visuals**: Enhanced the Waking Fuel tube container with frosted glass styling (`rgba(12, 13, 15, 0.4)`), hardware edges (`1px white/0.15`), and cylindrical depth via inset shadows for a premium 3D physical look.
 4. **Environment Stability**: Cleaned up orphaned processes and verified multi-window interaction stability in Tauri v2.
+
+### Accomplished in Batch 22 (Workflow Optimization):
+1. **Build Targets Consolidation**: Updated `tauri.conf.json` to change `bundle.targets` from `all` to `["nsis"]`.
+2. **Distribution Simplification**: Removed redundant MSI installer from the release pipeline. The app now distributes via a single, branded NSIS `.exe` installer, which is fully compatible with the built-in Evolution Protocol (Tauri Updater).
 
 ## Architecture Rules (Non-Negotiable)
 
