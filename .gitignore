@@ -16,7 +16,8 @@ src-tauri/target/*
 src-tauri/gen/schemas
 src-tauri/bin/
 src-tauri/dump.rdb
-updater
+/updater
+src-tauri/updater
 
 # Testing
 coverage

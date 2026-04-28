@@ -1,0 +1,209 @@
+/* ─── Evolution Protocol — Update HUD ─────────────────────────── */
+
+.update-hud {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 8000;
+  width: 320px;
+
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  padding: 0;
+  font-family: 'Departure Mono', monospace;
+
+  animation: updateSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.update-hud--error {
+  border-color: var(--strike-red);
+}
+
+/* ─── Header ──────────────────────────────────────────────────── */
+
+.update-hud__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.update-hud__header .t-label {
+  color: var(--accent);
+  letter-spacing: 2px;
+}
+
+.update-hud__dismiss {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+
+.update-hud__dismiss:hover {
+  color: var(--text-primary);
+}
+
+/* ─── Body ────────────────────────────────────────────────────── */
+
+.update-hud__body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.update-hud__version {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.update-hud__notes {
+  color: var(--text-muted);
+  line-height: 1.4;
+  max-height: 48px;
+  overflow: hidden;
+}
+
+.update-hud__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.update-hud__status--ready {
+  color: var(--accent);
+}
+
+.update-hud__status--error {
+  color: var(--strike-red);
+}
+
+/* ─── Progress bar ────────────────────────────────────────────── */
+
+.update-hud__bar {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  width: 100%;
+}
+
+.update-hud__bar-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.25s ease;
+  box-shadow: 0 0 8px var(--accent);
+}
+
+.update-hud__bytes {
+  color: var(--text-muted);
+  text-align: right;
+  font-size: 9px;
+}
+
+/* ─── Spinner for download icon ───────────────────────────────── */
+
+.update-hud__spin {
+  animation: updateSpin 1.2s linear infinite;
+}
+
+/* ─── Actions ─────────────────────────────────────────────────── */
+
+.update-hud__actions {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.update-hud__btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: 'Departure Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.update-hud__btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.update-hud__btn--primary {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.update-hud__btn--primary:hover {
+  background: rgba(91, 141, 239, 0.1);
+}
+
+.update-hud__btn--reboot {
+  color: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(91, 141, 239, 0.15);
+  animation: rebootPulse 2s ease-in-out infinite;
+}
+
+.update-hud__btn--reboot:hover {
+  background: rgba(91, 141, 239, 0.15);
+  box-shadow: 0 0 20px rgba(91, 141, 239, 0.25);
+}
+
+/* ─── Animations ──────────────────────────────────────────────── */
+
+@keyframes updateSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes updateSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes rebootPulse {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(91, 141, 239, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(91, 141, 239, 0.3);
+  }
+}
+
+/* ─── Low graphics mode ───────────────────────────────────────── */
+
+body.low-graphics .update-hud__spin {
+  animation: none;
+}
+
+body.low-graphics .update-hud__btn--reboot {
+  animation: none;
+}
+
+body.low-graphics .update-hud {
+  animation: none;
+  opacity: 1;
+}
