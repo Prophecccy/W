@@ -203,11 +203,10 @@ export function HabitsPage() {
   }
 
   return (
-    <div className="habits-page">
-      <div className="habits-page__header">
-        <h1 className="t-display">[ HABITS ]</h1>
-        <div className="habits-page__controls">
-          <div className="habits-page__layout-toggle">
+    <div className="habits-page" style={{ padding: "24px" }}>
+      <h1 className="t-display" style={{ textAlign: 'center', marginBottom: 'var(--spacing-xl)' }}>[ HABITS ]</h1>
+      <div className="habits-page__controls" style={{ justifyContent: 'flex-end', marginBottom: 'var(--spacing-xl)' }}>
+        <div className="habits-page__layout-toggle">
             <button 
               className={`t-label preset-btn ${layoutMode === 'default' ? 'preset-btn--active' : ''}`}
               onClick={() => setLayoutMode('default')}
@@ -227,14 +226,19 @@ export function HabitsPage() {
               <LucideIcon name="Map" size={16} /> CUSTOM
             </button>
           </div>
-          <button className="habits-page__add-btn t-label" style={{ background: "transparent", border: "1px solid var(--border-default)" }} onClick={() => setIsGroupManagerOpen(true)}>
+          <button 
+            className="btn-action btn-action--secondary" 
+            onClick={() => setIsGroupManagerOpen(true)}
+          >
             [ GROUPS ]
           </button>
-          <button className="habits-page__add-btn t-label" onClick={() => setIsFormOpen(true)}>
+          <button 
+            className="btn-action btn-action--primary" 
+            onClick={() => setIsFormOpen(true)}
+          >
             [ + NEW HABIT ]
           </button>
         </div>
-      </div>
 
       <div className="habits-page__content">
         {scheduled.length === 0 && limiters.length === 0 && completed.length === 0 && unscheduled.length === 0 ? (

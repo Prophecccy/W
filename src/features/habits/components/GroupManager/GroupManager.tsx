@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { HabitGroup } from "../../types";
 import { getGroups, createGroup, updateGroup, deleteGroup, reorderGroups } from "../../services/groupService";
-import { LucideIcon } from "../../../shared/components/IconPicker/LucideIcon";
-import { useToast } from "../../../shared/components/Toast/Toast";
+import { LucideIcon } from "../../../../shared/components/IconPicker/LucideIcon";
+import { useToast } from "../../../../shared/components/Toast/Toast";
 import "./GroupManager.css";
 
 interface GroupManagerProps {

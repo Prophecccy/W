@@ -11,6 +11,7 @@ export function ClockPage() {
 
   return (
     <div className="clock-page">
+      <h1 className="t-display" style={{ textAlign: 'center', marginBottom: 'var(--spacing-xl)' }}>[ CLOCK ]</h1>
       <header className="clock-header">
         <nav className="clock-tabs">
           <button 

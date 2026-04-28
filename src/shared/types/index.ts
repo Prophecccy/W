@@ -11,12 +11,12 @@ export interface Settings {
   weeklySummary: boolean;
   completionSound: boolean;
   lowGraphicsMode: boolean;
-  wakeUpTime: string;  // "HH:MM" e.g. "07:00"
-  bedTime: string;     // "HH:MM" e.g. "23:00"
+  wakeUpTime?: string;  // "HH:MM" e.g. "07:00" — optional for legacy users
+  bedTime?: string;     // "HH:MM" e.g. "23:00" — optional for legacy users
 }
 
 export interface Aesthetics {
-  widget: { dimIntensity: number; blurIntensity?: number; accentColor: string };
+  widget: { dimIntensity: number; blurIntensity?: number; accentColor: string; cropX?: number; cropY?: number };
   mobile: { dimIntensity: number; blurIntensity?: number; accentColor: string };
   desktop: { dimIntensity: number; blurIntensity?: number; accentColor: string };
 }

@@ -6,7 +6,9 @@ export interface TimeLeftState {
   minutesLeft: number;
   totalAwakeMinutes: number;
   elapsedMinutes: number;
-  phase: "morning" | "midday" | "afternoon" | "evening" | "final";
+  phase: "morning" | "midday" | "afternoon" | "evening" | "final" | "sleeping";
+  /** true when the current time falls outside the wake→bed window */
+  isSleeping: boolean;
 }
 
 /**
@@ -20,19 +22,45 @@ function parseTimeToMinutes(time: string): number {
 /**
  * Get the total awake minutes between wake and bed.
  * Handles both same-day (wake 07:00, bed 23:00) and
- * overnight schedules (wake 22:00, bed 06:00).
+ * overnight / night-owl schedules (wake 10:00, bed 02:00).
+ *
+ * Edge case: if wake === bed, treat as a full 24-hour cycle.
  */
 function getTotalAwakeMinutes(wakeMin: number, bedMin: number): number {
+  if (wakeMin === bedMin) return 1440; // 24h cycle
   if (bedMin > wakeMin) {
+    // Same-day: wake 07:00, bed 23:00
     return bedMin - wakeMin;
   }
-  // Overnight: e.g. wake 22:00 (1320), bed 06:00 (360)
+  // Overnight / night-owl: wake 10:00, bed 02:00
   return (1440 - wakeMin) + bedMin;
 }
 
 /**
+ * Determine if the current time falls within the "sleeping" window
+ * (i.e., between bedTime and next wakeTime).
+ *
+ * Same-day schedule (wake 07:00, bed 23:00):
+ *   sleeping = now < wake OR now >= bed
+ *
+ * Overnight schedule (wake 10:00, bed 02:00):
+ *   awake window wraps midnight, so sleeping = now >= bed AND now < wake
+ */
+function checkIsSleeping(nowMin: number, wakeMin: number, bedMin: number): boolean {
+  if (wakeMin === bedMin) return false; // 24h cycle, never sleeping
+
+  if (bedMin > wakeMin) {
+    // Same-day schedule: awake = [wake, bed)
+    return nowMin < wakeMin || nowMin >= bedMin;
+  }
+  // Overnight schedule: awake wraps midnight = [wake..1440) + [0..bed)
+  // Sleeping = [bed..wake)
+  return nowMin >= bedMin && nowMin < wakeMin;
+}
+
+/**
  * How many minutes have elapsed since wakeUpTime,
- * accounting for overnight schedules.
+ * accounting for overnight / night-owl schedules.
  */
 function getElapsedMinutes(nowMin: number, wakeMin: number, totalAwake: number): number {
   let elapsed: number;
@@ -46,7 +74,8 @@ function getElapsedMinutes(nowMin: number, wakeMin: number, totalAwake: number):
   return Math.max(0, Math.min(elapsed, totalAwake));
 }
 
-function getPhase(percentage: number): TimeLeftState["phase"] {
+function getPhase(percentage: number, isSleeping: boolean): TimeLeftState["phase"] {
+  if (isSleeping) return "sleeping";
   if (percentage > 0.75) return "morning";
   if (percentage > 0.50) return "midday";
   if (percentage > 0.25) return "afternoon";
@@ -69,6 +98,21 @@ export function useTimeLeft({ wakeUpTime, bedTime, lowFrequency = false }: UseTi
 
     const now = new Date();
     const nowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+
+    const sleeping = checkIsSleeping(nowMin, wakeMin, bedMin);
+
+    if (sleeping) {
+      return {
+        percentage: 0,
+        hoursLeft: 0,
+        minutesLeft: 0,
+        totalAwakeMinutes: totalAwake,
+        elapsedMinutes: totalAwake,
+        phase: "sleeping",
+        isSleeping: true,
+      };
+    }
+
     const elapsed = getElapsedMinutes(nowMin, wakeMin, totalAwake);
     const remaining = totalAwake - elapsed;
     const pct = totalAwake > 0 ? remaining / totalAwake : 0;
@@ -79,7 +123,8 @@ export function useTimeLeft({ wakeUpTime, bedTime, lowFrequency = false }: UseTi
       minutesLeft: Math.floor(remaining % 60),
       totalAwakeMinutes: totalAwake,
       elapsedMinutes: elapsed,
-      phase: getPhase(Math.max(0, Math.min(1, pct))),
+      phase: getPhase(Math.max(0, Math.min(1, pct)), false),
+      isSleeping: false,
     };
   }, [wakeUpTime, bedTime]);
 

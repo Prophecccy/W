@@ -2,10 +2,23 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-default);
+  background: rgba(12, 13, 15, 0.75);
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 4px;
   padding: 16px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.daily-note-container:hover {
+  background: rgba(24, 26, 30, 0.85) !important;
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.9);
 }
 
 .daily-note-header {
@@ -23,18 +36,20 @@
 .daily-note-input {
   width: 100%;
   min-height: 120px;
-  background-color: var(--bg-base);
-  border: 1px solid var(--border-subtle);
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 4px;
   padding: 12px;
   color: var(--text-primary);
   resize: vertical;
-  transition: border-color var(--transition-fast);
+  transition: all var(--transition-fast);
 }
 
 .daily-note-input:focus {
   outline: none;
-  border-color: var(--border-hover);
+  background-color: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
 }
 
 .daily-note-input::placeholder {

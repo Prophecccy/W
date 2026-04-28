@@ -7,8 +7,8 @@ mod platform {
     use windows::Win32::Foundation::HWND;
     use windows::Win32::UI::WindowsAndMessaging::{
         SetWindowPos, SetWindowLongPtrW, GetWindowLongPtrW,
-        GWL_EXSTYLE, SWP_NOSIZE, SWP_NOMOVE, SWP_NOACTIVATE, SWP_NOZORDER,
-        WS_EX_TOOLWINDOW, WS_EX_APPWINDOW,
+        GWL_EXSTYLE, GWLP_HWNDPARENT, SWP_NOSIZE, SWP_NOMOVE, SWP_NOACTIVATE, SWP_NOZORDER,
+        WS_EX_TOOLWINDOW, WS_EX_APPWINDOW, WS_EX_NOACTIVATE,
         HWND_BOTTOM,
     };
 
@@ -27,9 +27,13 @@ mod platform {
             ).map_err(|e| format!("SetWindowPos failed: {e}"))?;
 
             // Add WS_EX_TOOLWINDOW to hide from Alt+Tab and taskbar
+            // Add WS_EX_NOACTIVATE to prevent the window from taking focus when clicked
             let ex_style = GetWindowLongPtrW(target, GWL_EXSTYLE);
-            let new_style = (ex_style as u32 | WS_EX_TOOLWINDOW.0) & !WS_EX_APPWINDOW.0;
+            let new_style = (ex_style as u32 | WS_EX_TOOLWINDOW.0 | WS_EX_NOACTIVATE.0) & !WS_EX_APPWINDOW.0;
             SetWindowLongPtrW(target, GWL_EXSTYLE, new_style as isize);
+
+            // Break parent/owner linkage so the main window can render over it
+            SetWindowLongPtrW(target, GWLP_HWNDPARENT, 0);
         }
         Ok(())
     }
@@ -39,9 +43,9 @@ mod platform {
         unsafe {
             let target = HWND(hwnd as *mut _);
 
-            // Remove WS_EX_TOOLWINDOW, re-add WS_EX_APPWINDOW
+            // Remove WS_EX_TOOLWINDOW and WS_EX_NOACTIVATE, re-add WS_EX_APPWINDOW
             let ex_style = GetWindowLongPtrW(target, GWL_EXSTYLE);
-            let new_style = (ex_style as u32 & !WS_EX_TOOLWINDOW.0) | WS_EX_APPWINDOW.0;
+            let new_style = (ex_style as u32 & !WS_EX_TOOLWINDOW.0 & !WS_EX_NOACTIVATE.0) | WS_EX_APPWINDOW.0;
             SetWindowLongPtrW(target, GWL_EXSTYLE, new_style as isize);
         }
         Ok(())
@@ -90,14 +94,19 @@ use tauri::Manager;
 /// Pin the widget to the bottom of the Z-order (behind everything else).
 #[tauri::command]
 pub fn embed_widget_in_desktop(app: tauri::AppHandle) -> Result<(), String> {
-    let widget_window = app
-        .get_webview_window("widget")
-        .ok_or("Widget window not found")?;
-
     #[cfg(target_os = "windows")]
     {
-        let hwnd = widget_window.hwnd().map_err(|e| e.to_string())?;
-        platform::pin_to_bottom(hwnd.0 as isize)?;
+        if let Some(widget_window) = app.get_webview_window("widget") {
+            if let Ok(hwnd) = widget_window.hwnd() {
+                let _ = platform::pin_to_bottom(hwnd.0 as isize);
+            }
+        }
+        
+        if let Some(sticky_window) = app.get_webview_window("sticky-overlay") {
+            if let Ok(hwnd) = sticky_window.hwnd() {
+                let _ = platform::pin_to_bottom(hwnd.0 as isize);
+            }
+        }
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -111,14 +120,19 @@ pub fn embed_widget_in_desktop(app: tauri::AppHandle) -> Result<(), String> {
 /// Unpin the widget from the bottom.
 #[tauri::command]
 pub fn detach_widget_from_desktop(app: tauri::AppHandle) -> Result<(), String> {
-    let widget_window = app
-        .get_webview_window("widget")
-        .ok_or("Widget window not found")?;
-
     #[cfg(target_os = "windows")]
     {
-        let hwnd = widget_window.hwnd().map_err(|e| e.to_string())?;
-        platform::unpin_from_bottom(hwnd.0 as isize)?;
+        if let Some(widget_window) = app.get_webview_window("widget") {
+            if let Ok(hwnd) = widget_window.hwnd() {
+                let _ = platform::unpin_from_bottom(hwnd.0 as isize);
+            }
+        }
+        
+        if let Some(sticky_window) = app.get_webview_window("sticky-overlay") {
+            if let Ok(hwnd) = sticky_window.hwnd() {
+                let _ = platform::unpin_from_bottom(hwnd.0 as isize);
+            }
+        }
     }
 
     Ok(())
@@ -127,25 +141,39 @@ pub fn detach_widget_from_desktop(app: tauri::AppHandle) -> Result<(), String> {
 /// Re-pin widget to bottom after a drag or focus event.
 #[tauri::command]
 pub fn pin_widget_bottom(app: tauri::AppHandle) -> Result<(), String> {
-    let widget_window = app
-        .get_webview_window("widget")
-        .ok_or("Widget window not found")?;
-
     #[cfg(target_os = "windows")]
     {
-        use windows::Win32::Foundation::HWND;
         use windows::Win32::UI::WindowsAndMessaging::{
             SetWindowPos, SWP_NOSIZE, SWP_NOMOVE, SWP_NOACTIVATE, HWND_BOTTOM,
         };
-        let hwnd = widget_window.hwnd().map_err(|e| e.to_string())?;
-        unsafe {
-            let target = HWND(hwnd.0 as *mut _);
-            SetWindowPos(
-                target,
-                HWND_BOTTOM,
-                0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-            ).map_err(|e| format!("SetWindowPos failed: {e}"))?;
+        use windows::Win32::Foundation::HWND;
+
+        if let Some(widget_window) = app.get_webview_window("widget") {
+            if let Ok(hwnd) = widget_window.hwnd() {
+                unsafe {
+                    let target = HWND(hwnd.0 as *mut _);
+                    let _ = SetWindowPos(
+                        target,
+                        HWND_BOTTOM,
+                        0, 0, 0, 0,
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                    );
+                }
+            }
+        }
+        
+        if let Some(sticky_window) = app.get_webview_window("sticky-overlay") {
+            if let Ok(hwnd) = sticky_window.hwnd() {
+                unsafe {
+                    let target = HWND(hwnd.0 as *mut _);
+                    let _ = SetWindowPos(
+                        target,
+                        HWND_BOTTOM,
+                        0, 0, 0, 0,
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                    );
+                }
+            }
         }
     }
 

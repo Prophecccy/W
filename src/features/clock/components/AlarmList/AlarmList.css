@@ -12,7 +12,7 @@
   justify-content: center;
   align-items: center;
   height: 200px;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .alarm-list {
@@ -118,9 +118,10 @@
   align-items: center;
   justify-content: center;
   gap: var(--spacing-sm);
-  background: none;
-  border: 1px dashed var(--border-color);
-  color: var(--text-secondary);
+  background: rgba(var(--accent-rgb), 0.15);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  color: var(--accent);
   padding: var(--spacing-lg);
   border-radius: var(--radius-lg);
   font-family: var(--font-mono);
@@ -131,9 +132,9 @@
 }
 
 .add-alarm-btn:hover {
-  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.25);
+  border-color: rgba(var(--accent-rgb), 0.5);
   color: var(--accent);
-  background: rgba(255, 255, 255, 0.02);
 }
 
 /* Switch styling */

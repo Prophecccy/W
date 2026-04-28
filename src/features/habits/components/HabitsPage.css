@@ -56,19 +56,24 @@
   color: var(--accent);
 }
 
-.habits-page__add-btn {
-  background: transparent;
-  border: 1px solid var(--accent);
-  color: var(--accent);
+.habits-page__add-btn,
+.habits-page__secondary-btn {
   padding: 8px 16px;
-  border-radius: 4px;
   cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.habits-page__add-btn:hover {
+/* Primary Button ([ + NEW HABIT ]) */
+.habits-page__add-btn {
   background: var(--accent);
+  border: none;
   color: var(--bg-base);
+}
+
+/* Secondary Button ([ GROUPS ]) */
+.habits-page__secondary-btn {
+  background: var(--bg-elevated);
+  border: none;
+  color: var(--text-primary);
 }
 
 .habits-page__content {
@@ -143,48 +148,6 @@
   border-top: 1px solid var(--border-default);
 }
 
-.daily-note-container {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: 4px;
-  padding: 16px;
-  transition: border-color 0.2s ease;
-}
-
-.daily-note-container:focus-within {
-  border-color: var(--text-muted);
-}
-
-.daily-note-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.daily-note-save {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.daily-note-save:hover:not(:disabled) {
-  color: var(--accent);
-}
-
-.daily-note-input {
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
-  resize: vertical;
-  min-height: 60px;
-  outline: none;
-  font-family: inherit;
-}
-
 /* Form Modal Overlay */
 .habits-modal-overlay {
   position: fixed;
@@ -202,14 +165,16 @@
 }
 
 .habits-modal-content {
-  background: var(--bg-base);
-  border: 1px solid var(--border-subtle);
+  background: rgba(12, 13, 15, 0.85);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   width: 100%;
   max-width: 540px;
   max-height: calc(100vh - 48px);
   overflow-y: auto;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8);
 }
 
 /* Scrollbar for modal */

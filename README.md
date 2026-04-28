@@ -1,7 +1,23 @@
-# Tauri + React + Typescript
+# W — Command Center
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+Desktop-native habit enforcement system. Tauri v2 shell with Firebase backbone, embedded Windows desktop widget, and Rust-native window management.
 
-## Recommended IDE Setup
+## Documentation
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+| File | Purpose |
+|---|---|
+| [`DESIGN.md`](./DESIGN.md) | Technical source of truth — architecture, design tokens, feature specs |
+| [`agent.md`](./agent.md) | AI agent handoff document — current state, file map, build history |
+| [`task.md`](./task.md) | Full 18-batch build task list (320 tasks, all complete) |
+
+## Quick Start
+
+```bash
+npm install
+npm run tauri dev     # Full native (widget, alarms, sticky notes)
+npx vite dev          # Browser-only (no Tauri features)
+```
+
+## Stack
+
+Tauri v2 (Rust) · React 18 (TypeScript) · Vite · Firebase · Departure Mono · Vanilla CSS

@@ -20,7 +20,7 @@
 .tab-btn {
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.7);
   font-family: var(--font-mono);
   font-size: 14px;
   cursor: pointer;
@@ -31,11 +31,12 @@
 }
 
 .tab-btn:hover {
-  color: var(--text-secondary);
+  color: #FFFFFF;
 }
 
 .tab-btn.active {
-  color: var(--accent);
+  color: #FFFFFF;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
 }
 
 .tab-btn.active::after {
@@ -54,4 +55,11 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  background: rgba(12, 13, 15, 0.75);
+  backdrop-filter: blur(12px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+  border-radius: var(--spacing-sm);
+  margin: 0 var(--spacing-xl) var(--spacing-xl);
+  padding: var(--spacing-xl);
 }

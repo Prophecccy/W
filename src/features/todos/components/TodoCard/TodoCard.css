@@ -1,13 +1,25 @@
 .todo-card {
   position: relative;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
+  background: rgba(12, 13, 15, 0.75);
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 4px;
   overflow: hidden;
   cursor: pointer;
   user-select: none;
-  transition: all 0.2s ease;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   min-height: 72px;
+}
+
+.todo-card:hover {
+  background: rgba(24, 26, 30, 0.85) !important;
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.9);
 }
 
 .todo-card--holding {
@@ -36,7 +48,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  border-left: 3px solid var(--card-accent);
+  border-left: none;
 }
 
 .todo-card__header {
@@ -57,6 +69,7 @@
 
 .todo-card__title {
   font-weight: 500;
+  text-shadow: var(--text-shadow-sharp);
 }
 
 .todo-card__footer {
@@ -71,15 +84,17 @@
 }
 
 .badge {
-  background: var(--bg-elevated);
-  padding: 4px 6px;
-  border-radius: 2px;
-  border: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  border: none;
+  color: var(--text-muted);
+  text-shadow: var(--text-shadow-sharp);
 }
 
 .todo-card__progress-display {
   color: var(--text-secondary);
+  text-shadow: var(--text-shadow-sharp);
 }
 
 .todo-card__complete-check {
@@ -101,7 +116,7 @@
 .todo-card__progress-track {
   position: relative;
   height: 3px;
-  background: rgba(255, 255, 255, 0.05);
+  background: transparent;
   width: 100%;
   z-index: 1;
 }

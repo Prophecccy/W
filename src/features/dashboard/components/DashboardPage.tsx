@@ -10,12 +10,20 @@ import { getTodos, completeTodo, completeNumberedTodoFull, incrementNumberedTodo
 import { isHabitScheduledToday } from '../../habits/utils/scheduleEngine';
 import { getToday } from '../../../shared/utils/dateUtils';
 import { TimeTube } from '../../time-tube/components/TimeTube/TimeTube';
-import { User } from '../../auth/types';
+import { User } from '../../../shared/types';
+import { AlertTriangle } from 'lucide-react';
 import './DashboardPage.css';
+
+interface DashboardOutlet {
+  userDoc: User;
+  gapResult: any;
+  needsCalibration: boolean;
+  dismissCalibration: () => void;
+}
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { userDoc } = useOutletContext<{ userDoc: User }>();
+  const { userDoc, needsCalibration, dismissCalibration } = useOutletContext<DashboardOutlet>();
   const [loading, setLoading] = useState(true);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [log, setLog] = useState<HabitLog | null>(null);
@@ -134,10 +142,37 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="dashboard-page">
-      <div className="dashboard-page__header">
-        <h1 className="t-display">[ COMMAND CENTER ]</h1>
-      </div>
+    <div className="dashboard-page" style={{ padding: '24px' }}>
+      <h1 className="t-display" style={{ textAlign: 'center', marginBottom: 'var(--spacing-xl)' }}>[ COMMAND CENTER ]</h1>
+
+      {needsCalibration && (
+        <div className="dashboard-calibration-banner">
+          <AlertTriangle size={16} style={{ color: "var(--accent)", flexShrink: 0 }} />
+          <span className="t-body" style={{ flex: 1, color: "var(--text-secondary)" }}>
+            [ CYCLE UNCALIBRATED ] — Default cycle (07:00–23:00) active. Configure your wake/sleep times for accurate Waking Fuel.
+          </span>
+          <button
+            className="btn-calibrate t-label"
+            onClick={() => navigate("/settings")}
+          >
+            [ CALIBRATE ]
+          </button>
+          <button
+            className="t-meta"
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--text-muted)",
+              cursor: "pointer",
+              padding: "4px",
+              textShadow: "var(--text-shadow-sharp)"
+            }}
+            onClick={dismissCalibration}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="dashboard-page__content layout-with-tube">
         
@@ -146,7 +181,7 @@ export function DashboardPage() {
           <TimeTube 
             wakeUpTime={userDoc?.settings?.wakeUpTime || "07:00"}
             bedTime={userDoc?.settings?.bedTime || "23:00"}
-            accentColor={userDoc?.settings?.accentColor || "#bb86fc"}
+            accentColor={userDoc?.aesthetics?.desktop?.accentColor || "#5B8DEF"}
             lowGraphicsMode={userDoc?.settings?.lowGraphicsMode || false}
           />
         </div>
@@ -159,7 +194,7 @@ export function DashboardPage() {
               <h2 className="t-label">[ TODAY'S HABITS ]</h2>
               <button 
                 className="t-meta" 
-                style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer" }}
+                style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", textShadow: "var(--text-shadow-glow)" }}
                 onClick={() => {
                   navigate("/habits");
                   setTimeout(() => window.dispatchEvent(new CustomEvent("w:open-habit-form")), 50);
@@ -196,7 +231,7 @@ export function DashboardPage() {
               <h2 className="t-label">[ ACTIVE TODOS ]</h2>
               <button 
                 className="t-meta" 
-                style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer" }}
+                style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", textShadow: "var(--text-shadow-glow)" }}
                 onClick={() => {
                   navigate("/todos");
                   setTimeout(() => window.dispatchEvent(new CustomEvent("w:open-todo-form")), 50);

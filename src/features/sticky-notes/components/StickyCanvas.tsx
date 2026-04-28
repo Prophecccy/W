@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db, auth } from "../../../shared/config/firebase";
 import { useStickyNotes } from "../hooks/useStickyNotes";
 import { StickyNote } from "./StickyNote";
 import {
@@ -80,7 +83,8 @@ export async function forceInteractive() {
 // ─── StickyCanvas Component ─────────────────────────────────────
 
 export function StickyCanvas() {
-  const { todos, positions, loading } = useStickyNotes();
+  const { todos, positions, loading: notesLoading, suppressSnapshot } = useStickyNotes();
+  const [accentReady, setAccentReady] = useState(false);
   const initRef = useRef(false);
   const regionsTimerRef = useRef<number | null>(null);
 
@@ -88,6 +92,38 @@ export function StickyCanvas() {
   useEffect(() => {
     document.body.classList.add("transparent-window");
     return () => document.body.classList.remove("transparent-window");
+  }, []);
+
+  // Real-time accent color listener (mirrors useWidgetData pattern)
+  // onSnapshot fires immediately with current data AND on every subsequent change.
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) {
+      setAccentReady(true);
+      return;
+    }
+
+    const userRef = doc(db, "users", user.uid);
+    const unsub = onSnapshot(userRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        const accent = data?.aesthetics?.desktop?.accentColor;
+        if (accent) {
+          document.documentElement.style.setProperty("--accent", accent);
+        }
+      }
+      setAccentReady(true);
+    });
+
+    // Listen for realtime color preview from settings
+    const unlistenPromise = listen<string>('color-preview', (event) => {
+      document.documentElement.style.setProperty('--accent', event.payload);
+    });
+
+    return () => {
+      unsub();
+      unlistenPromise.then(u => u()).catch(() => {});
+    };
   }, []);
 
   // Start the Rust-side mouse hook on mount
@@ -126,10 +162,13 @@ export function StickyCanvas() {
 
   const handleDragEnd = useCallback(
     (todoId: string, pos: { x: number; y: number }) => {
+      // Block Firestore onSnapshot from overwriting this note's position
+      // until the debounced write has committed + propagated back.
+      suppressSnapshot(todoId);
       savePositionLocal(todoId, pos);
       syncPositionToFirestore(todoId, pos);
     },
-    []
+    [suppressSnapshot]
   );
 
   const handleComplete = useCallback(async (todoId: string) => {
@@ -141,9 +180,13 @@ export function StickyCanvas() {
     }
   }, []);
 
+  // Stable ref for todos so callbacks don't change identity on every onSnapshot
+  const todosRef = useRef(todos);
+  todosRef.current = todos;
+
   const handleIncrement = useCallback(
     async (todoId: string) => {
-      const todo = todos.find((t) => t.id === todoId);
+      const todo = todosRef.current.find((t) => t.id === todoId);
       if (!todo) return;
       try {
         await incrementNumberedTodo(todoId, todo);
@@ -157,12 +200,12 @@ export function StickyCanvas() {
         console.error("Failed to increment todo from sticky:", e);
       }
     },
-    [todos]
+    []
   );
 
   const handleFullComplete = useCallback(
     async (todoId: string) => {
-      const todo = todos.find((t) => t.id === todoId);
+      const todo = todosRef.current.find((t) => t.id === todoId);
       if (!todo) return;
       try {
         await completeNumberedTodoFull(todoId, todo);
@@ -171,10 +214,10 @@ export function StickyCanvas() {
         console.error("Failed to full-complete todo from sticky:", e);
       }
     },
-    [todos]
+    []
   );
 
-  if (loading) {
+  if (notesLoading || !accentReady) {
     return <div className="sticky-canvas" />;
   }
 

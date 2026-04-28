@@ -1,16 +1,22 @@
 .widget-app {
-  position: relative;
-  width: 100%;
-  height: 100vh;
-  background: rgba(12, 12, 14, 0.95); /* Mostly solid so it looks sleek but not invisible */
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  /* Strip background and borders for Ghost Elevation */
+  background: transparent;
   color: var(--text-primary);
   font-family: 'Departure Mono', monospace;
   overflow: hidden;
+  /* Keep radius for hit-testing and clipping, but remove shadow from main wrapper */
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: none;
+  border: none;
+  
+  /* Prevent text highlighting during drag operations */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .widget-app--loading {
@@ -23,10 +29,9 @@
 .widget-app__dim-overlay {
   position: absolute;
   inset: 0;
-  background: var(--bg-base);
   pointer-events: none;
   z-index: 1;
-  border-radius: 12px;
+  border-radius: inherit;
 }
 
 /* ─── Content ────────────────────────────────────────────── */
@@ -34,33 +39,59 @@
   position: relative;
   z-index: 2;
   display: flex;
-  height: 100%;
-}
-
-.widget-app__layout-with-tube {
-  display: flex;
-  height: 100%;
+  flex-direction: column;
   width: 100%;
-}
-
-.widget-tube-container {
-  width: 12px;
-  flex-shrink: 0;
   height: 100%;
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.widget-app__main-column {
+.widget-app__top-section {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.widget-app__habits-area {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
+.widget-app__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 16px 8px;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+  font-weight: 700;
+  /* Ghost Elevation: Sharp text depth */
+  text-shadow: var(--text-shadow-sharp);
+}
+
+.widget-app__header .text-blue {
+  color: var(--accent);
+  text-shadow: var(--text-shadow-glow);
+}
+
+.widget-app__tube-area {
+  flex-shrink: 0;
+  display: flex;
+}
+
+.widget-app__bottom-section {
+  flex-shrink: 0;
+  flex-shrink: 0;
+  border-top: none;
+}
+
 .widget-app__habits-scroll {
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
   flex: 1;
-  overflow-y: auto;
-  padding: 4px 0;
+  justify-content: center;
 }
 
 /* Custom scrollbar for widget */
@@ -88,12 +119,36 @@
   color: var(--strike-red);
   letter-spacing: 2px;
   font-size: 8px;
+  text-shadow: 0 0 10px rgba(232, 115, 108, 0.4);
 }
 
 .widget-habit-list__empty {
   padding: 24px 12px;
   text-align: center;
   color: var(--text-muted);
+}
+
+/* ─── Footer ─────────────────────────────────────────────── */
+.widget-app__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 16px 12px;
+  flex-shrink: 0;
+}
+
+.widget-app__strike-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: rgba(255, 255, 255, 0.2);
+  transition: color 0.3s ease;
+  text-shadow: var(--text-shadow-sharp);
+}
+
+.widget-app__strike-badge--active {
+  color: var(--strike-red, #E8736C);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.8), 0 0 20px rgba(232, 115, 108, 0.5);
 }
 
 /* ─── Lockout Overlay ────────────────────────────────────── */
@@ -106,25 +161,35 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: rgba(232, 115, 108, 0.12);
-  backdrop-filter: blur(4px);
+  background: transparent;
   cursor: pointer;
   border-radius: 12px;
-  animation: lockoutPulse 2s ease-in-out infinite;
+  /* Removed solid border for Ghost Elevation */
+  border: none;
+  box-shadow: none;
+  animation: lockoutPulse 3s ease-in-out infinite;
 }
 
 .widget-app__lockout svg {
   color: var(--strike-red);
+  filter: drop-shadow(0 0 10px rgba(232, 115, 108, 0.5));
 }
 
 .widget-app__lockout .t-label {
   color: var(--strike-red);
   letter-spacing: 2px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.8), 0 0 20px rgba(232, 115, 108, 0.5);
 }
 
 @keyframes lockoutPulse {
-  0%, 100% { background: rgba(232, 115, 108, 0.10); }
-  50% { background: rgba(232, 115, 108, 0.20); }
+  0%, 100% { 
+    border-color: rgba(232, 115, 108, 0.2);
+    box-shadow: inset 0 0 15px rgba(232, 115, 108, 0.05);
+  }
+  50% { 
+    border-color: rgba(232, 115, 108, 0.4);
+    box-shadow: inset 0 0 30px rgba(232, 115, 108, 0.15);
+  }
 }
 
 /* ─── Frozen State ───────────────────────────────────────── */

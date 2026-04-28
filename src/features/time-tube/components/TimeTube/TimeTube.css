@@ -10,15 +10,56 @@
 
 .time-tube__glass {
   flex: 1;
-  width: 32px;
-  border-radius: 16px;
+  width: 36px; /* Slightly wider */
+  border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.03);
-  box-shadow:
-    inset 0 0 12px rgba(0, 0, 0, 0.3),
-    0 0 8px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(
+    90deg,
+    rgba(20, 22, 25, 0.5) 0%,
+    rgba(10, 11, 13, 0.3) 50%,
+    rgba(20, 22, 25, 0.5) 100%
+  );
+  backdrop-filter: blur(12px);
+  box-shadow: 
+    inset 0 0 12px rgba(0, 0, 0, 0.9),
+    0 10px 30px rgba(0, 0, 0, 0.6);
   overflow: hidden;
   position: relative;
+}
+
+/* Cylinder specular highlight */
+.time-tube__glass::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 6px;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Hardware Caps (Top/Bottom) */
+.time-tube__glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-top: 4px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 4px solid rgba(0, 0, 0, 0.5);
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.05) 0%,
+    transparent 10%,
+    transparent 90%,
+    rgba(0, 0, 0, 0.2) 100%
+  );
+  pointer-events: none;
+  z-index: 11;
 }
 
 .time-tube__canvas {
@@ -45,4 +86,5 @@
   font-size: 9px;
   letter-spacing: 1px;
   white-space: nowrap;
+  text-shadow: var(--text-shadow-sharp);
 }

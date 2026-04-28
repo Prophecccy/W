@@ -15,9 +15,9 @@
   --bg-overlay: #222326;
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border-default: rgba(255, 255, 255, 0.10);
-  --text-primary: #e8e8e8;
-  --text-secondary: #888888;
-  --text-muted: #555555;
+  --text-primary: #ffffff;
+  --text-secondary: #d0d0d0;
+  --text-muted: #909090;
 
   /* Spacing Scale */
   --spacing-xs: 4px;
@@ -27,14 +27,25 @@
   --spacing-xl: 32px;
   
   --accent: #5B8DEF; /* Default placeholder, user-picked later */
+  --accent-rgb: 91, 141, 239;
   --strike-red: #E8736C;
   --border-color: rgba(255, 255, 255, 0.1);
+
+  /* Elevation Tokens */
+  --text-shadow-sharp: 0 1px 2px rgba(0,0,0,0.9), 0 2px 4px rgba(0,0,0,0.5);
+  --text-shadow-glow: 0 0 10px rgba(var(--accent-rgb), 0.5), 0 1px 2px rgba(0,0,0,1);
+  --drop-shadow-sharp: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
+  --drop-shadow-glow: drop-shadow(0 0 8px var(--accent)) drop-shadow(0 2px 4px rgba(0,0,0,0.5));
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+html {
+  background: transparent;
 }
 
 body {
@@ -46,6 +57,7 @@ body {
 }
 
 /* Tauri windows that need true transparency (sticky-overlay, widget) */
+html.transparent-window,
 body.transparent-window,
 body.transparent-window #root {
   background: transparent !important;
@@ -71,23 +83,26 @@ body::before {
   pointer-events: none;
 }
 
-/* Typography Tiers */
+/* Typography Tiers with Ghost Elevation */
 .t-display {
   font-size: 33px;
   letter-spacing: -2px;
   font-weight: normal;
+  text-shadow: var(--text-shadow-sharp);
 }
 
 .t-label {
   font-size: 9px;
   letter-spacing: 3px;
   text-transform: uppercase;
+  text-shadow: var(--text-shadow-sharp);
 }
 
 .t-body {
   font-size: 13px;
   letter-spacing: -0.5px;
   font-weight: normal;
+  text-shadow: var(--text-shadow-sharp);
 }
 
 .t-meta {
@@ -95,12 +110,115 @@ body::before {
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--text-secondary);
+  font-weight: 500;
+  text-shadow: var(--text-shadow-sharp);
 }
 
 .t-data {
   font-size: 11px;
   letter-spacing: 0; /* Tabular numerals */
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.8), 0 0 15px rgba(0,0,0,0.4);
+}
+
+/* Icon Pop: Global Drop Shadow for all Lucide/SVG Icons */
+svg {
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
+}
+
+/* Global Interactive States (Ghosted Resting -> Elevated Active) */
+button, input, select, textarea {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-family: inherit;
+  transition: all 0.2s ease-out;
+  text-shadow: var(--text-shadow-sharp);
+}
+
+button {
+  cursor: pointer;
+  padding: 4px 8px;
+  outline: none;
+}
+
+/* ─── ACTION BUTTONS (Clear & Elevated) ─── */
+.btn-action {
+  font-family: 'Departure Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-shadow: none !important; /* Ensure absolute clarity */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.btn-action--primary {
+  background: var(--accent);
+  color: var(--bg-base);
+}
+
+.btn-action--secondary {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+}
+
+.btn-action:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+}
+
+.btn-action:active {
+  transform: translateY(0);
+}
+
+/* ─── ICON SYSTEM ─────────────────────────────────────────────── */
+
+svg.lucide {
+  filter: var(--drop-shadow-sharp);
+  transition: filter 0.2s ease;
+}
+
+svg.lucide:hover {
+  filter: var(--drop-shadow-glow);
+}
+
+button:hover:not(.btn-action) {
+  background: transparent;
+  text-shadow: var(--text-shadow-glow);
+  filter: brightness(1.2);
+  transform: translateY(-1px);
+}
+
+input:focus, textarea:focus, select:focus {
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  outline: none;
+}
+
+button:active:not(.btn-action) {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Accent Text Glow */
+.accent-text {
+  color: var(--accent);
+  text-shadow: 0 0 12px var(--accent), 0 2px 8px rgba(0,0,0,0.8);
+}
+
+.strike-text {
+  color: var(--strike-red);
+  text-shadow: 0 0 12px var(--strike-red), 0 2px 8px rgba(0,0,0,0.8);
 }
 
 /* Page placeholder styling */

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { TodoType } from "../../types";
 import { createTodo } from "../../services/todoService";
-import { HabitGroup } from "../../habits/types";
+import { HabitGroup } from "../../../habits/types";
 import { ColorPicker } from "../../../../shared/components/ColorPicker/ColorPicker";
 import "./TodoForm.css";
 

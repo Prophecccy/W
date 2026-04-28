@@ -4,8 +4,10 @@ import App from "./App";
 
 // Transparent Tauri windows need body to be transparent from first paint
 const transparentRoutes = ["/sticky-canvas", "/widget", "/alarm-popup"];
-if (transparentRoutes.includes(window.location.pathname)) {
+const isTransparent = transparentRoutes.some(route => window.location.href.includes(route));
+if (isTransparent) {
   document.body.classList.add("transparent-window");
+  document.documentElement.classList.add("transparent-window"); /* Explicitly clear html background */
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

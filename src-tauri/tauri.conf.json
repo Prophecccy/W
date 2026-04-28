@@ -14,6 +14,7 @@
       {
         "label": "main",
         "title": "W",
+        "decorations": false,
         "width": 800,
         "height": 600
       },
@@ -23,9 +24,15 @@
         "url": "/sticky-canvas",
         "decorations": false,
         "transparent": true,
+        "shadow": false,
         "maximized": true,
         "visible": false,
-        "skipTaskbar": true
+        "skipTaskbar": true,
+        "focus": false,
+        "focusable": false,
+        "alwaysOnTop": false,
+        "closable": false,
+        "resizable": false
       },
       {
         "label": "alarm-popup",
@@ -45,15 +52,19 @@
         "url": "/widget",
         "decorations": false,
         "transparent": true,
-        "width": 380,
-        "height": 520,
+        "shadow": false,
+        "width": 460,
+        "height": 620,
         "minWidth": 300,
         "minHeight": 400,
-        "maxWidth": 600,
+        "maxWidth": 800,
         "maxHeight": 900,
         "visible": false,
         "skipTaskbar": true,
-        "resizable": true
+        "resizable": true,
+        "focusable": false,
+        "focus": false,
+        "alwaysOnTop": false
       }
     ],
     "security": {

@@ -2,9 +2,9 @@
 
 > **Purpose:** This file tracks the current state of the application architecture, tokens, and rules. All AI agents working on this project MUST read this file to understand the current context before making changes.
 
-## Current State: BATCH 18 COMPLETE — BUILD COMPLETE 🏁
-- **Status:** All 18 batches complete. Full integration verified, command palette upgraded, keyboard shortcuts wired, console cleanup done, TypeScript zero errors, production build passes.
-- **All features:** Auth → Onboarding → Dashboard → Todos → Clock → Analytics → Settings → Widget → Strikes → Freeze → Backup → Export → Notifications → Gamification → Performance Mode
+## Current State: BATCH 20 COMPLETE — EVOLUTION PROTOCOL 🧬
+- **Status:** All 20 batches complete. Auto-update system (Evolution Protocol) implemented with Tauri v2 Updater, GitHub Releases, and a tactical HUD overlay. Full environment guarding verified.
+- **All features:** Auth → Onboarding (v2) → Dashboard (v2) → Habits → Todos → Clock → Analytics → Settings → Widget → Strikes → Freeze → Backup → Export → Notifications → Gamification → Performance Mode → Daily Cycle / Waking Fuel → Auto-Updater (Evolution Protocol)
 
 ### Accomplished in Batch 1:
 1. Tauri v2 + React (Vite/TS) app initialized
@@ -160,16 +160,14 @@
 6. **ProgressRing Component** (`ProgressRing.tsx`): Built generic standalone SVG circular progress ring supporting standard variables, easing, and customized thickness.
 7. **Low Graphics Mode**: Wired `lowGraphicsMode` from `Settings` interface to inject `low-graphics` class on body, immediately terminating heavily performance-taxing DOM elements, pseudo-elements, and GPU intensive keyframes.
 
-### Accomplished in Batch 18 (Final Integration & QA):
-1. **Enhanced Command Palette**: Upgraded `CommandPalette.tsx` to accept habits and todos data. Fuzzy matches habit names, todo titles, and action keywords. Results grouped into `[ PAGES ]`, `[ ACTIONS ]`, `[ HABITS ]`, `[ TODOS ]` sections.
-2. **Palette Actions**: Added "Complete [habit name]" actions (one per active habit), "Create New Habit", and "Create New Todo" commands.
-3. **Keyboard Shortcut `N`**: Context-dependent new item creation. On Dashboard → opens HabitForm. On Todos → opens TodoForm. Uses custom `w:open-habit-form` / `w:open-todo-form` events.
-4. **Keyboard Shortcut `Space`**: Quick-complete the first scheduled habit on Dashboard via `w:quick-complete` event. `focusedIndex` state provisioned for future arrow-key focus navigation.
-5. **Console Cleanup**: Removed all `console.log` from `alarmScheduler.ts` (3 instances). Retained `console.error` (legitimate catch handlers) and `console.warn`/`console.info` (operational lifecycle messages).
-6. **Punishment Redirect**: Wired `PunishmentModal` results to navigate + emit form-open events ("redirect_habit" → Dashboard + HabitForm, "redirect_todo" → Todos + TodoForm).
-7. **Low Graphics Mode Injection**: Added `body.low-graphics` class injection in Layout.tsx startup based on user settings.
-8. **TypeScript Zero Errors**: `tsc --noEmit` passes clean.
-9. **Production Build**: `npm run build` passes clean.
+### Accomplished in Batch 19 (Daily Cycle & Waking Fuel):
+1. **UserStore & Context** (`userStore.tsx`): Built centralized `UserProvider` wrapping the `App`. Handles Firestore user doc loading, manages optimistic settings updates, and implements a legacy data backfill layer.
+2. **Legacy Backfill** (`userService.ts`): Added `ensureCycleDefaults()` to detect legacy users missing `wakeUpTime`/`bedTime`. Automatically patches docs with `07:00–23:00` defaults and triggers `needsCalibration` flag.
+3. **Night-Owl Logic** (`useTimeLeft.ts`): Completely refactored the Waking Fuel engine. Now supports schedules crossing midnight (e.g., 22:00 → 06:00). Added `isSleeping` phase detection to distinguish between "day over" and "user asleep".
+4. **Onboarding v2** (`Onboarding.tsx`): Inserted a "Daily Cycle" step with tactical-style time pickers. Integrated a mini-FuelTube preview that reacts to input changes.
+5. **Calibration Banner** (`DashboardPage.tsx`): Built a tactical `[ CYCLE UNCALIBRATED ]` alert for legacy users. Consumes `needsCalibration` from `Layout` context. Linked to Settings for immediate resolution.
+6. **Type Safety**: Updated `Settings` interface to support optional cycle fields while guaranteeing string returns via the Store.
+7. **Refactor**: Decoupled `Layout.tsx` from manual user loading, delegating all profile state to the Store.
 
 ### Accomplished in Post-Build Restructure (Dashboard decoupling):
 1. **Habits Separation**: Extracted all habit management logic from the original `DashboardPage` into a dedicated `HabitsPage.tsx` (route `/habits`).
@@ -192,6 +190,12 @@
 3. **Global Spacing Scale**: Defined a centralized spacing system (`--spacing-xs` to `--spacing-xl`) and `--border-color` in `index.css` to ensure layout consistency across all features.
 4. **Clock UI Overhaul**: Redesigned `ClockPage` navigation header with 48px gaps between tabs, increased letter-spacing (0.2em), and a pulsing active indicator (border-bottom).
 5. **AlarmForm Redesign**: Completely restructured the alarm creation form into logical sections (Time, Label, Schedule, Settings). Replaced confusing single-letter day labels with proper **SUN, MON, TUE, ...** abbreviations and fixed a vertical stacking overlap issue with a responsive horizontal selector.
+
+### Accomplished in Batch 21 (Z-Order Defense & UI Hardening):
+1. **Active Z-Order Defense (Widget)**: Implemented high-priority re-focus logic in `WidgetApp.tsx`. Interaction now triggers `pin_widget_bottom` (Rust) and forces `main.setFocus()` to prevent Windows DWM from elevating the widget above the main app.
+2. **Active Z-Order Defense (Sticky Notes)**: Integrated the same defense into `StickyNote.tsx` pointer handlers. Interacting with notes now ensures the global overlay doesn't steal focus dominance from the main UI.
+3. **Time Tube Visuals**: Enhanced the Waking Fuel tube container with frosted glass styling (`rgba(12, 13, 15, 0.4)`), hardware edges (`1px white/0.15`), and cylindrical depth via inset shadows for a premium 3D physical look.
+4. **Environment Stability**: Cleaned up orphaned processes and verified multi-window interaction stability in Tauri v2.
 
 ## Architecture Rules (Non-Negotiable)
 
@@ -378,4 +382,34 @@ sticky_overlay.rs   → Sticky note overlay hit-testing: cursor polling thread t
 - **Solution:** A Rust-side polling thread calls `GetCursorPos()` at ~60fps, checks cursor position against registered sticky note bounding boxes (DPI-scaled), and toggles `WS_EX_TRANSPARENT` on the overlay window.
 - **Commands:** `start_sticky_hit_test` (starts thread), `update_sticky_regions` (sends note rects from JS), `force_sticky_interactive` (instant toggle for first click)
 - **Key constraint:** `WH_MOUSE_LL` hooks require a message pump on the installer thread — Tauri command threads don't have one. That's why we use polling instead of a hook.
+- **Click-through fix (dual-layer):** Tauri windows use WebView2, which has its OWN hit-test system separate from Win32 extended styles. We must configure BOTH: (1) `set_ignore_cursor_events()` for WebView2, (2) direct `enforce_no_activate()` for `WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`. The polling thread calls Tauri's method on state change + enforces permanent flags on EVERY tick (16ms) to recover from Tauri's async style clobbering. Previous "atomic bypass" approach only set Win32 flags, leaving WebView2 capturing clicks across the entire window area — blocking other apps after drag.
+- **Drag teleport fix (isDraggingRef):** `StickyNote.tsx` uses `isDraggingRef` to block the `position` prop sync `useEffect` during active drags. Without this, Firestore `onSnapshot` fires mid-drag with the old DB position, resets `livePosRef`, and the transform delta calculates against a stale origin → note teleports.
+- **Drag freeze fix (stable refs):** The native pointer-event `useEffect` in `StickyNote.tsx` previously depended on `[todo.id, todo.type, onDragEnd, ...]`. When Firestore `onSnapshot` fires mid-drag, `StickyCanvas` re-renders → callback refs change → useEffect TEARS DOWN (killing active `window.pointermove/pointerup` listeners) and re-installs with fresh closures (`dragStart = null`). Fix: all callbacks stored in refs, useEffect depends only on `[todo.id]`. `StickyCanvas` also uses `todosRef` for `handleIncrement`/`handleFullComplete` to keep callback identity stable.
+- **Drop jerk fix (snapshot suppression):** `useStickyNotes.ts` exposes `suppressSnapshot(todoId)` which blocks Firestore `onSnapshot` from overwriting positions for a specific note ID for 3 seconds after drop. This covers the 1s debounced write + network propagation time. `StickyCanvas.tsx` calls it in `handleDragEnd` before `savePositionLocal` / `syncPositionToFirestore`.
 - **CSS jitter fix:** `.sticky-note--dragging` has `transition: none` to prevent CSS transforms from fighting with instant `left/top` position updates.
+- **Undo Purgatory**: Implements a 2-phase completion (completing -> undoable). Animations MUST use strict conditional rendering to ensure the fill overlay is unmounted in the `idle` state to prevent visual flickering or lingering transitions during Undo. Double-clicking triggers a 2-phase state machine: Phase 1 (`completing`) shows a 300ms left-to-right acknowledgement fill. Phase 2 (`undoable`) disables dragging, replaces the note content with `[ UNDO ]`, and drains a right-to-left progress bar over 3.5 seconds. If `[ UNDO ]` is clicked, the state aborts. Otherwise, `isExiting` runs a shrink animation before the actual database completion triggers.
+### Widget Design System (Ghost Elevation)
+- **Philosophy**: Pure light and data projected over the wallpaper. Avoid solid panels or grids.
+- **Containers**: Main wrappers and sections MUST be transparent (`background: transparent`) with NO borders.
+- **Typography**: Every text element (especially Clock and Status) MUST have a sharp, heavy `text-shadow`: `0 2px 10px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.5)`.
+- **Shapes/SVGs**: Non-rectangular elements like the Progress Ring and Fuel Tube MUST use `filter: drop-shadow(...)` instead of `box-shadow` to follow the contour of the shape.
+- **Cards**: Habit cards use high transparency (`rgba(10,10,12,0.2)`) but maintain strong elevation with `box-shadow: 0 8px 24px rgba(0,0,0,0.8)`.
+- **Architecture:** Tauri v2 `tauri-plugin-updater` backed by GitHub Releases as the update endpoint.
+- **Signing:** rsign2 key pair — private key stored as `TAURI_SIGNING_PRIVATE_KEY` GitHub Secret; public key embedded in `tauri.conf.json`. Private key file `updater` is gitignored.
+- **Endpoint:** `https://github.com/Prophecccy/W/releases/latest/download/latest.json` — auto-generated by `tauri-apps/tauri-action@v0` with `includeUpdater: true`.
+- **Hook:** `useUpdateManager.ts` — state machine (`idle | checking | available | downloading | ready | error`). Uses dynamic `import()` for Tauri plugins so zero updater code runs in browser mode. Check fires 5s after mount.
+- **UI:** `UpdateHUD.tsx` — bottom-right tactical panel with `[ SYSTEM UPDATE ]` header, version display, download progress bar, `[ EVOLVE ]` trigger, and `[ RECALIBRATE & REBOOT ]` final action. Dismiss hides for session.
+- **Environment guard:** `isTauri()` check in hook returns permanent `idle` state in browser dev mode. The HUD renders `null` for `idle` + `checking` phases.
+- **Capabilities:** `updater:default` added to `src-tauri/capabilities/default.json`.
+- **Low graphics:** All HUD animations (slide-in, spin, reboot pulse) disabled via `
+
+### Tactical Button Standards
+- **Standard**: All primary and secondary action buttons use a "Solid Physical Elevation" paradigm to avoid text rasterization blurriness.
+- **Primary Buttons (`+ NEW HABIT`, `SAVE`, `NEW TODO`)**:
+    - **Resting**: Solid background (`var(--accent)`). Crisp dark text (`var(--bg-base)`). No `text-shadow` or `backdrop-filter`.
+    - **Hover**: Retains the solid background. Elevates physically (`transform: translateY(-2px)`) with a strong colored box-shadow (`box-shadow: 0 6px 16px rgba(var(--accent-rgb), 0.4)`). Brightens slightly (`filter: brightness(1.15)`).
+    - **Active**: Drops back to `translateY(0)` with a reduced shadow.
+- **Secondary Buttons (`GROUPS`, `ARCHIVE`)**:
+    - **Resting**: Solid dark surface background (`var(--bg-elevated)`). Neutral text color (`var(--text-primary)`). Solid subtle border. No `text-shadow` or `backdrop-filter`.
+    - **Hover**: Elevates (`transform: translateY(-2px)`) with a strong dark box-shadow. Text turns white. Background lightens slightly (`var(--bg-overlay)`).
+- **Critical Restrictions**: Do **not** use `backdrop-filter: blur(...)` on primary or secondary action buttons, as it causes text blurriness on WebKit/WebView2 engines when applied alongside solid backgrounds. Always use `translateZ(0)` and `-webkit-font-smoothing: antialiased` for crisp text rendering on buttons.

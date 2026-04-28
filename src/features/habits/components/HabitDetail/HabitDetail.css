@@ -16,10 +16,13 @@
   width: 100%;
   max-width: 480px;
   height: 100%;
-  background-color: var(--bg-elevated);
-  border-left: 1px solid var(--border-default);
+  background: rgba(12, 13, 15, 0.75);
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.7);
   animation: slideLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -28,7 +31,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: none;
 }
 
 .habit-detail__close {
@@ -71,14 +74,27 @@
 }
 
 .habit-detail__stat-box {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
+  background: rgba(12, 13, 15, 0.75);
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 4px;
   padding: 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.habit-detail__stat-box:hover {
+  background: rgba(24, 26, 30, 0.85) !important;
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.9);
 }
 
 .habit-detail__stat-box .t-meta {
@@ -89,10 +105,11 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  padding: 16px;
+  background-color: transparent;
+  border: none;
+  padding: 16px 0;
   border-radius: 4px;
+  box-shadow: none;
 }
 
 .habit-detail__heatmap {
@@ -103,7 +120,7 @@
 
 .heatmap-cell {
   aspect-ratio: 1;
-  background-color: var(--bg-base);
+  background-color: transparent;
   border: 1px solid var(--border-subtle);
   border-radius: 2px;
   transition: all var(--transition-fast);
@@ -114,12 +131,13 @@
 }
 
 .habit-detail__chart-container {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  padding: 16px;
+  background-color: transparent;
+  border: none;
+  padding: 16px 0;
   border-radius: 4px;
   display: flex;
   flex-direction: column;
+  box-shadow: none;
 }
 
 .habit-detail__sparkline {
@@ -133,10 +151,11 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background-color: var(--bg-surface);
-  padding: 16px;
-  border: 1px solid var(--border-subtle);
+  background-color: transparent;
+  padding: 16px 0;
+  border: none;
   border-radius: 4px;
+  box-shadow: none;
 }
 
 .form-group {
@@ -182,56 +201,42 @@
 }
 
 .btn-save {
-  background: transparent;
+  background: var(--accent);
+  color: var(--bg-base);
   border: none;
-  color: var(--text-secondary);
   cursor: pointer;
-  padding: 8px;
-  transition: color var(--transition-fast);
-}
-
-.btn-save:hover:not(:disabled) {
-  color: var(--text-primary);
+  padding: 8px 24px;
 }
 
 .btn-save:disabled {
-  opacity: 0.5;
+  opacity: 0.3;
   cursor: not-allowed;
+  border-color: var(--border-subtle);
 }
 
 .habit-detail__actions-row {
   display: flex;
   justify-content: space-between;
+  gap: 12px;
   margin-top: 24px;
   border-top: 1px solid var(--border-subtle);
   padding-top: 24px;
 }
 
-.danger-zone button {
-  background: transparent;
-  border: 1px solid var(--border-subtle);
+.btn-archive, .btn-delete {
+  background: var(--bg-elevated);
+  border: none;
   padding: 8px 16px;
-  border-radius: 4px;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  flex: 1;
 }
 
 .btn-archive {
-  color: var(--text-secondary);
-}
-
-.btn-archive:hover {
-  background-color: var(--bg-base);
   color: var(--text-primary);
 }
 
 .btn-delete {
   color: var(--strike-red);
-  border-color: rgba(255, 68, 68, 0.2) !important;
-}
-
-.btn-delete:hover {
-  background-color: rgba(255, 68, 68, 0.1);
 }
 
 @keyframes fadeIn {

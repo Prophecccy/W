@@ -18,6 +18,7 @@ import { initTimerScheduler } from "../features/clock/services/timerScheduler";
 import { useAuthContext } from "../features/auth/context";
 import { getUserDoc } from "../features/auth/services/userService";
 import { OnboardingPage } from "../features/auth/components/OnboardingPage";
+import { UserProvider, useUserStore } from "../shared/stores/userStore";
 import { User } from "../shared/types";
 import { Habit } from "../features/habits/types";
 import { Todo } from "../features/todos/types";
@@ -27,7 +28,7 @@ import { completeHabit } from "../features/habits/services/logService";
 import { getToday } from "../shared/utils/dateUtils";
 import { useNotifications } from "../shared/hooks/useNotifications";
 import { getLocalWallpaper } from "../shared/utils/storageUtils";
-import { UpdateManager } from "../shared/components/UpdateManager/UpdateManager";
+import { UpdateHUD } from "../features/updater/components/UpdateHUD";
 import "./Layout.css";
 
 // ─── Startup phases ──────────────────────────────────────────────
@@ -38,8 +39,9 @@ type StartupPhase =
   | "welcome_back"  // Auto-freeze triggered, showing WelcomeBack
   | "ready";        // Normal operation
 
-export function Layout() {
+function LayoutInner() {
   const { user } = useAuthContext();
+  const userStore = useUserStore();
   const navigate = useNavigate();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [userDoc, setUserDoc] = useState<User | null>(null);
@@ -57,37 +59,33 @@ export function Layout() {
   const { strikes, isLocked } = useStrikes();
   useNotifications();
 
-  // ── Phase 1: Load user doc ─────────────────────────────────────
+  // ── Phase 1: Load user doc (delegates to UserStore) ────────────
   useEffect(() => {
-    async function init() {
-      if (!user) return;
-      const doc = await getUserDoc(user.uid);
-      if (doc) {
-        setUserDoc(doc);
-        document.documentElement.style.setProperty("--accent", doc.aesthetics.desktop.accentColor);
-        
-        // Wallpaper is now fetched locally below
-        
-        // Dim and Blur intensity
-        const dimStr = (doc.aesthetics.desktop.dimIntensity ?? 0.2).toString();
-        const blurStr = `${doc.aesthetics.desktop.blurIntensity ?? 0}px`;
-        document.documentElement.style.setProperty("--app-wallpaper-dim", dimStr);
-        document.documentElement.style.setProperty("--app-wallpaper-blur", blurStr);
+    if (userStore.loading) return;
 
-        // Low Graphics Mode
-        if (doc.settings.lowGraphicsMode) {
-          document.body.classList.add("low-graphics");
-        } else {
-          document.body.classList.remove("low-graphics");
-        }
+    const doc = userStore.userDoc;
+    if (doc) {
+      setUserDoc(doc);
+      document.documentElement.style.setProperty("--accent", doc.aesthetics.desktop.accentColor);
+      
+      // Dim and Blur intensity
+      const dimStr = (doc.aesthetics.desktop.dimIntensity ?? 0.2).toString();
+      const blurStr = `${doc.aesthetics.desktop.blurIntensity ?? 0}px`;
+      document.documentElement.style.setProperty("--app-wallpaper-dim", dimStr);
+      document.documentElement.style.setProperty("--app-wallpaper-blur", blurStr);
 
-        setPhase("processing");
+      // Low Graphics Mode
+      if (doc.settings.lowGraphicsMode) {
+        document.body.classList.add("low-graphics");
       } else {
-        setPhase("onboarding");
+        document.body.classList.remove("low-graphics");
       }
+
+      setPhase("processing");
+    } else if (user) {
+      setPhase("onboarding");
     }
-    init();
-  }, [user]);
+  }, [user, userStore.loading, userStore.userDoc]);
 
   // ── Apply Desktop Wallpaper (Local cache) ──────────────────────
   useEffect(() => {
@@ -118,6 +116,26 @@ export function Layout() {
       channel.close();
       window.removeEventListener("wallpaper-changed", applyWallpaper);
     };
+  }, []);
+
+  // ── Z-Order Enforcer: Main Window Pull-Up ───────────────────────
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    async function setupZOrderEnforcer() {
+      try {
+        const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+        const mainWin = getCurrentWebviewWindow();
+        if (mainWin.label === "main") {
+          unlisten = await mainWin.onFocusChanged(async ({ payload: focused }) => {
+            if (focused) {
+              await mainWin.setFocus();
+            }
+          });
+        }
+      } catch { /* Not in Tauri */ }
+    }
+    setupZOrderEnforcer();
+    return () => { if (unlisten) unlisten(); };
   }, []);
 
   // ── Initialize clock schedulers ─────────────────────────────────
@@ -177,6 +195,10 @@ export function Layout() {
           maximized: true,
           skipTaskbar: true,
           visible: true,
+          parent: null as any,
+          focusable: false,
+          focus: false,
+          alwaysOnTop: false,
         });
         overlay.once("tauri://error", (_e: unknown) => {
           console.error("Failed to create sticky overlay");
@@ -201,6 +223,10 @@ export function Layout() {
             height: 520,
             skipTaskbar: true,
             visible: true,
+            parent: null as any,
+            focusable: false,
+            focus: false,
+            alwaysOnTop: false,
           });
           widget.once("tauri://error", (_e: unknown) => {
             console.error("Failed to create widget");
@@ -316,14 +342,21 @@ export function Layout() {
   if (phase === "onboarding") {
     return (
       <OnboardingPage
-        onComplete={() => {
-          getUserDoc(user!.uid).then((doc) => {
-            if (doc) {
-              setUserDoc(doc);
-              document.documentElement.style.setProperty("--accent", doc.aesthetics.desktop.accentColor);
-              setPhase("processing");
-            }
-          });
+        onComplete={async () => {
+          await userStore.reload();
+          const doc = userStore.userDoc;
+          if (doc) {
+            setUserDoc(doc);
+            document.documentElement.style.setProperty("--accent", doc.aesthetics.desktop.accentColor);
+          }
+          // Re-fetch directly to ensure fresh data
+          const freshDoc = await getUserDoc(user!.uid);
+          if (freshDoc) {
+            userStore.setUserDoc(freshDoc);
+            setUserDoc(freshDoc);
+            document.documentElement.style.setProperty("--accent", freshDoc.aesthetics.desktop.accentColor);
+            setPhase("processing");
+          }
         }}
       />
     );
@@ -380,7 +413,7 @@ export function Layout() {
             transition={{ duration: 0.15, ease: "easeInOut" }}
             style={{ width: "100%", height: "100%" }}
           >
-            <Outlet context={{ userDoc, gapResult }} />
+            <Outlet context={{ userDoc, gapResult, needsCalibration: userStore.needsCalibration, dismissCalibration: userStore.dismissCalibration }} />
           </motion.div>
         </AnimatePresence>
       </main>
@@ -408,7 +441,16 @@ export function Layout() {
         />
       )}
 
-      <UpdateManager />
+      <UpdateHUD />
     </div>
+  );
+}
+
+// ─── Wrapped export with UserProvider ────────────────────────────
+export function Layout() {
+  return (
+    <UserProvider>
+      <LayoutInner />
+    </UserProvider>
   );
 }

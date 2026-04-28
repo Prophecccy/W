@@ -24,13 +24,19 @@
     "core:window:allow-set-always-on-top",
     "core:window:allow-set-focus",
     "core:window:allow-center",
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-is-maximized",
     "core:window:allow-set-size",
     "core:window:allow-set-position",
     "core:window:allow-inner-size",
     "core:window:allow-outer-position",
     "core:window:allow-set-decorations",
+    "core:event:default",
     "oauth:default",
     "oauth:allow-start",
-    "oauth:allow-cancel"
+    "oauth:allow-cancel",
+    "updater:default"
   ]
 }

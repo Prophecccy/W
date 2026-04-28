@@ -12,8 +12,8 @@ export interface WidgetPosition {
 const DEFAULT_POSITION: WidgetPosition = {
   x: 100,
   y: 100,
-  width: 380,
-  height: 520,
+  width: 420,
+  height: 360,
 };
 
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;

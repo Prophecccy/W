@@ -75,3 +75,26 @@ export async function updateUserDoc(uid: string, updates: Partial<User>): Promis
   // @ts-ignore - Firestore update types
   await updateDoc(docRef, updates);
 }
+
+/**
+ * Backfill legacy user docs that are missing wakeUpTime / bedTime.
+ * Returns a patched copy (does NOT write to Firestore — caller decides).
+ */
+export function ensureCycleDefaults(user: User): { patched: User; needsCalibration: boolean } {
+  const { wakeUpTime, bedTime } = user.settings;
+
+  if (wakeUpTime && bedTime) {
+    return { patched: user, needsCalibration: false };
+  }
+
+  const patched: User = {
+    ...user,
+    settings: {
+      ...user.settings,
+      wakeUpTime: wakeUpTime || "07:00",
+      bedTime: bedTime || "23:00",
+    },
+  };
+
+  return { patched, needsCalibration: true };
+}

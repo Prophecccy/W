@@ -1,31 +1,31 @@
 .widget-habit-card {
   position: relative;
+  width: 100%;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  margin-bottom: 8px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05); /* very subtle initial border */
-  border-left: 3px solid var(--card-accent); /* left border still acts as the visual indicator */
-  border-radius: 8px; /* softer pill look */
+  gap: 16px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  /* Ghost Elevation: Projected Data look */
+  background: rgba(255, 255, 255, 0.02);
+  border: none; 
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.8);
   cursor: pointer;
   user-select: none;
   overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s ease;
 }
 
 .widget-habit-card:hover {
-  background: rgba(255, 255, 255, 0.08); /* slight brightening */
-  transform: translateX(2px); /* subtle shift */
-  border-left-width: 4px; /* thicker on hover */
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 /* ─── Completed State ────────────────────────────────────── */
 .widget-habit-card.completed {
-  opacity: 0.4;
-  border-left-color: var(--text-muted);
+  opacity: 0.5;
+  background: transparent;
+  border-color: transparent;
 }
 
 .widget-habit-card.completed .widget-habit-card__icon {
@@ -34,7 +34,10 @@
 
 /* ─── Limiter Accent ─────────────────────────────────────── */
 .widget-habit-card.limiter {
-  border-left-color: var(--strike-red);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.8), 0 0 15px rgba(232, 115, 108, 0.1);
+}
+.widget-habit-card.limiter:hover {
+  box-shadow: 0 8px 24px rgba(0,0,0,0.9), 0 0 20px rgba(232, 115, 108, 0.2);
 }
 
 /* ─── Hold Fill Animation ────────────────────────────────── */
@@ -72,9 +75,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  color: var(--card-accent);
+  width: 24px;
+  height: 24px;
+  color: #ffffff;
   flex-shrink: 0;
 }
 
@@ -84,8 +87,10 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--text-primary);
-  font-size: 12px;
+  color: #f1f1f1;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
 }
 
 .widget-habit-card.completed .widget-habit-card__title {

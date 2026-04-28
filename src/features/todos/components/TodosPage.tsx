@@ -10,6 +10,8 @@ import { TodoCard } from "./TodoCard/TodoCard";
 import { TodoForm } from "./TodoForm/TodoForm";
 import { getToday } from "../../../shared/utils/dateUtils";
 import { LucideIcon } from "../../../shared/components/IconPicker/LucideIcon";
+import { GroupManager } from "../../habits/components/GroupManager/GroupManager";
+import "../../habits/components/HabitsPage.css";
 
 type LayoutMode = 'default' | 'grouped';
 
@@ -20,6 +22,7 @@ export function TodosPage() {
   const [groups, setGroups] = useState<HabitGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isGroupManagerOpen, setIsGroupManagerOpen] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('default');
 
@@ -124,33 +127,34 @@ export function TodosPage() {
 
   return (
     <div className="todos-page" style={{ padding: "24px", maxWidth: "800px", margin: "0 auto", height: "100%", display: "flex", flexDirection: "column", gap: "32px", overflowY: "auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 className="t-body" style={{ color: "var(--text-muted)" }}>[ TODOS ]</h1>
-        <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-          <div style={{ display: "flex", gap: "8px" }}>
-            <button 
-              className={`t-label ${layoutMode === 'default' ? '' : 't-meta'}`}
-              style={{ background: "none", border: "none", color: layoutMode === 'default' ? "var(--text-main)" : "var(--text-muted)", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}
-              onClick={() => setLayoutMode('default')}
-            >
-              <LucideIcon name="List" size={16} /> DEFAULT
-            </button>
-            <button 
-              className={`t-label ${layoutMode === 'grouped' ? '' : 't-meta'}`}
-              style={{ background: "none", border: "none", color: layoutMode === 'grouped' ? "var(--text-main)" : "var(--text-muted)", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}
-              onClick={() => setLayoutMode('grouped')}
-            >
-              <LucideIcon name="Folder" size={16} /> GROUPED
-            </button>
-          </div>
+      <h1 className="t-display" style={{ textAlign: 'center', marginBottom: 'var(--spacing-xl)' }}>[ TODOS ]</h1>
+      <div className="habits-page__controls" style={{ justifyContent: 'flex-end', marginBottom: 'var(--spacing-xl)' }}>
+        <div className="habits-page__layout-toggle">
           <button 
-            onClick={() => setIsFormOpen(true)}
-            style={{ background: "var(--accent)", color: "var(--bg-base)", border: "none", padding: "8px 16px", cursor: "pointer" }}
-            className="t-label"
+            className={`t-label preset-btn ${layoutMode === 'default' ? 'preset-btn--active' : ''}`}
+            onClick={() => setLayoutMode('default')}
           >
-            [ NEW TODO ]
+            <LucideIcon name="List" size={16} /> DEFAULT
+          </button>
+          <button 
+            className={`t-label preset-btn ${layoutMode === 'grouped' ? 'preset-btn--active' : ''}`}
+            onClick={() => setLayoutMode('grouped')}
+          >
+            <LucideIcon name="Folder" size={16} /> GROUPED
           </button>
         </div>
+        <button 
+          className="btn-action btn-action--secondary" 
+          onClick={() => setIsGroupManagerOpen(true)}
+        >
+          [ GROUPS ]
+        </button>
+        <button 
+          className="btn-action btn-action--primary" 
+          onClick={() => setIsFormOpen(true)}
+        >
+          [ + NEW TODO ]
+        </button>
       </div>
 
       {isLoading ? (
@@ -266,6 +270,14 @@ export function TodosPage() {
             </section>
           )}
         </>
+      )}
+
+      {isGroupManagerOpen && (
+        <div className="habits-modal-overlay" onClick={() => setIsGroupManagerOpen(false)}>
+          <div className="habits-modal-content" onClick={e => e.stopPropagation()}>
+            <GroupManager onClose={() => setIsGroupManagerOpen(false)} />
+          </div>
+        </div>
       )}
     </div>
   );

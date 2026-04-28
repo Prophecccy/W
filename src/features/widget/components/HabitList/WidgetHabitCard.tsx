@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { Habit } from '../../../habits/types';
-import { LucideIcon } from '../../../../shared/components/IconPicker/LucideIcon';
-import { Check } from 'lucide-react';
+import { Check, Circle } from 'lucide-react';
 import './WidgetHabitCard.css';
 
 interface WidgetHabitCardProps {
@@ -69,9 +68,9 @@ export function WidgetHabitCard({ habit, isCompletedToday, onComplete, onUndo }:
 
       <div className="widget-habit-card__icon">
         {isCompleted ? (
-          <Check size={14} strokeWidth={2.5} />
+          <Check size={18} strokeWidth={3.5} />
         ) : (
-          <LucideIcon name={habit.icon} size={14} />
+          <Circle size={18} strokeWidth={2.5} opacity={0.6} />
         )}
       </div>
 

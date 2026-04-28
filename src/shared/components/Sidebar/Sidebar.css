@@ -4,18 +4,14 @@
   position: fixed;
   left: 0;
   top: 0;
-  background: var(--bg-surface);
-  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-base);
+  border-right: 1px solid var(--border-default);
   display: flex;
   flex-direction: column;
   padding: 0;
   z-index: 100;
   overflow-y: auto;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
-}
-
-.sidebar:hover {
-  background-color: rgba(255, 255, 255, 0.02); /* Subtle brighten on dark mode */
+  transition: all 0.3s ease;
 }
 
 .sidebar__logo {
@@ -24,6 +20,7 @@
   font-size: 22px;
   letter-spacing: -1px;
   user-select: none;
+  text-shadow: var(--text-shadow-sharp);
 }
 
 .sidebar__nav {
@@ -43,17 +40,20 @@
   text-decoration: none;
   transition: background 0.15s ease, color 0.15s ease;
   border-left: 2px solid transparent;
+  text-shadow: var(--text-shadow-sharp);
 }
 
 .sidebar__link:hover {
-  background: var(--bg-elevated);
+  background: rgba(255, 255, 255, 0.03);
   color: var(--text-primary);
+  text-shadow: var(--text-shadow-glow);
 }
 
 .sidebar__link--active {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  border-left-color: var(--accent);
+  background: rgba(255, 255, 255, 0.06);
+  color: #FFFFFF;
+  border-left-color: #FFFFFF;
+  text-shadow: var(--text-shadow-glow);
 }
 
 .sidebar__divider {
@@ -74,6 +74,7 @@
 .sidebar__stats-label {
   color: var(--text-muted);
   margin-bottom: 4px;
+  text-shadow: var(--text-shadow-sharp);
 }
 
 .sidebar__stat {
@@ -81,11 +82,13 @@
   align-items: center;
   gap: 8px;
   color: var(--text-secondary);
+  text-shadow: var(--text-shadow-sharp);
 }
 
 .sidebar__stat--strikes {
   color: var(--strike-red);
   transition: all 0.3s ease;
+  text-shadow: 0 0 12px rgba(232, 115, 108, 0.6);
 }
 
 .sidebar__stat--warning {
