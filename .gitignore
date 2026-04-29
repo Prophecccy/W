@@ -18,6 +18,8 @@ src-tauri/bin/
 src-tauri/dump.rdb
 /updater
 src-tauri/updater
+src-tauri/signing-key.key
+src-tauri/signing-key.key.pub
 
 # Testing
 coverage
