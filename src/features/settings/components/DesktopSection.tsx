@@ -1,23 +1,33 @@
-import { Monitor, RefreshCw, Download, Move } from "lucide-react";
+import { useState } from "react";
+import { Monitor, RefreshCw, Download, Move, ArrowDownCircle } from "lucide-react";
 import { isTauri, openExternalLink } from "../../../shared/utils/tauri";
 import { resetWidgetPosition } from "../../widget/services/widgetPositionStore";
 import { useToast } from "../../../shared/components/Toast/Toast";
+import { useUpdateManager } from "../../updater/hooks/useUpdateManager";
 import "./DesktopSection.css";
 
 export function DesktopSection() {
   const { showToast } = useToast();
+  const { phase, startUpdate, reboot } = useUpdateManager();
+  const [isChecking, setIsChecking] = useState(false);
   const inTauri = isTauri();
 
   const handleResetPosition = async () => {
     await resetWidgetPosition();
     showToast("[ WIDGET POSITION RESET ]");
-    // Trigger a re-launch to apply the reset position if it's already open
     window.dispatchEvent(new CustomEvent("w:launch-widget"));
   };
 
   const handleRelaunch = () => {
     window.dispatchEvent(new CustomEvent("w:launch-widget"));
     showToast("[ RE-LAUNCHING WIDGET... ]");
+  };
+
+  const handleCheckUpdate = () => {
+    setIsChecking(true);
+    window.dispatchEvent(new CustomEvent("w:check-update"));
+    // Reset the spinner after a few seconds regardless
+    setTimeout(() => setIsChecking(false), 5000);
   };
 
   if (!inTauri) {
@@ -62,6 +72,8 @@ export function DesktopSection() {
     <div className="settings-section" id="settings-desktop">
       <h2 className="settings-section__header t-label">[ DESKTOP & WIDGET ]</h2>
       <div className="settings-section__content">
+
+        {/* Widget Controls Card */}
         <div className="desktop-card">
           <div className="desktop-card__header">
             <div className="desktop-card__icon">
@@ -84,18 +96,59 @@ export function DesktopSection() {
               <Move size={14} />
               <span className="t-label">RESET WIDGET POSITION</span>
             </button>
-            <button 
-              className="desktop-btn" 
-              onClick={() => {
-                showToast("[ CHECKING FOR UPDATES... ]");
-                window.dispatchEvent(new CustomEvent("w:check-update"));
-              }}
-            >
-              <RefreshCw size={14} />
-              <span className="t-label">CHECK FOR UPDATES</span>
-            </button>
           </div>
         </div>
+
+        {/* Update Card — Visually Separate */}
+        <div className="desktop-card desktop-card--update">
+          <div className="desktop-card__header">
+            <div className="desktop-card__icon desktop-card__icon--update">
+              <ArrowDownCircle size={20} />
+            </div>
+            <div>
+              <span className="desktop-card__title">Software Updates</span>
+              <span className="desktop-card__version t-meta">v0.1.0</span>
+            </div>
+          </div>
+
+          {phase === 'available' && (
+            <p className="desktop-card__desc t-body" style={{ color: "var(--accent)" }}>
+              A new version is available! Click below to download and install.
+            </p>
+          )}
+
+          {phase === 'ready' && (
+            <p className="desktop-card__desc t-body" style={{ color: "var(--accent)" }}>
+              Update downloaded. Restart to apply.
+            </p>
+          )}
+
+          <div className="desktop-controls">
+            {phase === 'available' ? (
+              <button className="desktop-btn desktop-btn--accent" onClick={startUpdate}>
+                <Download size={14} />
+                <span className="t-label">DOWNLOAD & INSTALL</span>
+              </button>
+            ) : phase === 'ready' ? (
+              <button className="desktop-btn desktop-btn--accent" onClick={reboot}>
+                <RefreshCw size={14} />
+                <span className="t-label">RESTART NOW</span>
+              </button>
+            ) : (
+              <button 
+                className="desktop-btn" 
+                onClick={handleCheckUpdate}
+                disabled={isChecking || phase === 'checking'}
+              >
+                <RefreshCw size={14} className={(isChecking || phase === 'checking') ? 'spin-animation' : ''} />
+                <span className="t-label">
+                  {(isChecking || phase === 'checking') ? 'CHECKING...' : 'CHECK FOR UPDATES'}
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+
       </div>
     </div>
   );

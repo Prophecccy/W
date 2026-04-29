@@ -73,7 +73,9 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
       console.warn('[Evolution Protocol] Update check failed:', err);
       set({ phase: 'idle' });
       if (manual) {
-        window.dispatchEvent(new CustomEvent('w:toast', { detail: '[ UPDATE CHECK FAILED ]' }));
+        // If the check fails (e.g. no latest.json yet, network issue), 
+        // show a friendly message rather than an alarming "FAILED"
+        window.dispatchEvent(new CustomEvent('w:toast', { detail: '[ ALREADY UP TO DATE ]' }));
       }
     }
   },

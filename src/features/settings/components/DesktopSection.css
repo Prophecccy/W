@@ -111,3 +111,47 @@
 .desktop-btn:active {
   transform: scale(0.98);
 }
+
+.desktop-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Accent variant for download/restart buttons */
+.desktop-btn--accent {
+  background: rgba(212, 175, 55, 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.desktop-btn--accent:hover {
+  background: rgba(212, 175, 55, 0.25);
+}
+
+/* Update card — visually distinct from widget controls */
+.desktop-card--update {
+  margin-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 24px;
+}
+
+.desktop-card__icon--update {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+
+.desktop-card__version {
+  display: block;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Spinning animation for the refresh icon during check */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin-animation {
+  animation: spin 1s linear infinite;
+}
