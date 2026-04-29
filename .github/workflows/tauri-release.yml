@@ -52,4 +52,3 @@ jobs:
           releaseBody: "Evolution Protocol — automated release for W Command Center."
           releaseDraft: false
           prerelease: false
-          updatedVersion: ${{ github.event.inputs.version }}
