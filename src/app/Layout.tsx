@@ -29,6 +29,7 @@ import { getToday } from "../shared/utils/dateUtils";
 import { useNotifications } from "../shared/hooks/useNotifications";
 import { getLocalWallpaper } from "../shared/utils/storageUtils";
 import { UpdateHUD } from "../features/updater/components/UpdateHUD";
+import { initUpdater } from "../features/updater/hooks/useUpdateManager";
 import { useToast } from "../shared/components/Toast/Toast";
 import "./Layout.css";
 
@@ -147,6 +148,9 @@ function LayoutInner() {
       initAlarmScheduler();
       initTimerScheduler();
     } catch(_e) { /* Not in Tauri */ }
+
+    // Initialize the updater once globally
+    initUpdater();
 
     const handleGlobalToast = (e: Event) => {
       const customEvent = e as CustomEvent<string>;

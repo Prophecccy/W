@@ -46,6 +46,30 @@
   -webkit-app-region: no-drag;
 }
 
+.topbar__update-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  margin-right: 8px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: opacity 0.15s ease;
+}
+
+.topbar__update-btn:hover {
+  opacity: 0.8;
+}
+
+.topbar__update-btn .t-meta {
+  color: #fff;
+  opacity: 0.9;
+}
+
 .topbar__win-btn {
   width: 32px;
   height: 28px;

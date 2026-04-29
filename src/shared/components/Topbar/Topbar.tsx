@@ -1,4 +1,5 @@
-import { Search, Minus, Square, X } from "lucide-react";
+import { Search, Minus, Square, X, Download } from "lucide-react";
+import { useUpdateManager } from "../../../features/updater/hooks/useUpdateManager";
 import "./Topbar.css";
 
 interface TopbarProps {
@@ -6,6 +7,8 @@ interface TopbarProps {
 }
 
 export function Topbar({ onCommandPaletteOpen }: TopbarProps) {
+  const { phase, startUpdate } = useUpdateManager();
+
   const handleMinimize = async () => {
     try {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
@@ -52,6 +55,16 @@ export function Topbar({ onCommandPaletteOpen }: TopbarProps) {
 
       {isTauri && (
         <div className="topbar__window-controls">
+          {phase === 'available' && (
+            <button 
+              className="topbar__update-btn" 
+              onClick={startUpdate}
+              title="Update Available"
+            >
+              <Download size={14} strokeWidth={1.5} />
+              <span className="t-meta">UPDATE</span>
+            </button>
+          )}
           <button className="topbar__win-btn" onClick={handleMinimize}>
             <Minus size={14} strokeWidth={1.5} />
           </button>

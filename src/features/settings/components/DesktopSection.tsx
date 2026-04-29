@@ -1,4 +1,4 @@
-import { Monitor, Download, RefreshCw, Move, ExternalLink } from "lucide-react";
+import { Monitor, RefreshCw, Download, Move } from "lucide-react";
 import { isTauri, openExternalLink } from "../../../shared/utils/tauri";
 import { resetWidgetPosition } from "../../widget/services/widgetPositionStore";
 import { useToast } from "../../../shared/components/Toast/Toast";
