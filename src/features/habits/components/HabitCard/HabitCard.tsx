@@ -36,11 +36,9 @@ export function HabitCard({
   const HOLD_DURATION = 500; // ms to hold to verify
 
   // ─── Level Visual Progression Logic ──────────────────────────────
-  // Lv0 = greyed, Lv1 = normal, Lv2+ = subtle border glow & shimmer
-  const isLv0 = habit.level === 0;
+  // Lv1 = normal, Lv2+ = subtle border glow & shimmer
   const cardStyle = {
     "--card-accent": habit.type === "limiter" ? "var(--strike-red)" : habit.color,
-    opacity: isLv0 ? 0.6 : 1,
     boxShadow:
       habit.level >= 2 && !isCompletedToday
         ? `0 0 8px 1px ${habit.color}15` // Extremely subtle glow
@@ -134,7 +132,15 @@ export function HabitCard({
               className="habit-card__icon"
               style={{ color: isCompletedToday ? "var(--text-muted)" : "var(--card-accent)" }}
             />
-            <span className="habit-card__title t-body">{habit.title}</span>
+            <span 
+              className="habit-card__title t-body"
+              style={{
+                textDecoration: isCompletedToday ? "line-through" : "none",
+                color: isCompletedToday ? "var(--text-muted)" : "var(--text-primary)"
+              }}
+            >
+              {habit.title}
+            </span>
           </div>
 
           {(habit.currentStreak > 0 || habit.level > 0) && (

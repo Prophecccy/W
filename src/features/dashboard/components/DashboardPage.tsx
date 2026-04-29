@@ -190,8 +190,8 @@ export function DashboardPage() {
           
           {/* LEFT COLUMN: HABITS */}
           <div className="dashboard-column">
-            <div className="dashboard-column__header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h2 className="t-label">[ TODAY'S HABITS ]</h2>
+            <div className="dashboard-column__header">
+              <h2 className="t-label" title="[ TODAY'S HABITS ]">[ TODAY'S HABITS ]</h2>
               <button 
                 className="t-meta" 
                 style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", textShadow: "var(--text-shadow-glow)" }}
@@ -227,8 +227,8 @@ export function DashboardPage() {
 
           {/* RIGHT COLUMN: TODOS */}
           <div className="dashboard-column">
-            <div className="dashboard-column__header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h2 className="t-label">[ ACTIVE TODOS ]</h2>
+            <div className="dashboard-column__header">
+              <h2 className="t-label" title="[ ACTIVE TODOS ]">[ ACTIVE TODOS ]</h2>
               <button 
                 className="t-meta" 
                 style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", textShadow: "var(--text-shadow-glow)" }}

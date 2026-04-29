@@ -61,6 +61,22 @@
   color: var(--text-muted);
   padding-bottom: 8px;
   text-shadow: var(--text-shadow-sharp);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.dashboard-column__header h2 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  padding: 0;
+}
+
+.dashboard-column__header button {
+  flex-shrink: 0;
 }
 
 .dashboard-list {
