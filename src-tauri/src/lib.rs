@@ -62,6 +62,14 @@ pub fn run() {
             sticky_overlay::force_sticky_interactive,
             sticky_overlay::set_sticky_drag_mode
         ])
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    let _ = window.hide();
+                    api.prevent_close();
+                }
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
