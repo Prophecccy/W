@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Monitor, RefreshCw, Download, Move, ArrowDownCircle } from "lucide-react";
 import { isTauri, openExternalLink } from "../../../shared/utils/tauri";
 import { resetWidgetPosition } from "../../widget/services/widgetPositionStore";
@@ -10,7 +10,16 @@ export function DesktopSection() {
   const { showToast } = useToast();
   const { phase, startUpdate, reboot } = useUpdateManager();
   const [isChecking, setIsChecking] = useState(false);
+  const [appVersion, setAppVersion] = useState("...");
   const inTauri = isTauri();
+
+  useEffect(() => {
+    if (inTauri) {
+      import('@tauri-apps/api/app').then(({ getVersion }) => {
+        getVersion().then(v => setAppVersion(`v${v}`));
+      }).catch(() => setAppVersion('v?.?.?'));
+    }
+  }, [inTauri]);
 
   const handleResetPosition = async () => {
     await resetWidgetPosition();
@@ -107,7 +116,7 @@ export function DesktopSection() {
             </div>
             <div>
               <span className="desktop-card__title">Software Updates</span>
-              <span className="desktop-card__version t-meta">v0.1.0</span>
+              <span className="desktop-card__version t-meta">{appVersion}</span>
             </div>
           </div>
 
