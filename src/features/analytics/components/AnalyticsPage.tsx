@@ -128,7 +128,7 @@ export const AnalyticsPage: React.FC = () => {
   return (
     <div className="analytics-page">
       <header className="analytics-header">
-        <h1 className="t-display">[ ANALYTICS V2 ]</h1>
+        <h1 className="t-display">[ ANALYTICS ]</h1>
         <p className="t-meta" style={{ opacity: 0.5, marginTop: '8px' }}>
           {loading ? 'CALCULATING TRENDS...' : 'DATA REFRESHED'}
         </p>
