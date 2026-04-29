@@ -55,7 +55,7 @@ export function useUpdateManager(): UpdateManagerState {
 
     let cancelled = false;
 
-    const checkForUpdates = async () => {
+    const checkForUpdates = async (manual = false) => {
       try {
         setPhase('checking');
 
@@ -74,20 +74,32 @@ export function useUpdateManager(): UpdateManagerState {
           setPhase('available');
         } else {
           setPhase('idle');
+          if (manual) {
+            // If manual check, maybe dispatch a toast event?
+            window.dispatchEvent(new CustomEvent('w:toast', { detail: '[ ALREADY UP TO DATE ]' }));
+          }
         }
       } catch (err) {
         if (cancelled) return;
         console.warn('[Evolution Protocol] Update check failed:', err);
-        // Silently return to idle — don't bother the user for check failures
         setPhase('idle');
+        if (manual) {
+          window.dispatchEvent(new CustomEvent('w:toast', { detail: '[ UPDATE CHECK FAILED ]' }));
+        }
       }
     };
 
-    // Delay 5 seconds so it doesn't contest with app startup
-    const timer = setTimeout(checkForUpdates, 5000);
+    // Auto-check on startup
+    const timer = setTimeout(() => checkForUpdates(false), 5000);
+    
+    // Listen for manual checks
+    const handleManualCheck = () => checkForUpdates(true);
+    window.addEventListener('w:check-update', handleManualCheck);
+
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      window.removeEventListener('w:check-update', handleManualCheck);
     };
   }, []);
 

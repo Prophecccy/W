@@ -86,9 +86,12 @@ export function DesktopSection() {
             </button>
             <button 
               className="desktop-btn" 
-              onClick={() => openExternalLink("https://github.com/Prophecccy/W/releases/latest")}
+              onClick={() => {
+                showToast("[ CHECKING FOR UPDATES... ]");
+                window.dispatchEvent(new CustomEvent("w:check-update"));
+              }}
             >
-              <ExternalLink size={14} />
+              <RefreshCw size={14} />
               <span className="t-label">CHECK FOR UPDATES</span>
             </button>
           </div>

@@ -29,6 +29,7 @@ import { getToday } from "../shared/utils/dateUtils";
 import { useNotifications } from "../shared/hooks/useNotifications";
 import { getLocalWallpaper } from "../shared/utils/storageUtils";
 import { UpdateHUD } from "../features/updater/components/UpdateHUD";
+import { useToast } from "../shared/components/Toast/Toast";
 import "./Layout.css";
 
 // ─── Startup phases ──────────────────────────────────────────────
@@ -138,13 +139,25 @@ function LayoutInner() {
     return () => { if (unlisten) unlisten(); };
   }, []);
 
-  // ── Initialize clock schedulers ─────────────────────────────────
+  // ── Initialize clock schedulers & global toasts ─────────────────────────────────
+  const { showToast } = useToast();
+  
   useEffect(() => {
     try {
       initAlarmScheduler();
       initTimerScheduler();
     } catch(_e) { /* Not in Tauri */ }
-  }, []);
+
+    const handleGlobalToast = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      if (customEvent.detail) {
+        showToast(customEvent.detail);
+      }
+    };
+    
+    window.addEventListener('w:toast', handleGlobalToast);
+    return () => window.removeEventListener('w:toast', handleGlobalToast);
+  }, [showToast]);
 
   // ── Phase 2: Run gap processor ─────────────────────────────────
   useEffect(() => {
