@@ -52,3 +52,5 @@ jobs:
           releaseBody: "Evolution Protocol — automated release for W Command Center."
           releaseDraft: false
           prerelease: false
+          includeUpdaterJson: true
+          updaterJsonPreferNsis: true

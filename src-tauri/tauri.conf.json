@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "W",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "identifier": "com.redre.w-app",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -96,7 +96,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY1OTRDNTUyNjUyMTM5NDUKUldSRk9TRmxVc1dVWlNPbUpSQmQ3bmhmWVM2bXVtZDlQRDVZK2dyY1JjeUFCRnUyZDVac2N1QUMK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVEQTEzQjQyNzUyMDA5MjgKUldRb0NTQjFRanVoN1VlZXM0bXltZ2pIWWxCZTF1NFpzQ2VOVXVkSVU2QzhNNmwyVjhqVEU2b0sK",
       "endpoints": [
         "https://github.com/Prophecccy/W/releases/latest/download/latest.json"
       ]
