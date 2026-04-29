@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { HabitCard } from '../../habits/components/HabitCard/HabitCard';
 import { TodoCard } from '../../todos/components/TodoCard/TodoCard';
+import { DailyNote } from '../../habits/components/DailyNote/DailyNote';
 import { Habit, HabitLog } from '../../habits/types';
 import { Todo } from '../../todos/types';
 import { getHabits } from '../../habits/services/habitService';
@@ -260,6 +261,10 @@ export function DashboardPage() {
           </div>
 
         </div>
+      </div>
+
+      <div className="dashboard-page__footer" style={{ marginTop: 'var(--spacing-xl)' }}>
+        <DailyNote initialNote={log?.notes || ''} />
       </div>
     </div>
   );

@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { HabitCard } from './HabitCard/HabitCard';
 import { HabitForm } from './HabitForm/HabitForm';
 import { GroupManager } from './GroupManager/GroupManager';
-import { DailyNote } from './DailyNote/DailyNote';
 import { HabitGroupHeader } from './HabitGroupHeader/HabitGroupHeader';
 import { Habit, HabitLog, HabitGroup } from '../types';
 import { HabitDetail } from './HabitDetail/HabitDetail';
@@ -354,10 +353,6 @@ export function HabitsPage() {
             )}
           </div>
         )}
-      </div>
-
-      <div className="habits-page__footer">
-        <DailyNote initialNote={log?.notes || ''} />
       </div>
 
       {isFormOpen && (
