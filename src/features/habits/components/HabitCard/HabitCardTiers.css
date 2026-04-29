@@ -2,7 +2,7 @@
 
 /* Lv0: Nil (greyed) */
 .habit-card.level-tier-0 {
-  opacity: 0.6;
+  /* Removed opacity: 0.6 to keep visual weight matched with Todos */
 }
 
 /* Lv1: Normal */
