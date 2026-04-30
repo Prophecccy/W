@@ -3,6 +3,7 @@ import { HabitLog } from "../../habits/types";
 import { getLogRange } from "../../habits/services/logService";
 import { useAuth } from "../../auth/hooks/useAuth";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import "./ActivityHeatmap.css";
 
 interface Props {
@@ -30,9 +31,11 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     async function load() {
+      setIsLoading(true);
       const year = currentViewDate.getFullYear();
       const month = currentViewDate.getMonth();
       
@@ -76,7 +79,7 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
         const startOffsetDays = (firstDayOfMonth + 6) % 7;
 
         for (let i = 0; i < startOffsetDays; i++) {
-          cells.push({ date: `empty-start-${i}`, rate: -1, isGhost: true, isEmpty: true });
+          cells.push({ date: `empty-start-${mMonth}-${i}`, rate: -1, isGhost: true, isEmpty: true });
         }
 
         let totalCompleted = 0;
@@ -123,7 +126,7 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
         if (remainder !== 0) {
           const trailingEmpty = 7 - remainder;
           for (let i = 0; i < trailingEmpty; i++) {
-            cells.push({ date: `empty-end-${i}`, rate: -1, isGhost: true, isEmpty: true });
+            cells.push({ date: `empty-end-${mMonth}-${i}`, rate: -1, isGhost: true, isEmpty: true });
           }
         }
 
@@ -138,6 +141,7 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
       });
 
       setMonthsData(generatedMonths);
+      setIsLoading(false);
     }
     load();
   }, [currentViewDate, habitId, user?.metadata?.creationTime]);
@@ -152,12 +156,12 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
                           currentViewDate.getMonth() === today.getMonth();
 
   const handlePrevMonth = () => {
-    if (isLeftDisabled) return;
+    if (isLeftDisabled || isLoading) return;
     setCurrentViewDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
   };
 
   const handleNextMonth = () => {
-    if (isRightDisabled) return;
+    if (isRightDisabled || isLoading) return;
     setCurrentViewDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
   };
 
@@ -167,7 +171,6 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
   return (
     <div className="activity-heatmap-container">
       <div className="heatmap-global-header">
-        <h2 className="t-label">[ ACTIVITY HEATMAP ]</h2>
         {centerMonth && (
           <div className="heatmap-dynamic-title">
             <span className="bracket-text">[</span>
@@ -176,69 +179,95 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
             <span className="bracket-text">]</span>
           </div>
         )}
+        <h2 className="t-label">[ ACTIVITY HEATMAP ]</h2>
       </div>
 
       <div className="heatmap-carousel-wrapper">
-        <button onClick={handlePrevMonth} disabled={isLeftDisabled} className="carousel-nav-btn">
-          <ChevronLeft size={24} />
+        <button onClick={handlePrevMonth} disabled={isLeftDisabled} className="carousel-nav-btn prev">
+          <ChevronLeft size={28} />
         </button>
         
         <div className="heatmap-carousel">
-          {monthsData.map((mData, index) => {
-            const offset = Math.abs(index - 2);
-            return (
-              <div key={`${mData.year}-${mData.month}`} className={`month-block offset-${offset}`}>
-                <div className="month-card">
-                  <div className="month-card-header">
-                    <div className="month-card-efficiency">
-                      <div className="efficiency-label">EFFICIENCY:</div>
-                      <div className="efficiency-value">{mData.efficiency}%</div>
+          <AnimatePresence initial={false} mode="popLayout">
+            {monthsData.map((mData, index) => {
+              const offset = index - 2;
+              const absOffset = Math.abs(offset);
+              return (
+                <motion.div 
+                  key={`${mData.year}-${mData.month}`} 
+                  className={`month-block offset-${absOffset}`}
+                  layout
+                  initial={{ opacity: 0, scale: 0.8, x: offset > 0 ? 100 : -100 }}
+                  animate={{ 
+                    opacity: absOffset === 0 ? 1 : absOffset === 1 ? 0.4 : 0.1,
+                    scale: absOffset === 0 ? 1 : absOffset === 1 ? 0.85 : 0.7,
+                    x: 0,
+                    zIndex: 5 - absOffset,
+                    filter: absOffset === 0 ? "blur(0px) grayscale(0%)" : `blur(${absOffset * 1}px) grayscale(100%)`
+                  }}
+                  exit={{ opacity: 0, scale: 0.6, x: offset > 0 ? -100 : 100 }}
+                  transition={{ 
+                    type: "spring", 
+                    stiffness: 260, 
+                    damping: 25,
+                    layout: { duration: 0.4, ease: "easeInOut" }
+                  }}
+                >
+                  <div className="month-card">
+                    <div className="month-card-header">
+                      <div className="month-card-efficiency">
+                        <div className="efficiency-label">EFFICIENCY:</div>
+                        <div className="efficiency-value">{mData.efficiency}%</div>
+                      </div>
+                    </div>
+                    
+                    <div className="month-card-weekdays">
+                      <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+                    </div>
+
+                    <div className="activity-heatmap">
+                      {mData.cells.map(c => {
+                        let level = 0;
+                        if (c.rate > 0) level = 1;
+                        if (c.rate >= 33) level = 2;
+                        if (c.rate >= 66) level = 3;
+                        if (c.rate >= 100) level = 4;
+
+                        if (c.isEmpty) {
+                          return <div key={c.date} className="heatmap-cell empty" />;
+                        }
+
+                        return (
+                          <div 
+                            key={c.date} 
+                            className={`heatmap-cell level-${level} ${c.isGhost ? 'ghost' : ''}`}
+                            title={`${c.date}: ${c.rate}% completed`}
+                          />
+                        );
+                      })}
                     </div>
                   </div>
-                  
-                  <div className="month-card-weekdays">
-                    <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
-                  </div>
-
-                  <div className="activity-heatmap">
-                    {mData.cells.map(c => {
-                      let level = 0;
-                      if (c.rate > 0) level = 1;
-                      if (c.rate >= 33) level = 2;
-                      if (c.rate >= 66) level = 3;
-                      if (c.rate >= 100) level = 4;
-
-                      if (c.isEmpty) {
-                        return <div key={c.date} className="heatmap-cell empty" />;
-                      }
-
-                      return (
-                        <div 
-                          key={c.date} 
-                          className={`heatmap-cell level-${level} ${c.isGhost ? 'ghost' : ''}`}
-                          title={`${c.date}: ${c.rate}% completed`}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
         </div>
 
-        <button onClick={handleNextMonth} disabled={isRightDisabled} className="carousel-nav-btn">
-          <ChevronRight size={24} />
+        <button onClick={handleNextMonth} disabled={isRightDisabled} className="carousel-nav-btn next">
+          <ChevronRight size={28} />
         </button>
       </div>
 
       <div className="heatmap-legend">
-        <span>LEGEND:</span>
+        <span className="legend-label">LESS</span>
         <div className="legend-items-container">
-          <div className="legend-item"><div className="heatmap-cell level-1"></div><span>LOW</span></div>
-          <div className="legend-item"><div className="heatmap-cell level-2"></div><span>MED</span></div>
-          <div className="legend-item"><div className="heatmap-cell level-4"></div><span>HIGH</span></div>
+          <div className="heatmap-cell level-0"></div>
+          <div className="heatmap-cell level-1"></div>
+          <div className="heatmap-cell level-2"></div>
+          <div className="heatmap-cell level-3"></div>
+          <div className="heatmap-cell level-4"></div>
         </div>
+        <span className="legend-label">MORE</span>
       </div>
     </div>
   );
