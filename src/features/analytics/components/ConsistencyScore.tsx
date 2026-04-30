@@ -39,7 +39,7 @@ export const ConsistencyScore: React.FC<Props> = ({ rate, label = "CONSISTENCY",
         />
       </svg>
       <div className="consistency-text">
-        <span className="t-display">{Math.round(rate)}</span>
+        <span className="t-display">{Math.round(rate)}%</span>
         <span className="t-meta text-muted">{label}</span>
       </div>
     </div>

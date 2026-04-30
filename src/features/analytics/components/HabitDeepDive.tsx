@@ -63,7 +63,7 @@ export const HabitDeepDive: React.FC<Props> = ({ habit, onClose }) => {
 
         <div className="analytics-card heatmap-wrapper">
           <h3 className="t-label">[ ACTIVITY HISTORY ]</h3>
-          <ActivityHeatmap endDate={getToday()} daysCount={90} habitId={habit.id} />
+          <ActivityHeatmap habitId={habit.id} />
         </div>
 
         <div className="analytics-card tod-chart">

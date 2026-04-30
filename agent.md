@@ -2,9 +2,9 @@
 
 > **Purpose:** This file tracks the current state of the application architecture, tokens, and rules. All AI agents working on this project MUST read this file to understand the current context before making changes.
 
-## Current State: BATCH 22 COMPLETE — EVOLUTION PROTOCOL 🧬
-- **Status:** All 22 batches complete. Workflow optimized to single-artifact (NSIS) distribution. Auto-update system (Evolution Protocol) implemented with Tauri v2 Updater, GitHub Releases, and a tactical HUD overlay. Full environment guarding verified.
-- **All features:** Auth → Onboarding (v2) → Dashboard (v2) → Habits → Todos → Clock → Analytics → Settings → Widget → Strikes → Freeze → Backup → Export → Notifications → Gamification → Performance Mode → Daily Cycle / Waking Fuel → Auto-Updater (Evolution Protocol)
+## Current State: BATCH 23 COMPLETE — PERSISTENCE PROTOCOL 🚀
+- **Status:** All 23 batches complete. Application now enforces Windows Startup persistence via `tauri-plugin-autostart`. Firebase Production environment guarding implemented via GitHub Secrets requirement.
+- **All features:** Auth → Onboarding (v2) → Dashboard (v2) → Habits → Todos → Clock → Analytics → Settings → Widget → Strikes → Freeze → Backup → Export → Notifications → Gamification → Performance Mode → Daily Cycle / Waking Fuel → Auto-Updater (Evolution Protocol) → Autostart Persistence
 
 ### Accomplished in Batch 1:
 1. Tauri v2 + React (Vite/TS) app initialized
@@ -201,6 +201,19 @@
 1. **Build Targets Consolidation**: Updated `tauri.conf.json` to change `bundle.targets` from `all` to `["nsis"]`.
 2. **Distribution Simplification**: Removed redundant MSI installer from the release pipeline. The app now distributes via a single, branded NSIS `.exe` installer, which is fully compatible with the built-in Evolution Protocol (Tauri Updater).
 
+### Accomplished in Batch 23 (Autostart & Persistence):
+1. **Windows Autostart Implementation**: Integrated `tauri-plugin-autostart` into the Rust backend (`lib.rs`).
+2. **Forced Persistence**: Configured `app.autolaunch().enable()` in the setup block to force-register the app in Windows Startup on every launch, ensuring the app is "locked in" for users.
+3. **Hidden Startup Support**: Added `--hidden` argument support to allow the app to launch minimized to tray/hidden on boot.
+4. **Permissions Update**: Added `autostart:default` and sub-permissions (`allow-enable`, `allow-disable`, `allow-is-enabled`) to `capabilities/default.json`.
+5. **UI Control**: Added "Launch on Startup" toggle to `DesktopSection.tsx` (Settings) to allow users to verify and manage the status (while Rust still enforces it).
+6. **Firebase Production Secrets**: Documented the MANDATORY requirement for 8 `VITE_FIREBASE_*` secrets in GitHub Actions for production builds to avoid `API-KEY-NOT-VALID` crashes.
+
+### Accomplished in Analytics UI Polish:
+1. **Consistency Score Refinement** (`ConsistencyScore.tsx`): Appended `%` symbol to the rate display to provide immediate unit context for the performance metric.
+2. **Typography Scaling** (`ConsistencyScore.css`): Reduced `.t-display` font-size to `1.4rem` (from `2.0rem`) to ensure the percentage value sits comfortably within the circular SVG frame without overcrowding.
+3. **Hierarchy Adjustment**: Scaled the secondary label (`.t-meta`) to `0.6rem` to maintain a sharp, tactical aesthetic within the analytics ring.
+
 ## Architecture Rules (Non-Negotiable)
 
 1. **Feature Isolation:** Code is grouped by feature (`src/features/habits`), not by type.
@@ -344,10 +357,31 @@ src/
 
 ### Rust Backend (`src-tauri/src/`)
 ```
-lib.rs              → Tauri builder with plugin registration + background-tick pacemaker
+lib.rs              → Tauri builder with plugin registration + background-tick pacemaker + autostart enforcement
 workerw.rs          → Widget window management: pin_to_bottom, unpin_from_bottom, move_by (native Z-order + drag)
 sticky_overlay.rs   → Sticky note overlay hit-testing: cursor polling thread toggles WS_EX_TRANSPARENT
 ```
+
+---
+
+## Production & CI/CD Checklist
+
+### 1. GitHub Secrets (MANDATORY for Firebase)
+The following 8 secrets MUST be added to GitHub Repository Settings -> Secrets and variables -> Actions for production builds:
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+- `VITE_FIREBASE_MEASUREMENT_ID`
+- `VITE_FIREBASE_DATABASE_URL`
+
+### 2. Versioning & Releases
+To trigger a new release (e.g., v0.2.9):
+1. Update `"version": "0.2.9"` in `tauri.conf.json`.
+2. Update `version = "0.2.9"` in `src-tauri/Cargo.toml`.
+3. Push changes to `main`.
 
 ---
 

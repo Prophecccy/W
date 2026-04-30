@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Monitor, RefreshCw, Download, Move, ArrowDownCircle } from "lucide-react";
+import { Monitor, RefreshCw, Download, Move, ArrowDownCircle, Power } from "lucide-react";
 import { isTauri, openExternalLink } from "../../../shared/utils/tauri";
 import { resetWidgetPosition } from "../../widget/services/widgetPositionStore";
 import { useToast } from "../../../shared/components/Toast/Toast";
@@ -11,6 +11,7 @@ export function DesktopSection() {
   const { phase, startUpdate, reboot } = useUpdateManager();
   const [isChecking, setIsChecking] = useState(false);
   const [appVersion, setAppVersion] = useState("...");
+  const [autostartEnabled, setAutostartEnabled] = useState(true);
   const inTauri = isTauri();
 
   useEffect(() => {
@@ -18,8 +19,31 @@ export function DesktopSection() {
       import('@tauri-apps/api/app').then(({ getVersion }) => {
         getVersion().then(v => setAppVersion(`v${v}`));
       }).catch(() => setAppVersion('v?.?.?'));
+
+      // Check actual autostart state from the plugin
+      import('@tauri-apps/plugin-autostart').then(({ isEnabled }) => {
+        isEnabled().then(enabled => setAutostartEnabled(enabled)).catch(() => setAutostartEnabled(true));
+      }).catch(() => setAutostartEnabled(true));
     }
   }, [inTauri]);
+
+  const handleAutostartToggle = async () => {
+    if (!inTauri) return;
+    try {
+      const { enable, disable, isEnabled } = await import('@tauri-apps/plugin-autostart');
+      if (autostartEnabled) {
+        await disable();
+        setAutostartEnabled(false);
+        showToast("[ STARTUP DISABLED ]");
+      } else {
+        await enable();
+        setAutostartEnabled(true);
+        showToast("[ STARTUP ENABLED ]");
+      }
+    } catch {
+      showToast("[ FAILED TO CHANGE STARTUP SETTING ]");
+    }
+  };
 
   const handleResetPosition = async () => {
     await resetWidgetPosition();
@@ -104,6 +128,21 @@ export function DesktopSection() {
             <button className="desktop-btn" onClick={handleResetPosition}>
               <Move size={14} />
               <span className="t-label">RESET WIDGET POSITION</span>
+            </button>
+          </div>
+
+          {/* Launch on Startup Toggle */}
+          <div className="desktop-startup-row">
+            <div className="desktop-startup-row__label">
+              <Power size={14} />
+              <span className="t-body">Launch on Startup</span>
+            </div>
+            <button
+              className={`settings-toggle ${autostartEnabled ? "settings-toggle--on" : ""}`}
+              onClick={handleAutostartToggle}
+              aria-label="Toggle launch on startup"
+            >
+              <span className="settings-toggle__knob" />
             </button>
           </div>
         </div>
