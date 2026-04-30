@@ -182,10 +182,13 @@ export const AnalyticsPage: React.FC = () => {
       
       <div className="analytics-card">
         <h2 className="t-label">[ HABITS LIST (Click for Deep Dive) ]</h2>
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '1rem' }}>
+        <div className="habits-list-container">
           {habits.map(h => (
-            <button key={h.id} onClick={() => setSelectedHabitId(h.id)} 
-              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', padding: '0.5rem 1rem', borderRadius: '4px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+            <button 
+              key={h.id} 
+              className="habit-deep-dive-trigger"
+              onClick={() => setSelectedHabitId(h.id)}
+            >
               {h.title}
             </button>
           ))}

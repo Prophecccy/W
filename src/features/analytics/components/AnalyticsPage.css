@@ -44,12 +44,9 @@
 }
 
 .analytics-card:hover {
-  background: rgba(24, 26, 30, 0.85) !important;
-  backdrop-filter: blur(12px) saturate(120%);
-  -webkit-backdrop-filter: blur(12px) saturate(120%);
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
   transform: translateY(-2px);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.9);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .analytics-card h2 {
@@ -75,8 +72,9 @@
 }
 
 .rate-content .t-display {
-  font-size: 3rem;
+  font-size: 2.2rem;
   color: var(--accent);
+  letter-spacing: -1px;
 }
 
 .trend {
@@ -89,4 +87,32 @@
 .chart-card {
   grid-column: span 2;
   min-height: 250px;
+}
+
+.habits-list-container {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.habit-deep-dive-trigger {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: inherit;
+}
+
+.habit-deep-dive-trigger:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.habit-deep-dive-trigger:active {
+  transform: translateY(0);
 }

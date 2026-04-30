@@ -14,8 +14,9 @@
 }
 
 .consistency-text .t-display {
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   line-height: 1;
+  letter-spacing: -0.5px;
 }
 
 .consistency-text .t-meta {
