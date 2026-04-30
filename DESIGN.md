@@ -357,7 +357,7 @@ processGap(lastActiveDate, today)
   ├── For each day in (lastActiveDate+1 ... yesterday):
   │   ├── Skip if day is in a freeze range
   │   ├── For each active habit:
-  │   │   ├── Skip if habit was created after this date
+  │   │   ├── Skip if habit was created after this date (dynamically identifies oldest habit date)
   │   │   ├── Skip if not scheduled (scheduleEngine check)
   │   │   ├── Skip if completed in log
   │   │   ├── Skip if metric/limiter target met

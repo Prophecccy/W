@@ -2,8 +2,8 @@
 
 > **Purpose:** This file tracks the current state of the application architecture, tokens, and rules. All AI agents working on this project MUST read this file to understand the current context before making changes.
 
-## Current State: BATCH 24 COMPLETE — ANALYTICS POLISH 📊
-- **Status:** All 24 batches complete. Activity Heatmap refactored with dynamic global headers and centered efficiency metrics. Build stability enforced with correct Firebase User metadata access and lint cleanup.
+## Current State: BATCH 25 COMPLETE — ANALYTICS FINALIZED 📈
+- **Status:** All 24 batches + final polish complete. Analytics system finalized with accurate efficiency logic (oldest habit tracking), buttery smooth monthly carousel transitions (spring physics), and refined 30-day metrics. Build stability and UI consistency enforced across all features.
 - **All features:** Auth → Onboarding (v2) → Dashboard (v2) → Habits → Todos → Clock → Analytics → Settings → Widget → Strikes → Freeze → Backup → Export → Notifications → Gamification → Performance Mode → Daily Cycle / Waking Fuel → Auto-Updater (Evolution Protocol) → Autostart Persistence → Heatmap Refactor
 
 ### Accomplished in Batch 1:
@@ -197,7 +197,18 @@
 3. **Time Tube Visuals**: Enhanced the Waking Fuel tube container with frosted glass styling (`rgba(12, 13, 15, 0.4)`), hardware edges (`1px white/0.15`), and cylindrical depth via inset shadows for a premium 3D physical look.
 4. **Environment Stability**: Cleaned up orphaned processes and verified multi-window interaction stability in Tauri v2.
 
-### Accomplished in Batch 22 (Workflow Optimization):
+### Accomplished in Batch 25 (Analytics Finalization):
+1. **Heatmap Efficiency Logic**: Resolved inaccuracies by dynamically identifying the `createdAt` date of the oldest habit. Efficiency percentages now exclude "ghost days" before tracking began, providing true performance data.
+2. **Smooth Transitions**: Implemented custom Framer Motion spring physics (`stiffness: 90`, `damping: 20`) for the Heatmap monthly carousel, achieving a buttery smooth, cinematic feel during navigation.
+3. **UI/UX Refinements**: 
+   - Repositioned carousel arrows (100px from edges) and removed button box artifacts for a cleaner "pure arrow" look.
+   - Renamed "MONTHLY" labels to "30-DAY" (e.g., `[ 30-DAY COMPLETION ]`) to accurately reflect the rolling window calculation used in the backend.
+   - Fixed card hover elevation to preserve color accent strips.
+4. **Logic Hardening**: Optimized `analyticsService.ts` and `scheduleEngine.ts` to ensure consistency between visual heatmap density and numerical summary cards.
+
+---
+
+### Spacing
 1. **Build Targets Consolidation**: Updated `tauri.conf.json` to change `bundle.targets` from `all` to `["nsis"]`.
 2. **Distribution Simplification**: Removed redundant MSI installer from the release pipeline. The app now distributes via a single, branded NSIS `.exe` installer, which is fully compatible with the built-in Evolution Protocol (Tauri Updater).
 
