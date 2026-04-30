@@ -13,6 +13,10 @@ export function isHabitScheduledToday(
 ): boolean {
   if (!habit.isActive) return false;
 
+  const creationDateStr = formatDate(new Date(habit.createdAt));
+  if (today < creationDateStr) return false;
+
+
   // Check endpoint duration
   if (habit.duration.type === "endpoint" && habit.duration.endDate) {
     if (today > habit.duration.endDate) return false;

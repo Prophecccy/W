@@ -1,33 +1,71 @@
 import { getLogRange } from "../../habits/services/logService";
 import { Habit, HabitLog } from "../../habits/types";
-import { DayActivity, HabitAnalytics, MonthlySummary, WeeklySummary } from "../types";
+import {
+  DayActivity,
+  HabitAnalytics,
+  MonthlySummary,
+  WeeklySummary,
+} from "../types";
+import { isHabitScheduledToday } from "../../habits/utils/scheduleEngine";
 
-// Helpers
-const getDayOfWeek = (dateString: string) => new Date(dateString).getDay();
+import { getToday, formatDate } from "../../../shared/utils/dateUtils";
 
-export function getCompletionRate(logs: HabitLog[], habitId?: string): number {
-  if (logs.length === 0) return 0;
+export function getCompletionRate(
+  logs: HabitLog[],
+  habits: Habit[],
+  startDateStr: string,
+  endDateStr: string,
+  habitId?: string,
+): number {
+  const logMap: Record<string, HabitLog> = {};
+  for (const log of logs) logMap[log.date] = log;
 
   let scheduled = 0;
   let completed = 0;
 
-  for (const log of logs) {
-    if (habitId) {
-      if (log.habits[habitId]) {
-        scheduled += 1;
-        if (log.habits[habitId].completed) completed += 1;
-      }
-    } else {
-      const habitIds = Object.keys(log.habits);
-      scheduled += habitIds.length;
-      for (const id of habitIds) {
-        if (log.habits[id].completed) completed += 1;
+  const start = new Date(startDateStr + "T00:00:00");
+  const end = new Date(endDateStr + "T00:00:00");
+  const todayStr = getToday();
+
+  let current = new Date(start);
+  while (current <= end) {
+    const dStr = formatDate(current);
+
+    // Stop counting if we pass today
+    if (dStr > todayStr) break;
+
+    const scheduledHabits = habitId
+      ? habits.filter((h) => h.id === habitId && isHabitScheduledToday(h, dStr))
+      : habits.filter((h) => isHabitScheduledToday(h, dStr));
+
+    const dayScheduled = scheduledHabits.length;
+    let dayCompleted = 0;
+
+    const log = logMap[dStr];
+    if (log) {
+      if (habitId) {
+        if (log.habits[habitId]?.completed) dayCompleted = 1;
+      } else {
+        dayCompleted = scheduledHabits.filter(
+          (h) => log.habits[h.id]?.completed,
+        ).length;
       }
     }
+
+    scheduled += dayScheduled;
+    completed += dayCompleted;
+
+    current.setDate(current.getDate() + 1);
   }
 
   return scheduled === 0 ? 0 : Math.round((completed / scheduled) * 100);
 }
+
+// Helpers
+const getDayOfWeek = (dateString: string) => {
+  // Use T12:00:00 to avoid timezone shifting the day of week.
+  return new Date(dateString + "T12:00:00").getDay();
+};
 
 export function getBestWorstDays(logs: HabitLog[]): {
   best: number | null;
@@ -55,7 +93,8 @@ export function getBestWorstDays(logs: HabitLog[]): {
 
   for (let i = 0; i < 7; i++) {
     const stats = dayStats[i];
-    const rate = stats.scheduled === 0 ? 0 : (stats.completed / stats.scheduled) * 100;
+    const rate =
+      stats.scheduled === 0 ? 0 : (stats.completed / stats.scheduled) * 100;
     averages[i] = Math.round(rate);
 
     if (stats.scheduled > 0) {
@@ -81,12 +120,23 @@ export function getStreakProximity(habit: Habit): number {
   return Math.max(0, habit.longestStreak - habit.currentStreak);
 }
 
-export function getMostConsistent(habits: Habit[], logs: HabitLog[]): Habit | null {
+export function getMostConsistent(
+  habits: Habit[],
+  logs: HabitLog[],
+  startDateStr: string,
+  endDateStr: string,
+): Habit | null {
   let highestRate = -1;
   let mostConsistent: Habit | null = null;
 
   for (const habit of habits) {
-    const rate = getCompletionRate(logs, habit.id);
+    const rate = getCompletionRate(
+      logs,
+      habits,
+      startDateStr,
+      endDateStr,
+      habit.id,
+    );
     if (rate > highestRate && rate > 0) {
       highestRate = rate;
       mostConsistent = habit;
@@ -96,20 +146,35 @@ export function getMostConsistent(habits: Habit[], logs: HabitLog[]): Habit | nu
   return mostConsistent;
 }
 
-export function getMostImproved(habits: Habit[], logs: HabitLog[]): Habit | null {
-  // We need to split logs into two halves roughly to figure out "improvement"
-  if (logs.length < 2) return null; // Need at least 2 days
-  
-  const midPoint = Math.floor(logs.length / 2);
-  const firstHalf = logs.slice(0, midPoint);
-  const secondHalf = logs.slice(midPoint);
+export function getMostImproved(
+  habits: Habit[],
+  logs: HabitLog[],
+  startDateStr: string,
+  endDateStr: string,
+): Habit | null {
+  const start = new Date(startDateStr + "T12:00:00");
+  const end = new Date(endDateStr + "T12:00:00");
+  const midMs = start.getTime() + (end.getTime() - start.getTime()) / 2;
+  const midDateStr = formatDate(new Date(midMs));
 
   let highestImprovement = -1;
   let mostImproved: Habit | null = null;
 
   for (const habit of habits) {
-    const rate1 = getCompletionRate(firstHalf, habit.id);
-    const rate2 = getCompletionRate(secondHalf, habit.id);
+    const rate1 = getCompletionRate(
+      logs,
+      habits,
+      startDateStr,
+      midDateStr,
+      habit.id,
+    );
+    const rate2 = getCompletionRate(
+      logs,
+      habits,
+      midDateStr,
+      endDateStr,
+      habit.id,
+    );
     const improvement = rate2 - rate1;
 
     if (improvement > highestImprovement && rate2 > 0) {
@@ -121,47 +186,57 @@ export function getMostImproved(habits: Habit[], logs: HabitLog[]): Habit | null
   return mostImproved;
 }
 
-function processDayActivities(logs: HabitLog[], startDate: string, endDate: string): DayActivity[] {
+function processDayActivities(
+  logs: HabitLog[],
+  habits: Habit[],
+  startDate: string,
+  endDate: string,
+): DayActivity[] {
   const logMap: Record<string, HabitLog> = {};
   for (const log of logs) logMap[log.date] = log;
 
   const result: DayActivity[] = [];
-  const endD = new Date(endDate + "T00:00:00");
-  const startD = new Date(startDate + "T00:00:00");
+  const endD = new Date(endDate + "T12:00:00");
+  const startD = new Date(startDate + "T12:00:00");
+  const todayStr = getToday();
 
-  let maxIterations = 365; // safety
+  let maxIterations = 365;
 
   while (startD <= endD && maxIterations > 0) {
-    const y = startD.getFullYear();
-    const m = String(startD.getMonth() + 1).padStart(2, '0');
-    const day = String(startD.getDate()).padStart(2, '0');
-    const dStr = `${y}-${m}-${day}`;
-    const log = logMap[dStr];
+    const dStr = formatDate(startD);
 
-    if (log) {
-      let scheduled = 0;
-      let completed = 0;
-      const habitIds = Object.keys(log.habits);
-      scheduled += habitIds.length;
-
-      for (const id of habitIds) {
-        if (log.habits[id].completed) completed += 1;
-      }
-
-      result.push({
-        date: dStr,
-        totalScheduled: scheduled,
-        totalCompleted: completed,
-        completionRate: scheduled === 0 ? 0 : Math.round((completed / scheduled) * 100),
-      });
-    } else {
+    if (dStr > todayStr) {
       result.push({
         date: dStr,
         totalScheduled: 0,
         totalCompleted: 0,
         completionRate: 0,
       });
+      startD.setDate(startD.getDate() + 1);
+      maxIterations--;
+      continue;
     }
+
+    const scheduledHabits = habits.filter((h) =>
+      isHabitScheduledToday(h, dStr),
+    );
+    const scheduled = scheduledHabits.length;
+    let completed = 0;
+
+    const log = logMap[dStr];
+    if (log) {
+      completed = scheduledHabits.filter(
+        (h) => log.habits[h.id]?.completed,
+      ).length;
+    }
+
+    result.push({
+      date: dStr,
+      totalScheduled: scheduled,
+      totalCompleted: completed,
+      completionRate:
+        scheduled === 0 ? 0 : Math.round((completed / scheduled) * 100),
+    });
 
     startD.setDate(startD.getDate() + 1);
     maxIterations--;
@@ -174,12 +249,13 @@ export async function generateWeeklySummary(
   startDate: string,
   endDate: string,
   previousStartDate: string,
-  previousEndDate: string
+  previousEndDate: string,
+  habits: Habit[],
 ): Promise<WeeklySummary> {
   const currentLogs = await getLogRange(startDate, endDate);
   const prevLogs = await getLogRange(previousStartDate, previousEndDate);
 
-  const days = processDayActivities(currentLogs, startDate, endDate);
+  const days = processDayActivities(currentLogs, habits, startDate, endDate);
   let bestDay: DayActivity | null = null;
   let worstDay: DayActivity | null = null;
 
@@ -188,8 +264,14 @@ export async function generateWeeklySummary(
     let min = 101;
     for (const day of days) {
       if (day.totalScheduled > 0) {
-        if (day.completionRate > max) { max = day.completionRate; bestDay = day; }
-        if (day.completionRate < min) { min = day.completionRate; worstDay = day; }
+        if (day.completionRate > max) {
+          max = day.completionRate;
+          bestDay = day;
+        }
+        if (day.completionRate < min) {
+          min = day.completionRate;
+          worstDay = day;
+        }
       }
     }
   }
@@ -197,8 +279,13 @@ export async function generateWeeklySummary(
   return {
     startDate,
     endDate,
-    completionRate: getCompletionRate(currentLogs),
-    previousWeekCompletionRate: getCompletionRate(prevLogs),
+    completionRate: getCompletionRate(currentLogs, habits, startDate, endDate),
+    previousWeekCompletionRate: getCompletionRate(
+      prevLogs,
+      habits,
+      previousStartDate,
+      previousEndDate,
+    ),
     days,
     bestDay,
     worstDay,
@@ -210,24 +297,32 @@ export async function generateMonthlySummary(
   endDate: string,
   previousStartDate: string,
   previousEndDate: string,
-  habits: Habit[]
+  habits: Habit[],
 ): Promise<MonthlySummary> {
   const currentLogs = await getLogRange(startDate, endDate);
   const prevLogs = await getLogRange(previousStartDate, previousEndDate);
 
   return {
     month: startDate.substring(0, 7), // YYYY-MM
-    completionRate: getCompletionRate(currentLogs),
-    previousMonthCompletionRate: getCompletionRate(prevLogs),
-    days: processDayActivities(currentLogs, startDate, endDate),
-    mostConsistent: getMostConsistent(habits, currentLogs),
-    mostImproved: getMostImproved(habits, currentLogs),
+    completionRate: getCompletionRate(currentLogs, habits, startDate, endDate),
+    previousMonthCompletionRate: getCompletionRate(
+      prevLogs,
+      habits,
+      previousStartDate,
+      previousEndDate,
+    ),
+    days: processDayActivities(currentLogs, habits, startDate, endDate),
+    mostConsistent: getMostConsistent(habits, currentLogs, startDate, endDate),
+    mostImproved: getMostImproved(habits, currentLogs, startDate, endDate),
   };
 }
 
-export function generateHabitAnalytics(habit: Habit, logs: HabitLog[]): HabitAnalytics {
+export function generateHabitAnalytics(
+  habit: Habit,
+  logs: HabitLog[],
+): HabitAnalytics {
   const timeOfDayDistribution = new Array(24).fill(0);
-  
+
   for (const log of logs) {
     const entry = log.habits[habit.id];
     if (entry && entry.completed) {
@@ -239,15 +334,47 @@ export function generateHabitAnalytics(habit: Habit, logs: HabitLog[]): HabitAna
     }
   }
 
-  const midPoint = Math.floor(logs.length / 2);
-  const firstHalf = logs.slice(0, midPoint);
-  const secondHalf = logs.slice(midPoint);
+  // Define date ranges for All Time, Current Month, Prev Month
+  const creationDateStr = formatDate(new Date(habit.createdAt));
+  const todayStr = getToday();
+
+  const todayDate = new Date(todayStr + "T12:00:00");
+
+  const monthStart = new Date(todayDate);
+  monthStart.setDate(monthStart.getDate() - 29);
+  const monthStartStr = formatDate(monthStart);
+
+  const prevMonthStart = new Date(monthStart);
+  prevMonthStart.setDate(prevMonthStart.getDate() - 29);
+  const prevMonthStartStr = formatDate(prevMonthStart);
+
+  const prevMonthEnd = new Date(monthStart);
+  prevMonthEnd.setDate(prevMonthEnd.getDate() - 1);
+  const prevMonthEndStr = formatDate(prevMonthEnd);
 
   return {
     habitId: habit.id,
-    completionRateAllTime: getCompletionRate(logs, habit.id),
-    completionRateCurrentMonth: getCompletionRate(secondHalf, habit.id),
-    completionRatePreviousMonth: getCompletionRate(firstHalf, habit.id), // Loose approximation mapping halves
+    completionRateAllTime: getCompletionRate(
+      logs,
+      [habit],
+      creationDateStr,
+      todayStr,
+      habit.id,
+    ),
+    completionRateCurrentMonth: getCompletionRate(
+      logs,
+      [habit],
+      monthStartStr,
+      todayStr,
+      habit.id,
+    ),
+    completionRatePreviousMonth: getCompletionRate(
+      logs,
+      [habit],
+      prevMonthStartStr,
+      prevMonthEndStr,
+      habit.id,
+    ),
     streakProximity: getStreakProximity(habit),
     bestDayOfWeek: getBestWorstDays(logs).best || 0,
     timeOfDayDistribution,

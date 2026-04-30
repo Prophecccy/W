@@ -61,7 +61,7 @@ export const AnalyticsPage: React.FC = () => {
       const d = (dt: Date) => formatDate(dt);
 
       const [wSum, mSum] = await Promise.all([
-        generateWeeklySummary(d(weekStart), d(weekEnd), d(pWeekStart), d(pWeekEnd)),
+        generateWeeklySummary(d(weekStart), d(weekEnd), d(pWeekStart), d(pWeekEnd), h),
         generateMonthlySummary(d(monthStart), d(monthEnd), d(pMonthStart), d(pMonthEnd), h)
       ]);
 
@@ -151,7 +151,7 @@ export const AnalyticsPage: React.FC = () => {
           </div>
 
           <div className="analytics-card rate-card">
-            <h2 className="t-label">[ MONTHLY COMPLETION ]</h2>
+            <h2 className="t-label">[ 30-DAY COMPLETION ]</h2>
             <div className="rate-content">
               <span className="t-display">{monthSummary?.completionRate || 0}%</span>
               <div className={`trend ${(monthSummary?.completionRate || 0) >= (monthSummary?.previousMonthCompletionRate || 0) ? 'up' : 'down'}`}>
@@ -167,7 +167,7 @@ export const AnalyticsPage: React.FC = () => {
           </div>
 
           <div className="analytics-card chart-card">
-            <h2 className="t-label">[ MONTHLY TREND ]</h2>
+            <h2 className="t-label">[ 30-DAY TREND ]</h2>
             <ChartMonthlyComparison currentMonth={monthSummary} />
           </div>
           

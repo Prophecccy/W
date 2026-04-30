@@ -40,8 +40,8 @@
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  background: transparent;
-  border: none;
+  background: transparent !important;
+  border: none !important;
   color: var(--text-muted);
   cursor: pointer;
   display: flex;
@@ -50,20 +50,26 @@
   padding: 12px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 100;
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 .carousel-nav-btn:first-of-type {
-  left: 30px;
+  left: 100px;
 }
 
 .carousel-nav-btn:last-of-type {
-  right: 30px;
+  right: 100px;
 }
 
 .carousel-nav-btn:hover:not(:disabled) {
-  color: var(--text-primary);
-  transform: translateY(-50%) scale(1.1);
-  text-shadow: 0 0 10px var(--accent);
+  color: var(--text-primary) !important;
+  transform: translateY(-50%) scale(1.1) !important;
+  text-shadow: 0 0 10px var(--accent) !important;
+  background: transparent !important;
+  border: none !important;
+  border-color: transparent !important;
+  filter: none !important;
 }
 
 .carousel-nav-btn:disabled {

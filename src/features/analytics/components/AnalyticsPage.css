@@ -108,8 +108,8 @@
 
 .habit-deep-dive-trigger:hover {
   transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.15);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  filter: none; /* Prevent global button brightness highlight */
 }
 
 .habit-deep-dive-trigger:active {
