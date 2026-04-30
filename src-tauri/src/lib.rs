@@ -30,6 +30,10 @@ pub fn run() {
             }
         }))
         .setup(|app| {
+            // Force Windows to launch W on startup by default (locked in)
+            use tauri_plugin_autostart::ManagerExt;
+            let _ = app.autolaunch().enable();
+
             let args: Vec<String> = std::env::args().collect();
             let is_hidden_startup = args.contains(&"--hidden".to_string());
 

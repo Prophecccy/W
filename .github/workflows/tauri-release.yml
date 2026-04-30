@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g. v0.2.7) — must match tauri.conf.json version'
+        description: 'Version tag (e.g. v0.2.8) — must match tauri.conf.json version'
         required: true
-        default: 'v0.2.7'
+        default: 'v0.2.8'
 
 jobs:
   release:
