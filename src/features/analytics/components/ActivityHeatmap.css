@@ -7,6 +7,26 @@
   padding-top: 8px;
 }
 
+.heatmap-global-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.heatmap-global-header h2 {
+  margin: 0;
+}
+
+.heatmap-dynamic-title {
+  display: flex;
+  gap: 8px;
+  font-family: monospace;
+  font-size: 0.85rem;
+  letter-spacing: 0.25em;
+}
+
 .heatmap-carousel-wrapper {
   display: flex;
   align-items: center;
@@ -96,7 +116,7 @@
 
 .month-card-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   font-family: monospace;
   font-size: 0.75rem;
   color: var(--text-secondary);
@@ -105,19 +125,12 @@
   padding-bottom: 16px;
 }
 
-.month-card-title, .month-card-efficiency {
+.month-card-efficiency {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 8px;
-}
-
-.title-row {
-  display: flex;
-  gap: 12px;
-}
-
-.title-row.year-row {
-  justify-content: flex-start;
+  width: 100%;
 }
 
 .bracket-text {
@@ -130,11 +143,6 @@
 
 .year-text {
   color: var(--accent);
-}
-
-.month-card-efficiency {
-  text-align: right;
-  align-items: flex-end;
 }
 
 .efficiency-label {

@@ -147,7 +147,6 @@ export const AnalyticsPage: React.FC = () => {
       ) : (
         <div className="analytics-grid">
           <div className="analytics-card heatmap-card">
-            <h2 className="t-label">[ ACTIVITY HEATMAP ]</h2>
             <ActivityHeatmap />
           </div>
 

@@ -57,7 +57,7 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
       const logMap: Record<string, HabitLog> = {};
       for (const log of logs) logMap[log.date] = log;
 
-      const accountCreatedAt = user?.createdAt ? new Date(user.createdAt) : new Date();
+      const accountCreatedAt = user?.metadata?.creationTime ? new Date(user.metadata.creationTime) : new Date();
       const accountCreatedOffset = new Date(accountCreatedAt.getTime() - accountCreatedAt.getTimezoneOffset() * 60000);
       const accountCreatedStr = accountCreatedOffset.toISOString().split("T")[0];
 
@@ -140,9 +140,9 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
       setMonthsData(generatedMonths);
     }
     load();
-  }, [currentViewDate, habitId, user?.createdAt]);
+  }, [currentViewDate, habitId, user?.metadata?.creationTime]);
 
-  const accountCreatedAt = user?.createdAt ? new Date(user.createdAt) : new Date();
+  const accountCreatedAt = user?.metadata?.creationTime ? new Date(user.metadata.creationTime) : new Date();
   
   const isLeftDisabled = currentViewDate.getFullYear() === accountCreatedAt.getFullYear() && 
                          currentViewDate.getMonth() === accountCreatedAt.getMonth();
@@ -162,9 +162,22 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
   };
 
   const fullMonthNames = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
+  const centerMonth = monthsData[2];
 
   return (
     <div className="activity-heatmap-container">
+      <div className="heatmap-global-header">
+        <h2 className="t-label">[ ACTIVITY HEATMAP ]</h2>
+        {centerMonth && (
+          <div className="heatmap-dynamic-title">
+            <span className="bracket-text">[</span>
+            <span className="accent-text month-name">{fullMonthNames[centerMonth.month]}</span>
+            <span className="year-text">{centerMonth.year}</span>
+            <span className="bracket-text">]</span>
+          </div>
+        )}
+      </div>
+
       <div className="heatmap-carousel-wrapper">
         <button onClick={handlePrevMonth} disabled={isLeftDisabled} className="carousel-nav-btn">
           <ChevronLeft size={24} />
@@ -177,16 +190,6 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
               <div key={`${mData.year}-${mData.month}`} className={`month-block offset-${offset}`}>
                 <div className="month-card">
                   <div className="month-card-header">
-                    <div className="month-card-title">
-                      <div className="title-row">
-                        <span className="bracket-text">[</span>
-                        <span className="accent-text month-name">{fullMonthNames[mData.month]}</span>
-                      </div>
-                      <div className="title-row year-row">
-                        <span className="year-text">{mData.year}</span>
-                        <span className="bracket-text">]</span>
-                      </div>
-                    </div>
                     <div className="month-card-efficiency">
                       <div className="efficiency-label">EFFICIENCY:</div>
                       <div className="efficiency-value">{mData.efficiency}%</div>

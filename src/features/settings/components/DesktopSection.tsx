@@ -30,7 +30,7 @@ export function DesktopSection() {
   const handleAutostartToggle = async () => {
     if (!inTauri) return;
     try {
-      const { enable, disable, isEnabled } = await import('@tauri-apps/plugin-autostart');
+      const { enable, disable } = await import('@tauri-apps/plugin-autostart');
       if (autostartEnabled) {
         await disable();
         setAutostartEnabled(false);
