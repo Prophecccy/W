@@ -2,9 +2,9 @@
 
 > **Purpose:** This file tracks the current state of the application architecture, tokens, and rules. All AI agents working on this project MUST read this file to understand the current context before making changes.
 
-## Current State: BATCH 23 COMPLETE — PERSISTENCE PROTOCOL 🚀
-- **Status:** All 23 batches complete. Application now enforces Windows Startup persistence via `tauri-plugin-autostart`. Firebase Production environment guarding implemented via GitHub Secrets requirement.
-- **All features:** Auth → Onboarding (v2) → Dashboard (v2) → Habits → Todos → Clock → Analytics → Settings → Widget → Strikes → Freeze → Backup → Export → Notifications → Gamification → Performance Mode → Daily Cycle / Waking Fuel → Auto-Updater (Evolution Protocol) → Autostart Persistence
+## Current State: BATCH 24 COMPLETE — ANALYTICS POLISH 📊
+- **Status:** All 24 batches complete. Activity Heatmap refactored with dynamic global headers and centered efficiency metrics. Build stability enforced with correct Firebase User metadata access and lint cleanup.
+- **All features:** Auth → Onboarding (v2) → Dashboard (v2) → Habits → Todos → Clock → Analytics → Settings → Widget → Strikes → Freeze → Backup → Export → Notifications → Gamification → Performance Mode → Daily Cycle / Waking Fuel → Auto-Updater (Evolution Protocol) → Autostart Persistence → Heatmap Refactor
 
 ### Accomplished in Batch 1:
 1. Tauri v2 + React (Vite/TS) app initialized
@@ -208,6 +208,13 @@
 4. **Permissions Update**: Added `autostart:default` and sub-permissions (`allow-enable`, `allow-disable`, `allow-is-enabled`) to `capabilities/default.json`.
 5. **UI Control**: Added "Launch on Startup" toggle to `DesktopSection.tsx` (Settings) to allow users to verify and manage the status (while Rust still enforces it).
 6. **Firebase Production Secrets**: Documented the MANDATORY requirement for 8 `VITE_FIREBASE_*` secrets in GitHub Actions for production builds to avoid `API-KEY-NOT-VALID` crashes.
+
+### Accomplished in Batch 24 (Analytics & Build Polish):
+1. **Heatmap UI Refactor**: Removed static `[ ACTIVITY HEATMAP ]` title from `AnalyticsPage.tsx` and moved it into `ActivityHeatmap.tsx` as a global component header.
+2. **Dynamic Month Header**: Implemented logic to observe the carousel's center month and update a dynamic title `[ MONTH YEAR ]` above the grid.
+3. **Month Card Polish**: Restructured `month-card-header` to center efficiency metrics and removed per-card month/year labels to eliminate visual noise.
+4. **TypeScript Fix (creationTime)**: Resolved `TS2339` build error by replacing `user.createdAt` with `user.metadata.creationTime` in `ActivityHeatmap.tsx`.
+5. **Linting Cleanup**: Removed unused `@tauri-apps/plugin-autostart` import variable `isEnabled` in `DesktopSection.tsx` to ensure zero-warning builds.
 
 ### Accomplished in Analytics UI Polish:
 1. **Consistency Score Refinement** (`ConsistencyScore.tsx`): Appended `%` symbol to the rate display to provide immediate unit context for the performance metric.
