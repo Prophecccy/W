@@ -13,12 +13,14 @@ interface Cell {
   date: string;
   rate: number;
   isGhost: boolean;
+  isEmpty: boolean;
 }
 
 interface MonthData {
   year: number;
   month: number;
   cells: Cell[];
+  efficiency: number;
 }
 
 export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
@@ -69,6 +71,17 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
         const daysInMonth = new Date(mYear, mMonth + 1, 0).getDate();
         const cells: Cell[] = [];
 
+        // Monday = 0, Sunday = 6
+        const firstDayOfMonth = new Date(mYear, mMonth, 1).getDay();
+        const startOffsetDays = (firstDayOfMonth + 6) % 7;
+
+        for (let i = 0; i < startOffsetDays; i++) {
+          cells.push({ date: `empty-start-${i}`, rate: -1, isGhost: true, isEmpty: true });
+        }
+
+        let totalCompleted = 0;
+        let totalScheduled = 0;
+
         for (let i = 1; i <= daysInMonth; i++) {
           const d = new Date(mYear, mMonth, i);
           const dOffset = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
@@ -82,13 +95,17 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
               const entry = log.habits[habitId];
               if (entry) {
                 rate = entry.completed ? 100 : 0;
+                totalScheduled += 1;
+                if (entry.completed) totalCompleted += 1;
               }
             } else {
-              let scheduled = 0;
-              let completed = 0;
               const hKeys = Object.keys(log.habits);
-              scheduled = hKeys.length;
-              completed = hKeys.filter(k => log.habits[k].completed).length;
+              const scheduled = hKeys.length;
+              const completed = hKeys.filter(k => log.habits[k].completed).length;
+              
+              totalScheduled += scheduled;
+              totalCompleted += completed;
+
               rate = scheduled === 0 ? 0 : Math.round((completed / scheduled) * 100);
             }
           }
@@ -96,14 +113,27 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
           cells.push({ 
             date: dateStr, 
             rate,
-            isGhost: dateStr < accountCreatedStr || dateStr > todayStr
+            isGhost: dateStr < accountCreatedStr || dateStr > todayStr,
+            isEmpty: false
           });
         }
+
+        const totalCells = cells.length;
+        const remainder = totalCells % 7;
+        if (remainder !== 0) {
+          const trailingEmpty = 7 - remainder;
+          for (let i = 0; i < trailingEmpty; i++) {
+            cells.push({ date: `empty-end-${i}`, rate: -1, isGhost: true, isEmpty: true });
+          }
+        }
+
+        const efficiency = totalScheduled === 0 ? 0 : Math.round((totalCompleted / totalScheduled) * 100);
 
         return {
           year: mYear,
           month: mMonth,
-          cells
+          cells,
+          efficiency
         };
       });
 
@@ -131,50 +161,81 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
     setCurrentViewDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
   };
 
-  const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
   const fullMonthNames = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
-  const currentMonthLabel = `${fullMonthNames[currentViewDate.getMonth()]} ${currentViewDate.getFullYear()}`;
 
   return (
     <div className="activity-heatmap-container">
-      <div className="heatmap-header">
-        <button onClick={handlePrevMonth} disabled={isLeftDisabled} className="heatmap-nav-btn">
-          <ChevronLeft size={16} />
+      <div className="heatmap-carousel-wrapper">
+        <button onClick={handlePrevMonth} disabled={isLeftDisabled} className="carousel-nav-btn">
+          <ChevronLeft size={24} />
         </button>
-        <span className="t-label heatmap-month-label">{currentMonthLabel}</span>
-        <button onClick={handleNextMonth} disabled={isRightDisabled} className="heatmap-nav-btn">
-          <ChevronRight size={16} />
+        
+        <div className="heatmap-carousel">
+          {monthsData.map((mData, index) => {
+            const offset = Math.abs(index - 2);
+            return (
+              <div key={`${mData.year}-${mData.month}`} className={`month-block offset-${offset}`}>
+                <div className="month-card">
+                  <div className="month-card-header">
+                    <div className="month-card-title">
+                      <div className="title-row">
+                        <span className="bracket-text">[</span>
+                        <span className="accent-text month-name">{fullMonthNames[mData.month]}</span>
+                      </div>
+                      <div className="title-row year-row">
+                        <span className="year-text">{mData.year}</span>
+                        <span className="bracket-text">]</span>
+                      </div>
+                    </div>
+                    <div className="month-card-efficiency">
+                      <div className="efficiency-label">EFFICIENCY:</div>
+                      <div className="efficiency-value">{mData.efficiency}%</div>
+                    </div>
+                  </div>
+                  
+                  <div className="month-card-weekdays">
+                    <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+                  </div>
+
+                  <div className="activity-heatmap">
+                    {mData.cells.map(c => {
+                      let level = 0;
+                      if (c.rate > 0) level = 1;
+                      if (c.rate >= 33) level = 2;
+                      if (c.rate >= 66) level = 3;
+                      if (c.rate >= 100) level = 4;
+
+                      if (c.isEmpty) {
+                        return <div key={c.date} className="heatmap-cell empty" />;
+                      }
+
+                      return (
+                        <div 
+                          key={c.date} 
+                          className={`heatmap-cell level-${level} ${c.isGhost ? 'ghost' : ''}`}
+                          title={`${c.date}: ${c.rate}% completed`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <button onClick={handleNextMonth} disabled={isRightDisabled} className="carousel-nav-btn">
+          <ChevronRight size={24} />
         </button>
       </div>
-      
-      <div className="heatmap-carousel">
-        {monthsData.map((mData, index) => {
-          const isCenter = index === 2;
-          return (
-            <div key={`${mData.year}-${mData.month}`} className={`month-block ${isCenter ? 'center-month' : 'side-month'}`}>
-              <div className="month-label-mini">
-                {monthNames[mData.month]} {mData.year}
-              </div>
-              <div className="activity-heatmap">
-                {mData.cells.map(c => {
-                  let level = 0;
-                  if (c.rate > 0) level = 1;
-                  if (c.rate >= 33) level = 2;
-                  if (c.rate >= 66) level = 3;
-                  if (c.rate >= 100) level = 4;
 
-                  return (
-                    <div 
-                      key={c.date} 
-                      className={`heatmap-cell level-${level} ${c.isGhost ? 'ghost' : ''}`}
-                      title={`${c.date}: ${c.rate}% completed`}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
+      <div className="heatmap-legend">
+        <span>LEGEND:</span>
+        <div className="legend-items-container">
+          <div className="legend-item"><div className="heatmap-cell level-1"></div><span>LOW</span></div>
+          <div className="legend-item"><div className="heatmap-cell level-2"></div><span>MED</span></div>
+          <div className="legend-item"><div className="heatmap-cell level-4"></div><span>HIGH</span></div>
+        </div>
       </div>
     </div>
   );
