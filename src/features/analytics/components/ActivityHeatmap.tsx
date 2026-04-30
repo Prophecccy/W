@@ -197,20 +197,26 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
                   key={`${mData.year}-${mData.month}`} 
                   className={`month-block offset-${absOffset}`}
                   layout
-                  initial={{ opacity: 0, scale: 0.8, x: offset > 0 ? 100 : -100 }}
+                  initial={{ opacity: 0, scale: 0.8, x: offset > 0 ? 60 : -60 }}
                   animate={{ 
                     opacity: absOffset === 0 ? 1 : absOffset === 1 ? 0.4 : 0.1,
                     scale: absOffset === 0 ? 1 : absOffset === 1 ? 0.85 : 0.7,
                     x: 0,
                     zIndex: 5 - absOffset,
-                    filter: absOffset === 0 ? "blur(0px) grayscale(0%)" : `blur(${absOffset * 1}px) grayscale(100%)`
+                    filter: absOffset === 0 ? "blur(0px) grayscale(0%)" : `blur(${absOffset * 1.5}px) grayscale(100%)`
                   }}
-                  exit={{ opacity: 0, scale: 0.6, x: offset > 0 ? -100 : 100 }}
+                  exit={{ opacity: 0, scale: 0.6, x: offset > 0 ? -60 : 60 }}
                   transition={{ 
-                    type: "spring", 
-                    stiffness: 260, 
-                    damping: 25,
-                    layout: { duration: 0.4, ease: "easeInOut" }
+                    layout: { 
+                      type: "spring", 
+                      stiffness: 140, 
+                      damping: 28, 
+                      mass: 1.2,
+                      restDelta: 0.001
+                    },
+                    opacity: { duration: 0.4, ease: "easeOut" },
+                    scale: { duration: 0.4, ease: "easeOut" },
+                    filter: { duration: 0.4, ease: "easeOut" }
                   }}
                 >
                   <div className="month-card">

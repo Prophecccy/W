@@ -84,6 +84,9 @@
 
 .month-block {
   position: relative;
+  will-change: transform, opacity, filter;
+  transform: translateZ(0);
+  contain: layout paint;
 }
 
 .month-block.offset-0 {
@@ -116,6 +119,9 @@
   flex-direction: column;
   gap: 20px;
   background: var(--bg-primary);
+  /* Ensure smooth rendering during scaling */
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
 .month-card-header {
