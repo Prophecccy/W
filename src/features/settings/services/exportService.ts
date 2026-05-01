@@ -18,7 +18,7 @@ async function getAllCollectionData(collectionName: string): Promise<Record<stri
 
 // ─── Export JSON ────────────────────────────────────────────────
 
-export async function exportJSON(): Promise<void> {
+export async function exportJSON(): Promise<boolean> {
   const userId = uid();
   const userDoc = await getUserDoc(userId);
   const habits = await getAllCollectionData("habits");
@@ -35,12 +35,13 @@ export async function exportJSON(): Promise<void> {
 
   const json = JSON.stringify(data, null, 2);
   const datePart = new Date().toISOString().split("T")[0];
-  triggerDownload(json, `w_export_${datePart}.json`, "application/json");
+  const filename = `w_export_${datePart}.json`;
+  return await saveFileAs(json, filename, "application/json", "json");
 }
 
 // ─── Export CSV ──────────────────────────────────────────────────
 
-export async function exportCSV(): Promise<void> {
+export async function exportCSV(): Promise<boolean> {
   const habits = await getAllCollectionData("habits");
   const todos = await getAllCollectionData("todos");
   const logs = await getAllCollectionData("logs");
@@ -75,7 +76,7 @@ export async function exportCSV(): Promise<void> {
   if (logs.length > 0) {
     const logHeaders = ["date", "notes", "habitsCompleted"];
     const logRows = logs.map((l) => {
-      const habitsMap = l.habits as Record<string, any> ?? {};
+      const habitsMap = (l.habits as Record<string, any>) ?? {};
       const completedCount = Object.values(habitsMap).filter((h: any) => h.completed).length;
       return [
         escapeCSV(String(l.date ?? "")),
@@ -90,7 +91,8 @@ export async function exportCSV(): Promise<void> {
 
   const csv = sections.join("\n");
   const datePart = new Date().toISOString().split("T")[0];
-  triggerDownload(csv, `w_export_${datePart}.csv`, "text/csv");
+  const filename = `w_export_${datePart}.csv`;
+  return await saveFileAs(csv, filename, "text/csv", "csv");
 }
 
 // ─── Utilities ──────────────────────────────────────────────────
@@ -100,6 +102,28 @@ function escapeCSV(value: string): string {
     return `"${value.replace(/"/g, '""')}"`;
   }
   return value;
+}
+
+async function saveFileAs(content: string, filename: string, mimeType: string, ext: string): Promise<boolean> {
+  try {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+
+    const filePath = await save({
+      defaultPath: filename,
+      filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+    });
+
+    if (filePath) {
+      await writeTextFile(filePath, content);
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.warn("Tauri APIs failed, falling back to browser download:", err);
+    triggerDownload(content, filename, mimeType);
+    return true;
+  }
 }
 
 function triggerDownload(content: string, filename: string, mimeType: string) {

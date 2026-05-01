@@ -106,3 +106,59 @@ body.low-graphics .habit-card.level-tier-10 {
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
 }
+
+/* ─── Predictive Strike Risk Engine ─── */
+
+/* Risk Elevated: 75–90% — subtle orange pulse */
+.habit-card.risk-elevated {
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.25);
+  animation: risk-pulse-elevated 3s ease-in-out infinite;
+}
+
+@keyframes risk-pulse-elevated {
+  0%, 100% { box-shadow: 0 0 8px rgba(245, 158, 11, 0.15); }
+  50%      { box-shadow: 0 0 16px rgba(245, 158, 11, 0.35); }
+}
+
+/* Risk Critical: 90%+ — fast red pulse using --strike-red */
+.habit-card.risk-critical {
+  border-color: var(--strike-red) !important;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.35);
+  animation: risk-pulse-critical 1.5s ease-in-out infinite;
+}
+
+@keyframes risk-pulse-critical {
+  0%, 100% { box-shadow: 0 0 8px rgba(239, 68, 68, 0.2); }
+  50%      { box-shadow: 0 0 24px rgba(239, 68, 68, 0.5); }
+}
+
+/* Risk Tags */
+.habit-card__risk-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: 6px;
+}
+
+.risk-elevated-tag {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.risk-critical-tag {
+  color: var(--strike-red);
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Low graphics: kill risk animations */
+body.low-graphics .habit-card.risk-elevated,
+body.low-graphics .habit-card.risk-critical {
+  animation: none !important;
+}

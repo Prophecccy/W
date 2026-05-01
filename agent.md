@@ -2,9 +2,10 @@
 
 > **Purpose:** This file tracks the current state of the application architecture, tokens, and rules. All AI agents working on this project MUST read this file to understand the current context before making changes.
 
-## Current State: BATCH 25 COMPLETE — ANALYTICS FINALIZED 📈
-- **Status:** All 24 batches + final polish complete. Analytics system finalized with accurate efficiency logic (oldest habit tracking), buttery smooth monthly carousel transitions (spring physics), and refined 30-day metrics. Build stability and UI consistency enforced across all features.
-- **All features:** Auth → Onboarding (v2) → Dashboard (v2) → Habits → Todos → Clock → Analytics → Settings → Widget → Strikes → Freeze → Backup → Export → Notifications → Gamification → Performance Mode → Daily Cycle / Waking Fuel → Auto-Updater (Evolution Protocol) → Autostart Persistence → Heatmap Refactor
+## Current State: BATCH 26 COMPLETE — SETTINGS & EXPORT HARDENING ⚙️
+- **Status:** All 26 batches complete. Analytics system finalized with accurate efficiency logic (oldest habit tracking), buttery smooth monthly carousel transitions (spring physics), and refined 30-day metrics. Build stability and UI consistency enforced across all features. Settings reorganized into sub-pages for scalability.
+- **All features:** Auth → Onboarding (v2) → Dashboard (v2) → Habits → Todos → Clock → Analytics → Settings (Sub-pages) → Widget → Strikes → Freeze → Backup (Native) → Export (Native) → Notifications → Gamification → Performance Mode → Daily Cycle / Waking Fuel → Auto-Updater (Evolution Protocol) → Autostart Persistence → Heatmap Refactor
+- **Latest Update:** Settings reorganized into sub-pages; Export/Backup refactored to native Tauri APIs for 100% reliability.
 
 ### Accomplished in Batch 1:
 1. Tauri v2 + React (Vite/TS) app initialized
@@ -206,6 +207,16 @@
    - Fixed card hover elevation to preserve color accent strips.
 4. **Logic Hardening**: Optimized `analyticsService.ts` and `scheduleEngine.ts` to ensure consistency between visual heatmap density and numerical summary cards.
 
+### Accomplished in Batch 26 (Settings & Native Export Recovery):
+1. **Settings Reorganization** (`SettingsPage.tsx`): Refactored the flat settings list into a sub-paged navigation system. Added a vertical sidebar (`SettingsSidebar`) to switch between: **Account**, **Appearance**, **Desktop**, **Notifications**, **Data**, **Schedule**, **Groups**, and **Freeze**.
+2. **Native Export System** (`exportService.ts`): Replaced browser `<a>` tag downloads with native OS Save Dialogs via `@tauri-apps/plugin-dialog`. Exports now use `@tauri-apps/plugin-fs` (`writeTextFile`) for reliable file creation on the user's filesystem.
+3. **Export Success Tracking**: Updated export functions to return `Promise<boolean>`, allowing the UI (`DataSection.tsx`) to distinguish between a successful save and a user cancellation, ensuring accurate toast notifications.
+4. **Backup Path Robustness** (`backupService.ts`): Standardized path construction using `@tauri-apps/api/path` (`join`). Injected `join` as a dependency into the rolling limit logic to ensure cross-platform path safety (Windows/macOS/Linux).
+5. **Account Management**:
+   - **Delete Account**: Implemented full user data erasure and authentication deletion, followed by an automatic sign-out.
+   - **Start From Scratch**: Implemented a "Soft Reset" that wipes all Firestore data (habits, todos, logs) but keeps the user logged in, redirecting them back to Onboarding.
+6. **UI Polish**: Applied "Tactical Button Standards" to the new account management actions.
+
 ---
 
 ### Spacing
@@ -276,8 +287,8 @@ src/
 │       └── firebase.ts    → Firebase init (placeholder keys)
 │   ├── habits/
 │   │   ├── components/
-│   │   │   ├── HabitsPage.tsx     → Main habit management view (formerly DashboardPage)
-│   │   │   ├── HabitCard/         → Grid card with hold-to-verify, metric bars, onClick detail
+│   │   │   ├── HabitsPage.tsx     → Main habit management view + useRiskEngine integration
+│   │   │   ├── HabitCard/         → Grid card with hold-to-verify, metric bars, risk tags, onClick detail
 │   │   │   ├── HabitForm/         → 7-step creation wizard
 │   │   │   ├── HabitDetail/       → Slide-out analytics: heatmap, sparklines, edit, archive/delete
 │   │   │   ├── DailyNote/         → Auto-saving journal textarea
@@ -286,7 +297,9 @@ src/
 │   │   │   ├── habitService.ts    → CRUD + archive + reorder
 │   │   │   ├── logService.ts      → Daily logs + getLogRange() for analytics
 │   │   │   └── groupService.ts    → Group CRUD (Firestore subcollection)
-│   │   └── utils/                 → streakEngine, levelEngine, scheduleEngine
+│   │   ├── hooks/
+│   │   │   └── useRiskEngine.ts   → 5-min polling, risk score map, native notification at 85%
+│   │   └── utils/                 → streakEngine, levelEngine, scheduleEngine, heuristicEngine
 │   ├── todos/
 │   │   ├── types.ts               → Todo, NumberedTodoConfig, StickyPosition
 │   │   ├── services/
@@ -323,8 +336,11 @@ src/
 │   │       └── StopwatchPanel/    → RAF ticker, lap tracking table
 │   ├── analytics/components/AnalyticsPage.tsx
 │   ├── settings/components/
-│   │   ├── SettingsPage.tsx       → Config shell with GroupManager
+│   │   ├── SettingsPage.tsx       → Categorized sub-paged settings shell
+│   │   ├── SettingsSidebar.tsx    → Vertical navigation for settings categories
 │   │   ├── DesktopSection.tsx     → Environment-aware desktop/widget management
+│   │   ├── DataSection.tsx        → Native backup/export controls
+│   │   ├── AccountSection.tsx     → Profile view + Delete/Reset actions
 │   │   └── GroupManager/          → Group CRUD interface
 │   ├── strikes/
 │   │   ├── types.ts               → StrikeState, PunishmentChoice, MAX_STRIKES
@@ -371,6 +387,14 @@ src/
 │       │   └── useStickyNotes.ts   → Firestore listener for pinned todos + local positions
 │       └── services/
 │           └── positionStore.ts    → AppData persistence for note positions
+│   └── lockdown/                   → ★ DESKTOP-ONLY: OS-level app blocker
+│       ├── types.ts               → LockdownState, presets (Gaming/Social/Entertainment/Browsing), durations
+│       ├── services/
+│       │   └── lockdownService.ts  → Firestore CRUD + Tauri invoke bridge (start/stop/update_blocklist)
+│       ├── hooks/
+│       │   └── useLockdown.ts     → React hook: state management, violation listener, auto-resume on launch
+│       └── components/
+│           └── LockdownViolationOverlay.tsx → Full-screen red flash on violation (4s auto-dismiss)
 ```
 
 ### Rust Backend (`src-tauri/src/`)
@@ -378,7 +402,64 @@ src/
 lib.rs              → Tauri builder with plugin registration + background-tick pacemaker + autostart enforcement
 workerw.rs          → Widget window management: pin_to_bottom, unpin_from_bottom, move_by (native Z-order + drag)
 sticky_overlay.rs   → Sticky note overlay hit-testing: cursor polling thread toggles WS_EX_TRANSPARENT
+lockdown.rs         → OS-level app monitor: GetForegroundWindow polling, blocklist matching, 30s cooldown, violation events
 ```
+
+### Lockdown Mode — Architecture Notes
+
+**Desktop-only**: The 🔒 LOCKDOWN tab is conditionally rendered in SettingsPage.tsx via `isTauri()`. Web users never see it.
+
+**Tauri Commands** (registered in `lib.rs`):
+- `start_lockdown_monitor(blocklist: Vec<String>)` → Spawns a background thread polling every 2s
+- `stop_lockdown_monitor()` → Stops the polling thread and clears cooldowns
+- `update_lockdown_blocklist(blocklist: Vec<String>)` → Hot-swaps the blocklist without restart
+
+**Strike Integration**: Violations fire a `lockdown-violation` event to the webview. The `useLockdown` hook catches it, calls `strikeService.addStrike()` with reason `"lockdown_violation"`, and shows a 4-second red flash overlay.
+
+**Firestore Schema** (stored in `users/{uid}.lockdown`):
+```typescript
+{
+  active: boolean;
+  startedAt: number | null;    // Date.now()
+  duration: number | null;     // seconds, or null = "until I stop"
+  blocklist: string[];         // window title substrings
+  violations: Array<{ appName: string; matchedRule: string; timestamp: number }>;
+  totalSessions: number;
+  totalViolations: number;
+}
+```
+
+**Preset Categories**:
+- Gaming (22 apps): Steam, Discord, Epic Games, Roblox, etc.
+- Social (8 apps): Instagram, TikTok, Facebook, Twitter/X, etc.
+- Entertainment (12 apps): YouTube, Netflix, Twitch, Spotify, etc.
+- Browsing (7 apps): Reddit, Hacker News, 9GAG, etc.
+
+### Predictive Strike Risk Engine — Architecture Notes
+
+**Purpose**: Purely local heuristic algorithm that calculates the probability (0–100) of a user failing a habit today, based on historical completion patterns, current time, and daily load.
+
+**Math Engine** (`src/features/habits/utils/heuristicEngine.ts`):
+- **T (Time Pressure, 50%)**: Exponential curve `(elapsed/window)^4 × 100` — low early, spikes near reset
+- **V (Variance Signal, 30%)**: Computes Mean Time of Completion (MTC) + Standard Deviation (σ) from last 30 days. If now > MTC + 1σ → risk spikes proportionally
+- **L (Load Factor, 20%)**: Compares today's uncompleted count vs historical daily average
+- Formula: `score = clamp(0, 100, 0.5*T + 0.3*V + 0.2*L)`
+
+**Polling Hook** (`src/features/habits/hooks/useRiskEngine.ts`):
+- Runs every 5 minutes via `setInterval`
+- Iterates over active, uncompleted, scheduled habits (excludes limiters)
+- Fetches 30-day historical logs once per cycle (single Firestore read)
+- Returns `Record<habitId, riskScore>` to HabitsPage
+
+**Notification Interceptor**:
+- At risk ≥ 85%: Fires native OS notification via `sendNotification()`
+- `hasWarnedToday` Set prevents duplicate notifications per habit per day
+- Resets at day boundary
+
+**UI Shift** (`HabitCard.tsx` + `HabitCardTiers.css`):
+- `riskScore > 75` → `.risk-elevated` class: orange border pulse (3s), `[ RISK: X% ]` amber tag
+- `riskScore > 90` → `.risk-critical` class: red border pulse (1.5s), `[ RISK: X% ]` red tag using `--strike-red`
+- Low graphics mode disables all risk animations
 
 ---
 

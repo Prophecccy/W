@@ -3,6 +3,7 @@ use tauri::{Emitter, Manager};
 
 mod workerw;
 mod sticky_overlay;
+mod lockdown;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -64,7 +65,10 @@ pub fn run() {
             sticky_overlay::stop_sticky_hit_test,
             sticky_overlay::update_sticky_regions,
             sticky_overlay::force_sticky_interactive,
-            sticky_overlay::set_sticky_drag_mode
+            sticky_overlay::set_sticky_drag_mode,
+            lockdown::start_lockdown_monitor,
+            lockdown::stop_lockdown_monitor,
+            lockdown::update_lockdown_blocklist
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

@@ -334,12 +334,16 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
                           );
                         }
 
+                        const dayNum = parseInt(c.date.split("-")[2], 10);
+
                         return (
                           <div
                             key={c.date}
                             className={`heatmap-cell level-${level} ${c.isGhost ? "ghost" : ""}`}
                             title={`${c.date}: ${c.rate}% completed`}
-                          />
+                          >
+                            <span className="cell-date">{dayNum}</span>
+                          </div>
                         );
                       })}
                     </div>

@@ -193,6 +193,22 @@
   border-radius: 3px;
   background-color: rgba(255, 255, 255, 0.03); /* Level 0 base */
   transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cell-date {
+  font-family: monospace;
+  font-size: 0.55rem;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.heatmap-cell.level-3 .cell-date,
+.heatmap-cell.level-4 .cell-date {
+  color: var(--bg-primary);
+  font-weight: 600;
 }
 
 .heatmap-cell:hover:not(.ghost):not(.empty) {

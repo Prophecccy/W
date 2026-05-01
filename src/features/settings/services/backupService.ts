@@ -45,11 +45,11 @@ export async function createBackup(): Promise<string> {
   const filename = `backup_${datePart}.json`;
 
   try {
-    const { appDataDir } = await import("@tauri-apps/api/path");
+    const { appDataDir, join } = await import("@tauri-apps/api/path");
     const { mkdir, writeTextFile, readDir, remove } = await import("@tauri-apps/plugin-fs");
 
     const baseDir = await appDataDir();
-    const backupsDir = `${baseDir}backups`;
+    const backupsDir = await join(baseDir, "backups");
 
     // Ensure backups directory exists
     try {
@@ -58,11 +58,11 @@ export async function createBackup(): Promise<string> {
       // Directory may already exist
     }
 
-    const filePath = `${backupsDir}/${filename}`;
+    const filePath = await join(backupsDir, filename);
     await writeTextFile(filePath, json);
 
     // Enforce rolling limit of 4 backups
-    await enforceRollingLimit(backupsDir, readDir, remove);
+    await enforceRollingLimit(backupsDir, readDir, remove, join);
 
     return filePath;
   } catch (err) {
@@ -78,7 +78,8 @@ export async function createBackup(): Promise<string> {
 async function enforceRollingLimit(
   dirPath: string,
   readDir: (path: string) => Promise<any[]>,
-  remove: (path: string) => Promise<void>
+  remove: (path: string) => Promise<void>,
+  join: (...paths: string[]) => Promise<string>
 ): Promise<void> {
   try {
     const entries = await readDir(dirPath);
@@ -89,7 +90,8 @@ async function enforceRollingLimit(
     while (backupFiles.length > 4) {
       const oldest = backupFiles.shift();
       if (oldest?.name) {
-        await remove(`${dirPath}/${oldest.name}`);
+        const fileToRemove = await join(dirPath, oldest.name);
+        await remove(fileToRemove);
       }
     }
   } catch (err) {
@@ -101,11 +103,11 @@ async function enforceRollingLimit(
 
 export async function getLastBackupDate(): Promise<string | null> {
   try {
-    const { appDataDir } = await import("@tauri-apps/api/path");
+    const { appDataDir, join } = await import("@tauri-apps/api/path");
     const { readDir } = await import("@tauri-apps/plugin-fs");
 
     const baseDir = await appDataDir();
-    const backupsDir = `${baseDir}backups`;
+    const backupsDir = await join(baseDir, "backups");
 
     const entries = await readDir(backupsDir);
     const backupFiles = entries

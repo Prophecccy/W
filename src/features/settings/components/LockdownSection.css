@@ -1,0 +1,410 @@
+/* ─── Lockdown Section ────────────────────────────────────────── */
+
+.lockdown-hero {
+  text-align: center;
+  padding: 24px 16px;
+}
+
+.lockdown-hero__status {
+  margin-bottom: 16px;
+}
+
+.lockdown-hero__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-family: "Departure Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  font-weight: 600;
+}
+
+.lockdown-hero__badge--active {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  animation: lockdownPulse 2s ease-in-out infinite;
+}
+
+.lockdown-hero__badge--inactive {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+}
+
+@keyframes lockdownPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+  50% { box-shadow: 0 0 20px 4px rgba(239, 68, 68, 0.15); }
+}
+
+.lockdown-hero__timer {
+  font-family: "Departure Mono", monospace;
+  font-size: 28px;
+  color: var(--text-primary);
+  letter-spacing: 4px;
+  margin: 12px 0 4px;
+  text-shadow: 0 0 30px rgba(239, 68, 68, 0.3);
+}
+
+.lockdown-hero__timer-label {
+  color: var(--text-secondary);
+  font-size: 9px;
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+}
+
+/* ─── Activate / Deactivate Button ───────────────────────────── */
+
+.lockdown-activate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: "Departure Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  padding: 12px 28px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 600;
+}
+
+.lockdown-activate-btn--start {
+  background: #ef4444;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
+}
+
+.lockdown-activate-btn--start:hover {
+  background: #dc2626;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.5);
+}
+
+.lockdown-activate-btn--stop {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+}
+
+.lockdown-activate-btn--stop:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--text-secondary);
+  transform: translateY(-2px);
+}
+
+/* ─── Duration Picker ────────────────────────────────────────── */
+
+.lockdown-duration {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.lockdown-duration__chip {
+  font-family: "Departure Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.lockdown-duration__chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.lockdown-duration__chip--selected {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+}
+
+/* ─── Presets Grid ───────────────────────────────────────────── */
+
+.lockdown-presets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.lockdown-preset {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-default);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 4px;
+}
+
+.lockdown-preset:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--text-secondary);
+  transform: translateY(-1px);
+}
+
+.lockdown-preset--active {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.lockdown-preset__icon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.lockdown-preset--active .lockdown-preset__icon {
+  color: #ef4444;
+}
+
+.lockdown-preset__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lockdown-preset__name {
+  font-family: "Departure Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--text-primary);
+}
+
+.lockdown-preset__count {
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+}
+
+.lockdown-preset__check {
+  margin-left: auto;
+  color: #ef4444;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.lockdown-preset--active .lockdown-preset__check {
+  opacity: 1;
+}
+
+/* ─── Custom Entries ─────────────────────────────────────────── */
+
+.lockdown-custom {
+  margin-top: 8px;
+}
+
+.lockdown-custom__input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.lockdown-custom__input {
+  flex: 1;
+  font-family: "Departure Mono", monospace;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  padding: 8px 12px;
+  outline: none;
+  transition: all 0.15s;
+}
+
+.lockdown-custom__input:focus {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--accent);
+}
+
+.lockdown-custom__input::placeholder {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.lockdown-custom__add-btn {
+  font-family: "Departure Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-default);
+  color: var(--accent);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.lockdown-custom__add-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent);
+}
+
+/* ─── Active Blocklist Tags ──────────────────────────────────── */
+
+.lockdown-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.lockdown-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 2px;
+  font-family: "Departure Mono", monospace;
+  font-size: 9px;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+}
+
+.lockdown-tag__remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+
+.lockdown-tag__remove:hover {
+  color: #ef4444;
+}
+
+/* ─── Stats Row ──────────────────────────────────────────────── */
+
+.lockdown-stats {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.lockdown-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.lockdown-stat__value {
+  font-family: "Departure Mono", monospace;
+  font-size: 20px;
+  color: var(--text-primary);
+  letter-spacing: 2px;
+}
+
+.lockdown-stat__label {
+  font-size: 8px;
+  color: var(--text-muted);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+/* ─── Violation Flash Overlay ────────────────────────────────── */
+
+.lockdown-violation-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(220, 38, 38, 0.92);
+  backdrop-filter: blur(20px);
+  animation: violationFlash 0.3s ease-out;
+}
+
+@keyframes violationFlash {
+  0% { opacity: 0; transform: scale(1.05); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.lockdown-violation-overlay__icon {
+  color: #fff;
+  animation: violationShake 0.5s ease-in-out;
+}
+
+@keyframes violationShake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.lockdown-violation-overlay__title {
+  font-family: "Departure Mono", monospace;
+  font-size: 24px;
+  letter-spacing: 6px;
+  color: #fff;
+  text-shadow: 0 0 40px rgba(255, 255, 255, 0.5);
+}
+
+.lockdown-violation-overlay__app {
+  font-family: "Departure Mono", monospace;
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.8);
+  padding: 8px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.lockdown-violation-overlay__strike {
+  font-family: "Departure Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 8px;
+}
+
+/* ─── Sidebar Lockdown Indicator ─────────────────────────────── */
+
+.sidebar__lockdown {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  margin: 0 10px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 4px;
+  animation: lockdownPulse 2s ease-in-out infinite;
+}
+
+.sidebar__lockdown-icon {
+  color: #ef4444;
+  animation: lockdownBlink 1.5s ease-in-out infinite;
+}
+
+@keyframes lockdownBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.sidebar__lockdown-text {
+  font-family: "Departure Mono", monospace;
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  color: #ef4444;
+}

@@ -34,7 +34,7 @@ export async function getStrikes(): Promise<StrikeState> {
 export async function addStrike(
   habitId: string,
   habitTitle: string,
-  reason: "missed" | "manual" = "missed"
+  reason: "missed" | "manual" | "lockdown_violation" = "missed"
 ): Promise<StrikeState> {
   const userId = uid();
   const today = getToday();

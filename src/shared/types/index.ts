@@ -51,4 +51,13 @@ export interface User {
     lastInteractionDate: string;
     history: any[];
   };
+  lockdown?: {
+    active: boolean;
+    startedAt: number | null;
+    duration: number | null;
+    blocklist: string[];
+    violations: any[];
+    totalSessions: number;
+    totalViolations: number;
+  };
 }

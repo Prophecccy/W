@@ -17,6 +17,7 @@ interface HabitCardProps {
   onUndo: () => void;
   onClick: () => void;
   currentValue?: number; // For metric/limiter types
+  riskScore?: number;    // 0–100 from Predictive Strike Risk Engine
 }
 
 export function HabitCard({
@@ -26,6 +27,7 @@ export function HabitCard({
   onUndo,
   onClick,
   currentValue = 0,
+  riskScore,
 }: HabitCardProps) {
   const { showToast } = useToast();
   const [isHolding, setIsHolding] = useState(false);
@@ -100,7 +102,7 @@ export function HabitCard({
 
   return (
     <div
-      className={`habit-card ${isCompletedToday ? "habit-card--completed" : ""} ${isHolding ? "habit-card--holding" : ""} level-tier-${Math.min(habit.level, 10)}`}
+      className={`habit-card ${isCompletedToday ? "habit-card--completed" : ""} ${isHolding ? "habit-card--holding" : ""} level-tier-${Math.min(habit.level, 10)}${riskScore != null && riskScore > 90 ? " risk-critical" : riskScore != null && riskScore > 75 ? " risk-elevated" : ""}`}
       style={cardStyle}
       onPointerDown={startHold}
       onPointerUp={handlePointerUp}
@@ -141,6 +143,11 @@ export function HabitCard({
             >
               {habit.title}
             </span>
+            {riskScore != null && riskScore > 75 && !isCompletedToday && (
+              <span className={`habit-card__risk-tag t-meta ${riskScore > 90 ? 'risk-critical-tag' : 'risk-elevated-tag'}`}>
+                [ RISK: {riskScore}% ]
+              </span>
+            )}
           </div>
 
           {(habit.currentStreak > 0 || habit.level > 0) && (

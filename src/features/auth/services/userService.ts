@@ -1,5 +1,6 @@
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
-import { db } from "../../../shared/config/firebase";
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, writeBatch, deleteDoc } from "firebase/firestore";
+import { deleteUser } from "firebase/auth";
+import { db, auth } from "../../../shared/config/firebase";
 import { User, Settings, Aesthetics, Wallpapers } from "../../../shared/types";
 import { getToday } from "../../../shared/utils/dateUtils";
 
@@ -97,4 +98,66 @@ export function ensureCycleDefaults(user: User): { patched: User; needsCalibrati
   };
 
   return { patched, needsCalibration: true };
+}
+
+/**
+ * Wipes all subcollection data for a given user.
+ */
+export async function wipeUserSubcollections(uid: string): Promise<void> {
+  const collectionsToWipe = ["groups", "habits", "logs", "todos", "undoHistory", "sticky-notes"];
+  
+  for (const col of collectionsToWipe) {
+    try {
+      const colRef = collection(db, "users", uid, col);
+      const snap = await getDocs(colRef);
+      
+      if (!snap.empty) {
+        // Firestore batches support up to 500 operations. If more, we'd chunk,
+        // but for a single user's subcollection it's usually fine. 
+        // For safety, we chunk into 500:
+        const chunks = [];
+        for (let i = 0; i < snap.docs.length; i += 500) {
+          chunks.push(snap.docs.slice(i, i + 500));
+        }
+
+        for (const chunk of chunks) {
+          const batch = writeBatch(db);
+          chunk.forEach((d) => batch.delete(d.ref));
+          await batch.commit();
+        }
+      }
+    } catch (err) {
+      console.error(`Error wiping collection ${col}:`, err);
+    }
+  }
+}
+
+/**
+ * Starts the user from scratch. Keeps auth, but deletes user doc to force onboarding and wipes subcollections.
+ */
+export async function resetUserData(uid: string): Promise<void> {
+  // 1. Wipe data
+  await wipeUserSubcollections(uid);
+
+  // 2. Delete user doc (this will force the app into the onboarding phase on reload)
+  await deleteDoc(doc(db, "users", uid));
+}
+
+/**
+ * Fully deletes the user's data and their auth account.
+ */
+export async function deleteUserAccountAndData(): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("No authenticated user found.");
+
+  const uid = user.uid;
+
+  // 1. Wipe data
+  await wipeUserSubcollections(uid);
+  
+  // 2. Delete user doc
+  await deleteDoc(doc(db, "users", uid));
+
+  // 3. Delete auth account
+  await deleteUser(user);
 }

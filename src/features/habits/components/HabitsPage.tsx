@@ -11,6 +11,7 @@ import { getTodayLog, completeHabit, uncompleteHabit } from '../services/logServ
 import { isHabitScheduledToday } from '../utils/scheduleEngine';
 import { getToday } from '../../../shared/utils/dateUtils';
 import { LucideIcon } from '../../../shared/components/IconPicker/LucideIcon';
+import { useRiskEngine } from '../hooks/useRiskEngine';
 import './HabitsPage.css';
 
 type LayoutMode = 'default' | 'grouped' | 'custom';
@@ -28,6 +29,9 @@ export function HabitsPage() {
   const [focusedIndex, _setFocusedIndex] = useState(0);
 
   const today = getToday();
+
+  // ── Predictive Strike Risk Engine ─────────────────────────────
+  const riskScores = useRiskEngine(habits, log);
 
   // Load Data
   useEffect(() => {
@@ -256,6 +260,7 @@ export function HabitsPage() {
                     onComplete={() => handleComplete(h.id)} 
                     onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
                     currentValue={log?.habits[h.id]?.value || 0}
+                    riskScore={riskScores[h.id]}
                   />
                 ))}
               </>
@@ -270,7 +275,7 @@ export function HabitsPage() {
                     <HabitGroupHeader key={g.id} title={g.name} count={groupHabits.length}>
                       <div className="habits-grid">
                          {groupHabits.map(h => (
-                          <HabitCard key={h.id} habit={h} isCompletedToday={false} onComplete={() => handleComplete(h.id)} onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)} currentValue={log?.habits[h.id]?.value || 0} />
+                          <HabitCard key={h.id} habit={h} isCompletedToday={false} onComplete={() => handleComplete(h.id)} onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)} currentValue={log?.habits[h.id]?.value || 0} riskScore={riskScores[h.id]} />
                         ))}
                       </div>
                     </HabitGroupHeader>
@@ -284,7 +289,7 @@ export function HabitsPage() {
                       <HabitGroupHeader title="UNGROUPED" count={ungrouped.length}>
                         <div className="habits-grid">
                            {ungrouped.map(h => (
-                            <HabitCard key={h.id} habit={h} isCompletedToday={false} onComplete={() => handleComplete(h.id)} onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)} currentValue={log?.habits[h.id]?.value || 0} />
+                            <HabitCard key={h.id} habit={h} isCompletedToday={false} onComplete={() => handleComplete(h.id)} onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)} currentValue={log?.habits[h.id]?.value || 0} riskScore={riskScores[h.id]} />
                           ))}
                         </div>
                       </HabitGroupHeader>

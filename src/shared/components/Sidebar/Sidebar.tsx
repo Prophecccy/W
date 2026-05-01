@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   Download,
   Target,
+  Lock,
 } from "lucide-react";
 import { FlameIcon } from "../FlameIcon/FlameIcon";
 import { isTauri } from "../../utils/tauri";
@@ -16,6 +17,7 @@ import "./Sidebar.css";
 interface SidebarProps {
   strikeCount?: number;
   globalStreak?: number;
+  isLockdownActive?: boolean;
 }
 
 const navItems = [
@@ -27,7 +29,7 @@ const navItems = [
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
-export function Sidebar({ strikeCount = 0, globalStreak = 0 }: SidebarProps) {
+export function Sidebar({ strikeCount = 0, globalStreak = 0, isLockdownActive = false }: SidebarProps) {
   const isWarning = strikeCount >= 3;
   const isLocked = strikeCount >= 5;
   return (
@@ -65,6 +67,15 @@ export function Sidebar({ strikeCount = 0, globalStreak = 0 }: SidebarProps) {
       </div>
 
       <div className="sidebar__divider" />
+
+      {isLockdownActive && (
+        <div className="sidebar__lockdown">
+          <Lock size={12} className="sidebar__lockdown-icon" />
+          <span className="sidebar__lockdown-text">LOCKDOWN</span>
+        </div>
+      )}
+
+      {isLockdownActive && <div className="sidebar__divider" />}
 
       {!isTauri() && (
         <div style={{ padding: "0 10px 16px 10px" }}>
