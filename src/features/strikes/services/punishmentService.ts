@@ -1,45 +1,48 @@
 import { PunishmentChoice } from "../types";
 import { resetStrikes } from "./strikeService";
-import { updateHabit } from "../../habits/services/habitService";
-import { Habit } from "../../habits/types";
+import { updateHabit, getHabits } from "../../habits/services/habitService";
 
 // ─── Apply Punishment ────────────────────────────────────────────
-// Each choice has a side effect. "add_habit" and "add_todo" are
-// resolved by the calling UI (redirect to form → on submit → resetStrikes).
-// "increase_difficulty" is resolved here directly.
+// All three paths now call resetStrikes() immediately so the
+// lockout overlay dismisses and the user can interact with the app.
 
 export async function applyPunishment(
-  choice: PunishmentChoice,
-  /** Required when choice === "increase_difficulty" */
-  targetHabit?: Habit
+  choice: PunishmentChoice
 ): Promise<"resolved" | "redirect_habit" | "redirect_todo"> {
   switch (choice) {
     case "increase_difficulty": {
-      if (!targetHabit || !targetHabit.metric) {
-        throw new Error("A metric/limiter habit with a target value is required for this punishment.");
+      // Auto-select the first habit with a metric target
+      const habits = await getHabits();
+      const target = habits.find(
+        (h) => h.isActive && h.metric && h.metric.targetValue > 0
+      );
+
+      if (target && target.metric) {
+        const currentTarget = target.metric.targetValue;
+        const increase = Math.max(1, Math.round(currentTarget / 3)); // +33%, minimum +1
+        const newTarget = currentTarget + increase;
+
+        await updateHabit(target.id, {
+          metric: {
+            ...target.metric,
+            targetValue: newTarget,
+          },
+        });
       }
-
-      const currentTarget = targetHabit.metric.targetValue;
-      const increase = Math.max(1, Math.round(currentTarget / 3)); // +33%, minimum +1
-      const newTarget = currentTarget + increase;
-
-      await updateHabit(targetHabit.id, {
-        metric: {
-          ...targetHabit.metric,
-          targetValue: newTarget,
-        },
-      });
-
+      // If no metric habit exists, punishment is waived — still reset strikes
       await resetStrikes();
       return "resolved";
     }
 
     case "add_habit":
-      // Caller must redirect to HabitForm. On successful creation → call resetStrikes().
+      // Reset strikes immediately so the lockout overlay dismisses
+      // and the user can reach the habit creation form.
+      await resetStrikes();
       return "redirect_habit";
 
     case "add_todo":
-      // Caller must redirect to TodoForm. On successful creation → call resetStrikes().
+      // Same — unlock first, then redirect.
+      await resetStrikes();
       return "redirect_todo";
 
     default:

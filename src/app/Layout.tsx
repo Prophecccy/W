@@ -407,16 +407,21 @@ function LayoutInner() {
 
   // ── Render: Normal operation ───────────────────────────────────
   const handlePunishment = async (choice: PunishmentChoice) => {
-    const result = await applyPunishment(choice);
-    setShowPunishment(false);
-    if (result === "redirect_habit") {
-      navigate("/");
-      window.dispatchEvent(new CustomEvent("w:open-habit-form"));
-    } else if (result === "redirect_todo") {
-      navigate("/todos");
-      window.dispatchEvent(new CustomEvent("w:open-todo-form"));
+    try {
+      const result = await applyPunishment(choice);
+      setShowPunishment(false);
+      if (result === "redirect_habit") {
+        navigate("/habits");
+        setTimeout(() => window.dispatchEvent(new CustomEvent("w:open-habit-form")), 100);
+      } else if (result === "redirect_todo") {
+        navigate("/todos");
+        setTimeout(() => window.dispatchEvent(new CustomEvent("w:open-todo-form")), 100);
+      }
+      // "resolved" means strikes are already reset — lockout auto-dismisses via onSnapshot
+    } catch (err) {
+      console.error("[Punishment] Failed to apply:", err);
+      setShowPunishment(false);
     }
-    // "resolved" means strikes are already reset
   };
 
   return (
