@@ -43,46 +43,46 @@ export interface BlocklistPreset {
   items: string[];
 }
 
+export const GAMING_BLOCKLIST = [
+  "steam.exe", "epicgameslauncher.exe", "riotclientux.exe", "battlenet.exe", "upc.exe", "origin.exe", "ealocalhostsvc.exe", "goggalaxy.exe", "xboxapp.exe", "valorant.exe", "valorant-win64-shipping.exe", "leagueclient.exe", "league of legends.exe", "cs2.exe", "csgo.exe", "dota2.exe", "overwatch.exe", "r5apex.exe", "robloxplayerbeta.exe", "minecraft.exe", "javaw.exe", "fortniteclient-win64-shipping.exe", "cod.exe", "gta5.exe", "rainbowsix.exe"
+];
+
+export const SOCIAL_BLOCKLIST = [
+  "discord.exe", "whatsapp.exe", "telegram.exe", "signal.exe", "viber.exe", "skype.exe", "line.exe", "messenger.exe", "teams.exe", "slack.exe"
+];
+
+export const ENTERTAINMENT_BLOCKLIST = [
+  "spotify.exe", "netflix.exe", "itunes.exe", "amazon music.exe", "stremio.exe", "vlc.exe", "mpc-hc.exe", "kodi.exe", "popcorntime.exe", "hulu.exe", "disneyplus.exe"
+];
+
+export const BROWSING_KEYWORDS = [
+  "YouTube", "Twitch", "Reddit", "Twitter", "Instagram", "Facebook", "TikTok", "Pinterest", "Tumblr", "Netflix", "Hulu", "Prime Video", "Crunchyroll", "9gag", "4chan", "Kick", "Rumble"
+];
+
 export const LOCKDOWN_PRESETS: BlocklistPreset[] = [
   {
     id: "gaming",
     label: "GAMING",
     icon: "Gamepad2",
-    items: [
-      "Steam", "Epic Games", "Riot Client", "Valorant", "Fortnite",
-      "Minecraft", "Roblox", "League of Legends", "Counter-Strike",
-      "Overwatch", "Apex Legends", "GeForce NOW", "Xbox", "Battle.net",
-      "GOG Galaxy", "EA App", "Ubisoft Connect", "Genshin Impact",
-      "Dota 2", "Call of Duty", "Rocket League", "PUBG",
-    ],
+    items: GAMING_BLOCKLIST,
   },
   {
     id: "social",
     label: "SOCIAL",
     icon: "MessageCircle",
-    items: [
-      "Discord", "Telegram", "WhatsApp", "Messenger", "Slack",
-      "Teams Chat", "Snapchat", "Signal",
-    ],
+    items: SOCIAL_BLOCKLIST,
   },
   {
     id: "entertainment",
     label: "ENTERTAINMENT",
     icon: "Tv",
-    items: [
-      "Netflix", "YouTube", "Twitch", "Spotify", "Prime Video",
-      "Disney+", "Crunchyroll", "VLC media player", "Plex",
-      "HBO Max", "Hulu", "Apple TV",
-    ],
+    items: ENTERTAINMENT_BLOCKLIST,
   },
   {
     id: "browsing",
     label: "BROWSING",
     icon: "Globe",
-    items: [
-      "Reddit", "Twitter", "Instagram", "TikTok", "Facebook",
-      "Pinterest", "Tumblr",
-    ],
+    items: BROWSING_KEYWORDS,
   },
 ];
 

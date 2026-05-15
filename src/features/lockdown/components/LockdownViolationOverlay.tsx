@@ -3,7 +3,7 @@
 // Auto-dismisses after 4 seconds.
 
 import { ShieldAlert } from "lucide-react";
-import "../../settings/components/LockdownSection.css";
+import "./LockdownViolationOverlay.css";
 
 interface LockdownViolationOverlayProps {
   appTitle: string;

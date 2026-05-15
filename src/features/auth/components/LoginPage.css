@@ -54,3 +54,31 @@
   word-break: break-word;
 }
 
+.login-page__controls {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0 16px;
+  z-index: 100;
+}
+
+.login-page__close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.login-page__close-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--strike-red);
+}
+

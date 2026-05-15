@@ -2,7 +2,6 @@ import { useState } from "react";
 import { TodoType } from "../../types";
 import { createTodo } from "../../services/todoService";
 import { HabitGroup } from "../../../habits/types";
-import { ColorPicker } from "../../../../shared/components/ColorPicker/ColorPicker";
 import "./TodoForm.css";
 
 interface TodoFormProps {
@@ -17,7 +16,6 @@ export function TodoForm({ onClose, onSuccess, groups = [] }: TodoFormProps) {
   const [description, setDescription] = useState("");
   const [type, setType] = useState<TodoType>("standard");
   const [target, setTarget] = useState(5);
-  const [color, setColor] = useState("#5B8DEF");
   const [deadline, setDeadline] = useState("");
   const [future, setFuture] = useState("");
   const [showOnDesktop, setShowOnDesktop] = useState(true);
@@ -41,7 +39,7 @@ export function TodoForm({ onClose, onSuccess, groups = [] }: TodoFormProps) {
         title,
         description,
         type,
-        color,
+        color: "#5B8DEF",
         order: 0,
         deadline: deadline || null,
         future: future || null,
@@ -166,10 +164,6 @@ export function TodoForm({ onClose, onSuccess, groups = [] }: TodoFormProps) {
         {step === 4 && (
           <div className="todo-form__step">
             <span className="t-label">STEP 4: APPEARANCE</span>
-            <div className="todo-form__field">
-              <span className="t-meta">ACCENT COLOR</span>
-              <ColorPicker selectedColor={color} onSelect={setColor} />
-            </div>
 
             <div className="todo-form__field mt-4">
               <span className="t-meta">DESKTOP WIDGET</span>

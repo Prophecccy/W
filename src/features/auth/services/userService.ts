@@ -16,6 +16,7 @@ const DEFAULT_SETTINGS: Settings = {
   lockoutAlert: true,
   weeklySummary: true,
   completionSound: true,
+  predictiveWarnings: true,
   lowGraphicsMode: false,
   wakeUpTime: "07:00",
   bedTime: "23:00",
@@ -56,6 +57,7 @@ export async function createUserDoc(
     photoURL,
     createdAt: Date.now(),
     lastActiveDate: getToday(),
+    hasOnboarded: true,
     settings: { ...DEFAULT_SETTINGS, ...initialSettings },
     aesthetics: DEFAULT_AESTHETICS,
     wallpapers: DEFAULT_WALLPAPERS,
@@ -77,28 +79,6 @@ export async function updateUserDoc(uid: string, updates: Partial<User>): Promis
   await updateDoc(docRef, updates);
 }
 
-/**
- * Backfill legacy user docs that are missing wakeUpTime / bedTime.
- * Returns a patched copy (does NOT write to Firestore — caller decides).
- */
-export function ensureCycleDefaults(user: User): { patched: User; needsCalibration: boolean } {
-  const { wakeUpTime, bedTime } = user.settings;
-
-  if (wakeUpTime && bedTime) {
-    return { patched: user, needsCalibration: false };
-  }
-
-  const patched: User = {
-    ...user,
-    settings: {
-      ...user.settings,
-      wakeUpTime: wakeUpTime || "07:00",
-      bedTime: bedTime || "23:00",
-    },
-  };
-
-  return { patched, needsCalibration: true };
-}
 
 /**
  * Wipes all subcollection data for a given user.

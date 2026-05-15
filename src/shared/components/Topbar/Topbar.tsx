@@ -1,4 +1,5 @@
 import { Search, Minus, Square, X, Download } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import { useUpdateManager } from "../../../features/updater/hooks/useUpdateManager";
 import "./Topbar.css";
 
@@ -6,8 +7,19 @@ interface TopbarProps {
   onCommandPaletteOpen: () => void;
 }
 
+const TITLE_MAP: Record<string, string> = {
+  "/": "[ COMMAND CENTER ]",
+  "/habits": "[ HABITS ]",
+  "/todos": "[ TODOS ]",
+  "/logbook": "[ LOGBOOK ]",
+
+  "/analytics": "[ ANALYTICS ]",
+  "/settings": "[ SETTINGS ]"
+};
+
 export function Topbar({ onCommandPaletteOpen }: TopbarProps) {
   const { phase, startUpdate } = useUpdateManager();
+  const location = useLocation();
 
   const handleMinimize = async () => {
     try {
@@ -39,6 +51,7 @@ export function Topbar({ onCommandPaletteOpen }: TopbarProps) {
   };
 
   const isTauri = "__TAURI_INTERNALS__" in window;
+  const currentTitle = TITLE_MAP[location.pathname] || "[ COMMAND CENTER ]";
 
   return (
     <header className="topbar" data-tauri-drag-region>
@@ -51,6 +64,7 @@ export function Topbar({ onCommandPaletteOpen }: TopbarProps) {
           <Search size={14} strokeWidth={1.5} />
           <span className="t-meta">CTRL+K</span>
         </button>
+        <span className="topbar__title">{currentTitle}</span>
       </div>
 
       {isTauri && (

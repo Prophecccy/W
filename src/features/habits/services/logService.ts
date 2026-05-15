@@ -9,6 +9,7 @@ import {
   orderBy,
   getDocs,
   increment,
+  documentId,
 } from "firebase/firestore";
 import { db, auth } from "../../../shared/config/firebase";
 import { HabitLog, HabitLogEntry, CompletionEntry } from "../types";
@@ -53,7 +54,6 @@ export async function completeHabit(
   habitId: string,
   value: number = 1,
   target: number = 1,
-  timerSeconds: number = 0,
   note: string = ""
 ): Promise<void> {
   const userId = uid();
@@ -68,7 +68,6 @@ export async function completeHabit(
     value: 0,
     target,
     completions: [],
-    timerSeconds: 0,
   };
 
   const entry: CompletionEntry = {
@@ -82,7 +81,6 @@ export async function completeHabit(
     value: existing.value + value,
     target,
     completions: [...existing.completions, entry],
-    timerSeconds: existing.timerSeconds + timerSeconds,
   };
 
   if (!snap.exists()) {
@@ -197,5 +195,19 @@ export async function updateNote(notes: string): Promise<void> {
   const ref = logRef(userId, today);
   // getTodayLog ensures doc exists
   await updateDoc(ref, { notes });
+}
+
+// ─── Get Note History ────────────────────────────────────────────
+
+export async function getNoteHistory(userId: string): Promise<HabitLog[]> {
+  const logsRef = collection(db, "users", userId, "logs");
+  const q = query(
+    logsRef,
+    orderBy(documentId(), "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => d.data() as HabitLog)
+    .filter((log) => log.notes && log.notes.trim() !== "");
 }
 

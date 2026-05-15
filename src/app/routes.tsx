@@ -3,14 +3,14 @@ import { Layout } from "./Layout";
 import { DashboardPage } from "../features/dashboard/components/DashboardPage";
 import { HabitsPage } from "../features/habits/components/HabitsPage";
 import { TodosPage } from "../features/todos/components/TodosPage";
-import { ClockPage } from "../features/clock/components/ClockPage";
 import { AnalyticsPage } from "../features/analytics/components/AnalyticsPage";
 import { SettingsPage } from "../features/settings/components/SettingsPage";
+import { LockdownPage } from "../features/lockdown/components/LockdownPage";
 import { LoginPage } from "../features/auth/components/LoginPage";
 import { AuthGuard } from "../features/auth/components/AuthGuard";
 import { StickyCanvas } from "../features/sticky-notes/components/StickyCanvas";
-import { AlarmPopup } from "../features/clock/components/AlarmPopup/AlarmPopup";
 import { WidgetApp } from "../features/widget/components/WidgetApp";
+import { LogbookPage } from "../features/logs/components/LogbookPage";
 
 export const router = createBrowserRouter([
   {
@@ -25,10 +25,7 @@ export const router = createBrowserRouter([
       </AuthGuard>
     ),
   },
-  {
-    path: "/alarm-popup",
-    element: <AlarmPopup />,
-  },
+
   {
     path: "/widget",
     element: (
@@ -57,17 +54,22 @@ export const router = createBrowserRouter([
         path: "todos",
         element: <TodosPage />,
       },
-      {
-        path: "clock",
-        element: <ClockPage />,
-      },
+
       {
         path: "analytics",
         element: <AnalyticsPage />,
       },
       {
+        path: "logbook",
+        element: <LogbookPage />,
+      },
+      {
         path: "settings",
         element: <SettingsPage />,
+      },
+      {
+        path: "lockdown",
+        element: <LockdownPage />,
       },
     ],
   },

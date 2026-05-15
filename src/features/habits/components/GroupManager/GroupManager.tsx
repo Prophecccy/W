@@ -97,12 +97,12 @@ export function GroupManager({ onClose }: GroupManagerProps) {
     }
   }
 
-  if (loading) return <div className="t-meta">LOADING GROUPS...</div>;
+  if (loading) return <div className="t-meta">[ LOADING GROUPS... ]</div>;
 
   return (
     <div className="group-manager">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2 className="t-h2">[ GROUP MANAGER ]</h2>
+        <h2 className="t-display">[ GROUP MANAGER ]</h2>
         {onClose && (
           <button className="t-label" onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>
             [ CLOSE ]
@@ -163,7 +163,7 @@ export function GroupManager({ onClose }: GroupManagerProps) {
         ))}
         {groups.length === 0 && (
           <div className="t-meta" style={{ textAlign: "center", padding: 24, opacity: 0.5 }}>
-            NO GROUPS CREATED YET
+            [ NO GROUPS CREATED YET ]
           </div>
         )}
       </div>

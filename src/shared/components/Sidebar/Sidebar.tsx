@@ -2,13 +2,15 @@ import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
   ListChecks,
-  Clock,
+
   BarChart3,
   Settings,
   AlertTriangle,
   Download,
   Target,
+  Shield,
   Lock,
+  BookOpen,
 } from "lucide-react";
 import { FlameIcon } from "../FlameIcon/FlameIcon";
 import { isTauri } from "../../utils/tauri";
@@ -20,24 +22,28 @@ interface SidebarProps {
   isLockdownActive?: boolean;
 }
 
-const navItems = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/habits", icon: Target, label: "Habits" },
-  { to: "/todos", icon: ListChecks, label: "Todos" },
-  { to: "/clock", icon: Clock, label: "Clock" },
-  { to: "/analytics", icon: BarChart3, label: "Analytics" },
-  { to: "/settings", icon: Settings, label: "Settings" },
-];
+
 
 export function Sidebar({ strikeCount = 0, globalStreak = 0, isLockdownActive = false }: SidebarProps) {
   const isWarning = strikeCount >= 3;
   const isLocked = strikeCount >= 5;
+
+  const activeNavItems = [
+    { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+    { to: "/habits", icon: Target, label: "Habits" },
+    { to: "/todos", icon: ListChecks, label: "Todos" },
+    { to: "/logbook", icon: BookOpen, label: "Logbook" },
+
+    ...(isTauri() ? [{ to: "/lockdown", icon: Shield, label: "Lockdown" }] : []),
+    { to: "/analytics", icon: BarChart3, label: "Analytics" },
+    { to: "/settings", icon: Settings, label: "Settings" },
+  ];
   return (
     <aside className="sidebar">
       <div className="sidebar__logo t-display">[ W ]</div>
 
       <nav className="sidebar__nav">
-        {navItems.map((item) => (
+        {activeNavItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -69,7 +75,7 @@ export function Sidebar({ strikeCount = 0, globalStreak = 0, isLockdownActive = 
       <div className="sidebar__divider" />
 
       {isLockdownActive && (
-        <div className="sidebar__lockdown">
+        <div className="sidebar__lockdown sidebar__lockdown--active">
           <Lock size={12} className="sidebar__lockdown-icon" />
           <span className="sidebar__lockdown-text">LOCKDOWN</span>
         </div>

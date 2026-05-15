@@ -106,6 +106,38 @@
   50%      { opacity: 0.4; }
 }
 
+.sidebar__lockdown {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  margin: 0 10px;
+  border-radius: 4px;
+}
+
+.sidebar__lockdown--active {
+  background: rgba(232, 115, 108, 0.1);
+  border: 1px solid rgba(232, 115, 108, 0.25);
+  animation: lockdownPulse 2s ease-in-out infinite;
+}
+
+.sidebar__lockdown-icon {
+  color: var(--strike-red);
+  animation: lockdownBlink 1.5s ease-in-out infinite;
+}
+
+@keyframes lockdownBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.sidebar__lockdown-text {
+  font-family: "Departure Mono", monospace;
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  color: var(--strike-red);
+}
+
 .sidebar__download-btn {
   display: flex;
   align-items: center;

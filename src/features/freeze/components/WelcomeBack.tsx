@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Snowflake, Play, Calendar, ArrowRight } from "lucide-react";
+import { Snowflake, Play, Calendar, ArrowRight, X, Minus } from "lucide-react";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { deactivateFreeze } from "../services/freezeService";
 import "./WelcomeBack.css";
 
@@ -11,6 +12,7 @@ interface WelcomeBackProps {
 
 export function WelcomeBack({ frozenSince, today, onResume }: WelcomeBackProps) {
   const [resuming, setResuming] = useState(false);
+  const appWindow = getCurrentWebviewWindow();
 
   const frozenDays = calculateFrozenDays(frozenSince, today);
 
@@ -25,9 +27,42 @@ export function WelcomeBack({ frozenSince, today, onResume }: WelcomeBackProps) 
     }
   };
 
+  const handleDrag = (e: React.MouseEvent) => {
+    if (e.button === 0) { // Left click only
+      appWindow.startDragging();
+    }
+  };
+
   return (
-    <div className="welcome-back">
-      <div className="welcome-back__container">
+    <div className="welcome-back" data-tauri-drag-region onMouseDown={handleDrag}>
+      <header className="welcome-back__header" data-tauri-drag-region onMouseDown={handleDrag}>
+        <div 
+          className="welcome-back__controls" 
+          data-tauri-drag-region="false"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button 
+            className="welcome-back__control-btn" 
+            onClick={() => appWindow.minimize()}
+            title="Minimize"
+          >
+            <Minus size={14} />
+          </button>
+          <button 
+            className="welcome-back__control-btn welcome-back__control-btn--close" 
+            onClick={() => appWindow.close()}
+            title="Close"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      </header>
+
+      <div 
+        className="welcome-back__container" 
+        data-tauri-drag-region="false"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         {/* Frost icon */}
         <div className="welcome-back__icon-ring">
           <Snowflake size={40} strokeWidth={1.5} />

@@ -36,12 +36,21 @@
   --text-shadow-glow: 0 0 10px rgba(var(--accent-rgb), 0.5), 0 1px 2px rgba(0,0,0,1);
   --drop-shadow-sharp: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
   --drop-shadow-glow: drop-shadow(0 0 8px var(--accent)) drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+  
+  --font-mono: 'Departure Mono', monospace;
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
 html {
@@ -59,8 +68,10 @@ body {
 /* Tauri windows that need true transparency (sticky-overlay, widget) */
 html.transparent-window,
 body.transparent-window,
-body.transparent-window #root {
+body.transparent-window #root,
+#root {
   background: transparent !important;
+  height: 100%;
 }
 
 body.transparent-window::before {

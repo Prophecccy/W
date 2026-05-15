@@ -41,7 +41,8 @@
   border-radius: 4px;
   padding: 12px;
   color: var(--text-primary);
-  resize: vertical;
+  resize: none;
+  overflow-y: auto;
   transition: all var(--transition-fast);
 }
 
@@ -54,4 +55,17 @@
 
 .daily-note-input::placeholder {
   color: var(--text-muted);
+}
+
+.daily-note-archive-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  transition: color var(--transition-fast);
+}
+
+.daily-note-archive-btn:hover {
+  color: var(--text-primary);
 }

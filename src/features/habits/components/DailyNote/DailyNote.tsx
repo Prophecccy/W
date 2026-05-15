@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { updateNote } from "../../services/logService";
 import { useToast } from "../../../../shared/components/Toast/Toast";
 import "./DailyNote.css";
@@ -15,6 +16,7 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
   const [isSaving, setIsSaving] = useState(false);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const { showToast } = useToast();
+  const navigate = useNavigate();
 
   // Sync initial prop if it changes externally (e.g. initial load)
   useEffect(() => {
@@ -61,6 +63,12 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
           <span className="t-meta" style={{ color: remaining <= 50 ? 'var(--strike-red)' : 'var(--text-muted)' }}>
             {note.length} / {MAX_CHARS}
           </span>
+          <button 
+            className="daily-note-archive-btn t-meta"
+            onClick={() => navigate("/logbook")}
+          >
+            [ LOGBOOK ]
+          </button>
         </div>
       </div>
       <textarea

@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window, sticky overlay, alarm popup, and widget",
-  "windows": ["main", "sticky-overlay", "alarm-popup", "widget"],
+  "description": "Capability for the main window, sticky overlay, and widget",
+  "windows": ["main", "sticky-overlay", "widget"],
   "permissions": [
     "core:default",
     "opener:default",
@@ -12,9 +12,30 @@
     "fs:default",
     "fs:allow-appdata-read",
     "fs:allow-appdata-write",
-    "fs:allow-read",
-    "fs:allow-write",
-    "fs:allow-exists",
+    {
+      "identifier": "fs:allow-read",
+      "allow": [{ "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-write",
+      "allow": [{ "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [{ "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [{ "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [{ "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "$APPDATA/**" }]
+    },
     "core:window:allow-show",
     "core:window:allow-hide",
     "core:window:allow-close",
@@ -34,7 +55,6 @@
     "core:window:allow-outer-position",
     "core:window:allow-set-decorations",
     "core:event:default",
-    "oauth:default",
     "oauth:allow-start",
     "oauth:allow-cancel",
     "updater:default",

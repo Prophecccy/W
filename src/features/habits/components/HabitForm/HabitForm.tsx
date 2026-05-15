@@ -27,7 +27,7 @@ export interface HabitFormProps {
   onCancel: () => void;
 }
 
-const DEFAULT_METRIC: HabitMetric = { unit: "pages", targetValue: 10, originalTarget: 10, isTimer: false };
+const DEFAULT_METRIC: HabitMetric = { unit: "pages", targetValue: 10, originalTarget: 10 };
 const DEFAULT_DURATION: HabitDuration = { type: "continuing" };
 
 export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitFormProps) {

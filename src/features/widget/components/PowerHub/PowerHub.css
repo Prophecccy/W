@@ -28,11 +28,12 @@
   text-shadow: var(--text-shadow-sharp);
 }
 
-/* ─── Main Row (Ring & Clock) ───────────────────────────── */
+/* ─── Main Row (Progress Ring) ───────────────────────────── */
 .powerhub__main {
   display: flex;
   align-items: center;
-  gap: 24px;
+  justify-content: center; /* Center the ring */
+  padding: 10px 0;
 }
 
 .powerhub__ring-container {
@@ -44,7 +45,6 @@
 
 .powerhub__ring {
   transform: rotate(-90deg);
-  /* Ghost Elevation: Shape Depth */
   filter: var(--drop-shadow-sharp);
 }
 
@@ -62,15 +62,6 @@
   font-weight: 600;
   color: var(--accent);
   text-shadow: var(--text-shadow-glow);
-}
-
-.powerhub__clock {
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  color: #fff;
-  /* Ghost Elevation: Sharp text depth */
-  text-shadow: 0 2px 10px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.5);
 }
 
 /* ─── Strikes Row ───────────────────────────────────────── */

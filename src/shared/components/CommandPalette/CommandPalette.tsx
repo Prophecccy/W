@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   ListChecks,
-  Clock,
+
   BarChart3,
   Settings,
   Search,
@@ -95,14 +95,7 @@ export function CommandPalette({
         action: () => { navigate("/todos"); onClose(); },
         keywords: ["tasks", "todos", "list", "todo"],
       },
-      {
-        id: "page-clock",
-        label: "Clock",
-        icon: Clock,
-        category: "pages",
-        action: () => { navigate("/clock"); onClose(); },
-        keywords: ["clock", "alarm", "timer", "stopwatch", "time"],
-      },
+
       {
         id: "page-analytics",
         label: "Analytics",

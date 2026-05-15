@@ -108,7 +108,7 @@ export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest }: Habit
     <div className="habit-detail-overlay" onClick={onClose}>
       <div className="habit-detail-panel" onClick={(e) => e.stopPropagation()}>
         <div className="habit-detail__header">
-          <h2 className="t-h2">[ {habit.title.toUpperCase()} ]</h2>
+          <h2 className="t-display">[ {habit.title.toUpperCase()} ]</h2>
           <button className="habit-detail__close" onClick={onClose}>
             <LucideIcon name="X" size={24} />
           </button>
@@ -238,7 +238,7 @@ export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest }: Habit
                   disabled={isSaving || (title === habit.title && desc === habit.description)}
                   style={{ color: title !== habit.title || desc !== habit.description ? habit.color : 'inherit' }}
                 >
-                  {isSaving ? "SAVING..." : "[ SAVE EDITS ]"}
+                  {isSaving ? "[ SAVING... ]" : "[ SAVE EDITS ]"}
                 </button>
               </div>
             </div>

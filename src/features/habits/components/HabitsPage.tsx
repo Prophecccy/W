@@ -206,8 +206,7 @@ export function HabitsPage() {
   }
 
   return (
-    <div className="habits-page" style={{ padding: "24px" }}>
-      <h1 className="t-display" style={{ textAlign: 'center', marginBottom: 'var(--spacing-xl)' }}>[ HABITS ]</h1>
+    <div className="habits-page" style={{ padding: "0 24px 24px 24px" }}>
       <div className="habits-page__controls" style={{ justifyContent: 'flex-end', marginBottom: 'var(--spacing-xl)' }}>
         <div className="habits-page__layout-toggle">
             <button 

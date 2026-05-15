@@ -13,10 +13,8 @@ import { applyPunishment } from "../features/strikes/services/punishmentService"
 import { processGap, GapProcessorResult } from "../features/strikes/services/gapProcessor";
 import { PunishmentChoice } from "../features/strikes/types";
 import { useKeyboardShortcuts } from "../shared/hooks/useKeyboardShortcuts";
-import { initAlarmScheduler } from "../features/clock/services/alarmScheduler";
-import { initTimerScheduler } from "../features/clock/services/timerScheduler";
+
 import { useAuthContext } from "../features/auth/context";
-import { getUserDoc } from "../features/auth/services/userService";
 import { OnboardingPage } from "../features/auth/components/OnboardingPage";
 import { UserProvider, useUserStore } from "../shared/stores/userStore";
 import { User } from "../shared/types";
@@ -147,10 +145,7 @@ function LayoutInner() {
   const { showToast } = useToast();
   
   useEffect(() => {
-    try {
-      initAlarmScheduler();
-      initTimerScheduler();
-    } catch(_e) { /* Not in Tauri */ }
+
 
     // Initialize the updater once globally
     initUpdater();
@@ -363,20 +358,17 @@ function LayoutInner() {
     return (
       <OnboardingPage
         onComplete={async () => {
+          // 1. Reload the user store to fetch the newly created doc
           await userStore.reload();
+          
+          // 2. Local sync of accent color if available
           const doc = userStore.userDoc;
           if (doc) {
-            setUserDoc(doc);
             document.documentElement.style.setProperty("--accent", doc.aesthetics.desktop.accentColor);
           }
-          // Re-fetch directly to ensure fresh data
-          const freshDoc = await getUserDoc(user!.uid);
-          if (freshDoc) {
-            userStore.setUserDoc(freshDoc);
-            setUserDoc(freshDoc);
-            document.documentElement.style.setProperty("--accent", freshDoc.aesthetics.desktop.accentColor);
-            setPhase("processing");
-          }
+          
+          // 3. Transition to processing to run the gap processor
+          setPhase("processing");
         }}
       />
     );
@@ -438,7 +430,7 @@ function LayoutInner() {
             transition={{ duration: 0.15, ease: "easeInOut" }}
             style={{ width: "100%", height: "100%" }}
           >
-            <Outlet context={{ userDoc, gapResult, needsCalibration: userStore.needsCalibration, dismissCalibration: userStore.dismissCalibration }} />
+            <Outlet context={{ userDoc, gapResult }} />
           </motion.div>
         </AnimatePresence>
       </main>

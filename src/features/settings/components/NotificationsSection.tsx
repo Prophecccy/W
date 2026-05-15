@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuthContext } from "../../auth/context";
 import { getUserDoc, updateUserDoc } from "../../auth/services/userService";
 import { useToast } from "../../../shared/components/Toast/Toast";
-import { Bell, BellOff, Moon, AlertTriangle, Lock, BarChart3, Timer } from "lucide-react";
+import { Bell, BellOff, Moon, AlertTriangle, Lock, BarChart3, BrainCircuit } from "lucide-react";
 
 interface NotifToggle {
   key: string;
@@ -15,7 +15,8 @@ const TOGGLES: NotifToggle[] = [
   { key: "strikeWarnings", label: "Strike Warnings", icon: <AlertTriangle size={14} strokeWidth={1.5} /> },
   { key: "lockoutAlert", label: "Lockout Alert", icon: <Lock size={14} strokeWidth={1.5} /> },
   { key: "weeklySummary", label: "Weekly Summary", icon: <BarChart3 size={14} strokeWidth={1.5} /> },
-  { key: "timeLeftNudges", label: "Time Left Nudges", icon: <Timer size={14} strokeWidth={1.5} /> },
+
+  { key: "predictiveWarnings", label: "Predictive Warnings", icon: <BrainCircuit size={14} strokeWidth={1.5} /> },
 ];
 
 export function NotificationsSection() {
@@ -27,7 +28,8 @@ export function NotificationsSection() {
     strikeWarnings: true,
     lockoutAlert: true,
     weeklySummary: true,
-    timeLeftNudges: true,
+
+    predictiveWarnings: true,
   });
   const [loaded, setLoaded] = useState(false);
 
@@ -41,7 +43,8 @@ export function NotificationsSection() {
             strikeWarnings: doc.settings.strikeWarnings,
             lockoutAlert: doc.settings.lockoutAlert,
             weeklySummary: doc.settings.weeklySummary,
-            timeLeftNudges: (doc.settings as any).timeLeftNudges ?? true,
+
+            predictiveWarnings: (doc.settings as any).predictiveWarnings ?? true,
           });
           setLoaded(true);
         }

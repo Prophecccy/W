@@ -10,9 +10,10 @@ export interface Settings {
   lockoutAlert: boolean;
   weeklySummary: boolean;
   completionSound: boolean;
+  predictiveWarnings: boolean;
   lowGraphicsMode: boolean;
-  wakeUpTime?: string;  // "HH:MM" e.g. "07:00" — optional for legacy users
-  bedTime?: string;     // "HH:MM" e.g. "23:00" — optional for legacy users
+  wakeUpTime: string; // e.g. "07:00"
+  bedTime: string; // e.g. "23:00"
 }
 
 export interface Aesthetics {
@@ -34,6 +35,7 @@ export interface User {
   photoURL: string | null;
   createdAt: number;
   lastActiveDate: string; // "YYYY-MM-DD"
+  hasOnboarded: boolean;
   settings: Settings;
   aesthetics: Aesthetics;
   wallpapers: Wallpapers;

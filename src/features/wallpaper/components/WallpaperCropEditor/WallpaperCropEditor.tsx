@@ -107,7 +107,6 @@ export function WallpaperCropEditor({ imageFile, onConfirm, onCancel }: Wallpape
           {/* Widget content skeleton */}
           <div className="crop-editor__skeleton">
             <div className="crop-editor__sk-header">
-              <div className="crop-editor__sk-clock" />
               <div className="crop-editor__sk-ring" />
             </div>
             <div className="crop-editor__sk-cards">

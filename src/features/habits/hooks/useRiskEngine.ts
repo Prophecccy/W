@@ -6,7 +6,7 @@
 // OS notifications when a habit crosses the 85% threshold.
 // ─────────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Habit, HabitLog } from "../types";
 import { calculateRisk, RiskResult } from "../utils/heuristicEngine";
 import { getLogRange } from "../services/logService";
@@ -14,6 +14,7 @@ import { isHabitScheduledToday } from "../utils/scheduleEngine";
 import { getToday, subtractDays } from "../../../shared/utils/dateUtils";
 import { sendNotification } from "../../../shared/services/notificationService";
 import { useUserStore } from "../../../shared/stores/userStore";
+import { getRandomNudge } from "../utils/riskDialogue";
 
 // ─── Constants ────────────────────────────────────────────────────
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -23,6 +24,24 @@ const LOOKBACK_DAYS = 30;               // historical window
 export interface RiskScoreMap {
   [habitId: string]: number; // habitId → 0–100 score
 }
+
+// ─── Persistence Helpers ──────────────────────────────────────────
+const getWarningKey = () => `w_risk_warnings_${getToday()}`;
+
+const hasWarned = (habitId: string) => {
+  const key = getWarningKey();
+  const warnedIds = JSON.parse(localStorage.getItem(key) || "[]");
+  return warnedIds.includes(habitId);
+};
+
+const markWarned = (habitId: string) => {
+  const key = getWarningKey();
+  const warnedIds = JSON.parse(localStorage.getItem(key) || "[]");
+  if (!warnedIds.includes(habitId)) {
+    warnedIds.push(habitId);
+    localStorage.setItem(key, JSON.stringify(warnedIds));
+  }
+};
 
 /**
  * Polls every 5 minutes, calculates risk scores for all uncompleted
@@ -38,19 +57,6 @@ export function useRiskEngine(
 ): RiskScoreMap {
   const { userDoc } = useUserStore();
   const [riskScores, setRiskScores] = useState<RiskScoreMap>({});
-
-  // Track which habits have already fired a notification today
-  const hasWarnedToday = useRef<Set<string>>(new Set());
-  const todayRef = useRef<string>(getToday());
-
-  // Reset warned set at day boundary
-  useEffect(() => {
-    const currentDay = getToday();
-    if (currentDay !== todayRef.current) {
-      hasWarnedToday.current.clear();
-      todayRef.current = currentDay;
-    }
-  });
 
   // ─── Core calculation cycle ─────────────────────────────────────
   const runCycle = useCallback(async () => {
@@ -101,13 +107,29 @@ export function useRiskEngine(
       // 4. Fire notification if threshold crossed and not yet warned
       if (
         result.score >= NOTIFICATION_THRESHOLD &&
-        !hasWarnedToday.current.has(habit.id)
+        !hasWarned(habit.id)
       ) {
-        hasWarnedToday.current.add(habit.id);
-        sendNotification(
-          "⚠️ Statistical Anomaly",
-          `High probability of Strike on "${habit.title}". Risk: ${result.score}%. Execute now.`
-        ).catch(() => {}); // non-critical
+        markWarned(habit.id);
+
+        // Evaluate scenario
+        const [rh, rm] = resetTime.split(":").map(Number);
+        const resetDate = new Date(now);
+        resetDate.setHours(rh, rm, 0, 0);
+        if (now > resetDate) resetDate.setDate(resetDate.getDate() + 1);
+        const hoursToReset = (resetDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+        const isLate = hoursToReset <= 3;
+        const isHighLoad = uncompleted.length > 4;
+
+        let scenario: "lateTime" | "highLoad" | "generalRisk" = "generalRisk";
+        if (isLate) scenario = "lateTime";
+        else if (isHighLoad) scenario = "highLoad";
+
+        const nudge = getRandomNudge(scenario, habit.title);
+
+        if (userDoc.settings.notifications && userDoc.settings.predictiveWarnings !== false) {
+          sendNotification("[ W: STRIKE RISK ]", nudge).catch(() => {}); // non-critical
+        }
       }
     }
 

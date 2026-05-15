@@ -126,9 +126,23 @@ export function TodosPage() {
   }
 
   return (
-    <div className="todos-page" style={{ padding: "24px", maxWidth: "800px", margin: "0 auto", height: "100%", display: "flex", flexDirection: "column", gap: "32px", overflowY: "auto" }}>
-      <h1 className="t-display" style={{ textAlign: 'center', marginBottom: 'var(--spacing-xl)' }}>[ TODOS ]</h1>
-      <div className="habits-page__controls" style={{ justifyContent: 'flex-end', marginBottom: 'var(--spacing-xl)' }}>
+    <div className="todos-page" style={{ 
+      height: "100%", 
+      display: "flex", 
+      flexDirection: "column", 
+      alignItems: "stretch",
+      overflow: "hidden" 
+    }}>
+      <header className="habits-page__controls" style={{ 
+        display: "flex",
+        justifyContent: 'flex-end', 
+        alignItems: 'flex-start',
+        gap: '16px',
+        width: '100%',
+        padding: "0 24px",
+        marginBottom: '24px',
+        flexShrink: 0
+      }}>
         <div className="habits-page__layout-toggle">
           <button 
             className={`t-label preset-btn ${layoutMode === 'default' ? 'preset-btn--active' : ''}`}
@@ -155,55 +169,61 @@ export function TodosPage() {
         >
           [ + NEW TODO ]
         </button>
-      </div>
+      </header>
 
-      {isLoading ? (
-        <div className="t-meta" style={{ textAlign: "center", marginTop: "40px", color: "var(--text-muted)" }}>...</div>
-      ) : (
-        <>
-          <section>
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {currentTodos.length === 0 ? (
-                <div className="t-meta" style={{ color: "var(--text-muted)", padding: "24px", textAlign: "center", border: "1px dashed var(--border-subtle)" }}>
+      <div className="habits-page__content" style={{ 
+        flex: 1, 
+        display: "flex", 
+        flexDirection: "column",
+        overflowY: "auto",
+        padding: "0 24px 24px 24px"
+      }}>
+        {isLoading ? (
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div className="t-meta" style={{ color: "var(--text-muted)" }}>...</div>
+          </div>
+        ) : (
+          <>
+            {currentTodos.length === 0 ? (
+              <div className="todos-empty-wrapper" style={{ 
+                flex: 1, 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center", 
+                width: "100%" 
+              }}>
+                <div className="t-meta" style={{ 
+                  color: "var(--text-muted)", 
+                  padding: "48px", 
+                  textAlign: "center", 
+                  border: "1px dashed var(--border-subtle)",
+                  width: "100%",
+                  maxWidth: "800px"
+                }}>
                   [ NO ACTIVE TODOS ]
                 </div>
-              ) : (
-                layoutMode === "default" ? (
-                  currentTodos.map(todo => (
-                    <TodoCard 
-                      key={todo.id} 
-                      todo={todo} 
-                      onComplete={() => handleComplete(todo.id)}
-                      onClick={() => handleCardClick(todo.id)}
-                    />
-                  ))
-                ) : (
-                  <div className="habits-grouped">
-                    {groups.map(g => {
-                      const groupTodos = currentTodos.filter(t => t.group === g.id);
-                      if (groupTodos.length === 0) return null;
-                      return (
-                        <HabitGroupHeader key={g.id} title={g.name} count={groupTodos.length}>
-                          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                             {groupTodos.map(todo => (
-                              <TodoCard 
-                                key={todo.id} 
-                                todo={todo} 
-                                onComplete={() => handleComplete(todo.id)}
-                                onClick={() => handleCardClick(todo.id)}
-                              />
-                            ))}
-                          </div>
-                        </HabitGroupHeader>
-                      );
-                    })}
-                    {(() => {
-                       const ungrouped = currentTodos.filter(t => !t.group);
-                       if (ungrouped.length === 0) return null;
-                       return (
-                          <HabitGroupHeader title="UNGROUPED" count={ungrouped.length}>
+              </div>
+            ) : (
+              <div style={{ maxWidth: "800px", margin: "0 auto", width: "100%", display: "flex", flexDirection: "column" }}>
+                <section style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {layoutMode === "default" ? (
+                    currentTodos.map(todo => (
+                      <TodoCard 
+                        key={todo.id} 
+                        todo={todo} 
+                        onComplete={() => handleComplete(todo.id)}
+                        onClick={() => handleCardClick(todo.id)}
+                      />
+                    ))
+                  ) : (
+                    <div className="habits-grouped">
+                      {groups.map(g => {
+                        const groupTodos = currentTodos.filter(t => t.group === g.id);
+                        if (groupTodos.length === 0) return null;
+                        return (
+                          <HabitGroupHeader key={g.id} title={g.name} count={groupTodos.length}>
                             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                               {ungrouped.map(todo => (
+                               {groupTodos.map(todo => (
                                 <TodoCard 
                                   key={todo.id} 
                                   todo={todo} 
@@ -213,64 +233,85 @@ export function TodosPage() {
                               ))}
                             </div>
                           </HabitGroupHeader>
-                       )
-                    })()}
-                  </div>
-                )
-              )}
-            </div>
-          </section>
+                        );
+                      })}
+                      {(() => {
+                         const ungrouped = currentTodos.filter(t => !t.group);
+                         if (ungrouped.length === 0) return null;
+                         return (
+                            <HabitGroupHeader title="UNGROUPED" count={ungrouped.length}>
+                              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                                 {ungrouped.map(todo => (
+                                  <TodoCard 
+                                    key={todo.id} 
+                                    todo={todo} 
+                                    onComplete={() => handleComplete(todo.id)}
+                                    onClick={() => handleCardClick(todo.id)}
+                                  />
+                                ))}
+                              </div>
+                            </HabitGroupHeader>
+                         )
+                      })()}
+                    </div>
+                  )}
+                </section>
 
-          {(futureTodos.length > 0 || intervalHabits.length > 0) && (
-            <section>
-               <h2 className="t-label" style={{ color: "var(--text-muted)", marginBottom: "16px" }}>[ UPCOMING ]</h2>
-               <div style={{ display: "flex", flexDirection: "column", gap: "12px", opacity: 0.6 }}>
-                 {futureTodos.map(todo => (
-                   <TodoCard 
-                     key={todo.id} 
-                     todo={todo} 
-                     onComplete={() => handleComplete(todo.id)}
-                     onClick={() => handleCardClick(todo.id)}
-                   />
-                 ))}
-                 
-                 {intervalHabits.map(habit => (
-                   <div key={habit.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "16px", border: "1px solid var(--border-default)", borderRadius: "4px", background: "var(--bg-elevated)" }}>
-                      <LucideIcon name={habit.icon} size={20} style={{ color: habit.color }} />
-                      <span className="t-body">{habit.title}</span>
-                      <span className="badge t-meta" style={{ marginLeft: "auto" }}>[ DUE {habit.nextDue} ]</span>
-                   </div>
-                 ))}
-               </div>
-            </section>
-          )}
+                <div style={{ display: "flex", flexDirection: "column", gap: "32px", marginTop: "32px" }}>
+                  {(futureTodos.length > 0 || intervalHabits.length > 0) && (
+                    <section>
+                       <h2 className="t-label" style={{ color: "var(--text-muted)", marginBottom: "16px" }}>[ UPCOMING ]</h2>
+                       <div style={{ display: "flex", flexDirection: "column", gap: "12px", opacity: 0.6 }}>
+                         {futureTodos.map(todo => (
+                           <TodoCard 
+                             key={todo.id} 
+                             todo={todo} 
+                             onComplete={() => handleComplete(todo.id)}
+                             onClick={() => handleCardClick(todo.id)}
+                           />
+                         ))}
+                         
+                         {intervalHabits.map(habit => (
+                           <div key={habit.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "16px", border: "1px solid var(--border-default)", borderRadius: "4px", background: "var(--bg-elevated)" }}>
+                              <LucideIcon name={habit.icon} size={20} style={{ color: habit.color }} />
+                              <span className="t-body">{habit.title}</span>
+                              <span className="badge t-meta" style={{ marginLeft: "auto" }}>[ DUE {habit.nextDue} ]</span>
+                           </div>
+                         ))}
+                       </div>
+                    </section>
+                  )}
 
-          {completedTodos.length > 0 && (
-            <section style={{ marginTop: "auto", borderTop: "1px solid var(--border-default)", paddingTop: "16px" }}>
-              <button 
-                onClick={() => setShowCompleted(!showCompleted)}
-                style={{ background: "none", border: "none", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", width: "100%" }}
-                className="t-label"
-              >
-                <LucideIcon name={showCompleted ? "ChevronUp" : "ChevronDown"} size={16} />
-                [ COMPLETED ({completedTodos.length}) ]
-                <span style={{ marginLeft: "auto", opacity: 0.5 }}>AUTO-PURGES AFTER 50</span>
-              </button>
+                  {completedTodos.length > 0 && (
+                    <section style={{ borderTop: "1px solid var(--border-default)", paddingTop: "16px", marginBottom: "32px" }}>
+                      <button 
+                        onClick={() => setShowCompleted(!showCompleted)}
+                        style={{ background: "none", border: "none", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", width: "100%" }}
+                        className="t-label"
+                      >
+                        <LucideIcon name={showCompleted ? "ChevronUp" : "ChevronDown"} size={16} />
+                        [ COMPLETED ({completedTodos.length}) ]
+                        <span style={{ marginLeft: "auto", opacity: 0.5 }}>AUTO-PURGES AFTER 50</span>
+                      </button>
 
-              {showCompleted && (
-                 <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "16px", opacity: 0.5 }}>
-                   {completedTodos.map(todo => (
-                     <div key={todo.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px", border: "1px solid var(--border-subtle)", borderRadius: "4px" }}>
-                       <LucideIcon name="Check" size={16} style={{ color: "var(--text-muted)" }} />
-                       <span className="t-body" style={{ textDecoration: "line-through", color: "var(--text-muted)" }}>{todo.title}</span>
-                     </div>
-                   ))}
-                 </div>
-              )}
-            </section>
-          )}
-        </>
-      )}
+                      {showCompleted && (
+                         <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "16px", opacity: 0.5 }}>
+                           {completedTodos.map(todo => (
+                             <div key={todo.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px", border: "1px solid var(--border-subtle)", borderRadius: "4px" }}>
+                               <LucideIcon name="Check" size={16} style={{ color: "var(--text-muted)" }} />
+                               <span className="t-body" style={{ textDecoration: "line-through", color: "var(--text-muted)" }}>{todo.title}</span>
+                             </div>
+                           ))}
+                         </div>
+                      )}
+                    </section>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {isGroupManagerOpen && (
         <div className="habits-modal-overlay" onClick={() => setIsGroupManagerOpen(false)}>

@@ -64,10 +64,12 @@ export function useLockdown(): UseLockdownReturn {
     async function setupListener() {
       try {
         const { listen } = await import("@tauri-apps/api/event");
+        console.log("[lockdown] Setting up violation event listener...");
         unlisten = await listen<{ app_title: string; matched_rule: string }>(
           "lockdown-violation",
           async (event) => {
             const { app_title, matched_rule } = event.payload;
+            console.log("[lockdown] VIOLATION EVENT RECEIVED:", { app_title, matched_rule });
 
             // 1. Record violation in Firestore
             await recordViolation(app_title, matched_rule);
@@ -79,8 +81,9 @@ export function useLockdown(): UseLockdownReturn {
                 `Lockdown: ${matched_rule}`,
                 "lockdown_violation" as any
               );
+              console.log("[lockdown] Strike issued for:", matched_rule);
             } catch (err) {
-              console.error("Failed to issue lockdown strike:", err);
+              console.error("[lockdown] Failed to issue lockdown strike:", err);
             }
 
             // 3. Flash violation overlay
@@ -115,8 +118,9 @@ export function useLockdown(): UseLockdownReturn {
             reload();
           }
         );
-      } catch {
-        // Not in Tauri
+        console.log("[lockdown] Violation listener registered successfully");
+      } catch (err) {
+        console.error("[lockdown] Failed to setup violation listener:", err);
       }
     }
 

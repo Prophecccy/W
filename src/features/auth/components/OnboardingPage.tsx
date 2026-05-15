@@ -1,54 +1,58 @@
-import { useState } from "react";
+import { useState, FormEvent } from "react";
 import { useAuthContext } from "../context";
-import { createUserDoc, updateUserDoc } from "../services/userService";
-import { TimeTubeSimple } from "../../time-tube/components/TimeTubeSimple/TimeTubeSimple";
+import { createUserDoc } from "../services/userService";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "../../../shared/components/Toast/Toast";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "../../../shared/config/firebase";
 import "./OnboardingPage.css";
 
 interface OnboardingProps {
-  onComplete: () => void;
+  onComplete: () => Promise<void>;
 }
 
 export function OnboardingPage({ onComplete }: OnboardingProps) {
   const { user } = useAuthContext();
-  const [step, setStep] = useState(1);
+  const navigate = useNavigate();
+  const { showToast } = useToast();
   const [resetTime, setResetTime] = useState("04:00");
   const [accent, setAccent] = useState("#5B8DEF");
-  const [wakeTime, setWakeTime] = useState("07:00");
-  const [sleepTime, setSleepTime] = useState("23:00");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const defaultTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  const handleNext = (e: React.FormEvent) => {
+  const handleFinish = async (e: FormEvent) => {
     e.preventDefault();
-    if (step === 1) {
-      setStep(2);
-    } else {
-      handleSubmit();
-    }
-  };
-
-  const handleSubmit = async () => {
     if (!user) return;
 
     setIsSubmitting(true);
     try {
-      await createUserDoc(user.uid, user.email, user.displayName, user.photoURL, {
+      // SINGLE ATOMIC WRITE: createUserDoc uses setDoc (not updateDoc) so it always succeeds
+      const newDoc = await createUserDoc(user.uid, user.email, user.displayName, user.photoURL, {
         dailyResetTime: resetTime,
         timezone: defaultTz,
-        wakeUpTime: wakeTime,
-        bedTime: sleepTime,
       });
-      await updateUserDoc(user.uid, {
-        aesthetics: {
-          widget: { dimIntensity: 0.6, accentColor: accent },
-          mobile: { dimIntensity: 0.6, accentColor: accent },
-          desktop: { dimIntensity: 0.6, accentColor: accent },
-        },
+
+      // Apply chosen accent color to all aesthetics targets
+      await updateDoc(doc(db, "users", user.uid), {
+        "aesthetics.widget.accentColor": accent,
+        "aesthetics.mobile.accentColor": accent,
+        "aesthetics.desktop.accentColor": accent,
       });
-      onComplete();
+
+      console.log("[Onboarding] User doc created successfully:", newDoc.uid);
+
+      // Brief stabilization delay
+      await new Promise((resolve) => setTimeout(resolve, 350));
+
+      // Notify Layout to reload store and transition
+      await onComplete();
+
+      navigate("/");
+      showToast("[ ONBOARDING_COMPLETE ] - Operating parameters established.");
     } catch (error) {
-      console.error(error);
+      console.error("[Onboarding] handleFinish FAILED. Error:", error);
+      showToast("Error establishing preferences. Please try again.");
       setIsSubmitting(false);
     }
   };
@@ -58,104 +62,52 @@ export function OnboardingPage({ onComplete }: OnboardingProps) {
       <div className="onboarding__container">
         <h1 className="t-display">[ WELCOME ]</h1>
         <p className="t-body" style={{ color: "var(--text-secondary)", marginBottom: 32 }}>
-          {step === 1 ? "Let's configure your core preferences." : "Establish your operating cycle."}
+          Let's configure your core preferences.
         </p>
 
-        <form className="onboarding__form" onSubmit={handleNext}>
-          {step === 1 && (
-            <>
-              <div className="form-group">
-                <label className="t-label">ACCENT COLOR</label>
-                <div className="color-options">
-                   {["#5B8DEF", "#E8736C", "#4ade80", "#c084fc", "#fbbf24"].map((c) => (
-                      <button
-                         key={c}
-                         type="button"
-                         className={`color-btn ${accent === c ? 'color-btn--active' : ''}`}
-                         style={{ background: c }}
-                         onClick={() => setAccent(c)}
-                      />
-                   ))}
-                   <input 
-                      type="color" 
-                      className="color-picker" 
-                      value={accent} 
-                      onChange={(e) => setAccent(e.target.value)} 
-                   />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="t-label">DAILY RESET TIME</label>
-                <p className="t-meta" style={{ marginBottom: 8, textTransform: "none", color: "var(--text-muted)" }}>
-                   When do your habits reset? (Default: 4:00 AM)
-                </p>
-                <input 
-                  type="time" 
-                  className="onboarding__input t-data"
-                  value={resetTime}
-                  onChange={(e) => setResetTime(e.target.value)}
-                  required
-                />
-              </div>
-            </>
-          )}
-
-          {step === 2 && (
-            <div style={{ display: "flex", gap: "32px", alignItems: "center", marginBottom: "16px" }}>
-              <div style={{ flex: 1 }}>
-                <div className="form-group">
-                  <label className="t-label">[ WAKE_TIME ]</label>
-                  <p className="t-meta" style={{ marginBottom: 8, textTransform: "none", color: "var(--text-muted)" }}>
-                    Required for Waking Fuel calibration.
-                  </p>
-                  <input 
-                    type="time" 
-                    className="onboarding__input t-data"
-                    value={wakeTime}
-                    onChange={(e) => setWakeTime(e.target.value)}
-                    required
+        <form className="onboarding__form" onSubmit={handleFinish}>
+          <div className="form-group">
+            <label className="t-label">ACCENT COLOR</label>
+            <div className="color-options">
+               {["#5B8DEF", "#E8736C", "#4ade80", "#c084fc", "#fbbf24"].map((c) => (
+                  <button
+                     key={c}
+                     type="button"
+                     className={`color-btn ${accent === c ? 'color-btn--active' : ''}`}
+                     style={{ background: c }}
+                     onClick={() => setAccent(c)}
                   />
-                </div>
-
-                <div className="form-group">
-                  <label className="t-label">[ SLEEP_TIME ]</label>
-                  <p className="t-meta" style={{ marginBottom: 8, textTransform: "none", color: "var(--text-muted)" }}>
-                    Required for Waking Fuel calibration.
-                  </p>
-                  <input 
-                    type="time" 
-                    className="onboarding__input t-data"
-                    value={sleepTime}
-                    onChange={(e) => setSleepTime(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-              <div style={{ width: "60px", height: "180px", position: "relative", flexShrink: 0 }}>
-                <TimeTubeSimple wakeUpTime={wakeTime} bedTime={sleepTime} accentColor={accent} />
-              </div>
+               ))}
+               <input 
+                  type="color" 
+                  className="color-picker" 
+                  value={accent} 
+                  onChange={(e) => setAccent(e.target.value)} 
+               />
             </div>
-          )}
+          </div>
 
-          <div style={{ display: "flex", gap: "16px", marginTop: "16px" }}>
-            {step === 2 && (
-              <button 
-                type="button" 
-                className="onboarding__submit t-label"
-                style={{ background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-secondary)", width: "auto", padding: "0 24px" }}
-                onClick={() => setStep(1)}
-              >
-                [ BACK ]
-              </button>
-            )}
+          <div className="form-group">
+            <label className="t-label">DAILY RESET TIME</label>
+            <p className="t-meta" style={{ marginBottom: 8, textTransform: "none", color: "var(--text-muted)" }}>
+               When do your habits reset? (Default: 4:00 AM)
+            </p>
+            <input 
+              type="time" 
+              className="onboarding__input t-data"
+              value={resetTime}
+              onChange={(e) => setResetTime(e.target.value)}
+              required
+            />
+          </div>
+
+          <div style={{ marginTop: "32px" }}>
             <button 
                type="submit" 
                className="onboarding__submit t-label"
-               style={{ flex: 1 }}
-               disabled={isSubmitting || (step === 2 && (!wakeTime || !sleepTime))}
+               disabled={isSubmitting}
             >
-              {isSubmitting ? "[ SAVING... ]" : step === 1 ? "[ CONTINUE ]" : "[ FINISH ]"}
+              {isSubmitting ? "[ SAVING... ]" : "[ INITIALIZE ]"}
             </button>
           </div>
         </form>
@@ -163,3 +115,4 @@ export function OnboardingPage({ onComplete }: OnboardingProps) {
     </div>
   );
 }
+

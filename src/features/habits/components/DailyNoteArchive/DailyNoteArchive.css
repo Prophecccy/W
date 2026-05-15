@@ -1,0 +1,104 @@
+.daily-note-archive-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--z-overlay);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 1000;
+}
+
+.daily-note-archive-panel {
+  width: 100%;
+  max-width: 480px;
+  height: 100%;
+  background: rgba(12, 13, 15, 0.75);
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+}
+
+.daily-note-archive__header {
+  padding: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.daily-note-archive__close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all var(--transition-fast);
+}
+
+.daily-note-archive__close:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-surface);
+}
+
+.daily-note-archive__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Tactical scrollbar for long feeds */
+.daily-note-archive__content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.daily-note-archive__content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.daily-note-archive__content::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 3px;
+}
+
+.daily-note-archive__content::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+.daily-note-archive__list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.daily-note-archive__card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.daily-note-archive__card-date {
+  color: var(--text-secondary);
+  letter-spacing: 1px;
+}
+
+.daily-note-archive__card-text {
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}

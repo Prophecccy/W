@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { User as FirebaseUser } from "firebase/auth";
+import { User as FirebaseUser, signInAnonymously } from "firebase/auth";
+import { auth } from "../../../shared/config/firebase";
 import { signInWithGoogle, signOut, onAuthStateChanged } from "../services/authService";
 
 export function useAuth() {
@@ -49,19 +50,30 @@ export function useAuth() {
 
   const clearError = useCallback(() => setError(null), []);
 
-  const devSkip = useCallback(() => {
+  const devSkip = useCallback(async () => {
     if (window.location.hostname === "localhost") {
-      const mockUser = { uid: "dev-user", email: "dev@local.host", displayName: "Dev Admin", photoURL: "" } as FirebaseUser;
-      localStorage.setItem("w-auth-mock", "true");
-      setUser(mockUser);
+      try {
+        // Use real Firebase Anonymous Auth — creates a genuine auth session
+        // so Firestore operations receive a valid request.auth token.
+        const result = await signInAnonymously(auth);
+        localStorage.setItem("w-auth-mock", "true");
+        console.log("[W Auth] Dev-skip: anonymous sign-in successful, uid:", result.user.uid);
+        // onAuthStateChanged listener will pick up the user automatically
+      } catch (err) {
+        console.error("[W Auth] Dev-skip anonymous sign-in failed:", err);
+      }
     }
   }, []);
 
   useEffect(() => {
-    if (window.location.hostname === "localhost" && localStorage.getItem("w-auth-mock")) {
-       setUser({ uid: "dev-user", email: "dev@local.host", displayName: "Dev Admin", photoURL: "" } as FirebaseUser);
+    // Auto-restore: if previously dev-skipped and no user yet, sign in anonymously again
+    if (window.location.hostname === "localhost" && localStorage.getItem("w-auth-mock") && !user && !loading) {
+      signInAnonymously(auth).catch((err) => {
+        console.error("[W Auth] Dev-skip auto-restore failed:", err);
+        localStorage.removeItem("w-auth-mock");
+      });
     }
-  }, []);
+  }, [user, loading]);
 
   return {
     user,

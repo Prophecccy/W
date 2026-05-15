@@ -43,7 +43,7 @@ export const HabitDeepDive: React.FC<Props> = ({ habit, onClose }) => {
   return (
     <div className="habit-deep-dive">
       <div className="hdd-header">
-        <h2 className="t-display">{habit.title}</h2>
+        <h2 className="t-display">[ {habit.title.toUpperCase()} ]</h2>
         <button onClick={onClose} className="btn-close"><X size={24} /></button>
       </div>
 

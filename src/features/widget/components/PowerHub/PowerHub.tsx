@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import './PowerHub.css';
 
 interface PowerHubProps {
@@ -10,17 +9,6 @@ export function PowerHub({
   completedCount,
   totalScheduled,
 }: PowerHubProps) {
-  const [time, setTime] = useState(new Date());
-
-  // Live clock — update every second
-  useEffect(() => {
-    const interval = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const hours = time.getHours().toString().padStart(2, '0');
-  const minutes = time.getMinutes().toString().padStart(2, '0');
-  const seconds = time.getSeconds().toString().padStart(2, '0');
 
   // Progress ring calculations
   const radius = 22; // smaller radius to match image proportion
@@ -36,7 +24,7 @@ export function PowerHub({
         <span className="powerhub__t-minus">T-MINUS 01:45</span>
       </div>
 
-      {/* Main Row: Ring and Clock */}
+      {/* Main Row: Progress Ring */}
       <div className="powerhub__main">
         <div className="powerhub__ring-container">
           <svg className="powerhub__ring" width="100%" height="100%" viewBox="0 0 52 52">
@@ -60,10 +48,6 @@ export function PowerHub({
           <div className="powerhub__ring-center">
             {Math.round(progress * 100)}%
           </div>
-        </div>
-
-        <div className="powerhub__clock">
-          {hours}:{minutes}:{seconds}
         </div>
       </div>
 

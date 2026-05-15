@@ -47,31 +47,57 @@ pub struct ViolationPayload {
 
 #[cfg(target_os = "windows")]
 mod platform {
-    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Foundation::{CloseHandle, HWND, MAX_PATH};
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetForegroundWindow, GetWindowTextW,
+        GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
     };
+    use windows::Win32::System::Threading::{
+        OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
+    };
+    use windows::core::PWSTR;
 
-    /// Gets the title of the currently focused window.
-    /// Returns None if no window is focused or the title is empty.
-    pub fn get_foreground_title() -> Option<String> {
+    /// Gets the exe name and title of the currently focused window.
+    /// Returns None if no window is focused or both are empty.
+    pub fn get_foreground_info() -> Option<(String, String)> {
         unsafe {
             let hwnd: HWND = GetForegroundWindow();
+            // HWND wraps a *mut c_void in windows crate 0.58
             if hwnd.0.is_null() {
                 return None;
             }
 
-            let mut buf = [0u16; 512];
-            let len = GetWindowTextW(hwnd, &mut buf);
-            if len == 0 {
-                return None;
+            let mut title_buf = [0u16; 512];
+            let len = GetWindowTextW(hwnd, &mut title_buf);
+            let title = if len == 0 {
+                String::new()
+            } else {
+                String::from_utf16_lossy(&title_buf[..len as usize])
+            };
+
+            let mut pid: u32 = 0;
+            GetWindowThreadProcessId(hwnd, Some(&mut pid));
+            
+            let mut exe_name = String::new();
+            if pid != 0 {
+                if let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+                    let mut exe_buf = [0u16; MAX_PATH as usize];
+                    let mut exe_len = MAX_PATH;
+                    if QueryFullProcessImageNameW(handle, PROCESS_NAME_WIN32, PWSTR(exe_buf.as_mut_ptr()), &mut exe_len).is_ok() {
+                        let full_path = String::from_utf16_lossy(&exe_buf[..exe_len as usize]);
+                        if let Some(idx) = full_path.rfind('\\') {
+                            exe_name = full_path[idx + 1..].to_string();
+                        } else {
+                            exe_name = full_path;
+                        }
+                    }
+                    let _ = CloseHandle(handle);
+                }
             }
 
-            let title = String::from_utf16_lossy(&buf[..len as usize]);
-            if title.is_empty() {
+            if title.is_empty() && exe_name.is_empty() {
                 None
             } else {
-                Some(title)
+                Some((exe_name, title))
             }
         }
     }
@@ -79,7 +105,7 @@ mod platform {
 
 #[cfg(not(target_os = "windows"))]
 mod platform {
-    pub fn get_foreground_title() -> Option<String> {
+    pub fn get_foreground_info() -> Option<(String, String)> {
         None
     }
 }
@@ -94,16 +120,36 @@ fn start_polling(app_handle: tauri::AppHandle) {
         *guard = Some(HashMap::new());
     }
 
+    // Log the current blocklist for diagnostics
+    if let Ok(guard) = BLOCKLIST.lock() {
+        eprintln!("[lockdown] Polling started with {} rules: {:?}", guard.len(), *guard);
+    }
+
     thread::spawn(move || {
+        let mut tick_count: u64 = 0;
         while LOCKDOWN_RUNNING.load(Ordering::SeqCst) {
-            if let Some(title) = platform::get_foreground_title() {
+            tick_count += 1;
+
+            if let Some((exe_name, title)) = platform::get_foreground_info() {
+                // Log every 15th tick (~30 seconds) to avoid spam
+                if tick_count % 15 == 1 {
+                    eprintln!("[lockdown] tick #{} — foreground: [{}] \"{}\"", tick_count, exe_name, title);
+                }
+
                 let title_lower = title.to_lowercase();
+                let exe_lower = exe_name.to_lowercase();
 
                 // Check against blocklist
                 let matched_rule = {
                     if let Ok(guard) = BLOCKLIST.lock() {
                         guard.iter().find(|rule| {
-                            title_lower.contains(rule.as_str())
+                            // If rule ends in .exe, match exactly against process name
+                            if rule.ends_with(".exe") {
+                                exe_lower == rule.as_str()
+                            } else {
+                                // Otherwise, match substring against window title
+                                title_lower.contains(rule.as_str())
+                            }
                         }).cloned()
                     } else {
                         None
@@ -111,6 +157,9 @@ fn start_polling(app_handle: tauri::AppHandle) {
                 };
 
                 if let Some(rule) = matched_rule {
+                    let display_name = if rule.ends_with(".exe") { exe_name.clone() } else { title.clone() };
+                    eprintln!("[lockdown] MATCH: \"{}\" matched rule \"{}\"", display_name, rule);
+
                     // Check cooldown — only fire if 30s+ since last violation for this app
                     let should_fire = {
                         if let Ok(mut guard) = COOLDOWNS.lock() {
@@ -122,6 +171,7 @@ fn start_polling(app_handle: tauri::AppHandle) {
                                         map.insert(key, now);
                                         true
                                     } else {
+                                        eprintln!("[lockdown] cooldown active for \"{}\" — skipping", rule);
                                         false
                                     }
                                 } else {
@@ -138,10 +188,14 @@ fn start_polling(app_handle: tauri::AppHandle) {
 
                     if should_fire {
                         let payload = ViolationPayload {
-                            app_title: title,
-                            matched_rule: rule,
+                            app_title: display_name,
+                            matched_rule: rule.clone(),
                         };
-                        let _ = app_handle.emit("lockdown-violation", payload);
+                        eprintln!("[lockdown] EMITTING lockdown-violation for \"{}\"", rule);
+                        match app_handle.emit("lockdown-violation", payload) {
+                            Ok(_) => eprintln!("[lockdown] Event emitted successfully"),
+                            Err(e) => eprintln!("[lockdown] Event emit FAILED: {}", e),
+                        }
                     }
                 }
             }
@@ -149,6 +203,7 @@ fn start_polling(app_handle: tauri::AppHandle) {
             // Poll every 2 seconds — lightweight, single Win32 call
             thread::sleep(Duration::from_secs(2));
         }
+        eprintln!("[lockdown] Polling thread stopped");
     });
 }
 
@@ -159,6 +214,7 @@ fn stop_polling() {
         *guard = None;
     }
     thread::sleep(Duration::from_millis(100));
+    eprintln!("[lockdown] Monitor stopped");
 }
 
 // ─── Tauri Commands ──────────────────────────────────────────────
@@ -166,6 +222,8 @@ fn stop_polling() {
 /// Start lockdown with app handle for event emission.
 #[tauri::command]
 pub fn start_lockdown_monitor(app: tauri::AppHandle, blocklist: Vec<String>) -> Result<(), String> {
+    eprintln!("[lockdown] start_lockdown_monitor called with {} items: {:?}", blocklist.len(), blocklist);
+
     // Stop any existing session first
     if LOCKDOWN_RUNNING.load(Ordering::SeqCst) {
         stop_polling();
@@ -183,6 +241,7 @@ pub fn start_lockdown_monitor(app: tauri::AppHandle, blocklist: Vec<String>) -> 
 /// Stop lockdown monitoring.
 #[tauri::command]
 pub fn stop_lockdown_monitor() -> Result<(), String> {
+    eprintln!("[lockdown] stop_lockdown_monitor called");
     stop_polling();
     Ok(())
 }
@@ -190,6 +249,7 @@ pub fn stop_lockdown_monitor() -> Result<(), String> {
 /// Update the blocklist without restarting the polling thread.
 #[tauri::command]
 pub fn update_lockdown_blocklist(blocklist: Vec<String>) -> Result<(), String> {
+    eprintln!("[lockdown] update_lockdown_blocklist called with {} items", blocklist.len());
     if let Ok(mut guard) = BLOCKLIST.lock() {
         *guard = blocklist.into_iter().map(|s| s.to_lowercase()).collect();
     }

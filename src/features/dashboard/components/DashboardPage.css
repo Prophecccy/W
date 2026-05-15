@@ -2,6 +2,8 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  padding: 0 24px 24px 24px; /* Moved from inline style */
 }
 
 .dashboard-loading {
@@ -22,42 +24,30 @@
 
 .dashboard-page__content {
   flex-grow: 1;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 
-.layout-with-tube {
-  display: flex;
+.dashboard-grid {
+  flex-grow: 1;
+  display: grid;
+  grid-template-columns: max-content 1fr 1fr;
   gap: 32px;
-  height: 100%;
-}
-
-.dashboard-tube-column {
-  flex-shrink: 0;
-  width: 60px; /* Wider to accommodate 50px TimeTube */
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  /* Remove border shadow for Ghost Elevation */
-  box-shadow: none;
-}
-
-.dashboard-split {
-  display: flex;
-  gap: 32px;
-  flex: 1; /* take the rest of the layout-with-tube space */
-  height: 100%;
+  min-height: 0;
+  margin-bottom: 16px; /* Reduced margin */
 }
 
 .dashboard-column {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  min-height: 0;
+  height: 100%;
 }
 
 .dashboard-column__header {
-  margin-bottom: 24px;
+  margin-bottom: 8px; /* Reduced since the gap is handled by the column flex */
   color: var(--text-muted);
   padding-bottom: 8px;
   text-shadow: var(--text-shadow-sharp);
@@ -80,36 +70,104 @@
 }
 
 .dashboard-list {
+  flex-grow: 1;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow-y: auto;
+  padding-right: 8px;
 }
 
-.dashboard-empty {
+.dashboard-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.dashboard-list::-webkit-scrollbar-thumb {
+  background: var(--bg-elevated);
+  border-radius: 4px;
+}
+
+.dashboard-list::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+.dashboard-empty--tactical {
+  padding: 24px;
+  border: 1px dashed var(--bg-elevated);
+  color: var(--text-muted);
   text-align: center;
-  padding: 48px 0;
-  border-radius: 8px;
-  box-shadow: none;
-  text-shadow: var(--text-shadow-sharp);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.01);
 }
 
-.dashboard-calibration-banner {
+/* Sleep Tube Styles */
+.sleep-tube {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
-  margin: 0 0 16px 0;
-  border: none !important;
-  background: transparent !important;
-  text-shadow: var(--text-shadow-sharp);
+  height: 100%;
+  max-height: 400px;
+  flex-shrink: 0;
+  padding-right: 42px; /* Space for markers */
 }
 
-.dashboard-calibration-banner .btn-calibrate {
-  background: transparent;
-  border: none;
-  color: var(--accent);
-  padding: 4px 12px;
-  cursor: pointer;
-  whiteSpace: nowrap;
-  text-shadow: var(--text-shadow-glow);
+.sleep-tube__track {
+  width: 32px;
+  flex-grow: 1;
+  background: var(--bg-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.sleep-tube__marker {
+  position: absolute;
+  left: 100%;
+  display: flex;
+  align-items: center;
+  transform: translateY(-50%);
+  width: 40px;
+  pointer-events: none;
+}
+
+.sleep-tube__tick {
+  width: 6px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.3);
+  margin-right: 6px;
+}
+
+.sleep-tube__marker span {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.sleep-tube__fill {
+  width: 100%;
+  background: var(--accent);
+  transition: height 0.6s cubic-bezier(0.19, 1, 0.22, 1), background-color 0.5s ease;
+  box-shadow: 0 0 10px var(--accent);
+  border-radius: 2px;
+}
+
+.sleep-tube__fill.is-sleeping {
+  background: var(--text-muted);
+  box-shadow: none;
+  height: 0%;
+}
+
+.sleep-tube__label {
+  color: var(--text-muted);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.dashboard-page__footer {
+  flex-shrink: 0;
+  margin-top: 16px;
 }

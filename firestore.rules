@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── User documents ─────────────────────────────────────────────
+    match /users/{uid} {
+      // READ: any authenticated user (including anonymous) can read their own doc
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      // CREATE: authenticated user can create their own doc
+      // Uses request.resource.data.uid (the INCOMING data) since no doc exists yet.
+      // This handles both Google Auth and Anonymous Auth (dev-skip).
+      allow create: if request.auth != null
+                    && request.auth.uid == uid
+                    && request.resource.data.uid == uid;
+
+      // UPDATE / DELETE: owner only
+      allow update, delete: if request.auth != null && request.auth.uid == uid;
+
+      // ── All subcollections (habits, todos, logs, groups, etc.) ───
+      match /{subcollection}/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+  }
+}

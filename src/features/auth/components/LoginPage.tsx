@@ -1,8 +1,11 @@
 import { useAuthContext } from "../context";
 import { Navigate } from "react-router-dom";
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import "./LoginPage.css";
 
 export function LoginPage() {
+  const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__;
+  const appWindow = isTauri ? getCurrentWindow() : null;
   const { user, loading, error, signingIn, signIn, clearError, devSkip } = useAuthContext();
 
   if (loading) {
@@ -19,6 +22,16 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
+      <div className="login-page__controls" data-tauri-drag-region>
+        <button 
+          className="login-page__close-btn t-label" 
+          onClick={() => appWindow?.close()}
+          data-tauri-drag-region="false"
+        >
+          [ X ]
+        </button>
+      </div>
+
       <div className="login-page__content">
         <h1 className="login-page__logo t-display">[ W ]</h1>
 

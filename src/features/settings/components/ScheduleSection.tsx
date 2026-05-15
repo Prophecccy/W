@@ -39,8 +39,8 @@ export function ScheduleSection() {
           setResetTime(doc.settings.dailyResetTime);
           setWeeklyDay(doc.settings.weeklyResetDay);
           setTimezone(doc.settings.timezone);
-          setWakeUpTime(doc.settings.wakeUpTime ?? "07:00");
-          setBedTime(doc.settings.bedTime ?? "23:00");
+          setWakeUpTime(doc.settings.wakeUpTime || "07:00");
+          setBedTime(doc.settings.bedTime || "23:00");
           setLoaded(true);
         }
       });
@@ -85,11 +85,11 @@ export function ScheduleSection() {
           />
         </div>
 
-        {/* Wake-Up Time */}
+        {/* Wake Up Time */}
         <div className="settings-row">
           <div className="settings-row__label">
             <Sunrise size={14} strokeWidth={1.5} />
-            <span className="t-body">Wake-Up Time</span>
+            <span className="t-body">Wake Up Time</span>
           </div>
           <input
             type="time"
@@ -118,6 +118,7 @@ export function ScheduleSection() {
             }}
           />
         </div>
+
 
         {/* Weekly Reset Day */}
         <div className="settings-row">

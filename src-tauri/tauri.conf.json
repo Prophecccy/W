@@ -36,18 +36,6 @@
         "resizable": false
       },
       {
-        "label": "alarm-popup",
-        "title": "Alarm",
-        "url": "/alarm-popup",
-        "decorations": false,
-        "width": 600,
-        "height": 400,
-        "center": true,
-        "alwaysOnTop": true,
-        "visible": false,
-        "skipTaskbar": true
-      },
-      {
         "label": "widget",
         "title": "W Widget",
         "url": "/widget",

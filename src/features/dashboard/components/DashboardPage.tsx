@@ -10,21 +10,18 @@ import { getTodayLog, completeHabit, uncompleteHabit } from '../../habits/servic
 import { getTodos, completeTodo, completeNumberedTodoFull, incrementNumberedTodo } from '../../todos/services/todoService';
 import { isHabitScheduledToday } from '../../habits/utils/scheduleEngine';
 import { getToday } from '../../../shared/utils/dateUtils';
-import { TimeTube } from '../../time-tube/components/TimeTube/TimeTube';
 import { User } from '../../../shared/types';
-import { AlertTriangle } from 'lucide-react';
+import { SleepTube } from './SleepTube';
 import './DashboardPage.css';
 
 interface DashboardOutlet {
   userDoc: User;
   gapResult: any;
-  needsCalibration: boolean;
-  dismissCalibration: () => void;
 }
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { userDoc, needsCalibration, dismissCalibration } = useOutletContext<DashboardOutlet>();
+  const { userDoc } = useOutletContext<DashboardOutlet>();
   const [loading, setLoading] = useState(true);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [log, setLog] = useState<HabitLog | null>(null);
@@ -73,7 +70,7 @@ export function DashboardPage() {
         if (!prev) return prev;
         return {
           ...prev,
-          habits: { ...prev.habits, [habitId]: { completed: true, value: 1, target: 1, completions: [{ timestamp: Date.now(), value: 1 }], timerSeconds: 0 } }
+          habits: { ...prev.habits, [habitId]: { completed: true, value: 1, target: 1, completions: [{ timestamp: Date.now(), value: 1 }] } }
         };
       });
       await completeHabit(habitId, 1);
@@ -142,54 +139,26 @@ export function DashboardPage() {
     );
   }
 
+  const isDefaultCycle = userDoc?.settings?.wakeUpTime === "07:00" && userDoc?.settings?.bedTime === "23:00";
+
   return (
-    <div className="dashboard-page" style={{ padding: '24px' }}>
-      <h1 className="t-display" style={{ textAlign: 'center', marginBottom: 'var(--spacing-xl)' }}>[ COMMAND CENTER ]</h1>
-
-      {needsCalibration && (
-        <div className="dashboard-calibration-banner">
-          <AlertTriangle size={16} style={{ color: "var(--accent)", flexShrink: 0 }} />
-          <span className="t-body" style={{ flex: 1, color: "var(--text-secondary)" }}>
-            [ CYCLE UNCALIBRATED ] — Default cycle (07:00–23:00) active. Configure your wake/sleep times for accurate Waking Fuel.
-          </span>
-          <button
-            className="btn-calibrate t-label"
-            onClick={() => navigate("/settings")}
-          >
-            [ CALIBRATE ]
-          </button>
-          <button
-            className="t-meta"
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "var(--text-muted)",
-              cursor: "pointer",
-              padding: "4px",
-              textShadow: "var(--text-shadow-sharp)"
-            }}
-            onClick={dismissCalibration}
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
-      <div className="dashboard-page__content layout-with-tube">
-        
-        {/* TIME LEFT TUBE */}
-        <div className="dashboard-tube-column">
-          <TimeTube 
-            wakeUpTime={userDoc?.settings?.wakeUpTime || "07:00"}
-            bedTime={userDoc?.settings?.bedTime || "23:00"}
-            accentColor={userDoc?.aesthetics?.desktop?.accentColor || "#5B8DEF"}
-            lowGraphicsMode={userDoc?.settings?.lowGraphicsMode || false}
-          />
-        </div>
-
-        <div className="dashboard-split">
+    <div className="dashboard-page">
+      <div className="dashboard-page__content">
+        {isDefaultCycle && (
+          <div className="calibration-banner" onClick={() => navigate('/settings')} style={{ cursor: 'pointer', background: 'var(--bg-elevated)', padding: '16px', borderRadius: '4px', border: '1px solid var(--accent)', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3 className="t-label" style={{ color: 'var(--accent)', marginBottom: '4px' }}>[ CALIBRATION REQUIRED ]</h3>
+              <p className="t-meta">Your wake/sleep cycle is using default values. Click here to calibrate your Waking Fuel gauge in Settings.</p>
+            </div>
+            <span className="t-meta" style={{ color: 'var(--accent)' }}>CONFIGURE &rarr;</span>
+          </div>
+        )}
+        <div className="dashboard-grid">
           
-          {/* LEFT COLUMN: HABITS */}
+          {/* COLUMN 1: SLEEP TUBE */}
+          <SleepTube />
+
+          {/* COLUMN 2: HABITS */}
           <div className="dashboard-column">
             <div className="dashboard-column__header">
               <h2 className="t-label" title="[ TODAY'S HABITS ]">[ TODAY'S HABITS ]</h2>
@@ -206,8 +175,8 @@ export function DashboardPage() {
             </div>
             
             {scheduledHabits.length === 0 ? (
-              <div className="dashboard-empty t-meta">
-                All assigned habits completed!
+              <div className="dashboard-empty--tactical t-meta">
+                [ ALL ASSIGNED HABITS COMPLETED ]
               </div>
             ) : (
               <div className="dashboard-list">
@@ -226,7 +195,7 @@ export function DashboardPage() {
             )}
           </div>
 
-          {/* RIGHT COLUMN: TODOS */}
+          {/* COLUMN 3: TODOS */}
           <div className="dashboard-column">
             <div className="dashboard-column__header">
               <h2 className="t-label" title="[ ACTIVE TODOS ]">[ ACTIVE TODOS ]</h2>
@@ -243,8 +212,8 @@ export function DashboardPage() {
             </div>
 
             {currentTodos.length === 0 ? (
-              <div className="dashboard-empty t-meta">
-                No active todos at the moment.
+              <div className="dashboard-empty--tactical t-meta">
+                [ NO ACTIVE TODOS ]
               </div>
             ) : (
               <div className="dashboard-list">
@@ -263,7 +232,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <div className="dashboard-page__footer" style={{ marginTop: 'var(--spacing-xl)' }}>
+      <div className="dashboard-page__footer">
         <DailyNote initialNote={log?.notes || ''} />
       </div>
     </div>

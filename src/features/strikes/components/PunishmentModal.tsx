@@ -22,7 +22,7 @@ export function PunishmentModal({ onConfirm, onCancel }: PunishmentModalProps) {
     <div className="punishment-overlay" onClick={onCancel}>
       <div className="punishment-modal" onClick={(e) => e.stopPropagation()}>
         <div className="punishment-modal__header">
-          <h2 className="t-h2">[ CHOOSE YOUR PENANCE ]</h2>
+          <h2 className="t-display">[ CHOOSE YOUR PENANCE ]</h2>
           <p className="t-body" style={{ color: "var(--text-muted)", marginTop: 8 }}>
             Select one option to resolve your lockout and reset strikes to 0.
           </p>
@@ -62,7 +62,7 @@ export function PunishmentModal({ onConfirm, onCancel }: PunishmentModalProps) {
             onClick={handleConfirm}
             disabled={!selected || confirming}
           >
-            {confirming ? "RESOLVING..." : "[ CONFIRM ]"}
+            {confirming ? "[ RESOLVING... ]" : "[ CONFIRM ]"}
           </button>
         </div>
       </div>

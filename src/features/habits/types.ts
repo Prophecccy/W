@@ -6,10 +6,9 @@ export type HabitPeriod = "daily" | "weekly" | "monthly" | "interval";
 export type HabitType = "standard" | "metric" | "limiter";
 
 export interface HabitMetric {
-  unit: string; // e.g. "pages", "glasses", "pushups"
+  unit: string; // e.g. "pushups"
   targetValue: number;
   originalTarget: number; // locked at creation for punishment calc
-  isTimer: boolean; // true = time-based metric (seconds)
 }
 
 export interface HabitDuration {
@@ -72,7 +71,6 @@ export interface HabitLogEntry {
   value: number; // total value for the day
   target: number; // target for that day (copied from habit at log time)
   completions: CompletionEntry[]; // individual completion events
-  timerSeconds: number; // total timer seconds logged (for timer metrics)
 }
 
 export interface HabitLog {

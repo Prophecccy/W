@@ -6,9 +6,59 @@
   z-index: 9000;
   background: var(--bg-base);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   animation: welcomeFadeIn 0.5s ease-out;
+  -webkit-app-region: drag;
+}
+
+.welcome-back__header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.001); /* Technically has a color so it's a hit-test target */
+  z-index: 10000;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.welcome-back__controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  -webkit-app-region: no-drag;
+}
+
+.welcome-back__control-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.welcome-back__control-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.welcome-back__control-btn--close:hover {
+  background: var(--strike-red);
+  color: white;
 }
 
 @keyframes welcomeFadeIn {
@@ -24,6 +74,7 @@
   max-width: 420px;
   padding: 48px 32px;
   text-align: center;
+  -webkit-app-region: no-drag;
 }
 
 /* Frost icon ring — soft blue glow (no red) */
@@ -99,16 +150,20 @@
   font-size: 11px;
   letter-spacing: 1px;
   cursor: pointer;
-  transition: opacity 0.15s, transform 0.15s;
+  transition: opacity 0.15s, transform 0.15s, filter 0.15s, box-shadow 0.15s;
 }
 
 .welcome-back__resume:hover:not(:disabled) {
-  opacity: 0.9;
-  transform: translateY(-1px);
+  background-color: var(--accent) !important;
+  color: var(--bg-base) !important;
+  filter: brightness(1.15);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(139, 233, 67, 0.4);
 }
 
 .welcome-back__resume:active:not(:disabled) {
   transform: translateY(0);
+  filter: brightness(1);
 }
 
 .welcome-back__resume:disabled {

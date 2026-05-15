@@ -17,8 +17,21 @@
 .topbar__left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 32px;
   -webkit-app-region: no-drag;
+}
+
+.topbar__title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  font-weight: 500;
+  white-space: nowrap;
+  font-stretch: normal;
+  transform: none;
+  color: var(--text-primary);
+  opacity: 0.8;
 }
 
 .topbar__search-btn {

@@ -31,6 +31,7 @@ export async function activateLockdown(
   blocklist: string[],
   duration: number | null
 ): Promise<void> {
+  console.log("[lockdown] activateLockdown called", { blocklist, duration });
   const state = await getLockdownState();
 
   await updateDoc(userRef(), {
@@ -40,18 +41,21 @@ export async function activateLockdown(
     "lockdown.blocklist": blocklist,
     "lockdown.totalSessions": (state.totalSessions || 0) + 1,
   });
+  console.log("[lockdown] Firestore updated — active: true");
 
   // Start the Rust-side monitor
   try {
     const { invoke } = await import("@tauri-apps/api/core");
+    console.log("[lockdown] Calling start_lockdown_monitor via invoke...");
     await invoke("start_lockdown_monitor", { blocklist });
-  } catch {
-    // Not in Tauri (browser dev mode) — lockdown won't actually monitor
-    console.warn("Lockdown monitor: Not in Tauri environment");
+    console.log("[lockdown] Rust monitor started successfully");
+  } catch (err) {
+    console.error("[lockdown] FAILED to start Rust monitor:", err);
   }
 }
 
 export async function deactivateLockdown(): Promise<void> {
+  console.log("[lockdown] deactivateLockdown called");
   await updateDoc(userRef(), {
     "lockdown.active": false,
     "lockdown.startedAt": null,
@@ -62,8 +66,9 @@ export async function deactivateLockdown(): Promise<void> {
   try {
     const { invoke } = await import("@tauri-apps/api/core");
     await invoke("stop_lockdown_monitor");
-  } catch {
-    // Not in Tauri
+    console.log("[lockdown] Rust monitor stopped successfully");
+  } catch (err) {
+    console.error("[lockdown] FAILED to stop Rust monitor:", err);
   }
 }
 
@@ -113,12 +118,14 @@ export async function recordViolation(
 export async function resumeLockdownIfActive(): Promise<boolean> {
   try {
     const state = await getLockdownState();
+    console.log("[lockdown] resumeLockdownIfActive — active:", state.active, "blocklist:", state.blocklist?.length);
     if (!state.active || state.blocklist.length === 0) return false;
 
     // Check if duration has expired
     if (state.duration && state.startedAt) {
       const elapsed = (Date.now() - state.startedAt) / 1000 / 60; // minutes
       if (elapsed >= state.duration) {
+        console.log("[lockdown] Duration expired — deactivating");
         await deactivateLockdown();
         return false;
       }
@@ -126,9 +133,12 @@ export async function resumeLockdownIfActive(): Promise<boolean> {
 
     // Resume the Rust monitor
     const { invoke } = await import("@tauri-apps/api/core");
+    console.log("[lockdown] Resuming Rust monitor with blocklist:", state.blocklist);
     await invoke("start_lockdown_monitor", { blocklist: state.blocklist });
+    console.log("[lockdown] Rust monitor resumed successfully");
     return true;
-  } catch {
+  } catch (err) {
+    console.error("[lockdown] resumeLockdownIfActive FAILED:", err);
     return false;
   }
 }

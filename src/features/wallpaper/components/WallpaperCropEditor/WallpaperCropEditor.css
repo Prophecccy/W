@@ -105,12 +105,7 @@
   padding: 0 4px;
 }
 
-.crop-editor__sk-clock {
-  width: 60px;
-  height: 14px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.25);
-}
+
 
 .crop-editor__sk-ring {
   width: 20px;

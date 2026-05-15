@@ -2,7 +2,6 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useWidgetData } from '../hooks/useWidgetData';
 import { PowerHub } from './PowerHub/PowerHub';
 import { WidgetHabitList } from './HabitList/WidgetHabitList';
-import { TimeTubeSimple } from '../../time-tube/components/TimeTubeSimple/TimeTubeSimple';
 import { loadWidgetPosition, saveWidgetPosition } from '../services/widgetPositionStore';
 import { ShieldAlert } from 'lucide-react';
 import { getLocalWallpaper } from '../../../shared/utils/storageUtils';
@@ -318,14 +317,6 @@ export function WidgetApp() {
                 onUndo={undoHabit}
               />
             </div>
-          </div>
-          
-          <div className="widget-app__tube-area">
-            <TimeTubeSimple
-              wakeUpTime={userDoc?.settings?.wakeUpTime || "07:00"}
-              bedTime={userDoc?.settings?.bedTime || "23:00"}
-              accentColor={accentColor}
-            />
           </div>
         </div>
 
