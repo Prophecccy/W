@@ -26,6 +26,7 @@ The "W" project is a high-focus **Command Center**. It features a tactical dashb
 5. **Iconography:** Use `lucide-react` in outline style. Use the `LucideIcon` helper for dynamic rendering.
 6. **Typography:** Adhere to defined classes: `.t-display`, `.t-label`, `.t-body`, `.t-meta`, `.t-data`.
 7. **Endfield Aesthetic:** Bracketed headers `[ NAME ]` are mandatory for page titles and section headers.
+8. **Legacy Import Ban:** Do NOT use `import React from 'react'`. Use named imports for hooks/types (e.g., `import { useState } from 'react'`). JSX is handled by the `react-jsx` transform.
 
 ---
 
@@ -43,6 +44,7 @@ The "W" project is a high-focus **Command Center**. It features a tactical dashb
 - **habits**: Core habit management. CRUD, Reordering, Daily Notes, Hold-to-verify cards.
 - **todos**: Task management. Supports standard and "numbered" (counter) todos.
 - **logbook**: Reading pane for historical habit notes and daily reflections.
+- **clock**: Alarms, Timers, and Stopwatch system. Supports custom audio alerts and high-precision time tracking.
 - **analytics**: 30-day heatmap, consistency scoring, and habit-specific performance deep dives.
 - **strikes**: The "Police" of the app. Manages strike incrementing, lockout overlays, and punishments.
 - **sticky-notes**: Desktop overlay for pinned todos. Draggable, click-through capable, and persistent.

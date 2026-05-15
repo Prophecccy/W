@@ -1,0 +1,65 @@
+.clock-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.clock-header {
+  padding: var(--spacing-xl);
+  padding-bottom: var(--spacing-md);
+  display: flex;
+  justify-content: flex-start;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.clock-tabs {
+  display: flex;
+  gap: 48px; /* Extra spacing for clarity */
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  cursor: pointer;
+  letter-spacing: 0.2em; /* Slightly more tracked out */
+  padding: var(--spacing-sm) 0;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.tab-btn:hover {
+  color: #FFFFFF;
+}
+
+.tab-btn.active {
+  color: #FFFFFF;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.tab-btn.active::after {
+  content: "";
+  position: absolute;
+  bottom: -var(--spacing-md); /* Align with header border */
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+}
+
+.clock-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: rgba(12, 13, 15, 0.75);
+  backdrop-filter: blur(12px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+  border-radius: var(--spacing-sm);
+  margin: 0 var(--spacing-xl) var(--spacing-xl);
+  padding: var(--spacing-xl);
+}
