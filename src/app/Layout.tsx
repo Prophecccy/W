@@ -141,7 +141,7 @@ function LayoutInner() {
     return () => { if (unlisten) unlisten(); };
   }, []);
 
-  // ── Initialize clock schedulers & global toasts ─────────────────────────────────
+  // ── Initialize global toasts ─────────────────────────────────
   const { showToast } = useToast();
   
   useEffect(() => {
