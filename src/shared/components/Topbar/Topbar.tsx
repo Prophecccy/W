@@ -53,17 +53,27 @@ export function Topbar({ onCommandPaletteOpen }: TopbarProps) {
   const isTauri = "__TAURI_INTERNALS__" in window;
   const currentTitle = TITLE_MAP[location.pathname] || "[ COMMAND CENTER ]";
 
+  const handleDrag = async (e: React.PointerEvent<HTMLElement>) => {
+    if (e.target === e.currentTarget) {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        getCurrentWindow().startDragging();
+      } catch {
+        /* running in browser, no-op */
+      }
+    }
+  };
+
   return (
-    <header className="topbar" data-tauri-drag-region>
+    <header className="topbar" onPointerDown={handleDrag}>
       <div className="topbar__left">
         <button
           className="topbar__search-btn"
           onClick={onCommandPaletteOpen}
           title="Search (Ctrl+K)"
-          data-tauri-drag-region="false"
         >
           <Search size={14} strokeWidth={1.5} />
-          <span className="t-meta" data-tauri-drag-region="false">CTRL+K</span>
+          <span className="t-meta">CTRL+K</span>
         </button>
         <span className="topbar__title">{currentTitle}</span>
       </div>
@@ -75,22 +85,20 @@ export function Topbar({ onCommandPaletteOpen }: TopbarProps) {
               className="topbar__update-btn" 
               onClick={startUpdate}
               title="Update Available"
-              data-tauri-drag-region="false"
             >
               <Download size={14} strokeWidth={1.5} />
-              <span className="t-meta" data-tauri-drag-region="false">UPDATE</span>
+              <span className="t-meta">UPDATE</span>
             </button>
           )}
-          <button className="topbar__win-btn" onClick={handleMinimize} data-tauri-drag-region="false">
+          <button className="topbar__win-btn" onClick={handleMinimize}>
             <Minus size={14} strokeWidth={1.5} />
           </button>
-          <button className="topbar__win-btn" onClick={handleMaximize} data-tauri-drag-region="false">
+          <button className="topbar__win-btn" onClick={handleMaximize}>
             <Square size={12} strokeWidth={1.5} />
           </button>
           <button
             className="topbar__win-btn topbar__win-btn--close"
             onClick={handleClose}
-            data-tauri-drag-region="false"
           >
             <X size={14} strokeWidth={1.5} />
           </button>

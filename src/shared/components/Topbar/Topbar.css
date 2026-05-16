@@ -12,14 +12,12 @@
   padding: 0 12px 0 16px;
   z-index: 100;
   user-select: none;
-  -webkit-app-region: drag;
 }
 
 .topbar__left {
   display: flex;
   align-items: center;
   gap: 32px;
-  -webkit-app-region: no-drag;
 }
 
 .topbar__title {
@@ -57,7 +55,6 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  -webkit-app-region: no-drag;
 }
 
 .topbar__update-btn {

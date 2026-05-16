@@ -65,6 +65,7 @@
   align-items: center;
   padding: 0 16px;
   z-index: 100;
+  user-select: none;
 }
 
 .login-page__close-btn {

@@ -20,19 +20,24 @@ export function LoginPage() {
     return <Navigate to="/" replace />;
   }
 
+  const handleDrag = (e: React.PointerEvent) => {
+    if (e.target === e.currentTarget) {
+      getCurrentWindow().startDragging();
+    }
+  };
+
   return (
-    <div className="login-page" data-tauri-drag-region>
-      <div className="login-page__controls" data-tauri-drag-region>
+    <div className="login-page" onPointerDown={handleDrag}>
+      <div className="login-page__controls" onPointerDown={handleDrag}>
         <button 
           className="login-page__close-btn t-label" 
           onClick={() => appWindow?.close()}
-          data-tauri-drag-region="false"
         >
           [ X ]
         </button>
       </div>
 
-      <div className="login-page__content" data-tauri-drag-region="false">
+      <div className="login-page__content">
         <h1 className="login-page__logo t-display">[ W ]</h1>
 
         {error && (

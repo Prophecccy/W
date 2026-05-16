@@ -60,19 +60,24 @@ export function OnboardingPage({ onComplete }: OnboardingProps) {
     }
   };
 
+  const handleDrag = (e: React.PointerEvent) => {
+    if (e.target === e.currentTarget) {
+      getCurrentWindow().startDragging();
+    }
+  };
+
   return (
-    <div className="onboarding" data-tauri-drag-region>
-      <div className="onboarding__controls" data-tauri-drag-region>
+    <div className="onboarding" onPointerDown={handleDrag}>
+      <div className="onboarding__controls" onPointerDown={handleDrag}>
         <button 
           className="onboarding__close-btn t-label" 
           onClick={() => appWindow?.close()}
-          data-tauri-drag-region="false"
         >
           [ X ]
         </button>
       </div>
 
-      <div className="onboarding__container" data-tauri-drag-region="false">
+      <div className="onboarding__container">
         <h1 className="t-display">[ WELCOME ]</h1>
         <p className="t-body" style={{ color: "var(--text-secondary)", marginBottom: 32 }}>
           Let's configure your core preferences.

@@ -88,9 +88,10 @@ The `SleepTube` (`src/features/dashboard/components/SleepTube.tsx`) is a vertica
 - **Calibration UI:** Includes a high-precision measurement scale with static markers [100, 75, 50, 25, 0] aligned to the right edge of the tube track. Endpoint markers (100 and 0) have hidden ticks for a cleaner measuring instrument aesthetic.
 - **Calibration:** If user settings are at default (07:00/23:00), the Dashboard displays a `[ CALIBRATION REQUIRED ]` banner linking to settings.
 ### 6. Frameless Window Drag Regions
-To support native window movement in the frameless Tauri UI, specific elements are designated as drag regions.
-- **Pattern:** Use `data-tauri-drag-region` on container elements (e.g., Topbar, Login background).
-- **Protection:** Interactive elements (buttons, inputs) MUST have `data-tauri-drag-region="false"` to remain clickable.
+To support native window movement in the frameless Tauri UI, specific elements use programmatic drag initiation.
+- **Pattern:** Use `onPointerDown` with `getCurrentWindow().startDragging()` on container elements (e.g., Login background, controls bar).
+- **Guard:** Always wrap in `if (e.target === e.currentTarget)` to prevent child elements (buttons, inputs) from triggering drags.
+- **Why not `data-tauri-drag-region`?** The HTML attribute gets blocked by the DOM in frameless windows. The explicit JS API bypasses this.
 - **Aesthetics:** Draggable areas use `user-select: none` to prevent text selection flickering during window movement.
 ### 7. Habit Creation Wizard
 The Habit creation flow is a streamlined 6-step wizard (`src/features/habits/components/HabitForm`).
