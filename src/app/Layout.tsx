@@ -428,7 +428,7 @@ function LayoutInner() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15, ease: "easeInOut" }}
-            style={{ width: "100%", height: "100%" }}
+            style={{ width: "100%", flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}
           >
             <Outlet context={{ userDoc, gapResult }} />
           </motion.div>
