@@ -26,7 +26,6 @@ export const router = createBrowserRouter([
       </AuthGuard>
     ),
   },
-  },
 
 
   {
