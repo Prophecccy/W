@@ -34,11 +34,13 @@ export function Sidebar({ strikeCount = 0, globalStreak = 0, isLockdownActive = 
     { to: "/", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/habits", icon: Target, label: "Habits" },
     { to: "/todos", icon: ListChecks, label: "Todos" },
-    { to: "/clock", icon: Clock, label: "Clock" },
     { to: "/logbook", icon: BookOpen, label: "Logbook" },
 
 
-    ...(isTauri() ? [{ to: "/lockdown", icon: Shield, label: "Lockdown" }] : []),
+    ...(isTauri() ? [
+      { to: "/clock", icon: Clock, label: "Clock" },
+      { to: "/lockdown", icon: Shield, label: "Lockdown" }
+    ] : []),
     { to: "/analytics", icon: BarChart3, label: "Analytics" },
     { to: "/settings", icon: Settings, label: "Settings" },
   ];
