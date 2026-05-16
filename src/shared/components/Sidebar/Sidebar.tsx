@@ -6,7 +6,6 @@ import {
   BarChart3,
   Settings,
   AlertTriangle,
-  Clock,
   Download,
 
   Target,
@@ -38,7 +37,6 @@ export function Sidebar({ strikeCount = 0, globalStreak = 0, isLockdownActive = 
 
 
     ...(isTauri() ? [
-      { to: "/clock", icon: Clock, label: "Clock" },
       { to: "/lockdown", icon: Shield, label: "Lockdown" }
     ] : []),
     { to: "/analytics", icon: BarChart3, label: "Analytics" },

@@ -44,7 +44,7 @@ The "W" project is a high-focus **Command Center**. It features a tactical dashb
 - **habits**: Core habit management. CRUD, Reordering, Daily Notes, Hold-to-verify cards.
 - **todos**: Task management. Supports standard and "numbered" (counter) todos.
 - **logbook**: Reading pane for historical habit notes and daily reflections.
-- **clock**: Alarms, Timers, and Stopwatch system. Supports custom audio alerts and high-precision time tracking.
+
 - **analytics**: 30-day heatmap, consistency scoring, and habit-specific performance deep dives.
 - **strikes**: The "Police" of the app. Manages strike incrementing, lockout overlays, and punishments.
 - **sticky-notes**: Desktop overlay for pinned todos. Draggable, click-through capable, and persistent.

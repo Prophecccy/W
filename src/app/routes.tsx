@@ -11,8 +11,6 @@ import { AuthGuard } from "../features/auth/components/AuthGuard";
 import { StickyCanvas } from "../features/sticky-notes/components/StickyCanvas";
 import { WidgetApp } from "../features/widget/components/WidgetApp";
 import { LogbookPage } from "../features/logs/components/LogbookPage";
-import { ClockPage } from "../features/clock/components/ClockPage";
-import { AlarmPopup } from "../features/clock/components/AlarmPopup/AlarmPopup";
 
 
 export const router = createBrowserRouter([
@@ -28,9 +26,6 @@ export const router = createBrowserRouter([
       </AuthGuard>
     ),
   },
-  {
-    path: "/alarm-popup",
-    element: <AlarmPopup />,
   },
 
 
@@ -66,10 +61,6 @@ export const router = createBrowserRouter([
       {
         path: "analytics",
         element: <AnalyticsPage />,
-      },
-      {
-        path: "clock",
-        element: <ClockPage />,
       },
 
       {
