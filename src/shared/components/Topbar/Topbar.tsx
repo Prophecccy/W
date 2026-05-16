@@ -60,9 +60,10 @@ export function Topbar({ onCommandPaletteOpen }: TopbarProps) {
           className="topbar__search-btn"
           onClick={onCommandPaletteOpen}
           title="Search (Ctrl+K)"
+          data-tauri-drag-region="false"
         >
           <Search size={14} strokeWidth={1.5} />
-          <span className="t-meta">CTRL+K</span>
+          <span className="t-meta" data-tauri-drag-region="false">CTRL+K</span>
         </button>
         <span className="topbar__title">{currentTitle}</span>
       </div>
@@ -74,20 +75,22 @@ export function Topbar({ onCommandPaletteOpen }: TopbarProps) {
               className="topbar__update-btn" 
               onClick={startUpdate}
               title="Update Available"
+              data-tauri-drag-region="false"
             >
               <Download size={14} strokeWidth={1.5} />
-              <span className="t-meta">UPDATE</span>
+              <span className="t-meta" data-tauri-drag-region="false">UPDATE</span>
             </button>
           )}
-          <button className="topbar__win-btn" onClick={handleMinimize}>
+          <button className="topbar__win-btn" onClick={handleMinimize} data-tauri-drag-region="false">
             <Minus size={14} strokeWidth={1.5} />
           </button>
-          <button className="topbar__win-btn" onClick={handleMaximize}>
+          <button className="topbar__win-btn" onClick={handleMaximize} data-tauri-drag-region="false">
             <Square size={12} strokeWidth={1.5} />
           </button>
           <button
             className="topbar__win-btn topbar__win-btn--close"
             onClick={handleClose}
+            data-tauri-drag-region="false"
           >
             <X size={14} strokeWidth={1.5} />
           </button>

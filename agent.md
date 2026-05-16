@@ -10,6 +10,7 @@ The "W" project is a high-focus **Command Center**. It features a tactical dashb
 - **Internal Scrolling**: Only the Habit and Todo list compartments are permitted to scroll (`overflow-y: auto`) when content exceeds the available vertical space.
 - **SleepTube Calibration**: Anchor left, fixed max-height (400px), dynamic theme-based accent color.
 - **Daily Note**: Fixed at the bottom of the viewport, non-resizable to prevent layout shifting.
+- **Scrolling Constraint**: The main content area uses `flex: 1; min-height: 0; overflow-y: auto;` to ensure internal scrolling works correctly within the flexbox layout without breaking the footer/sidebar alignment.
 
 - **Status:** Stable. Feature set includes Dashboard, Habits, Todos, Analytics, and Desktop Widgets.
 - **Core Loop:** Users manage daily habits and tasks. The **SleepTube** provides a visual timer for the day's "fuel" (waking hours). Missed habit targets trigger the **Strike Engine**.
@@ -86,6 +87,11 @@ The `SleepTube` (`src/features/dashboard/components/SleepTube.tsx`) is a vertica
 - **Dynamic Theme:** Uses `var(--accent)` for the fill color and outer glow, ensuring consistency with the user's selected theme.
 - **Calibration UI:** Includes a high-precision measurement scale with static markers [100, 75, 50, 25, 0] aligned to the right edge of the tube track. Endpoint markers (100 and 0) have hidden ticks for a cleaner measuring instrument aesthetic.
 - **Calibration:** If user settings are at default (07:00/23:00), the Dashboard displays a `[ CALIBRATION REQUIRED ]` banner linking to settings.
+### 6. Frameless Window Drag Regions
+To support native window movement in the frameless Tauri UI, specific elements are designated as drag regions.
+- **Pattern:** Use `data-tauri-drag-region` on container elements (e.g., Topbar, Login background).
+- **Protection:** Interactive elements (buttons, inputs) MUST have `data-tauri-drag-region="false"` to remain clickable.
+- **Aesthetics:** Draggable areas use `user-select: none` to prevent text selection flickering during window movement.
 
 ---
 

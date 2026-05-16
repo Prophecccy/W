@@ -21,7 +21,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="login-page">
+    <div className="login-page" data-tauri-drag-region>
       <div className="login-page__controls" data-tauri-drag-region>
         <button 
           className="login-page__close-btn t-label" 
@@ -32,7 +32,7 @@ export function LoginPage() {
         </button>
       </div>
 
-      <div className="login-page__content">
+      <div className="login-page__content" data-tauri-drag-region="false">
         <h1 className="login-page__logo t-display">[ W ]</h1>
 
         {error && (

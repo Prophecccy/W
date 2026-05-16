@@ -2,6 +2,7 @@ import { useState, FormEvent } from "react";
 import { useAuthContext } from "../context";
 import { createUserDoc } from "../services/userService";
 import { useNavigate } from "react-router-dom";
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useToast } from "../../../shared/components/Toast/Toast";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../../shared/config/firebase";
@@ -14,6 +15,8 @@ interface OnboardingProps {
 export function OnboardingPage({ onComplete }: OnboardingProps) {
   const { user } = useAuthContext();
   const navigate = useNavigate();
+  const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__;
+  const appWindow = isTauri ? getCurrentWindow() : null;
   const { showToast } = useToast();
   const [resetTime, setResetTime] = useState("04:00");
   const [accent, setAccent] = useState("#5B8DEF");
@@ -58,8 +61,18 @@ export function OnboardingPage({ onComplete }: OnboardingProps) {
   };
 
   return (
-    <div className="onboarding">
-      <div className="onboarding__container">
+    <div className="onboarding" data-tauri-drag-region>
+      <div className="onboarding__controls" data-tauri-drag-region>
+        <button 
+          className="onboarding__close-btn t-label" 
+          onClick={() => appWindow?.close()}
+          data-tauri-drag-region="false"
+        >
+          [ X ]
+        </button>
+      </div>
+
+      <div className="onboarding__container" data-tauri-drag-region="false">
         <h1 className="t-display">[ WELCOME ]</h1>
         <p className="t-body" style={{ color: "var(--text-secondary)", marginBottom: 32 }}>
           Let's configure your core preferences.
