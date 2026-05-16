@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { IconPicker } from "../../../../shared/components/IconPicker/IconPicker";
-import { ColorPicker } from "../../../../shared/components/ColorPicker/ColorPicker";
 import { HabitPeriod, HabitType, HabitMetric, HabitDuration, HabitGroup } from "../../types";
 import { getToday } from "../../../../shared/utils/dateUtils";
 import "./HabitForm.css";
@@ -60,22 +59,17 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
       case 0: return data.title.trim() !== "";
       case 1: return true; // Period
       case 2: return true; // Type
-      case 3: // Config
-        if (data.type !== "standard") {
-          return !!data.metric && data.metric.targetValue > 0 && data.metric.unit.trim() !== "";
-        }
-        return data.frequency > 0;
-      case 4: // Duration
+      case 3: // Duration
         if (data.duration.type === "endpoint") return !!data.duration.endDate || !!data.duration.completionCount;
         return true;
-      case 5: return !!data.icon && !!data.color; // Appearance
-      case 6: return true; // Group (optional)
+      case 4: return !!data.icon; // Appearance
+      case 5: return true; // Group (optional)
       default: return true;
     }
   };
 
   const handleNext = () => {
-    if (step < 6) setStep(step + 1);
+    if (step < 5) setStep(step + 1);
     else handleSubmit();
   };
 
@@ -170,89 +164,6 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
       case 3:
         return (
           <div className="habit-form__step">
-            <h2 className="t-label">[ CONFIGURATION ]</h2>
-            
-            {data.period === "weekly" && (
-              <div className="habit-form__field">
-                <label className="t-meta">DAYS OF WEEK</label>
-                <div className="habit-form__dow-picker">
-                  {["S", "M", "T", "W", "T", "F", "S"].map((day, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      className={`dow-btn ${data.daysOfWeek.includes(i) ? "dow-btn--active" : ""}`}
-                      onClick={() => {
-                        const newDow = data.daysOfWeek.includes(i)
-                          ? data.daysOfWeek.filter((d) => d !== i)
-                          : [...data.daysOfWeek, i];
-                        update({ daysOfWeek: newDow });
-                      }}
-                    >
-                      {day}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {data.period === "interval" && (
-              <div className="habit-form__field">
-                <label className="t-meta">EVERY N DAYS</label>
-                <input 
-                  type="number" 
-                  className="t-data habit-form__input" 
-                  min={1} 
-                  value={data.intervalDays} 
-                  onChange={e => update({ intervalDays: parseInt(e.target.value) || 1 })}
-                />
-              </div>
-            )}
-
-            {(data.period === "weekly" || data.period === "monthly") && (
-              <div className="habit-form__field">
-                <label className="t-meta">FREQUENCY TARGET</label>
-                <p className="t-meta habit-form__help">How many times per period?</p>
-                <input 
-                  type="number" 
-                  className="t-data habit-form__input" 
-                  min={1} 
-                  value={data.frequency} 
-                  onChange={e => update({ frequency: parseInt(e.target.value) || 1 })}
-                />
-              </div>
-            )}
-
-            {data.type !== "standard" && data.metric && (
-              <>
-                <div className="habit-form__field">
-                  <label className="t-meta">TARGET VALUE</label>
-                  <input 
-                    type="number" 
-                    className="t-data habit-form__input" 
-                    min={1} 
-                    value={data.metric.targetValue} 
-                    onChange={e => update({ 
-                      metric: { ...data.metric!, targetValue: parseInt(e.target.value) || 1, originalTarget: parseInt(e.target.value) || 1 } 
-                    })}
-                  />
-                </div>
-                <div className="habit-form__field">
-                  <label className="t-meta">UNIT (e.g. pages, cups)</label>
-                  <input 
-                    type="text" 
-                    className="t-data habit-form__input" 
-                    value={data.metric.unit} 
-                    onChange={e => update({ metric: { ...data.metric!, unit: e.target.value } })}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-        );
-
-      case 4:
-        return (
-          <div className="habit-form__step">
             <h2 className="t-label">[ DURATION ]</h2>
             <div className="habit-form__radio-group">
               <button
@@ -285,18 +196,11 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
           </div>
         );
 
-      case 5:
+      case 4:
         return (
-          <div className="habit-form__step">
+          <div className="habit-form__step habit-form__step--appearance">
             <h2 className="t-label">[ APPEARANCE ]</h2>
-            <div className="habit-form__field">
-              <label className="t-meta">COLOR</label>
-              <ColorPicker 
-                selectedColor={data.color} 
-                onSelect={(c: string) => update({ color: c })} 
-              />
-            </div>
-            <div className="habit-form__field" style={{ marginTop: 24 }}>
+            <div className="habit-form__field habit-form__field--full">
               <label className="t-meta">ICON</label>
               <IconPicker 
                 selectedIcon={data.icon} 
@@ -306,7 +210,7 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
           </div>
         );
 
-      case 6:
+      case 5:
         return (
           <div className="habit-form__step">
             <h2 className="t-label">[ GROUPING ]</h2>
@@ -365,7 +269,7 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
   return (
     <div className="habit-form">
       <div className="habit-form__header">
-        <span className="t-meta">STEP {step + 1} OF 7</span>
+        <span className="t-meta">STEP {step + 1} OF 6</span>
         <button type="button" className="habit-form__close t-label" onClick={onCancel}>
           [ CANCEL ]
         </button>
@@ -389,7 +293,7 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
           onClick={handleNext}
           disabled={!currentStepIsValid()}
         >
-          {step === 6 ? "[ SAVE HABIT ]" : "[ NEXT ]"}
+          {step === 5 ? "[ SAVE HABIT ]" : "[ NEXT ]"}
         </button>
       </div>
     </div>

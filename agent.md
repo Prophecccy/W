@@ -92,6 +92,11 @@ To support native window movement in the frameless Tauri UI, specific elements a
 - **Pattern:** Use `data-tauri-drag-region` on container elements (e.g., Topbar, Login background).
 - **Protection:** Interactive elements (buttons, inputs) MUST have `data-tauri-drag-region="false"` to remain clickable.
 - **Aesthetics:** Draggable areas use `user-select: none` to prevent text selection flickering during window movement.
+### 7. Habit Creation Wizard
+The Habit creation flow is a streamlined 6-step wizard (`src/features/habits/components/HabitForm`).
+- **Flow:** Basics → Period → Type → Duration → Appearance → Grouping.
+- **Appearance Step:** Focuses exclusively on iconography. The `ColorPicker` is omitted to maintain global theme consistency and prevent accidental overrides during habit setup.
+- **Aesthetic:** The icon grid is expanded to fill the vertical space, adhering to the "Instrument" design philosophy.
 
 ---
 

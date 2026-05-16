@@ -40,6 +40,11 @@
   animation: fade-in 0.2s ease forwards;
 }
 
+.habit-form__step--appearance {
+  flex: 1;
+  gap: 16px;
+}
+
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(5px); }
   to { opacity: 1; transform: translateY(0); }
@@ -49,6 +54,10 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.habit-form__field--full {
+  flex: 1;
 }
 
 .habit-form__help {
