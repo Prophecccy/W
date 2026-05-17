@@ -14,7 +14,8 @@ const TITLE_MAP: Record<string, string> = {
   "/logbook": "[ LOGBOOK ]",
 
   "/analytics": "[ ANALYTICS ]",
-  "/settings": "[ SETTINGS ]"
+  "/settings": "[ SETTINGS ]",
+  "/lockdown": "[ LOCKDOWN ]"
 };
 
 export function Topbar({ onCommandPaletteOpen }: TopbarProps) {

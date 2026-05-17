@@ -1,9 +1,27 @@
 import { useTimeLeft } from '../hooks/useTimeLeft';
 import { useUserStore } from '../../../shared/stores/userStore';
+import { isTauri } from '../../../shared/utils/tauri';
+import './SleepTube.css';
 
-export function SleepTube() {
-  const { userDoc } = useUserStore();
-  const settings = userDoc?.settings;
+interface SleepTubeProps {
+  settings?: {
+    wakeUpTime: string;
+    bedTime: string;
+  };
+  isWidget?: boolean;
+}
+
+export function SleepTube({ settings: propsSettings, isWidget }: SleepTubeProps) {
+  const isDesktop = isTauri();
+  let userStoreDoc = null;
+  try {
+    const store = useUserStore();
+    userStoreDoc = store.userDoc;
+  } catch {
+    // Silent catch for widget context where UserProvider is missing
+  }
+
+  const settings = propsSettings || userStoreDoc?.settings;
   const { percent, phase, minutesPassed, totalMinutes } = useTimeLeft(
     settings?.wakeUpTime, 
     settings?.bedTime
@@ -14,10 +32,11 @@ export function SleepTube() {
 
   return (
     <div 
-      className="sleep-tube" 
+      className={`sleep-tube ${isWidget ? 'sleep-tube--widget' : ''}`}
       title={`Waking Fuel: ${Math.round(percent)}% (${Math.round(minutesPassed)}/${totalMinutes}m)`}
+      style={isDesktop && !isWidget ? { height: '100%', maxHeight: 'none', minHeight: '400px' } : undefined}
     >
-      <div className="sleep-tube__label t-meta">[ FUEL ]</div>
+      <div className="sleep-tube__label t-meta">{isWidget ? '[ FUEL ]' : '[ WAKING FUEL ]'}</div>
       <div className="sleep-tube__track">
         {MARKERS.map(m => (
           <div 

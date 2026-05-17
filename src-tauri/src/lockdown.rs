@@ -1,71 +1,77 @@
-// Lockdown Mode — OS-level app monitor for Windows.
+// Lockdown Mode — OS-level app blocker for Windows.
 //
 // ARCHITECTURE:
-// - A background thread polls GetForegroundWindow() every 2 seconds
-// - Reads the active window's title via GetWindowTextW()
-// - Compares against a user-provided blocklist (case-insensitive substring match)
-// - When a match is found, emits a `lockdown-violation` event to the webview
-// - 30-second cooldown per unique app to prevent strike-spam
+// - A background thread polls GetForegroundWindow() every 500ms
+// - When a restricted app is detected, emits bounding-box coordinates
+//   so the React layer can position a block-overlay window on top of it
+// - Self-lockout safeguard: our own process windows are NEVER blocked
+// - No strikes or notifications — purely a visual/physical block
 //
 // COMMANDS:
-// - start_lockdown(blocklist)   → spawns polling thread
-// - stop_lockdown()             → kills polling thread
-// - update_lockdown_blocklist() → hot-swap blocklist without restart
+// - start_lockdown_monitor(blocklist)   → spawns polling thread
+// - stop_lockdown_monitor()             → kills polling thread
+// - update_lockdown_blocklist()         → hot-swap blocklist without restart
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::thread;
-use std::time::{Duration, Instant};
-use std::collections::HashMap;
+use std::time::Duration;
 
 use serde::Serialize;
 use tauri::Emitter;
 
 // ─── Shared State ────────────────────────────────────────────────
 
-/// Controls the polling thread lifecycle
 static LOCKDOWN_RUNNING: AtomicBool = AtomicBool::new(false);
-
-/// The blocklist of window title substrings (lowercase for case-insensitive matching)
 static BLOCKLIST: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
-/// Cooldown tracker: maps matched app name → last violation instant
-/// 30-second cooldown per unique match to prevent strike-spam
-static COOLDOWNS: Mutex<Option<HashMap<String, Instant>>> = Mutex::new(None);
-
-const COOLDOWN_SECS: u64 = 30;
-
-// ─── Event payload ───────────────────────────────────────────────
+// ─── Event payloads ──────────────────────────────────────────────
 
 #[derive(Clone, Serialize)]
-pub struct ViolationPayload {
+pub struct BlockPayload {
     pub app_title: String,
     pub matched_rule: String,
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
 }
+
+#[derive(Clone, Serialize)]
+pub struct UnblockPayload {}
 
 // ─── Windows implementation ──────────────────────────────────────
 
 #[cfg(target_os = "windows")]
 mod platform {
-    use windows::Win32::Foundation::{CloseHandle, HWND, MAX_PATH};
+    use windows::Win32::Foundation::{CloseHandle, HWND, MAX_PATH, RECT};
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
+        GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId, GetWindowRect,
     };
     use windows::Win32::System::Threading::{
-        OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
+        OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
+        PROCESS_NAME_WIN32,
     };
     use windows::core::PWSTR;
 
-    /// Gets the exe name and title of the currently focused window.
-    /// Returns None if no window is focused or both are empty.
-    pub fn get_foreground_info() -> Option<(String, String)> {
+    pub struct ForegroundInfo {
+        pub exe_name: String,
+        pub title: String,
+        pub pid: u32,
+        pub x: i32,
+        pub y: i32,
+        pub width: i32,
+        pub height: i32,
+    }
+
+    pub fn get_foreground_info() -> Option<ForegroundInfo> {
         unsafe {
             let hwnd: HWND = GetForegroundWindow();
-            // HWND wraps a *mut c_void in windows crate 0.58
             if hwnd.0.is_null() {
                 return None;
             }
 
+            // Get window title
             let mut title_buf = [0u16; 512];
             let len = GetWindowTextW(hwnd, &mut title_buf);
             let title = if len == 0 {
@@ -74,16 +80,28 @@ mod platform {
                 String::from_utf16_lossy(&title_buf[..len as usize])
             };
 
+            // Get PID
             let mut pid: u32 = 0;
             GetWindowThreadProcessId(hwnd, Some(&mut pid));
-            
+
+            // Get exe name
             let mut exe_name = String::new();
             if pid != 0 {
-                if let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+                if let Ok(handle) =
+                    OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+                {
                     let mut exe_buf = [0u16; MAX_PATH as usize];
                     let mut exe_len = MAX_PATH;
-                    if QueryFullProcessImageNameW(handle, PROCESS_NAME_WIN32, PWSTR(exe_buf.as_mut_ptr()), &mut exe_len).is_ok() {
-                        let full_path = String::from_utf16_lossy(&exe_buf[..exe_len as usize]);
+                    if QueryFullProcessImageNameW(
+                        handle,
+                        PROCESS_NAME_WIN32,
+                        PWSTR(exe_buf.as_mut_ptr()),
+                        &mut exe_len,
+                    )
+                    .is_ok()
+                    {
+                        let full_path =
+                            String::from_utf16_lossy(&exe_buf[..exe_len as usize]);
                         if let Some(idx) = full_path.rfind('\\') {
                             exe_name = full_path[idx + 1..].to_string();
                         } else {
@@ -94,10 +112,31 @@ mod platform {
                 }
             }
 
+            // Get window bounding box via GetWindowRect
+            let mut rect = RECT::default();
+            let (x, y, width, height) = if GetWindowRect(hwnd, &mut rect).is_ok() {
+                (
+                    rect.left,
+                    rect.top,
+                    rect.right - rect.left,
+                    rect.bottom - rect.top,
+                )
+            } else {
+                (0, 0, 800, 600)
+            };
+
             if title.is_empty() && exe_name.is_empty() {
                 None
             } else {
-                Some((exe_name, title))
+                Some(ForegroundInfo {
+                    exe_name,
+                    title,
+                    pid,
+                    x,
+                    y,
+                    width,
+                    height,
+                })
             }
         }
     }
@@ -105,9 +144,46 @@ mod platform {
 
 #[cfg(not(target_os = "windows"))]
 mod platform {
-    pub fn get_foreground_info() -> Option<(String, String)> {
+    pub struct ForegroundInfo {
+        pub exe_name: String,
+        pub title: String,
+        pub pid: u32,
+        pub x: i32,
+        pub y: i32,
+        pub width: i32,
+        pub height: i32,
+    }
+
+    pub fn get_foreground_info() -> Option<ForegroundInfo> {
         None
     }
+}
+
+// ─── Self-lockout safeguard (UNBREAKABLE) ────────────────────────
+// The app must NEVER be able to lock itself down.
+
+fn is_own_window(info: &platform::ForegroundInfo) -> bool {
+    // Primary check: compare process IDs
+    let own_pid = std::process::id();
+    if info.pid == own_pid {
+        return true;
+    }
+
+    // Hardcoded failsafe: never block our own executable or window titles
+    let exe_lower = info.exe_name.to_lowercase();
+    if exe_lower == "w.exe" || exe_lower == "w-app.exe" {
+        return true;
+    }
+
+    let title_lower = info.title.to_lowercase();
+    if title_lower == "w" || title_lower == "w widget" {
+        return true;
+    }
+    if title_lower.contains("command center") {
+        return true;
+    }
+
+    false
 }
 
 // ─── Polling thread ──────────────────────────────────────────────
@@ -115,93 +191,100 @@ mod platform {
 fn start_polling(app_handle: tauri::AppHandle) {
     LOCKDOWN_RUNNING.store(true, Ordering::SeqCst);
 
-    // Initialize cooldown map
-    if let Ok(mut guard) = COOLDOWNS.lock() {
-        *guard = Some(HashMap::new());
-    }
-
-    // Log the current blocklist for diagnostics
     if let Ok(guard) = BLOCKLIST.lock() {
-        eprintln!("[lockdown] Polling started with {} rules: {:?}", guard.len(), *guard);
+        eprintln!(
+            "[lockdown] Polling started with {} rules: {:?}",
+            guard.len(),
+            *guard
+        );
     }
 
     thread::spawn(move || {
+        let mut currently_blocking: Option<String> = None;
         let mut tick_count: u64 = 0;
+
         while LOCKDOWN_RUNNING.load(Ordering::SeqCst) {
             tick_count += 1;
 
-            if let Some((exe_name, title)) = platform::get_foreground_info() {
-                // Log every 15th tick (~30 seconds) to avoid spam
-                if tick_count % 15 == 1 {
-                    eprintln!("[lockdown] tick #{} — foreground: [{}] \"{}\"", tick_count, exe_name, title);
+            if let Some(info) = platform::get_foreground_info() {
+                // Diagnostic logging every ~10 seconds
+                if tick_count % 20 == 1 {
+                    eprintln!(
+                        "[lockdown] tick #{} — foreground: [{}] \"{}\" (pid={})",
+                        tick_count, info.exe_name, info.title, info.pid
+                    );
                 }
 
-                let title_lower = title.to_lowercase();
-                let exe_lower = exe_name.to_lowercase();
+                // ── SELF-LOCKOUT SAFEGUARD ── NEVER block our own windows
+                if is_own_window(&info) {
+                    thread::sleep(Duration::from_millis(500));
+                    continue;
+                }
 
-                // Check against blocklist
+                let title_lower = info.title.to_lowercase();
+                let exe_lower = info.exe_name.to_lowercase();
+
+                // Check blocklist
                 let matched_rule = {
                     if let Ok(guard) = BLOCKLIST.lock() {
-                        guard.iter().find(|rule| {
-                            // If rule ends in .exe, match exactly against process name
-                            if rule.ends_with(".exe") {
-                                exe_lower == rule.as_str()
-                            } else {
-                                // Otherwise, match substring against window title
-                                title_lower.contains(rule.as_str())
-                            }
-                        }).cloned()
+                        guard
+                            .iter()
+                            .find(|rule| {
+                                if rule.ends_with(".exe") {
+                                    exe_lower == rule.as_str()
+                                } else {
+                                    title_lower.contains(rule.as_str())
+                                }
+                            })
+                            .cloned()
                     } else {
                         None
                     }
                 };
 
                 if let Some(rule) = matched_rule {
-                    let display_name = if rule.ends_with(".exe") { exe_name.clone() } else { title.clone() };
-                    eprintln!("[lockdown] MATCH: \"{}\" matched rule \"{}\"", display_name, rule);
-
-                    // Check cooldown — only fire if 30s+ since last violation for this app
-                    let should_fire = {
-                        if let Ok(mut guard) = COOLDOWNS.lock() {
-                            if let Some(ref mut map) = *guard {
-                                let now = Instant::now();
-                                let key = rule.clone();
-                                if let Some(last) = map.get(&key) {
-                                    if now.duration_since(*last).as_secs() >= COOLDOWN_SECS {
-                                        map.insert(key, now);
-                                        true
-                                    } else {
-                                        eprintln!("[lockdown] cooldown active for \"{}\" — skipping", rule);
-                                        false
-                                    }
-                                } else {
-                                    map.insert(key, now);
-                                    true
-                                }
-                            } else {
-                                false
-                            }
-                        } else {
-                            false
-                        }
+                    let display_name = if rule.ends_with(".exe") {
+                        info.exe_name.clone()
+                    } else {
+                        info.title.clone()
                     };
 
-                    if should_fire {
-                        let payload = ViolationPayload {
-                            app_title: display_name,
-                            matched_rule: rule.clone(),
-                        };
-                        eprintln!("[lockdown] EMITTING lockdown-violation for \"{}\"", rule);
-                        match app_handle.emit("lockdown-violation", payload) {
-                            Ok(_) => eprintln!("[lockdown] Event emitted successfully"),
-                            Err(e) => eprintln!("[lockdown] Event emit FAILED: {}", e),
-                        }
+                    if currently_blocking.as_ref() != Some(&rule) {
+                        eprintln!(
+                            "[lockdown] BLOCK: \"{}\" matched rule \"{}\"",
+                            display_name, rule
+                        );
+                    }
+
+                    currently_blocking = Some(rule.clone());
+
+                    let payload = BlockPayload {
+                        app_title: display_name,
+                        matched_rule: rule,
+                        x: info.x,
+                        y: info.y,
+                        width: info.width,
+                        height: info.height,
+                    };
+
+                    let _ = app_handle.emit("lockdown-block", payload);
+                } else {
+                    // Non-blocked, non-self window has focus
+                    if currently_blocking.is_some() {
+                        eprintln!("[lockdown] UNBLOCK: blocked app lost focus");
+                        currently_blocking = None;
+                        let _ = app_handle.emit("lockdown-unblock", UnblockPayload {});
                     }
                 }
             }
 
-            // Poll every 2 seconds — lightweight, single Win32 call
-            thread::sleep(Duration::from_secs(2));
+            // Poll every 500ms for responsive overlay tracking
+            thread::sleep(Duration::from_millis(500));
+        }
+
+        // Emit unblock when stopping
+        if currently_blocking.is_some() {
+            let _ = app_handle.emit("lockdown-unblock", UnblockPayload {});
         }
         eprintln!("[lockdown] Polling thread stopped");
     });
@@ -209,27 +292,27 @@ fn start_polling(app_handle: tauri::AppHandle) {
 
 fn stop_polling() {
     LOCKDOWN_RUNNING.store(false, Ordering::SeqCst);
-    // Clear cooldowns
-    if let Ok(mut guard) = COOLDOWNS.lock() {
-        *guard = None;
-    }
     thread::sleep(Duration::from_millis(100));
     eprintln!("[lockdown] Monitor stopped");
 }
 
 // ─── Tauri Commands ──────────────────────────────────────────────
 
-/// Start lockdown with app handle for event emission.
 #[tauri::command]
-pub fn start_lockdown_monitor(app: tauri::AppHandle, blocklist: Vec<String>) -> Result<(), String> {
-    eprintln!("[lockdown] start_lockdown_monitor called with {} items: {:?}", blocklist.len(), blocklist);
+pub fn start_lockdown_monitor(
+    app: tauri::AppHandle,
+    blocklist: Vec<String>,
+) -> Result<(), String> {
+    eprintln!(
+        "[lockdown] start_lockdown_monitor called with {} items: {:?}",
+        blocklist.len(),
+        blocklist
+    );
 
-    // Stop any existing session first
     if LOCKDOWN_RUNNING.load(Ordering::SeqCst) {
         stop_polling();
     }
 
-    // Store blocklist (lowercase for case-insensitive matching)
     if let Ok(mut guard) = BLOCKLIST.lock() {
         *guard = blocklist.into_iter().map(|s| s.to_lowercase()).collect();
     }
@@ -238,7 +321,6 @@ pub fn start_lockdown_monitor(app: tauri::AppHandle, blocklist: Vec<String>) -> 
     Ok(())
 }
 
-/// Stop lockdown monitoring.
 #[tauri::command]
 pub fn stop_lockdown_monitor() -> Result<(), String> {
     eprintln!("[lockdown] stop_lockdown_monitor called");
@@ -246,12 +328,33 @@ pub fn stop_lockdown_monitor() -> Result<(), String> {
     Ok(())
 }
 
-/// Update the blocklist without restarting the polling thread.
 #[tauri::command]
 pub fn update_lockdown_blocklist(blocklist: Vec<String>) -> Result<(), String> {
-    eprintln!("[lockdown] update_lockdown_blocklist called with {} items", blocklist.len());
+    eprintln!(
+        "[lockdown] update_lockdown_blocklist called with {} items",
+        blocklist.len()
+    );
     if let Ok(mut guard) = BLOCKLIST.lock() {
         *guard = blocklist.into_iter().map(|s| s.to_lowercase()).collect();
     }
     Ok(())
 }
+
+/// Debug command: fires a fake lockdown-block event to test the overlay pipeline.
+#[tauri::command]
+pub fn test_lockdown_block(app: tauri::AppHandle) -> Result<(), String> {
+    eprintln!("[lockdown] test_lockdown_block — firing fake event");
+    let payload = BlockPayload {
+        app_title: "TEST APP".to_string(),
+        matched_rule: "test".to_string(),
+        x: 100,
+        y: 100,
+        width: 800,
+        height: 600,
+    };
+    app.emit("lockdown-block", payload)
+        .map_err(|e| format!("emit failed: {}", e))?;
+    eprintln!("[lockdown] test_lockdown_block — event emitted OK");
+    Ok(())
+}
+

@@ -1,0 +1,88 @@
+/* Sleep Tube Styles */
+.sleep-tube {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  height: 100%;
+  max-height: 400px;
+  flex-shrink: 0;
+  padding-right: 42px; /* Space for markers */
+}
+
+.sleep-tube__track {
+  width: 32px;
+  flex-grow: 1;
+  background: var(--bg-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.sleep-tube__marker {
+  position: absolute;
+  left: 100%;
+  display: flex;
+  align-items: center;
+  transform: translateY(-50%);
+  width: 40px;
+  pointer-events: none;
+}
+
+.sleep-tube__tick {
+  width: 6px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.3);
+  margin-right: 6px;
+}
+
+.sleep-tube__marker span {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.sleep-tube__fill {
+  width: 100%;
+  background: var(--accent);
+  transition: height 0.6s cubic-bezier(0.19, 1, 0.22, 1), background-color 0.5s ease;
+  box-shadow: 0 0 10px var(--accent);
+  border-radius: 2px;
+}
+
+.sleep-tube__fill.is-sleeping {
+  background: var(--text-muted);
+  box-shadow: none;
+  height: 0%;
+}
+
+.sleep-tube__label {
+  color: var(--text-muted);
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* ─── Widget Specific ─── */
+.sleep-tube--widget {
+  padding-right: 28px; /* Tighter padding for widget */
+  gap: 8px;
+}
+
+.sleep-tube--widget .sleep-tube__track {
+  width: 14px; /* Slimmer track */
+}
+
+.sleep-tube--widget .sleep-tube__marker {
+  width: 24px;
+}
+
+.sleep-tube--widget .sleep-tube__marker span {
+  font-size: 8px;
+}
+
+.sleep-tube--widget .sleep-tube__label {
+  font-size: 8px;
+}

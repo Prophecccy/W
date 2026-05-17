@@ -54,7 +54,8 @@ pub fn run() {
             sticky_overlay::set_sticky_drag_mode,
             lockdown::start_lockdown_monitor,
             lockdown::stop_lockdown_monitor,
-            lockdown::update_lockdown_blocklist
+            lockdown::update_lockdown_blocklist,
+            lockdown::test_lockdown_block
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

@@ -1,93 +1,41 @@
-import { useState, useEffect } from "react";
-import { useAuthContext } from "../../auth/context";
-import { getUserDoc, updateUserDoc } from "../../auth/services/userService";
 import { ColorPicker } from "../../../shared/components/ColorPicker/ColorPicker";
-import { useToast } from "../../../shared/components/Toast/Toast";
 import { Palette, Volume2 } from "lucide-react";
+import { Settings, Aesthetics } from "../../../shared/types";
 
-export function AppearanceSection() {
-  const { user } = useAuthContext();
-  const { showToast } = useToast();
-  const [accentColor, setAccentColor] = useState("#5B8DEF");
-  const [completionSound, setCompletionSound] = useState(true);
-  const [lowGraphicsMode, setLowGraphicsMode] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+interface AppearanceSectionProps {
+  settings: Settings;
+  onUpdate: (patch: Partial<Settings>) => void;
+  aesthetics: Aesthetics;
+  onUpdateAesthetics: (patch: Partial<Aesthetics>) => void;
+}
 
-  useEffect(() => {
-    if (user) {
-      getUserDoc(user.uid).then((doc) => {
-        if (doc) {
-          setAccentColor(doc.aesthetics.desktop.accentColor);
-          setCompletionSound(doc.settings.completionSound ?? true);
-          setLowGraphicsMode(doc.settings.lowGraphicsMode ?? false);
-          setLoaded(true);
-        }
-      });
-    }
-  }, [user]);
+export function AppearanceSection({ settings, onUpdate, aesthetics, onUpdateAesthetics }: AppearanceSectionProps) {
+  const accentColor = aesthetics.desktop.accentColor;
+  const completionSound = settings.completionSound;
+  const lowGraphicsMode = settings.lowGraphicsMode;
 
-  const handleColorChange = async (color: string) => {
-    setAccentColor(color);
+  const handleColorChange = (color: string) => {
     document.documentElement.style.setProperty("--accent", color);
-    if (user) {
-      try {
-        await updateUserDoc(user.uid, {
-          "aesthetics.desktop.accentColor": color,
-          "aesthetics.widget.accentColor": color,
-          "aesthetics.mobile.accentColor": color,
-        } as any);
-      } catch {
-        showToast("[ FAILED TO SAVE COLOR ]");
-      }
-    }
+    onUpdateAesthetics({
+      desktop: { ...aesthetics.desktop, accentColor: color },
+      widget: { ...aesthetics.widget, accentColor: color },
+      mobile: { ...aesthetics.mobile, accentColor: color },
+    });
   };
 
-  const handleSoundToggle = async () => {
-    const newVal = !completionSound;
-    setCompletionSound(newVal);
-    if (user) {
-      try {
-        await updateUserDoc(user.uid, {
-          "settings.completionSound": newVal,
-        } as any);
-        showToast(newVal ? "[ SOUND ON ]" : "[ SOUND OFF ]");
-      } catch {
-        showToast("[ FAILED TO SAVE ]");
-        setCompletionSound(!newVal);
-      }
-    }
+  const handleSoundToggle = () => {
+    onUpdate({ completionSound: !completionSound });
   };
 
-  const handleGraphicsToggle = async () => {
+  const handleGraphicsToggle = () => {
     const newVal = !lowGraphicsMode;
-    setLowGraphicsMode(newVal);
-    
     if (newVal) {
       document.body.classList.add("low-graphics");
     } else {
       document.body.classList.remove("low-graphics");
     }
-
-    if (user) {
-      try {
-        await updateUserDoc(user.uid, {
-          "settings.lowGraphicsMode": newVal,
-        } as any);
-        showToast(newVal ? "[ LOW GRAPHICS ON ]" : "[ LOW GRAPHICS OFF ]");
-      } catch {
-        showToast("[ FAILED TO SAVE ]");
-        setLowGraphicsMode(!newVal);
-        
-        if (!newVal) {
-          document.body.classList.add("low-graphics");
-        } else {
-          document.body.classList.remove("low-graphics");
-        }
-      }
-    }
+    onUpdate({ lowGraphicsMode: newVal });
   };
-
-  if (!loaded) return null;
 
   return (
     <div className="settings-section" id="settings-appearance">
@@ -121,7 +69,7 @@ export function AppearanceSection() {
         {/* Low Graphics Mode */}
         <div className="settings-row">
           <div className="settings-row__label">
-            <span style={{width: 14, display: 'inline-block'}} /> {/* placeholder to align if no icon */}
+            <span style={{width: 14, display: 'inline-block'}} />
             <span className="t-body">Low Graphics Mode</span>
           </div>
           <button

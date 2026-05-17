@@ -1,0 +1,79 @@
+/* ─── Block Overlay — Frosted Glass Intercept ──────────────────── */
+
+.block-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 9, 10, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: overlayFadeIn 0.25s ease-out;
+  user-select: none;
+  cursor: not-allowed;
+}
+
+@keyframes overlayFadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.block-overlay__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 48px 64px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.block-overlay__icon {
+  color: var(--strike-red, #E8736C);
+  filter: drop-shadow(0 0 20px rgba(232, 115, 108, 0.4));
+  animation: iconPulse 2s ease-in-out infinite;
+}
+
+@keyframes iconPulse {
+  0%, 100% { opacity: 0.8; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+.block-overlay__title {
+  font-family: "Departure Mono", monospace;
+  font-size: 28px;
+  letter-spacing: 8px;
+  color: #ffffff;
+  text-shadow: 0 0 40px rgba(232, 115, 108, 0.3);
+  margin: 0;
+}
+
+.block-overlay__subtitle {
+  font-family: "Departure Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 4px;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0;
+}
+
+.block-overlay__app-name {
+  font-family: "Departure Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--strike-red, #E8736C);
+  padding: 8px 24px;
+  border: 1px solid rgba(232, 115, 108, 0.25);
+  border-radius: 4px;
+  background: rgba(232, 115, 108, 0.08);
+  margin-top: 8px;
+}
+
+.block-overlay__hint {
+  font-family: "Departure Mono", monospace;
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.3);
+  margin: 16px 0 0;
+}

@@ -8,9 +8,10 @@ The "W" project is a high-focus **Command Center**. It features a tactical dashb
 ### Dashboard Command Center
 - **Viewport Locking**: The dashboard is strictly constrained to `100vh`. Page-level scrolling is disabled (`overflow: hidden`).
 - **Internal Scrolling**: Only the Habit and Todo list compartments are permitted to scroll (`overflow-y: auto`) when content exceeds the available vertical space.
-- **SleepTube Calibration**: Anchor left, fixed max-height (400px), dynamic theme-based accent color.
+- **SleepTube Calibration**: Anchor left, fixed max-height (400px), dynamic theme-based accent color. In the Desktop Widget, it is scaled to 200px and positioned on the left of a side-by-side layout.
 - **Daily Note**: Fixed at the bottom of the viewport, non-resizable to prevent layout shifting.
 - **Scrolling Constraint**: The main content area uses `flex: 1; min-height: 0; overflow-y: auto;` to ensure internal scrolling works correctly within the flexbox layout without breaking the footer/sidebar alignment.
+- **Widget Layout**: Uses a `flex-direction: row` side-by-side layout. [ SleepTube ] is on the left; [ Habits | Stats | Footer ] on the right.
 
 - **Status:** Stable. Feature set includes Dashboard, Habits, Todos, Analytics, and Desktop Widgets.
 - **Core Loop:** Users manage daily habits and tasks. The **SleepTube** provides a visual timer for the day's "fuel" (waking hours). Missed habit targets trigger the **Strike Engine**.
@@ -49,7 +50,7 @@ The "W" project is a high-focus **Command Center**. It features a tactical dashb
 - **analytics**: 30-day heatmap, consistency scoring, and habit-specific performance deep dives.
 - **strikes**: The "Police" of the app. Manages strike incrementing, lockout overlays, and punishments.
 - **sticky-notes**: Desktop overlay for pinned todos. Draggable, click-through capable, and persistent.
-- **lockdown**: (Desktop-only) OS-level monitor that blocks blacklisted apps during focus sessions.
+- **lockdown**: (Desktop-only) OS-level monitor that blocks blacklisted apps during focus sessions. *Currently in maintenance mode with a system under construction page.*
 - **widget**: Desktop background widget. Stays pinned to the bottom of the OS Z-order.
 - **freeze**: Automatic and manual "holiday mode" to prevent strikes during inactivity.
 - **auth**: Firebase Google Auth and Onboarding flow (Accent/Reset configuration).
@@ -76,29 +77,46 @@ Located in `src/features/habits/utils/heuristicEngine.ts`.
 - **Logic:** Calculates failure probability (0-100) based on Time Pressure (exponential spike near reset), Variance (deviation from usual completion time), and Daily Load.
 - **UI:** Habits with >75% risk pulse orange; >90% pulse red and fire native notifications.
 
-### 4. Lockdown Mode (Desktop-Only)
-Monitors active window titles using `GetForegroundWindow` (Rust).
-- **Violation:** If a blacklisted substring is detected, the app fires a `lockdown-violation` event, adds a strike, and flashes a red overlay for 4 seconds.
+### 4. Lockdown Mode (Desktop-Only) — Block Overlay Architecture
+Monitors active window titles using `GetForegroundWindow` (Rust, 500ms polling).
+- **Self-Lockout Safeguard:** PID comparison + hardcoded title checks (`W.exe`, `Command Center`) ensure the app NEVER blocks itself.
+- **Block Overlay:** When a banned app gains focus, Rust calls `GetWindowRect` for the exact bounding box, emits a `lockdown-block` event with `{x, y, width, height}`. The React `useLockdown` hook repositions the `block-overlay` Tauri window (transparent, frameless, always-on-top) to snap perfectly over the target, intercepting all clicks.
+- **Unblock:** When the banned app loses focus to a non-blocked window, Rust emits `lockdown-unblock` and the overlay hides.
+- **No Strikes/Notifications:** The old punishment logic (`addStrike`, native notifications, `recordViolation`) has been fully purged. Lockdown is a pure visual block.
+- **Block Overlay UI:** Dark frosted glass (`backdrop-filter: blur(8px); background: rgba(8,9,10,0.8)`) with `[ ACCESS DENIED ]` and `FOCUS PROTOCOL ACTIVE`.
+- **Maintenance Overlay:** The frontend `LockdownPage.tsx` interface is temporarily replaced with an "Under Construction" / `[ SYSTEM MAINTENANCE ]` tactical screen while backend changes are being finalized.
 ### 5. SleepTube (Waking Fuel) System
 The `SleepTube` (`src/features/dashboard/components/SleepTube.tsx`) is a vertical gauge monitoring the current "Waking Fuel" percentage.
-- **Logic:** Powered by the `useTimeLeft` hook. Operates on a 16-hour (960m) cycle from **07:00 (100%)** to **23:00 (0%)**.
-- **Formula:** `100 - ((minutesPassedSince0700 / 960) * 100)`.
-- **Sticky UI:** Fixed at `350px-400px` height and `position: sticky` in the dashboard grid to remain visible during list scrolling.
-- **Dynamic Theme:** Uses `var(--accent)` for the fill color and outer glow, ensuring consistency with the user's selected theme.
-- **Calibration UI:** Includes a high-precision measurement scale with static markers [100, 75, 50, 25, 0] aligned to the right edge of the tube track. Endpoint markers (100 and 0) have hidden ticks for a cleaner measuring instrument aesthetic.
-- **Calibration:** If user settings are at default (07:00/23:00), the Dashboard displays a `[ CALIBRATION REQUIRED ]` banner linking to settings.
+- **Logic**: Powered by the `useTimeLeft` hook. Operates on a 16-hour (960m) cycle from **07:00 (100%)** to **23:00 (0%)**.
+- **Formula**: `100 - ((minutesPassedSince0700 / 960) * 100)`.
+- **Sticky UI**: Fixed at `350px-400px` height and `position: sticky` in the dashboard grid on Web to remain visible during list scrolling. On Tauri Desktop context (`isTauri()` detection), it dynamically stretches (`height: 100%; min-height: 400px; max-height: none`) to fill the container height, except when in Widget mode (`!isWidget`).
+- **Widget Mode**: When the `isWidget` prop is true, it renders in a compact 200px height with simplified labels (`[ FUEL ]`) and slimmer track styling.
+- **Dynamic Theme**: Uses `var(--accent)` for the fill color and outer glow, ensuring consistency with the user's selected theme.
+- **Calibration UI**: Includes a high-precision measurement scale with static markers [100, 75, 50, 25, 0] aligned to the right edge of the tube track. Endpoint markers (100 and 0) have hidden ticks for a cleaner measuring instrument aesthetic.
+- **Calibration**: If user settings are at default (07:00/23:00), the Dashboard displays a `[ CALIBRATION REQUIRED ]` banner linking to settings.
+
 ### 6. Frameless Window Drag Regions
 To support native window movement in the frameless Tauri UI, specific elements use programmatic drag initiation.
 - **Pattern:** Use `onPointerDown` with `getCurrentWindow().startDragging()` on container elements (e.g., Login background, controls bar).
 - **Guard:** Always wrap in `if (e.target === e.currentTarget)` to prevent child elements (buttons, inputs) from triggering drags.
 - **Why not `data-tauri-drag-region`?** The HTML attribute gets blocked by the DOM in frameless windows. The explicit JS API bypasses this.
 - **Aesthetics:** Draggable areas use `user-select: none` to prevent text selection flickering during window movement.
+
 ### 7. Habit Creation Wizard
 The Habit creation flow is a streamlined 6-step wizard (`src/features/habits/components/HabitForm`).
 - **Flow:** Basics → Period → Type → Duration → Appearance → Grouping.
 - **Appearance Step:** Focuses exclusively on iconography. The `ColorPicker` is omitted to maintain global theme consistency and prevent accidental overrides during habit setup.
 - **Aesthetic:** The icon grid is expanded to fill the vertical space, adhering to the "Instrument" design philosophy.
 
+### 8. Settings Navigation Design
+The sidebar navigation of the settings page (`src/features/settings/components/SettingsPage.tsx`) implements high-scannability indicators.
+- **Structure**: Configured via a structured static `TABS` array defining tab identifiers, custom labels, and specific icon assignments.
+- **Icon Mapping**: Mapped tabs: `ACCOUNT` -> `User`, `APPEARANCE` -> `Palette`, `DESKTOP & WALLPAPERS` -> `Monitor`, `SCHEDULE & TIME` -> `Clock`, `NOTIFICATIONS` -> `Bell`, `DATA & SYSTEM` -> `HardDrive`.
+- **Aesthetic Constraints**: Tabs use Flexbox (`display: flex; align-items: center; gap: 12px;`) to align outline-style Lucide icons before labels. Icons are sized strictly to `16px` to maintain typographical balance with `.settings-tab` fonts.
+- **Transitions & Focus States**:
+  - Inactive: Muted colors (`var(--text-muted)`) for both text and icons.
+  - Hover: Smooth transition to full white (`#ffffff`) for text and icons with subtle background changes.
+  - Active: Bold indicator styled in `var(--accent)` with a `border-left: 3px solid var(--accent)` active boundary marker.
 ---
 
 ## Design System Tokens

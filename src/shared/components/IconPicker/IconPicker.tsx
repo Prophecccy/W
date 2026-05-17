@@ -1,23 +1,6 @@
 import { useState, useMemo } from "react";
-import { LucideIcon } from "./LucideIcon";
+import { ICON_DATA, IconCategory } from "./iconData";
 import "./IconPicker.css";
-
-// 65 curated minimalist icons suitable for productivity habits
-const ICONS = [
-  "Activity", "AlarmClock", "AlertCircle", "AlignLeft", "Anchor", 
-  "Aperture", "Archive", "Award", "BadgeIndianRupee", "BadgePercent", 
-  "Banknote", "BatteryCharging", "Bell", "BicepsFlexed", "BookOpen", 
-  "Bookmark", "BoxSelect", "Briefcase", "Brush", "Calculator", 
-  "CalendarDays", "Camera", "CheckCircle2", "ChevronUpSquare", "CloudRain", 
-  "Coffee", "Command", "Compass", "Cpu", "CreditCard", 
-  "Crosshair", "Database", "Dumbbell", "Edit3", "Eye", 
-  "Feather", "FileText", "Filter", "Flame", "Focus", 
-  "Folder", "Gamepad2", "Gauge", "Gift", "Glasses", 
-  "Globe", "GraduationCap", "Hammer", "Headphones", "Heart", 
-  "Image", "Inbox", "Key", "Laptop", "Layout", 
-  "Lightbulb", "Link", "List", "Lock", "Mail", 
-  "Map", "MessageSquare", "Monitor", "Moon", "Music"
-];
 
 interface IconPickerProps {
   selectedIcon: string;
@@ -27,10 +10,22 @@ interface IconPickerProps {
 export function IconPicker({ selectedIcon, onSelect }: IconPickerProps) {
   const [search, setSearch] = useState("");
 
+  const categories: IconCategory[] = [
+    "PRODUCTIVITY",
+    "HEALTH & FITNESS",
+    "TECH & DEV",
+    "FINANCE",
+    "HOME & LIFE",
+    "MINDFULNESS",
+  ];
+
   const filteredIcons = useMemo(() => {
-    if (!search) return ICONS;
+    if (!search) return ICON_DATA;
     const lower = search.toLowerCase();
-    return ICONS.filter((icon) => icon.toLowerCase().includes(lower));
+    return ICON_DATA.filter((item) => 
+      item.id.toLowerCase().includes(lower) || 
+      item.tags.some(tag => tag.toLowerCase().includes(lower))
+    );
   }, [search]);
 
   return (
@@ -38,29 +33,69 @@ export function IconPicker({ selectedIcon, onSelect }: IconPickerProps) {
       <input
         type="text"
         className="icon-picker__search t-data"
-        placeholder="Search icons..."
+        placeholder="Search 300+ icons (e.g. 'gym', 'code', 'wallet')..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
-      <div className="icon-picker__grid">
-        {filteredIcons.map((icon) => {
-          const isSelected = selectedIcon === icon;
-          return (
-            <button
-              key={icon}
-              type="button"
-              className={`icon-picker__btn ${isSelected ? "icon-picker__btn--active" : ""}`}
-              onClick={() => onSelect(icon)}
-              title={icon}
-            >
-              <LucideIcon name={icon} size={24} />
-            </button>
-          );
-        })}
-        {filteredIcons.length === 0 && (
-          <div className="t-meta icon-picker__empty">No icons found.</div>
-        )}
+      
+      <div className="icon-picker__scroll-area">
+        <div className="icon-picker__grid">
+          {search ? (
+            // Flattened search results
+            filteredIcons.length > 0 ? (
+              <div className="icon-picker__category-grid">
+                {filteredIcons.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`icon-picker__btn ${selectedIcon === item.id ? "icon-picker__btn--active" : ""}`}
+                      onClick={() => onSelect(item.id)}
+                      title={item.id}
+                    >
+                      <Icon size={20} strokeWidth={2.5} />
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="t-meta icon-picker__empty">No icons found for "{search}"</div>
+            )
+          ) : (
+            // Categorized view
+            categories.map(category => {
+              const categoryIcons = ICON_DATA.filter(i => i.category === category);
+              if (categoryIcons.length === 0) return null;
+              
+              return (
+                <div key={category} className="icon-picker__category-container">
+                  <div className="t-meta icon-picker__category-header">
+                    [ {category} ]
+                  </div>
+                  <div className="icon-picker__category-grid">
+                    {categoryIcons.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={`icon-picker__btn ${selectedIcon === item.id ? "icon-picker__btn--active" : ""}`}
+                          onClick={() => onSelect(item.id)}
+                          title={item.id}
+                        >
+                          <Icon size={20} strokeWidth={2.5} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
     </div>
   );
 }
+

@@ -9,6 +9,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { SleepTube } from '../../dashboard/components/SleepTube';
 import './WidgetApp.css';
 
 export function WidgetApp() {
@@ -58,24 +59,13 @@ export function WidgetApp() {
   // ─── Manual Drag State ───────────────────────────────────
   // ALL drag handlers are synchronous — no awaits allowed in the drag path.
   // The actual window move is handled natively by Rust (move_widget_by).
+  // Z-Order defense is DEFERRED to pointerUp (tap-only) so it doesn't
+  // steal focus or push the window behind others mid-drag.
   const isDragging = useRef(false);
+  const dragMoved = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    // ── Z-Order Enforcer: Active Defense on Click ──
-    try {
-      invoke("pin_widget_bottom");
-      import("@tauri-apps/api/webviewWindow").then(({ WebviewWindow }) => {
-        WebviewWindow.getByLabel("main").then(main => {
-          if (main) {
-            main.isMinimized().then(isMin => {
-              if (!isMin) main.setFocus();
-            });
-          }
-        });
-      });
-    } catch {}
-
     // Skip interactive children — but NOT the scroll container itself
     if (e.target instanceof Element && (
       e.target.closest('.widget-habit-card') ||
@@ -88,6 +78,7 @@ export function WidgetApp() {
     if (e.button !== 0) return;
 
     isDragging.current = true;
+    dragMoved.current = false;
     const dpr = window.devicePixelRatio || 1;
     lastPos.current = { x: e.screenX * dpr, y: e.screenY * dpr };
     // MUST be called synchronously — captures pointer even outside window bounds
@@ -106,6 +97,7 @@ export function WidgetApp() {
 
     if (dx === 0 && dy === 0) return;
 
+    dragMoved.current = true;
     // Store absolute physical position plus offset to prevent fractional drift over time
     lastPos.current = { x: lastPos.current.x + dx, y: lastPos.current.y + dy };
     // Fire-and-forget — Rust handles the native move synchronously
@@ -113,7 +105,27 @@ export function WidgetApp() {
   }, []);
 
   const handlePointerUp = useCallback(() => {
+    const wasDrag = dragMoved.current;
     isDragging.current = false;
+    dragMoved.current = false;
+
+    // ── Z-Order Enforcer: only on TAP (no drag movement) ──
+    // During a drag we must NOT steal focus or re-pin, otherwise
+    // the window gets sent behind other windows mid-move.
+    if (!wasDrag) {
+      try {
+        invoke("pin_widget_bottom");
+        import("@tauri-apps/api/webviewWindow").then(({ WebviewWindow }) => {
+          WebviewWindow.getByLabel("main").then(main => {
+            if (main) {
+              main.isMinimized().then(isMin => {
+                if (!isMin) main.setFocus();
+              });
+            }
+          });
+        });
+      } catch {}
+    }
   }, []);
 
   // ─── Wallpaper ───────────────────────────────────────────
@@ -303,34 +315,44 @@ export function WidgetApp() {
       )}
 
       <div className="widget-app__content">
-        <div className="widget-app__top-section">
-          <div className="widget-app__habits-area">
-            <div className="widget-app__header">
-              <span>[ ACTIVE PROTOCOLS ]</span>
-              <span className="text-blue" style={{ marginRight: '16px' }}>SYSTEM LIVE</span>
-            </div>
-            <div className="widget-app__habits-scroll">
-              <WidgetHabitList
-                scheduledHabits={scheduledHabits}
-                todayLog={todayLog}
-                onComplete={completeHabit}
-                onUndo={undoHabit}
-              />
-            </div>
+        <div className="widget-app__left-panel">
+          <div style={{ height: '200px', width: '40px' }}>
+            <SleepTube 
+              isWidget
+              settings={userDoc?.settings ? {
+                wakeUpTime: userDoc.settings.wakeUpTime || "07:00",
+                bedTime: userDoc.settings.bedTime || "23:00"
+              } : undefined} 
+            />
           </div>
         </div>
 
-        <div className="widget-app__bottom-section">
-          <PowerHub
-            completedCount={completedCount}
-            totalScheduled={totalScheduled}
+        <div className="widget-app__right-panel">
+          <div className="widget-app__header">
+            <span>[ ACTIVE PROTOCOLS ]</span>
+            <span className="text-blue">[ SYSTEM LIVE ]</span>
+          </div>
 
-          />
-        </div>
-        
-        <div className="widget-app__footer">
-          <div className={`widget-app__strike-badge ${strikeCount > 0 ? 'widget-app__strike-badge--active' : ''}`}>
-            {strikeCount > 0 ? `[ ${strikeCount} STRIKES ]` : '[ 0 STRIKES ]'}
+          <div className="widget-app__habits-scroll">
+            <WidgetHabitList
+              scheduledHabits={scheduledHabits}
+              todayLog={todayLog}
+              onComplete={completeHabit}
+              onUndo={undoHabit}
+            />
+          </div>
+
+          <div className="widget-app__stats-section">
+            <PowerHub
+              completedCount={completedCount}
+              totalScheduled={totalScheduled}
+            />
+          </div>
+          
+          <div className="widget-app__footer">
+            <div className={`widget-app__strike-badge ${strikeCount > 0 ? 'widget-app__strike-badge--active' : ''}`}>
+              {strikeCount > 0 ? `[ ${strikeCount} STRIKES ]` : '[ 0 STRIKES ]'}
+            </div>
           </div>
         </div>
       </div>

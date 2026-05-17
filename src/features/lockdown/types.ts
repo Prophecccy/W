@@ -1,5 +1,5 @@
 // ─── Lockdown Mode Types ─────────────────────────────────────────
-// State machine: inactive → active (monitoring) → violation detected → strike issued
+// Behavior: inactive → active (monitoring) → blocked app detected → overlay intercept
 
 export interface LockdownState {
   active: boolean;
@@ -16,7 +16,6 @@ export interface LockdownViolation {
   matchedRule: string;
   timestamp: number;
   date: string;         // YYYY-MM-DD
-  strikeIssued: boolean;
 }
 
 export interface LockdownDurationOption {

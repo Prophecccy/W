@@ -1,10 +1,11 @@
 // ─── Lockdown Service ────────────────────────────────────────────
 // Manages lockdown state in Firestore + bridges to Rust via Tauri invoke.
+// NOTE: recordViolation and strike logic have been removed.
+// Lockdown now uses a physical block overlay instead of punishment.
 
-import { doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db, auth } from "../../../shared/config/firebase";
-import { LockdownState, LockdownViolation, DEFAULT_LOCKDOWN_STATE } from "../types";
-import { getToday } from "../../../shared/utils/dateUtils";
+import { LockdownState, DEFAULT_LOCKDOWN_STATE } from "../types";
 
 function uid(): string {
   const u = auth.currentUser;
@@ -45,6 +46,9 @@ export async function activateLockdown(
 
   // Start the Rust-side monitor
   try {
+    const { isTauri } = await import("../../../shared/utils/tauri");
+    if (!isTauri()) return;
+
     const { invoke } = await import("@tauri-apps/api/core");
     console.log("[lockdown] Calling start_lockdown_monitor via invoke...");
     await invoke("start_lockdown_monitor", { blocklist });
@@ -64,6 +68,9 @@ export async function deactivateLockdown(): Promise<void> {
 
   // Stop the Rust-side monitor
   try {
+    const { isTauri } = await import("../../../shared/utils/tauri");
+    if (!isTauri()) return;
+
     const { invoke } = await import("@tauri-apps/api/core");
     await invoke("stop_lockdown_monitor");
     console.log("[lockdown] Rust monitor stopped successfully");
@@ -81,6 +88,9 @@ export async function updateBlocklist(blocklist: string[]): Promise<void> {
 
   // Hot-swap the Rust-side blocklist
   try {
+    const { isTauri } = await import("../../../shared/utils/tauri");
+    if (!isTauri()) return;
+
     const { invoke } = await import("@tauri-apps/api/core");
     await invoke("update_lockdown_blocklist", { blocklist });
   } catch {
@@ -88,32 +98,7 @@ export async function updateBlocklist(blocklist: string[]): Promise<void> {
   }
 }
 
-// ─── Record Violation ────────────────────────────────────────────
-
-export async function recordViolation(
-  appName: string,
-  matchedRule: string
-): Promise<LockdownViolation> {
-  const violation: LockdownViolation = {
-    appName,
-    matchedRule,
-    timestamp: Date.now(),
-    date: getToday(),
-    strikeIssued: true,
-  };
-
-  const state = await getLockdownState();
-
-  await updateDoc(userRef(), {
-    "lockdown.violations": arrayUnion(violation),
-    "lockdown.totalViolations": (state.totalViolations || 0) + 1,
-  });
-
-  return violation;
-}
-
 // ─── Resume Lockdown on App Start ────────────────────────────────
-// If the app was closed while lockdown was active, resume monitoring.
 
 export async function resumeLockdownIfActive(): Promise<boolean> {
   try {
@@ -123,7 +108,7 @@ export async function resumeLockdownIfActive(): Promise<boolean> {
 
     // Check if duration has expired
     if (state.duration && state.startedAt) {
-      const elapsed = (Date.now() - state.startedAt) / 1000 / 60; // minutes
+      const elapsed = (Date.now() - state.startedAt) / 1000 / 60;
       if (elapsed >= state.duration) {
         console.log("[lockdown] Duration expired — deactivating");
         await deactivateLockdown();
@@ -132,6 +117,9 @@ export async function resumeLockdownIfActive(): Promise<boolean> {
     }
 
     // Resume the Rust monitor
+    const { isTauri } = await import("../../../shared/utils/tauri");
+    if (!isTauri()) return false;
+
     const { invoke } = await import("@tauri-apps/api/core");
     console.log("[lockdown] Resuming Rust monitor with blocklist:", state.blocklist);
     await invoke("start_lockdown_monitor", { blocklist: state.blocklist });

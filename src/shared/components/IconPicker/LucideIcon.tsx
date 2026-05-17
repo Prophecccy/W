@@ -5,13 +5,14 @@ interface LucideIconProps extends LucideIcons.LucideProps {
 }
 
 export function LucideIcon({ name, ...props }: LucideIconProps) {
-  // @ts-ignore - Dynamic key access on lucide-react exports
-  const IconComponent = LucideIcons[name];
+  // Try to find the icon component by its string name from the lucide-react exports
+  const IconComponent = (LucideIcons as any)[name] as LucideIcons.LucideIcon | undefined;
   
   if (!IconComponent) {
-    // Fallback if icon name is invalid or misspelled
+    // Fallback to HelpCircle if the icon name is invalid or missing
     return <LucideIcons.HelpCircle {...props} />;
   }
 
   return <IconComponent {...props} />;
 }
+

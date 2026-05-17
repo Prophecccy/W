@@ -1,8 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { useAuthContext } from "../../auth/context";
-import { getUserDoc, updateUserDoc } from "../../auth/services/userService";
-import { useToast } from "../../../shared/components/Toast/Toast";
 import { Clock, CalendarDays, Globe, Sunrise, Moon } from "lucide-react";
+import { Settings } from "../../../shared/types";
 
 // Get all available timezones
 function getTimezones(): string[] {
@@ -21,47 +18,17 @@ function getTimezones(): string[] {
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const TIMEZONES = getTimezones();
 
-export function ScheduleSection() {
-  const { user } = useAuthContext();
-  const { showToast } = useToast();
-  const [resetTime, setResetTime] = useState("04:00");
-  const [weeklyDay, setWeeklyDay] = useState(1);
-  const [timezone, setTimezone] = useState("UTC");
-  const [wakeUpTime, setWakeUpTime] = useState("07:00");
-  const [bedTime, setBedTime] = useState("23:00");
-  const [loaded, setLoaded] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+interface ScheduleSectionProps {
+  settings: Settings;
+  onUpdate: (patch: Partial<Settings>) => void;
+}
 
-  useEffect(() => {
-    if (user) {
-      getUserDoc(user.uid).then((doc) => {
-        if (doc) {
-          setResetTime(doc.settings.dailyResetTime);
-          setWeeklyDay(doc.settings.weeklyResetDay);
-          setTimezone(doc.settings.timezone);
-          setWakeUpTime(doc.settings.wakeUpTime || "07:00");
-          setBedTime(doc.settings.bedTime || "23:00");
-          setLoaded(true);
-        }
-      });
-    }
-  }, [user]);
-
-  const saveField = (field: string, value: unknown) => {
-    if (!user) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      try {
-        await updateUserDoc(user.uid, {
-          [`settings.${field}`]: value,
-        } as any);
-      } catch {
-        showToast("[ FAILED TO SAVE ]");
-      }
-    }, 500);
-  };
-
-  if (!loaded) return null;
+export function ScheduleSection({ settings, onUpdate }: ScheduleSectionProps) {
+  const resetTime = settings.dailyResetTime;
+  const weeklyDay = settings.weeklyResetDay;
+  const timezone = settings.timezone;
+  const wakeUpTime = settings.wakeUpTime;
+  const bedTime = settings.bedTime;
 
   return (
     <div className="settings-section" id="settings-schedule">
@@ -78,10 +45,7 @@ export function ScheduleSection() {
             type="time"
             className="settings-input"
             value={resetTime}
-            onChange={(e) => {
-              setResetTime(e.target.value);
-              saveField("dailyResetTime", e.target.value);
-            }}
+            onChange={(e) => onUpdate({ dailyResetTime: e.target.value })}
           />
         </div>
 
@@ -95,10 +59,7 @@ export function ScheduleSection() {
             type="time"
             className="settings-input"
             value={wakeUpTime}
-            onChange={(e) => {
-              setWakeUpTime(e.target.value);
-              saveField("wakeUpTime", e.target.value);
-            }}
+            onChange={(e) => onUpdate({ wakeUpTime: e.target.value })}
           />
         </div>
 
@@ -112,10 +73,7 @@ export function ScheduleSection() {
             type="time"
             className="settings-input"
             value={bedTime}
-            onChange={(e) => {
-              setBedTime(e.target.value);
-              saveField("bedTime", e.target.value);
-            }}
+            onChange={(e) => onUpdate({ bedTime: e.target.value })}
           />
         </div>
 
@@ -129,11 +87,7 @@ export function ScheduleSection() {
           <select
             className="settings-select"
             value={weeklyDay}
-            onChange={(e) => {
-              const val = Number(e.target.value);
-              setWeeklyDay(val);
-              saveField("weeklyResetDay", val);
-            }}
+            onChange={(e) => onUpdate({ weeklyResetDay: Number(e.target.value) })}
           >
             {DAYS_OF_WEEK.map((day, i) => (
               <option key={i} value={i}>{day}</option>
@@ -150,10 +104,7 @@ export function ScheduleSection() {
           <select
             className="settings-select"
             value={timezone}
-            onChange={(e) => {
-              setTimezone(e.target.value);
-              saveField("timezone", e.target.value);
-            }}
+            onChange={(e) => onUpdate({ timezone: e.target.value })}
           >
             {TIMEZONES.map((tz) => (
               <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>

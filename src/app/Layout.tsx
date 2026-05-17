@@ -30,7 +30,6 @@ import { UpdateHUD } from "../features/updater/components/UpdateHUD";
 import { initUpdater } from "../features/updater/hooks/useUpdateManager";
 import { useToast } from "../shared/components/Toast/Toast";
 import { useLockdown } from "../features/lockdown/hooks/useLockdown";
-import { LockdownViolationOverlay } from "../features/lockdown/components/LockdownViolationOverlay";
 import "./Layout.css";
 
 // ─── Startup phases ──────────────────────────────────────────────
@@ -59,7 +58,7 @@ function LayoutInner() {
   const [paletteTodos, setPaletteTodos] = useState<Todo[]>([]);
 
   const { strikes, isLocked } = useStrikes();
-  const { isActive: isLockdownActive, violation: lockdownViolation } = useLockdown();
+  const { isActive: isLockdownActive } = useLockdown();
   useNotifications();
 
   // ── Phase 1: Load user doc (delegates to UserStore) ────────────
@@ -459,13 +458,6 @@ function LayoutInner() {
       )}
 
       <UpdateHUD />
-
-      {lockdownViolation && (
-        <LockdownViolationOverlay
-          appTitle={lockdownViolation.appTitle}
-          matchedRule={lockdownViolation.matchedRule}
-        />
-      )}
     </div>
   );
 }

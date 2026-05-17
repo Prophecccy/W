@@ -11,6 +11,7 @@ import { AuthGuard } from "../features/auth/components/AuthGuard";
 import { StickyCanvas } from "../features/sticky-notes/components/StickyCanvas";
 import { WidgetApp } from "../features/widget/components/WidgetApp";
 import { LogbookPage } from "../features/logs/components/LogbookPage";
+import { BlockOverlay } from "../features/lockdown/components/BlockOverlay";
 
 
 export const router = createBrowserRouter([
@@ -35,6 +36,10 @@ export const router = createBrowserRouter([
         <WidgetApp />
       </AuthGuard>
     ),
+  },
+  {
+    path: "/block-overlay",
+    element: <BlockOverlay />,
   },
   {
     path: "/",

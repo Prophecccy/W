@@ -21,14 +21,18 @@ export function LoginPage() {
   }
 
   const handleDrag = (e: React.PointerEvent) => {
-    if (e.target === e.currentTarget) {
-      getCurrentWindow().startDragging();
-    }
+    // Allow drag from anywhere EXCEPT interactive elements
+    if (e.target instanceof Element && (
+      e.target.closest('button') ||
+      e.target.closest('a') ||
+      e.target.closest('input')
+    )) return;
+    getCurrentWindow().startDragging();
   };
 
   return (
     <div className="login-page" onPointerDown={handleDrag}>
-      <div className="login-page__controls" onPointerDown={handleDrag}>
+      <div className="login-page__controls">
         <button 
           className="login-page__close-btn t-label" 
           onClick={() => appWindow?.close()}

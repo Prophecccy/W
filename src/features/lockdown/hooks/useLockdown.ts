@@ -1,14 +1,13 @@
 // ─── useLockdown Hook ────────────────────────────────────────────
-// Listens for `lockdown-violation` events from Rust, issues strikes,
-// manages countdown timer, and tracks active lockdown state.
+// Listens for `lockdown-block` / `lockdown-unblock` events from Rust.
+// Positions the block-overlay Tauri window over banned apps.
+// NO strikes, NO notifications — purely a visual/physical block.
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { addStrike } from "../../strikes/services/strikeService";
 import {
   getLockdownState,
   activateLockdown,
   deactivateLockdown,
-  recordViolation,
   resumeLockdownIfActive,
 } from "../services/lockdownService";
 import { LockdownState, DEFAULT_LOCKDOWN_STATE } from "../types";
@@ -16,25 +15,16 @@ import { LockdownState, DEFAULT_LOCKDOWN_STATE } from "../types";
 interface UseLockdownReturn {
   state: LockdownState;
   isActive: boolean;
-  timeRemaining: number | null; // seconds remaining, null if no timer
-  violation: ViolationFlash | null;
+  timeRemaining: number | null;
   activate: (blocklist: string[], duration: number | null) => Promise<void>;
   deactivate: () => Promise<void>;
   reload: () => Promise<void>;
 }
 
-interface ViolationFlash {
-  appTitle: string;
-  matchedRule: string;
-  timestamp: number;
-}
-
 export function useLockdown(): UseLockdownReturn {
   const [state, setState] = useState<LockdownState>({ ...DEFAULT_LOCKDOWN_STATE });
-  const [violation, setViolation] = useState<ViolationFlash | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const violationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Load state on mount ────────────────────────────────────────
   const reload = useCallback(async () => {
@@ -57,79 +47,82 @@ export function useLockdown(): UseLockdownReturn {
     });
   }, [reload]);
 
-  // ── Listen for violation events from Rust ──────────────────────
+  // ── Listen for block/unblock events from Rust ─────────────────
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
+    let unlistenBlock: (() => void) | undefined;
+    let unlistenUnblock: (() => void) | undefined;
 
-    async function setupListener() {
+    async function setupListeners() {
       try {
         const { listen } = await import("@tauri-apps/api/event");
-        console.log("[lockdown] Setting up violation event listener...");
-        unlisten = await listen<{ app_title: string; matched_rule: string }>(
-          "lockdown-violation",
-          async (event) => {
-            const { app_title, matched_rule } = event.payload;
-            console.log("[lockdown] VIOLATION EVENT RECEIVED:", { app_title, matched_rule });
+        const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
 
-            // 1. Record violation in Firestore
-            await recordViolation(app_title, matched_rule);
+        console.log("[lockdown] Setting up block/unblock listeners...");
 
-            // 2. Issue a strike
-            try {
-              await addStrike(
-                "lockdown",
-                `Lockdown: ${matched_rule}`,
-                "lockdown_violation" as any
-              );
-              console.log("[lockdown] Strike issued for:", matched_rule);
-            } catch (err) {
-              console.error("[lockdown] Failed to issue lockdown strike:", err);
+        // Helper: get the statically defined block-overlay window
+        async function getOrCreateOverlay(): Promise<InstanceType<typeof WebviewWindow> | null> {
+          return await WebviewWindow.getByLabel("block-overlay");
+        }
+
+        // ── BLOCK: position overlay over the banned window ───────
+        unlistenBlock = await listen<{
+          app_title: string;
+          matched_rule: string;
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+        }>("lockdown-block", async (event) => {
+          const { x, y, width, height } = event.payload;
+          
+          try {
+            console.log("[lockdown] Received block event:", event.payload);
+            const overlay = await getOrCreateOverlay();
+            if (!overlay) {
+              console.error("[lockdown] Failed to get/create overlay");
+              return;
             }
 
-            // 3. Flash violation overlay
-            setViolation({
-              appTitle: app_title,
-              matchedRule: matched_rule,
-              timestamp: Date.now(),
-            });
+            const { PhysicalPosition, PhysicalSize } = await import("@tauri-apps/api/dpi");
 
-            // Clear violation after 4 seconds
-            if (violationTimeoutRef.current) {
-              clearTimeout(violationTimeoutRef.current);
-            }
-            violationTimeoutRef.current = setTimeout(() => {
-              setViolation(null);
-            }, 4000);
+            // Use physical pixels directly from the OS
+            const safeW = Math.max(200, width);
+            const safeH = Math.max(100, height);
 
-            // 4. Send native notification
-            try {
-              const { sendNotification } = await import(
-                "../../../shared/services/notificationService"
-              );
-              sendNotification(
-                "🔒 LOCKDOWN VIOLATION",
-                `${matched_rule} detected — +1 STRIKE ISSUED`
-              );
-            } catch {
-              // Notifications may not be available
-            }
-
-            // 5. Reload state to reflect new violation count
-            reload();
+            await overlay.setPosition(new PhysicalPosition(x, y));
+            await overlay.setSize(new PhysicalSize(safeW, safeH));
+            await overlay.show();
+            await overlay.setFocus();
+            console.log("[lockdown] Overlay positioned and shown.");
+          } catch (err: any) {
+            console.error("[lockdown] Failed to position block overlay:", err);
           }
-        );
-        console.log("[lockdown] Violation listener registered successfully");
+        });
+
+        // ── UNBLOCK: hide the overlay ───────────────────────────
+        unlistenUnblock = await listen("lockdown-unblock", async () => {
+          try {
+            const overlay = await WebviewWindow.getByLabel("block-overlay");
+            if (overlay) {
+              await overlay.hide();
+            }
+          } catch (err) {
+            console.error("[lockdown] Failed to hide block overlay:", err);
+          }
+        });
+
+        console.log("[lockdown] Block/unblock listeners registered");
       } catch (err) {
-        console.error("[lockdown] Failed to setup violation listener:", err);
+        console.error("[lockdown] Failed to setup listeners:", err);
       }
     }
 
-    setupListener();
+    setupListeners();
     return () => {
-      if (unlisten) unlisten();
-      if (violationTimeoutRef.current) clearTimeout(violationTimeoutRef.current);
+      if (unlistenBlock) unlistenBlock();
+      if (unlistenUnblock) unlistenUnblock();
     };
-  }, [reload]);
+  }, []);
 
   // ── Countdown timer ────────────────────────────────────────────
   useEffect(() => {
@@ -150,12 +143,11 @@ export function useLockdown(): UseLockdownReturn {
       setTimeRemaining(remaining);
 
       if (remaining <= 0) {
-        // Auto-deactivate
         deactivateLockdownHandler();
       }
     };
 
-    tick(); // Initial
+    tick();
     timerRef.current = setInterval(tick, 1000);
 
     return () => {
@@ -175,6 +167,18 @@ export function useLockdown(): UseLockdownReturn {
   const deactivateLockdownHandler = useCallback(async () => {
     await deactivateLockdown();
     setTimeRemaining(null);
+
+    // Hide the block overlay when lockdown is deactivated
+    try {
+      const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+      const overlay = await WebviewWindow.getByLabel("block-overlay");
+      if (overlay) {
+        await overlay.hide();
+      }
+    } catch {
+      // Not in Tauri
+    }
+
     await reload();
   }, [reload]);
 
@@ -182,7 +186,6 @@ export function useLockdown(): UseLockdownReturn {
     state,
     isActive: state.active,
     timeRemaining,
-    violation,
     activate: activateHandler,
     deactivate: deactivateLockdownHandler,
     reload,
