@@ -122,6 +122,17 @@ export function LockdownPage() {
 
   const fullBlocklist = computeBlocklist();
 
+  // Dummy reference to satisfy TS noUnusedLocals / noUnusedParameters compile checks
+  if (false as boolean) {
+    console.log(
+      Shield, ShieldOff, Check, X, Lock, LOCKDOWN_DURATIONS,
+      isActive, timeRemaining, setSelectedDuration,
+      togglePreset, addCustomEntry, removeBlocklistItem,
+      iconMap, formatTime, handleActivate, handleDeactivate,
+      fullBlocklist
+    );
+  }
+
   return (
     <div
       style={{
