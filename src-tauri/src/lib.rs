@@ -1,5 +1,9 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-use tauri::Manager;
+use tauri::{
+    Manager,
+    menu::{Menu, MenuItem, PredefinedMenuItem},
+    tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
+};
 
 mod workerw;
 mod sticky_overlay;
@@ -26,10 +30,11 @@ pub fn run() {
             }
         }))
         .setup(|app| {
-            // Force Windows to launch W on startup by default (locked in)
+            // ── Autolaunch (always locked in) ──────────────────────────────
             use tauri_plugin_autostart::ManagerExt;
             let _ = app.autolaunch().enable();
 
+            // ── Startup visibility ─────────────────────────────────────────
             let args: Vec<String> = std::env::args().collect();
             let is_hidden_startup = args.contains(&"--hidden".to_string());
 
@@ -39,6 +44,61 @@ pub fn run() {
                     let _ = main_window.set_focus();
                 }
             }
+
+            // ── System Tray ────────────────────────────────────────────────
+            let show_item = MenuItem::with_id(
+                app,
+                "show",
+                "[ Show Command Center ]",
+                true,
+                None::<&str>,
+            )?;
+
+            let separator = PredefinedMenuItem::separator(app)?;
+
+            let quit_item = MenuItem::with_id(
+                app,
+                "quit",
+                "[ Quit 'W' ]",
+                true,
+                None::<&str>,
+            )?;
+
+            let tray_menu = Menu::with_items(app, &[&show_item, &separator, &quit_item])?;
+
+            let _tray = TrayIconBuilder::new()
+                .menu(&tray_menu)
+                .show_menu_on_left_click(false)     // left-click shows window, right-click opens menu
+                .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("W — Command Center")
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" => {
+                        if let Some(win) = app.get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+                    }
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    // Double-click on the tray icon opens the main window
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: tauri::tray::MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(win) = app.get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
 
             Ok(())
         })
@@ -58,6 +118,7 @@ pub fn run() {
             lockdown::test_lockdown_block
         ])
         .on_window_event(|window, event| {
+            // Closing the main window hides it (sends to tray) instead of exiting
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" {
                     let _ = window.hide();
@@ -68,4 +129,3 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-
