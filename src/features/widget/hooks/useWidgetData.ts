@@ -29,7 +29,7 @@ export function useWidgetData(): WidgetData {
   const [userDoc, setUserDoc] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const today = getToday();
+  const today = getToday(undefined, userDoc?.settings?.dailyResetTime);
 
   // Listen to habits
   useEffect(() => {
@@ -70,7 +70,11 @@ export function useWidgetData(): WidgetData {
     const userRef = doc(db, 'users', user.uid);
     const unsub = onSnapshot(userRef, (snap) => {
       if (snap.exists()) {
-        setUserDoc({ uid: snap.id, ...snap.data() } as User);
+        const data = snap.data();
+        setUserDoc({ uid: snap.id, ...data } as User);
+        if (typeof window !== "undefined" && data?.settings?.dailyResetTime) {
+          localStorage.setItem("w_daily_reset_time", data.settings.dailyResetTime);
+        }
       }
       setLoading(false);
     });

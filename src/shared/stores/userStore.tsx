@@ -31,6 +31,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const loadUser = useCallback(async () => {
     if (!user) {
       setUserDoc(null);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("w_daily_reset_time");
+      }
       setLoading(false);
       return;
     }
@@ -39,6 +42,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
     try {
       const doc = await getUserDoc(user.uid);
       if (doc) {
+        if (typeof window !== "undefined" && doc.settings?.dailyResetTime) {
+          localStorage.setItem("w_daily_reset_time", doc.settings.dailyResetTime);
+        }
         setUserDoc(doc);
       } else {
         setUserDoc(null);
@@ -58,6 +64,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
   // ── Actions ──────────────────────────────────────────────────
   const updateSettings = useCallback(async (patch: Partial<Settings>) => {
     if (!user || !userDoc) return;
+
+    if (typeof window !== "undefined" && patch.dailyResetTime) {
+      localStorage.setItem("w_daily_reset_time", patch.dailyResetTime);
+    }
 
     // Optimistic local update
     setUserDoc((prev) => {

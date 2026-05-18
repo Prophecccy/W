@@ -117,6 +117,15 @@ The sidebar navigation of the settings page (`src/features/settings/components/S
   - Inactive: Muted colors (`var(--text-muted)`) for both text and icons.
   - Hover: Smooth transition to full white (`#ffffff`) for text and icons with subtle background changes.
   - Active: Bold indicator styled in `var(--accent)` with a `border-left: 3px solid var(--accent)` active boundary marker.
+
+### 9. Reactive Daily Reset & Date Shifting
+To maintain consistent date boundaries across isolated processes in the Tauri application (the main App window and the pinned desktop Widget webview), the app implements a reactive date shifting architecture.
+- **Problem**: In Tauri, separate webviews run in isolated JS contexts but share the same origin's `localStorage`. Direct background updates on one window do not trigger react-state updates in another.
+- **Reactive Resolution**: The `getToday` utility shifted from a static day retriever to a dynamic timezone-aware date computer: `getToday(customDate?, resetTimeOverride?)`.
+- **Dynamic Shifting Logic**: If a user's local clock is before their customized daily reset time (e.g. `02:30 AM` with a `04:00 AM` reset), the utility automatically shifts `today` to the previous calendar day (`YYYY-MM-DD - 1 day`). This ensures habit completions and log retrievals correctly map to "yesterday's" active period.
+- **Multiprocess State Syncing**: 
+  - The main dashboard's `UserProvider` writes the active user's Firestore daily reset time settings to `localStorage` under `w_daily_reset_time` synchronously *before* updating `setUserDoc` state to prevent rendering race conditions.
+  - The desktop background Widget's `useWidgetData` snapshot listener dynamically receives `settings.dailyResetTime` via Firestore updates, reactively updates `localStorage`, and instantly unsubscribes/resubscribes to the correct day's habit logs `/logs/{today}`.
 ---
 
 ## Design System Tokens

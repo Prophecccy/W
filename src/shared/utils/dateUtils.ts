@@ -2,12 +2,19 @@
  * Returns today's date in YYYY-MM-DD format based on the user's timezone.
  * TODO: Integrate user timezone preferences.
  */
-export function getToday(): string {
-  const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+export function getToday(customDate?: Date, resetTimeOverride?: string): string {
+  const d = customDate || new Date();
+  const resetTime = resetTimeOverride || (typeof localStorage !== 'undefined'
+    ? localStorage.getItem("w_daily_reset_time") || "04:00"
+    : "04:00");
+  
+  if (isBeforeResetTime(d, resetTime)) {
+    const adjusted = new Date(d.getTime());
+    adjusted.setDate(d.getDate() - 1);
+    return formatDate(adjusted);
+  }
+  
+  return formatDate(d);
 }
 
 /**
