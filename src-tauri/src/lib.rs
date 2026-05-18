@@ -49,7 +49,7 @@ pub fn run() {
             let show_item = MenuItem::with_id(
                 app,
                 "show",
-                "[ Show Command Center ]",
+                "[ Show W ]",
                 true,
                 None::<&str>,
             )?;
@@ -70,7 +70,7 @@ pub fn run() {
                 .menu(&tray_menu)
                 .show_menu_on_left_click(false)     // left-click shows window, right-click opens menu
                 .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("W — Command Center")
+                .tooltip("W")
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => {
                         if let Some(win) = app.get_webview_window("main") {

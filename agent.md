@@ -139,6 +139,12 @@ The app registers a persistent Windows System Tray icon on launch so users runni
 - **Left-click** (single click on tray icon): Directly shows/focuses the main Command Center window via `on_tray_icon_event` matching `TrayIconEvent::Click { button: MouseButton::Left, ... }`.
 - **Right-click**: Opens the native context menu (`.show_menu_on_left_click(false)`).
 - **Exit path**: `on_window_event` intercepts the main window's close button (`CloseRequested`) and hides instead of closing, making the tray the **only** way to fully terminate the app. This is intentional — the user is never trapped because the tray is always visible.
+
+### 11. Widget Layout & PowerHub Stats Deck
+The desktop Widget app reconfigures the standard dashboard header and stats compartment into a compact, side-by-side modular layout:
+- **Widget Header**: Renders the custom `[ W ]` brand logo alongside `[ ACTIVE PROTOCOLS ]` sub-text. The high-precision ticking clock has been relocated to the bottom compartment below the stats deck to prevent header wrapping.
+- **PowerHub Stats Deck**: Located in the stats section. Renders a horizontal 3-column deck containing completed count, total habits count, and progress percentage separated by vertical hairline dividers.
+- **Height Bounds Safeguard**: The stats deck and bottom clock are structurally designed to fit within the `POWERHUB_H = 170px` height budget mapped in `WidgetApp.tsx`'s auto-resize calculations to prevent window boundary overflow.
 ---
 
 

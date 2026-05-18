@@ -1,0 +1,28 @@
+.progress-circle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.progress-circle__svg {
+  transform: rotate(-90deg);
+}
+
+.progress-circle__progress-track {
+  transition: stroke-dashoffset 0.35s ease;
+}
+
+.progress-circle__center-text {
+  position: absolute;
+  font-family: 'Departure Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-shadow: var(--text-shadow-sharp);
+}
+
+/* Tiny Mode overrides */
+.progress-circle--tiny {
+  display: inline-flex;
+}

@@ -1,0 +1,243 @@
+/* ─── RadialTimePicker ─────────────────────────────────────────────────────── */
+
+.rtp-overlay {
+  position: absolute;
+  z-index: 9999;
+  background: var(--bg-surface);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 268px;
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.9),
+    0 2px 8px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  /* Mount animation */
+  animation: rtp-mount 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes rtp-mount {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+/* ─── Digital Readout ─────────────────────────────────────────────────────── */
+
+.rtp-readout {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-base);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 8px 12px;
+  width: 100%;
+  justify-content: center;
+}
+
+.rtp-readout__seg {
+  font-family: 'Departure Mono', monospace;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 3px;
+  transition: all 0.15s;
+  letter-spacing: -1px;
+}
+
+.rtp-readout__seg:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.rtp-readout__seg--active {
+  color: var(--accent);
+  text-shadow: 0 0 20px rgba(var(--accent-rgb), 0.6);
+}
+
+.rtp-readout__colon {
+  font-family: 'Departure Mono', monospace;
+  font-size: 24px;
+  color: var(--text-muted);
+  line-height: 1;
+  user-select: none;
+}
+
+.rtp-readout__label {
+  font-family: 'Departure Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+  margin-left: 6px;
+  text-transform: uppercase;
+  align-self: flex-end;
+  margin-bottom: 6px;
+}
+
+/* ─── Dial Wrapper ────────────────────────────────────────────────────────── */
+
+.rtp-dial-wrap {
+  width: 220px;
+  height: 220px;
+  position: relative;
+}
+
+.rtp-dial {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: visible;
+  /* Faint circular glow */
+  filter: drop-shadow(0 0 12px rgba(var(--accent-rgb), 0.08));
+}
+
+/* ─── SVG Elements ────────────────────────────────────────────────────────── */
+
+/* Background dial circle */
+.rtp-dial-bg {
+  fill: var(--bg-base);
+  stroke: rgba(255, 255, 255, 0.06);
+  stroke-width: 1;
+}
+
+/* Outer / inner track rings */
+.rtp-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.05);
+  stroke-width: 26;
+  stroke-linecap: round;
+}
+
+.rtp-track--inner {
+  stroke-width: 20;
+}
+
+/* Center pivot */
+.rtp-pivot {
+  fill: var(--accent);
+}
+
+/* Hand line */
+.rtp-hand {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+/* Accent dot at selected number */
+.rtp-hand-dot {
+  fill: var(--accent);
+  opacity: 0.95;
+}
+
+/* Number labels */
+.rtp-num {
+  font-family: 'Departure Mono', monospace;
+  font-size: 10px;
+  fill: var(--text-muted);
+  user-select: none;
+  pointer-events: none;
+  transition: fill 0.1s;
+}
+
+.rtp-num--inner {
+  font-size: 9px;
+  fill: rgba(255, 255, 255, 0.45);
+}
+
+.rtp-num--selected {
+  fill: var(--bg-base);
+  font-weight: bold;
+}
+
+/* ─── Footer Actions ──────────────────────────────────────────────────────── */
+
+.rtp-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  justify-content: flex-end;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 10px;
+  margin-top: 2px;
+}
+
+.rtp-btn {
+  font-family: 'Departure Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border-radius: 3px;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.15s;
+  background: transparent;
+}
+
+.rtp-btn--cancel {
+  color: var(--text-muted);
+}
+
+.rtp-btn--cancel:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.rtp-btn--confirm {
+  color: var(--bg-base);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.rtp-btn--confirm:hover {
+  filter: brightness(1.15);
+  box-shadow: 0 0 14px rgba(var(--accent-rgb), 0.4);
+}
+
+/* ─── Trigger Button (in ScheduleSection) ─────────────────────────────────── */
+
+.rtp-trigger {
+  font-family: 'Departure Mono', monospace;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-primary);
+  border: none;
+  padding: 6px 10px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  letter-spacing: 1px;
+}
+
+.rtp-trigger:hover {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--accent);
+  color: var(--accent);
+}
+
+.rtp-trigger--open {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--accent);
+  color: var(--accent);
+}
+
+/* ─── Portal popover — rendered into document.body via createPortal ──────────
+   Uses position: fixed + JS-calculated coords so it is NEVER clipped by any
+   parent overflow/stacking context.                                           */
+
+.rtp-portal-popover {
+  position: fixed;
+  z-index: 99999;
+}

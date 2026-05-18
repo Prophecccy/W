@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useWidgetData } from '../hooks/useWidgetData';
-import { PowerHub } from './PowerHub/PowerHub';
+import { StatsDeck } from './StatsDeck/StatsDeck';
 import { WidgetHabitList } from './HabitList/WidgetHabitList';
 import { loadWidgetPosition, saveWidgetPosition } from '../services/widgetPositionStore';
 import { ShieldAlert } from 'lucide-react';
@@ -10,6 +10,7 @@ import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { SleepTube } from '../../dashboard/components/SleepTube';
+import { ProgressCircle } from '../../../shared/components/ProgressCircle/ProgressCircle';
 import './WidgetApp.css';
 
 export function WidgetApp() {
@@ -27,6 +28,22 @@ export function WidgetApp() {
   const strikeCount = userDoc?.strikes?.current ?? 0;
   const isLocked = strikeCount >= 5;
   const isFrozen = userDoc?.freeze?.active === true;
+
+  // ─── Real-Time Clock ─────────────────────────────────────
+  const [timeString, setTimeString] = useState('');
+
+  useEffect(() => {
+    const updateClock = () => {
+      const now = new Date();
+      const hrs = String(now.getHours()).padStart(2, '0');
+      const mins = String(now.getMinutes()).padStart(2, '0');
+      const secs = String(now.getSeconds()).padStart(2, '0');
+      setTimeString(`${hrs}:${mins}:${secs}`);
+    };
+    updateClock();
+    const timer = setInterval(updateClock, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // ── Z-Order Enforcer: Active Defense ───────────────────────
   useEffect(() => {
@@ -183,21 +200,45 @@ export function WidgetApp() {
         const win = getCurrentWindow();
         const scaleFactor = await win.scaleFactor();
 
-        const POWERHUB_H = 160;
-        const CARD_H     = 50;
-        const CARD_GAP   = 8;
-        const TOP_HEADER = 32;
-        const INSET      = 16;
-
-        const EMPTY_H    = 60;
+        // CSS Pixel-Matched Metrics
+        const CARD_H       = 52;  // Card padding + title text height
+        const CARD_GAP     = 12;  // Card margin-bottom
+        const HEADER_H     = 34;  // .widget-app__header height + padding
+        const PANEL_GAP    = 12;  // .widget-app__right-panel gaps
+        const STATS_DECK_H = 80;  // Actual height of stats deck
+        const CLOCK_H      = 72;  // .widget-app__clock-container height (enlarged clock)
+        const INSET        = 48;  // Window absolute offset (16px) + content padding (32px)
+        const EMPTY_H      = 60;  // Height of empty habits state
 
         const n = scheduledHabits.length;
-        const habitArea = n > 0
-          ? TOP_HEADER + (n * CARD_H) + (n * CARD_GAP)
-          : TOP_HEADER + EMPTY_H;
+        const regularHabits = scheduledHabits.filter(h => h.type !== 'limiter');
+        const limiterHabits = scheduledHabits.filter(h => h.type === 'limiter');
 
-        const targetLogical = INSET + POWERHUB_H + habitArea;
-        const clamped = Math.max(300, Math.min(800, targetLogical));
+        // Calculate the habit list area height
+        let habitAreaHeight = 0;
+        if (n > 0) {
+          habitAreaHeight += regularHabits.length * (CARD_H + CARD_GAP);
+          if (limiterHabits.length > 0) {
+            habitAreaHeight += 24; // .widget-habit-list__section-header [LIMITERS] height
+            habitAreaHeight += limiterHabits.length * (CARD_H + CARD_GAP);
+          }
+        } else {
+          habitAreaHeight += EMPTY_H;
+        }
+
+        // Calculate Right Panel: 4 components with 3 vertical gaps
+        const targetLogicalRightPanel = HEADER_H + habitAreaHeight + STATS_DECK_H + CLOCK_H + (3 * PANEL_GAP);
+        
+        // Left Panel: Progress circle (40px) + margin (12px) + SleepTube container (200px)
+        const targetLogicalLeftPanel = 252;
+
+        // Outer window logical height is the maximum panel height + vertical padding/inset
+        const targetLogical = Math.max(targetLogicalRightPanel, targetLogicalLeftPanel) + INSET;
+        
+        // Apply an additional 24px rendering safety buffer
+        const targetLogicalWithBuffer = targetLogical + 24;
+
+        const clamped = Math.max(300, Math.min(800, targetLogicalWithBuffer));
         const targetPhysical = Math.round(clamped * scaleFactor);
 
         const currentSize = await win.innerSize();
@@ -316,6 +357,13 @@ export function WidgetApp() {
 
       <div className="widget-app__content">
         <div className="widget-app__left-panel">
+          <div className="widget-app__left-progress">
+            <ProgressCircle 
+              completedCount={completedCount}
+              totalScheduled={totalScheduled}
+              tiny
+            />
+          </div>
           <div style={{ height: '200px', width: '40px' }}>
             <SleepTube 
               isWidget
@@ -329,8 +377,10 @@ export function WidgetApp() {
 
         <div className="widget-app__right-panel">
           <div className="widget-app__header">
-            <span>[ ACTIVE PROTOCOLS ]</span>
-            <span className="text-blue">[ SYSTEM LIVE ]</span>
+            <div className="widget-app__header-left">
+              <span className="widget-app__logo">[ W ]</span>
+              <span className="widget-app__protocols-title">[ ACTIVE PROTOCOLS ]</span>
+            </div>
           </div>
 
           <div className="widget-app__habits-scroll">
@@ -343,16 +393,15 @@ export function WidgetApp() {
           </div>
 
           <div className="widget-app__stats-section">
-            <PowerHub
+            <StatsDeck
               completedCount={completedCount}
               totalScheduled={totalScheduled}
+              strikeCount={strikeCount}
             />
           </div>
-          
-          <div className="widget-app__footer">
-            <div className={`widget-app__strike-badge ${strikeCount > 0 ? 'widget-app__strike-badge--active' : ''}`}>
-              {strikeCount > 0 ? `[ ${strikeCount} STRIKES ]` : '[ 0 STRIKES ]'}
-            </div>
+
+          <div className="widget-app__clock-container">
+            <span className="widget-app__clock t-data">{timeString}</span>
           </div>
         </div>
       </div>

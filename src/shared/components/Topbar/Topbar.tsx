@@ -8,7 +8,7 @@ interface TopbarProps {
 }
 
 const TITLE_MAP: Record<string, string> = {
-  "/": "[ COMMAND CENTER ]",
+  "/": "[ DASHBOARD ]",
   "/habits": "[ HABITS ]",
   "/todos": "[ TODOS ]",
   "/logbook": "[ LOGBOOK ]",
@@ -52,7 +52,7 @@ export function Topbar({ onCommandPaletteOpen }: TopbarProps) {
   };
 
   const isTauri = "__TAURI_INTERNALS__" in window;
-  const currentTitle = TITLE_MAP[location.pathname] || "[ COMMAND CENTER ]";
+  const currentTitle = TITLE_MAP[location.pathname] || "[ DASHBOARD ]";
 
   const handleDrag = async (e: React.PointerEvent<HTMLElement>) => {
     if (e.target === e.currentTarget) {

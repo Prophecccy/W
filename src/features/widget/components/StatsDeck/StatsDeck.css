@@ -1,0 +1,85 @@
+.stats-deck {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+}
+
+/* ─── Horizontal Stats Row ────────────────────────────── */
+.stats-deck__stats-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  flex: 1;
+}
+
+.stats-deck__stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 6px;
+}
+
+.stats-deck__stat-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.stats-deck__stat-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+  text-shadow: var(--text-shadow-glow);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+}
+
+.stats-deck__stat-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
+}
+
+/* ─── Footer with Status & Strikes ─────────────────────── */
+.stats-deck__footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  margin-top: 4px;
+  text-shadow: var(--text-shadow-sharp);
+}
+
+.stats-deck__status {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.stats-deck__divider {
+  color: rgba(255, 255, 255, 0.1);
+}
+
+.stats-deck__strikes {
+  color: rgba(255, 255, 255, 0.2);
+  transition: color 0.3s ease;
+}
+
+.stats-deck__strikes--active {
+  color: var(--strike-red, #E8736C);
+  text-shadow: 0 0 10px rgba(232, 115, 108, 0.4);
+}

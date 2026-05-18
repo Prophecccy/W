@@ -1,5 +1,6 @@
 import { Clock, CalendarDays, Globe, Sunrise, Moon } from "lucide-react";
 import { Settings } from "../../../shared/types";
+import { TimeInput } from "../../../shared/components/RadialTimePicker/TimeInput";
 
 // Get all available timezones
 function getTimezones(): string[] {
@@ -24,11 +25,11 @@ interface ScheduleSectionProps {
 }
 
 export function ScheduleSection({ settings, onUpdate }: ScheduleSectionProps) {
-  const resetTime = settings.dailyResetTime;
-  const weeklyDay = settings.weeklyResetDay;
-  const timezone = settings.timezone;
+  const resetTime  = settings.dailyResetTime;
+  const weeklyDay  = settings.weeklyResetDay;
+  const timezone   = settings.timezone;
   const wakeUpTime = settings.wakeUpTime;
-  const bedTime = settings.bedTime;
+  const bedTime    = settings.bedTime;
 
   return (
     <div className="settings-section" id="settings-schedule">
@@ -41,11 +42,10 @@ export function ScheduleSection({ settings, onUpdate }: ScheduleSectionProps) {
             <Clock size={14} strokeWidth={1.5} />
             <span className="t-body">Daily Reset Time</span>
           </div>
-          <input
-            type="time"
-            className="settings-input"
+          <TimeInput
+            id="schedule-daily-reset"
             value={resetTime}
-            onChange={(e) => onUpdate({ dailyResetTime: e.target.value })}
+            onChange={(v) => onUpdate({ dailyResetTime: v })}
           />
         </div>
 
@@ -55,11 +55,10 @@ export function ScheduleSection({ settings, onUpdate }: ScheduleSectionProps) {
             <Sunrise size={14} strokeWidth={1.5} />
             <span className="t-body">Wake Up Time</span>
           </div>
-          <input
-            type="time"
-            className="settings-input"
+          <TimeInput
+            id="schedule-wake-up"
             value={wakeUpTime}
-            onChange={(e) => onUpdate({ wakeUpTime: e.target.value })}
+            onChange={(v) => onUpdate({ wakeUpTime: v })}
           />
         </div>
 
@@ -69,14 +68,12 @@ export function ScheduleSection({ settings, onUpdate }: ScheduleSectionProps) {
             <Moon size={14} strokeWidth={1.5} />
             <span className="t-body">Bed Time</span>
           </div>
-          <input
-            type="time"
-            className="settings-input"
+          <TimeInput
+            id="schedule-bed-time"
             value={bedTime}
-            onChange={(e) => onUpdate({ bedTime: e.target.value })}
+            onChange={(v) => onUpdate({ bedTime: v })}
           />
         </div>
-
 
         {/* Weekly Reset Day */}
         <div className="settings-row">
