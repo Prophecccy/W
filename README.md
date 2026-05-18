@@ -25,9 +25,22 @@ Unlike standard to-do lists, [ W ] operates as a strict, OS-level dashboard desi
 
 * **Waking Fuel (SleepTube):** A real-time, visual gauge that drains based on your precise sleep/wake cycle. Watch your time physically burn away.
 * **OS-Level Lockdown:** Native Windows integration that physically blocks banned applications (like games or social media) using a targeted glass overlay. No notifications, just an impenetrable wall.
-* **Persistent Desktop Widgets:** Your dashboard components stay pinned to your desktop background beneath all other windows, permanently remembering their exact X/Y coordinates across reboots.
+* **Persistent Desktop Widgets & Sticky Notes:** Your dashboard components and transparent sticky notes stay pinned to your desktop background beneath all other windows. They permanently remember their exact X/Y coordinates across reboots.
 * **System Tray Control:** Runs silently in the background with a native taskbar menu, ensuring you always have complete control over the application's lifecycle.
-* **Tactical Overlays:** Fullscreen, transparent sticky notes and custom radial clock interfaces designed for speed and minimal friction.
+* **Ultralight Footprint:** Because [ W ] is built on Tauri and Rust (not Electron), it runs all these background widgets, overlays, and system monitors while consuming a fraction of the RAM of standard desktop apps. It stays completely out of your hardware's way.
+
+## [ DATA & PRIVACY PROTOCOL ]
+
+> **Disclaimer:** I am a solo developer building this for the community. My motive is to establish a real, human-to-human connection through good software, not to operate like some data-stealing company or corp. [ W ] is a tool for extreme self-improvement, and nobody is touching your data. To ensure cross-platform synchronization, some essential data is stored securely in the cloud, but the architecture is explicitly designed to keep the vast majority of your operations fully local. 
+
+| [ DATA TYPE ] | [ STORAGE LOCATION ] | [ PURPOSE ] |
+| :--- | :--- | :--- |
+| **Account Credentials** | ☁️ Cloud (Firebase Auth) | Secure login & authentication. |
+| **Habits & Todos** | ☁️ Cloud (Firestore) | Cross-device synchronization. |
+| **Fuel Calibration** | ☁️ Cloud (Firestore) | Syncs your sleep/wake cycle across platforms. |
+| **Window Coordinates** | 🔒 Local (Disk) | Persistent layout memory. Never leaves your machine. |
+| **Lockdown Blocklists** | 🔒 Local (OS Level) | Native process blocking. Never leaves your machine. |
+| **App Settings & UI** | 🔒 Local (Disk) | Interface preferences and theme configurations. |
 
 ## [ ARCHITECTURE ]
 
