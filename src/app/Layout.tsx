@@ -15,7 +15,7 @@ import { PunishmentChoice } from "../features/strikes/types";
 import { useKeyboardShortcuts } from "../shared/hooks/useKeyboardShortcuts";
 
 import { useAuthContext } from "../features/auth/context";
-import { OnboardingPage } from "../features/auth/components/OnboardingPage";
+import { OnboardingFlow } from "../features/auth/components/OnboardingFlow";
 import { UserProvider, useUserStore } from "../shared/stores/userStore";
 import { User } from "../shared/types";
 import { Habit } from "../features/habits/types";
@@ -355,7 +355,7 @@ function LayoutInner() {
   // ── Render: Onboarding ─────────────────────────────────────────
   if (phase === "onboarding") {
     return (
-      <OnboardingPage
+      <OnboardingFlow
         onComplete={async () => {
           // 1. Reload the user store to fetch the newly created doc
           await userStore.reload();

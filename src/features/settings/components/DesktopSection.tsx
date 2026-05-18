@@ -16,9 +16,7 @@ export function DesktopSection() {
 
   useEffect(() => {
     if (inTauri) {
-      import('@tauri-apps/api/app').then(({ getVersion }) => {
-        getVersion().then(v => setAppVersion(`Alpha.v.1.0 (v${v})`));
-      }).catch(() => setAppVersion('Alpha.v.1.0'));
+      setAppVersion("Alpha.v.1.0");
 
       // Check actual autostart state from the plugin
       import('@tauri-apps/plugin-autostart').then(({ isEnabled }) => {

@@ -1,0 +1,390 @@
+/* ─── Onboarding Flow Container ──────────────────────────────── */
+.onboarding-flow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono), monospace;
+  z-index: 9999;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Tauri window draggable context */
+.onboarding-flow__draggable-area {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+/* Onboarding Header controls (Close [ X ]) */
+.onboarding-flow__controls {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 100;
+}
+
+.onboarding-flow__close-btn {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.onboarding-flow__close-btn:hover {
+  border-color: var(--strike-red);
+  color: var(--strike-red);
+  text-shadow: 0 0 8px rgba(232, 115, 108, 0.4);
+}
+
+/* Steps Layout Inner Container */
+.onboarding-flow__container {
+  width: 100%;
+  max-width: 680px;
+  max-height: 100vh;
+  box-sizing: border-box;
+  padding: 40px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  opacity: 0;
+  animation: onboardingStepFadeIn 0.4s ease forwards;
+}
+
+@keyframes onboardingStepFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ─── Typography & Structure ─────────────────────────────────── */
+.onboarding-flow__step-indicator {
+  color: var(--accent);
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.onboarding-flow__title {
+  margin-bottom: 16px;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+
+.onboarding-flow__subtitle {
+  color: var(--text-muted);
+  margin-bottom: 32px;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.onboarding-flow__content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-bottom: 24px;
+  padding-right: 8px;
+}
+
+/* Custom scrollbar matching dark industrial aesthetic */
+.onboarding-flow__content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.onboarding-flow__content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.onboarding-flow__content::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 2px;
+}
+
+.onboarding-flow__content::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+.onboarding-flow__manifesto {
+  line-height: 1.8;
+  color: var(--text-secondary);
+  text-align: center;
+  max-width: 580px;
+  margin: 0 auto;
+  white-space: pre-wrap;
+}
+
+/* ─── Step 2: Protocols Feature List ────────────────────────── */
+.onboarding-flow__protocols {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.onboarding-flow__protocol-card {
+  border: 1px solid var(--border-default);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.onboarding-flow__protocol-card:hover,
+.onboarding-flow__protocol-card--active {
+  border-color: var(--accent);
+  background: rgba(91, 141, 239, 0.04);
+  box-shadow: 0 0 16px rgba(91, 141, 239, 0.08);
+}
+
+.onboarding-flow__protocol-name {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.onboarding-flow__protocol-desc {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* ─── Step 3: Security Protocol Table ───────────────────────── */
+.onboarding-flow__table {
+  display: grid;
+  grid-template-columns: 140px 1fr 180px;
+  border-top: 1px solid var(--border-default);
+  border-left: 1px solid var(--border-default);
+  border-right: 1px solid var(--border-default);
+  background: rgba(255, 255, 255, 0.01);
+  margin-bottom: 24px;
+}
+
+.onboarding-flow__table-header {
+  font-weight: 500;
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.onboarding-flow__table-cell {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-default);
+  border-right: 1px solid var(--border-default);
+  line-height: 1.4;
+}
+
+/* Remove right border on last column to preserve 1px grid */
+.onboarding-flow__table-cell:nth-child(3n) {
+  border-right: none;
+}
+
+/* ─── Step 4: Calibration Inputs ────────────────────────────── */
+.onboarding-flow__calibration {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.onboarding-flow__form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.onboarding-flow__input-desc {
+  color: var(--text-muted);
+  font-size: 10px;
+  text-transform: none;
+  line-height: 1.4;
+}
+
+.onboarding-flow__time-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.onboarding-flow__time-input-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.onboarding-flow__time-input {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  padding: 12px 16px;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-family: var(--font-mono), monospace;
+  outline: none;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.onboarding-flow__time-input:focus {
+  border-color: var(--accent);
+  background: rgba(91, 141, 239, 0.04);
+  box-shadow: 0 0 12px rgba(91, 141, 239, 0.1);
+}
+
+/* Custom time picker override */
+.onboarding-flow__time-input::-webkit-calendar-picker-indicator {
+  filter: invert(1) sepia(1) saturate(5) hue-rotate(200deg);
+  cursor: pointer;
+}
+
+/* ─── Step 5: System Initialization (Auth) ─────────────────── */
+.onboarding-flow__auth {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 0;
+}
+
+.onboarding-flow__auth-error {
+  border: 1px solid var(--strike-red);
+  background: rgba(232, 115, 108, 0.04);
+  color: var(--strike-red);
+  padding: 12px 20px;
+  border-radius: 4px;
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.onboarding-flow__auth-error:hover {
+  background: rgba(232, 115, 108, 0.08);
+}
+
+.onboarding-flow__auth-btn {
+  width: 100%;
+  max-width: 320px;
+  padding: 14px 24px;
+  border-radius: 4px;
+  font-weight: 500;
+  text-align: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.onboarding-flow__auth-btn--google {
+  background: var(--accent);
+  color: var(--bg-base);
+  border: none;
+}
+
+.onboarding-flow__auth-btn--google:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.15);
+  box-shadow: 0 8px 24px rgba(91, 141, 239, 0.4);
+}
+
+.onboarding-flow__auth-btn--google:active {
+  transform: translateY(0);
+}
+
+.onboarding-flow__auth-btn--dev {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.onboarding-flow__auth-btn--dev:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  opacity: 1;
+  text-shadow: 0 0 8px rgba(91, 141, 239, 0.3);
+  transform: translateY(-1px);
+}
+
+/* Onboarding Footer Navigation */
+.onboarding-flow__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+}
+
+.onboarding-flow__nav-btn {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  padding: 10px 20px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.onboarding-flow__nav-btn:hover {
+  border-color: var(--text-primary);
+  color: var(--text-primary);
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.onboarding-flow__nav-btn:active {
+  transform: translateY(0);
+}
+
+.onboarding-flow__nav-btn--primary {
+  background: var(--text-primary);
+  color: var(--bg-base);
+  border: none;
+  font-weight: 500;
+}
+
+.onboarding-flow__nav-btn--primary:hover {
+  background: var(--accent);
+  color: var(--bg-base);
+  text-shadow: none;
+  box-shadow: 0 0 16px rgba(91, 141, 239, 0.3);
+}
+
+/* High-fidelity layout responsive adjustments for small heights */
+@media (max-height: 720px) {
+  .onboarding-flow__container {
+    padding: 24px 20px;
+  }
+  .onboarding-flow__subtitle {
+    margin-bottom: 16px;
+  }
+  .onboarding-flow__content {
+    margin-bottom: 16px;
+  }
+  .onboarding-flow__protocols {
+    gap: 12px;
+  }
+  .onboarding-flow__protocol-card {
+    padding: 12px 16px;
+  }
+  .onboarding-flow__table {
+    margin-bottom: 16px;
+  }
+  .onboarding-flow__table-cell {
+    padding: 8px 12px;
+  }
+}

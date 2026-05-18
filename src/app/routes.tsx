@@ -6,7 +6,7 @@ import { TodosPage } from "../features/todos/components/TodosPage";
 import { AnalyticsPage } from "../features/analytics/components/AnalyticsPage";
 import { SettingsPage } from "../features/settings/components/SettingsPage";
 import { LockdownPage } from "../features/lockdown/components/LockdownPage";
-import { LoginPage } from "../features/auth/components/LoginPage";
+import { OnboardingFlow } from "../features/auth/components/OnboardingFlow";
 import { AuthGuard } from "../features/auth/components/AuthGuard";
 import { StickyCanvas } from "../features/sticky-notes/components/StickyCanvas";
 import { WidgetApp } from "../features/widget/components/WidgetApp";
@@ -17,7 +17,7 @@ import { BlockOverlay } from "../features/lockdown/components/BlockOverlay";
 export const router = createBrowserRouter([
   {
     path: "/login",
-    element: <LoginPage />,
+    element: <OnboardingFlow />,
   },
   {
     path: "/sticky-canvas",
