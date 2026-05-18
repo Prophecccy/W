@@ -126,7 +126,21 @@ To maintain consistent date boundaries across isolated processes in the Tauri ap
 - **Multiprocess State Syncing**: 
   - The main dashboard's `UserProvider` writes the active user's Firestore daily reset time settings to `localStorage` under `w_daily_reset_time` synchronously *before* updating `setUserDoc` state to prevent rendering race conditions.
   - The desktop background Widget's `useWidgetData` snapshot listener dynamically receives `settings.dailyResetTime` via Firestore updates, reactively updates `localStorage`, and instantly unsubscribes/resubscribes to the correct day's habit logs `/logs/{today}`.
+
+### 10. System Tray (Notification Area)
+The app registers a persistent Windows System Tray icon on launch so users running background processes (widget, overlays) can always regain control or fully exit.
+- **Cargo feature**: `tauri = { features = ["tray-icon"] }` — must be present in `Cargo.toml`.
+- **Config**: `tauri.conf.json` → `app.trayIcon` sets `iconPath`, `title`, and `tooltip` at bundle time.
+- **Build location**: `src-tauri/src/lib.rs` → inside the `.setup()` closure using `TrayIconBuilder`.
+- **Menu structure**:
+  - `[ Show Command Center ]` — `MenuItem::with_id(app, "show", ...)` → calls `win.show()` + `win.set_focus()`
+  - `---` separator via `PredefinedMenuItem::separator(app)`
+  - `[ Quit 'W' ]` — `MenuItem::with_id(app, "quit", ...)` → calls `app.exit(0)` (kills all windows and processes)
+- **Left-click** (single click on tray icon): Directly shows/focuses the main Command Center window via `on_tray_icon_event` matching `TrayIconEvent::Click { button: MouseButton::Left, ... }`.
+- **Right-click**: Opens the native context menu (`.show_menu_on_left_click(false)`).
+- **Exit path**: `on_window_event` intercepts the main window's close button (`CloseRequested`) and hides instead of closing, making the tray the **only** way to fully terminate the app. This is intentional — the user is never trapped because the tray is always visible.
 ---
+
 
 ## Design System Tokens
 
