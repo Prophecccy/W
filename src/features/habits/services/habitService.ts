@@ -49,7 +49,9 @@ export async function getHabits(): Promise<Habit[]> {
     orderBy("order", "asc")
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Habit));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() } as Habit))
+    .filter((h) => !h.isArchived);
 }
 
 export async function getHabitById(habitId: string): Promise<Habit | null> {
@@ -81,6 +83,7 @@ export async function archiveHabit(habitId: string): Promise<void> {
   const docRef = doc(db, "users", userId, "habits", habitId);
   await updateDoc(docRef, {
     isActive: false,
+    isArchived: true,
     archivedAt: Date.now(),
   });
 }

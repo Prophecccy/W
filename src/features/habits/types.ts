@@ -52,6 +52,7 @@ export interface Habit {
 
   // Lifecycle
   isActive: boolean;
+  isArchived?: boolean;
   archivedAt: number | null; // epoch ms
   createdAt: number; // epoch ms
 }

@@ -97,6 +97,7 @@ export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest }: Habit
       setIsSaving(true);
       await archiveHabit(habit.id);
       showToast("[ ARCHIVED ]");
+      onUpdate({ ...habit, isArchived: true });
       onClose();
     } catch {
       showToast("[ FAILED TO ARCHIVE ]");

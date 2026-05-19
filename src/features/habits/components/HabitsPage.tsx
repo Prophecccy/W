@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { HabitCard } from './HabitCard/HabitCard';
 import { HabitForm } from './HabitForm/HabitForm';
 import { GroupManager } from './GroupManager/GroupManager';
@@ -17,6 +18,7 @@ import './HabitsPage.css';
 type LayoutMode = 'default' | 'grouped' | 'custom';
 
 export function HabitsPage() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [groups, setGroups] = useState<HabitGroup[]>([]);
@@ -383,12 +385,23 @@ export function HabitsPage() {
         <HabitDetail
           habit={habits.find(h => h.id === selectedHabitId)!}
           onClose={() => setSelectedHabitId(null)}
-          onUpdate={(updated) => setHabits(prev => prev.map(h => h.id === updated.id ? updated : h))}
-          onDeleteRequest={(habit) => {
-            if (confirm("To delete this habit, you must replace it by creating a new habit or to-do. Ready?")) {
-              setSelectedHabitId(null);
-              setDeleteSubId(habit.id);
-              setIsFormOpen(true);
+          onUpdate={(updated) => {
+            if (updated.isArchived) {
+              setHabits(prev => prev.filter(h => h.id !== updated.id));
+            } else {
+              setHabits(prev => prev.map(h => h.id === updated.id ? updated : h));
+            }
+          }}
+          onDeleteRequest={async (habit) => {
+            if (window.confirm("PERMANENTLY PURGE HABIT?")) {
+              try {
+                await deleteHabit(habit.id);
+                setHabits(prev => prev.filter(h => h.id !== habit.id));
+                setSelectedHabitId(null);
+                navigate('/habits');
+              } catch (e) {
+                console.error("Failed to delete habit", e);
+              }
             }
           }}
         />
