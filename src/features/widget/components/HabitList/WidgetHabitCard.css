@@ -21,13 +21,54 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
-/* ─── Completed State ────────────────────────────────────── */
+/* ─── Visual States Hierarchy ────────────────────────────── */
+
+/* 1. Active State (Default) is opacity 1.0 (inherits from root .widget-habit-card) */
+
+/* 2. Done Today State (Metric worked on but not completed) */
+.widget-habit-card.done-today {
+  opacity: 0.7;
+}
+
+.widget-habit-card.done-today .widget-habit-card__done-today {
+  color: #4ade80;
+  opacity: 1.0; /* Ensure tag stays bright and green */
+}
+
+/* 3. Pending Undo State (Grace Period) */
+.widget-habit-card.pending-undo {
+  opacity: 1.0 !important;
+  position: relative;
+}
+
+.widget-habit-card.pending-undo::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: var(--card-accent, var(--accent));
+  animation: undoTimer 8s linear forwards;
+}
+
+@keyframes undoTimer {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+/* 4. Committed State (Fully Completed State) */
+.widget-habit-card.committed,
 .widget-habit-card.completed {
   opacity: 0.5;
   background: transparent;
   border-color: transparent;
 }
 
+.widget-habit-card.committed .widget-habit-card__icon,
 .widget-habit-card.completed .widget-habit-card__icon {
   color: #4ade80;
 }
@@ -105,6 +146,7 @@
   letter-spacing: 1px;
 }
 
+.widget-habit-card.committed .widget-habit-card__title,
 .widget-habit-card.completed .widget-habit-card__title {
   text-decoration: line-through;
   color: var(--text-muted);

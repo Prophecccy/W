@@ -1,5 +1,23 @@
 import { Habit } from "../types";
-import { getToday, formatDate } from "../../../shared/utils/dateUtils";
+import { getToday, formatDate, addDays } from "../../../shared/utils/dateUtils";
+
+// ─── isHabitResting ───────────────────────────────────────────────
+
+/**
+ * Checks if an interval habit is currently in a resting state (fully completed for
+ * the current cycle and in its cooldown/recovery period).
+ */
+export function isHabitResting(
+  habit: Habit,
+  userResetTime?: string
+): boolean {
+  if (habit.period !== "interval" || !habit.lastCompletedDate) return false;
+  if (habit.intervalDays <= 0) return false;
+
+  const nextActiveDate = addDays(habit.lastCompletedDate, habit.intervalDays);
+  const today = getToday(undefined, userResetTime);
+  return today < nextActiveDate;
+}
 
 // ─── isHabitScheduledToday ────────────────────────────────────────
 

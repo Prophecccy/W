@@ -40,6 +40,10 @@
   pointer-events: none; /* Can't hold a completed habit */
 }
 
+.habit-card--resting {
+  opacity: 0.65 !important;
+}
+
 /* Framer motion element for hold animation */
 .habit-card__fill {
   position: absolute;

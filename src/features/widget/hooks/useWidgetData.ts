@@ -6,7 +6,8 @@ import { Habit, HabitLog, HabitLogEntry } from '../../habits/types';
 import { User } from '../../../shared/types';
 import { getToday } from '../../../shared/utils/dateUtils';
 import { completeHabit as completeHabitLog, uncompleteHabit as uncompleteHabitLog } from '../../habits/services/logService';
-import { isHabitScheduledToday } from '../../habits/utils/scheduleEngine';
+import { isHabitScheduledToday, isHabitResting } from '../../habits/utils/scheduleEngine';
+import { isTauri } from '../../../shared/utils/tauri';
 
 export interface WidgetData {
   habits: Habit[];
@@ -70,7 +71,7 @@ export function useWidgetData(): WidgetData {
     if (!user) return;
 
     const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
-    const scheduled = habits.filter(h => isHabitScheduledToday(h, today));
+    const scheduled = habits.filter(h => isHabitScheduledToday(h, today) && !isHabitResting(h, userDoc?.settings?.dailyResetTime));
     const multiDayMetric = scheduled.filter(isMultiDayMetric);
 
     let minStart = today;
@@ -115,7 +116,10 @@ export function useWidgetData(): WidgetData {
   }, [user]);
 
   // Compute derived data
-  const scheduledHabits = habits.filter(h => isHabitScheduledToday(h, today));
+  const scheduledHabits = habits.filter(h => 
+    isHabitScheduledToday(h, today) && 
+    !isHabitResting(h, userDoc?.settings?.dailyResetTime)
+  );
 
   const completedCount = scheduledHabits.filter(h => {
     const entry = todayLog?.habits?.[h.id];
@@ -139,6 +143,10 @@ export function useWidgetData(): WidgetData {
     if (!user) return;
     try {
       await completeHabitLog(habitId);
+      if (isTauri()) {
+        const { emit } = await import('@tauri-apps/api/event');
+        await emit('widget-habit-updated', { habitId, action: 'complete' });
+      }
     } catch (e) {
       console.error('Widget: Failed to complete habit', e);
     }
@@ -148,6 +156,10 @@ export function useWidgetData(): WidgetData {
     if (!user) return;
     try {
       await uncompleteHabitLog(habitId);
+      if (isTauri()) {
+        const { emit } = await import('@tauri-apps/api/event');
+        await emit('widget-habit-updated', { habitId, action: 'undo' });
+      }
     } catch (e) {
       console.error('Widget: Failed to undo habit', e);
     }

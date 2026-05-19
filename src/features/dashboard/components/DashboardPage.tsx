@@ -8,10 +8,11 @@ import { Todo } from '../../todos/types';
 import { getHabits } from '../../habits/services/habitService';
 import { getTodayLog, getLogRange, completeHabit, uncompleteHabit } from '../../habits/services/logService';
 import { getTodos, completeTodo, completeNumberedTodoFull, incrementNumberedTodo } from '../../todos/services/todoService';
-import { isHabitScheduledToday } from '../../habits/utils/scheduleEngine';
+import { isHabitScheduledToday, isHabitResting } from '../../habits/utils/scheduleEngine';
 import { getToday } from '../../../shared/utils/dateUtils';
 import { User } from '../../../shared/types';
 import { SleepTube } from './SleepTube';
+import { isTauri } from '../../../shared/utils/tauri';
 import './DashboardPage.css';
 
 interface DashboardOutlet {
@@ -27,8 +28,41 @@ export function DashboardPage() {
   const [log, setLog] = useState<HabitLog | null>(null);
   const [periodLogs, setPeriodLogs] = useState<HabitLog[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   const today = getToday();
+
+  useEffect(() => {
+    if (!isTauri()) return;
+
+    let active = true;
+    let unsub: (() => void) | undefined;
+
+    async function setupListener() {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        if (!active) return;
+        unsub = await listen('widget-habit-updated', (event) => {
+          console.log('Dashboard: Received widget-habit-updated event', event);
+          setRefreshTrigger(prev => prev + 1);
+        });
+        if (!active && unsub) {
+          unsub();
+        }
+      } catch (e) {
+        console.error('Failed to setup widget-habit-updated listener', e);
+      }
+    }
+
+    setupListener();
+
+    return () => {
+      active = false;
+      if (unsub) {
+        unsub();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     async function loadData() {
@@ -64,11 +98,13 @@ export function DashboardPage() {
       }
     }
     loadData();
-  }, [today, userDoc?.settings?.weeklyResetDay]);
+  }, [today, userDoc?.settings?.weeklyResetDay, refreshTrigger]);
 
   // Derived state for Habits
   const scheduledHabits = useMemo(() => {
     const filtered = habits.filter(h => {
+      if (isHabitResting(h, userDoc?.settings?.dailyResetTime)) return false;
+
       if (isMultiDayMetric(h) && h.metric) {
         const target = h.metric.targetValue;
         const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;

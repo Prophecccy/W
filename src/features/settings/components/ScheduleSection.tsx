@@ -1,4 +1,4 @@
-import { Clock, CalendarDays, Globe, Sunrise, Moon, Type } from "lucide-react";
+import { Clock, CalendarDays, Globe } from "lucide-react";
 import { Settings } from "../../../shared/types";
 import { TimeInput } from "../../../shared/components/RadialTimePicker/TimeInput";
 

@@ -1,18 +1,21 @@
 // ─── Block Overlay ───────────────────────────────────────────────
 // Rendered inside the transparent `block-overlay` Tauri window.
-// Displays a frosted glass ACCESS DENIED screen over banned apps.
+// Displays an ACCESS DENIED screen over banned apps with a Close
+// button that kills the banned process and dismisses the overlay.
 
-import { useState, useEffect } from "react";
-import { Shield } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Shield, X } from "lucide-react";
 import "./BlockOverlay.css";
 
 interface BlockInfo {
   app_title: string;
   matched_rule: string;
+  pid: number;
 }
 
 export function BlockOverlay() {
   const [blockInfo, setBlockInfo] = useState<BlockInfo | null>(null);
+  const [closing, setClosing] = useState(false);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -25,7 +28,9 @@ export function BlockOverlay() {
           setBlockInfo({
             app_title: event.payload.app_title,
             matched_rule: event.payload.matched_rule,
+            pid: event.payload.pid,
           });
+          setClosing(false);
         });
       } catch {
         // Not in Tauri
@@ -38,6 +43,37 @@ export function BlockOverlay() {
     };
   }, []);
 
+  const handleClose = useCallback(async () => {
+    if (!blockInfo || closing) return;
+    setClosing(true);
+
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+
+      // 1. Kill the banned process
+      if (blockInfo.pid > 0) {
+        try {
+          await invoke("kill_blocked_process", { pid: blockInfo.pid });
+          console.log("[lockdown] Killed process:", blockInfo.pid);
+        } catch (err) {
+          console.error("[lockdown] Failed to kill process:", err);
+        }
+      }
+
+      // 2. Hide this overlay window
+      const win = getCurrentWindow();
+      await win.hide();
+
+      // 3. Clear state
+      setBlockInfo(null);
+      setClosing(false);
+    } catch (err) {
+      console.error("[lockdown] Close handler error:", err);
+      setClosing(false);
+    }
+  }, [blockInfo, closing]);
+
   return (
     <div className="block-overlay">
       <div className="block-overlay__content">
@@ -49,9 +85,15 @@ export function BlockOverlay() {
             {blockInfo.matched_rule.toUpperCase().replace(".EXE", "")}
           </div>
         )}
-        <p className="block-overlay__hint">
-          RETURN TO COMMAND CENTER TO END LOCKDOWN
-        </p>
+
+        <button
+          className="block-overlay__close-btn"
+          onClick={handleClose}
+          disabled={closing}
+        >
+          <X size={16} />
+          {closing ? "CLOSING..." : "CLOSE APP"}
+        </button>
       </div>
     </div>
   );

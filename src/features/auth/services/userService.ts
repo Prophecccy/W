@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS: Settings = {
   lowGraphicsMode: false,
   wakeUpTime: "07:00",
   bedTime: "23:00",
+  emptyTubeText: "DEPLETED",
 };
 
 const DEFAULT_AESTHETICS: Aesthetics = {

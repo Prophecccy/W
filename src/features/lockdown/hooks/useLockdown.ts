@@ -68,6 +68,7 @@ export function useLockdown(): UseLockdownReturn {
         unlistenBlock = await listen<{
           app_title: string;
           matched_rule: string;
+          pid: number;
           x: number;
           y: number;
           width: number;

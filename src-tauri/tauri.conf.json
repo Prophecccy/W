@@ -57,7 +57,7 @@
       },
       {
         "label": "block-overlay",
-        "title": "Block",
+        "title": "",
         "url": "/block-overlay",
         "decorations": false,
         "transparent": true,
@@ -66,8 +66,8 @@
         "skipTaskbar": true,
         "resizable": false,
         "alwaysOnTop": true,
-        "focus": false,
-        "focusable": false,
+        "focus": true,
+        "focusable": true,
         "closable": false
       }
     ],

@@ -458,3 +458,9 @@
 - [x] 322. Verify release workflow: Ensure GitHub Actions will only upload the single NSIS installer and updater artifacts
 
 
+## BATCH 23 — Interval Habits Strict UI Routing (4 tasks)
+
+- [x] 323. Update useWidgetData hook and DashboardPage query filters to strictly filter out resting interval habits (`isResting === true`).
+- [x] 324. Add custom `.habit-card--resting` CSS and implement the cooldown countdown text calculations inside HabitCard component.
+- [x] 325. Categorize resting habits into a new `[ INTERVALS ]` section in the main App's Habits tab.
+- [x] 326. Verify full routing system behavior, synchronizing all modifications to git and committing/pushing to the remote origin.

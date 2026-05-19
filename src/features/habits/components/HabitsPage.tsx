@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { HabitCard } from './HabitCard/HabitCard';
 import { HabitForm } from './HabitForm/HabitForm';
 import { GroupManager } from './GroupManager/GroupManager';
@@ -9,7 +9,7 @@ import { HabitDetail } from './HabitDetail/HabitDetail';
 import { getHabits, createHabit, deleteHabit } from '../services/habitService';
 import { getGroups } from '../services/groupService';
 import { getTodayLog, completeHabit, uncompleteHabit } from '../services/logService';
-import { isHabitScheduledToday } from '../utils/scheduleEngine';
+import { isHabitScheduledToday, isHabitResting } from '../utils/scheduleEngine';
 import { getToday } from '../../../shared/utils/dateUtils';
 import { LucideIcon } from '../../../shared/components/IconPicker/LucideIcon';
 import { useRiskEngine } from '../hooks/useRiskEngine';
@@ -19,6 +19,7 @@ type LayoutMode = 'default' | 'grouped' | 'custom';
 
 export function HabitsPage() {
   const navigate = useNavigate();
+  const { userDoc } = useOutletContext<{ userDoc: any }>();
   const [loading, setLoading] = useState(true);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [groups, setGroups] = useState<HabitGroup[]>([]);
@@ -78,17 +79,20 @@ export function HabitsPage() {
   }, []);
 
   // Derived State Filters
-  const { scheduled, unscheduled, limiters, completed } = useMemo(() => {
+  const { scheduled, unscheduled, limiters, completed, resting } = useMemo(() => {
     const s: Habit[] = [];
     const u: Habit[] = [];
     const l: Habit[] = [];
     const c: Habit[] = [];
+    const r: Habit[] = [];
 
     habits.forEach(h => {
       const logEntry = log?.habits[h.id];
       const isComplete = !!logEntry?.completed;
 
-      if (isComplete) {
+      if (isHabitResting(h, userDoc?.settings?.dailyResetTime)) {
+        r.push(h);
+      } else if (isComplete) {
         c.push(h);
       } else if (h.type === 'limiter') {
         l.push(h);
@@ -99,8 +103,8 @@ export function HabitsPage() {
       }
     });
 
-    return { scheduled: s, unscheduled: u, limiters: l, completed: c };
-  }, [habits, log, today]);
+    return { scheduled: s, unscheduled: u, limiters: l, completed: c, resting: r };
+  }, [habits, log, today, userDoc]);
 
   // ── Space key quick-complete (complete focused scheduled habit) ──
   const handleQuickComplete = useCallback(() => {
@@ -276,7 +280,7 @@ export function HabitsPage() {
         </div>
 
       <div className="habits-page__content">
-        {scheduled.length === 0 && limiters.length === 0 && completed.length === 0 && unscheduled.length === 0 ? (
+        {scheduled.length === 0 && limiters.length === 0 && completed.length === 0 && unscheduled.length === 0 && resting.length === 0 ? (
           <div className="habits-page__empty t-body">
             No habits yet. Create your first habit!
           </div>
@@ -391,6 +395,28 @@ export function HabitsPage() {
                   ))}
                 </div>
               </HabitGroupHeader>
+            )}
+
+            {resting.length > 0 && (
+              <div className="habits-section">
+                <h3 className="habits-section-title t-label">[ INTERVALS ]</h3>
+                <div className="habits-grid">
+                  {resting.map(h => (
+                    <HabitCard 
+                      key={h.id} 
+                      habit={h} 
+                      isCompletedToday={false} 
+                      doneToday={false}
+                      onComplete={() => handleComplete(h.id)} 
+                      onUndo={() => handleUndo(h.id)} 
+                      onClick={() => setSelectedHabitId(h.id)}
+                      currentValue={log?.habits[h.id]?.value || 0}
+                      isResting={true}
+                      userResetTime={userDoc?.settings?.dailyResetTime}
+                    />
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         )}

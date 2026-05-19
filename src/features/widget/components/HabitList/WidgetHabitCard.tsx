@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, MouseEvent, TouchEvent } from 'react';
 import { Habit } from '../../../habits/types';
 import { Check, Circle } from 'lucide-react';
 import './WidgetHabitCard.css';
@@ -20,10 +20,23 @@ export function WidgetHabitCard({ habit, isCompletedToday, doneToday = false, on
   const HOLD_DURATION = 500;
   const UNDO_DURATION = 8000;
 
+  const handleUndo = useCallback((e: MouseEvent | TouchEvent) => {
+    e.stopPropagation();
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+    onUndo(habit.id);
+    setJustCompleted(false);
+  }, [habit.id, onUndo]);
+
   const startHold = useCallback(() => {
-    if (isCompletedToday && !justCompleted) return; // Already done from a prior session
-    if (justCompleted) {
-      // Cancel undo and revert
+    const isMetric = habit.type === 'metric';
+    if (isMetric) {
+      if (isCompletedToday) return;
+    } else {
+      if (isCompletedToday && !justCompleted) return;
+    }
+
+    if (justCompleted && !isMetric) {
+      // Cancel undo and revert (for non-metric habits only on card level)
       if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
       onUndo(habit.id);
       setJustCompleted(false);
@@ -37,11 +50,12 @@ export function WidgetHabitCard({ habit, isCompletedToday, doneToday = false, on
       onComplete(habit.id);
 
       // Auto-clear undo window after 8s
+      if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
       undoTimeoutRef.current = window.setTimeout(() => {
         setJustCompleted(false);
       }, UNDO_DURATION);
     }, HOLD_DURATION);
-  }, [isCompletedToday, justCompleted, habit.id, onComplete, onUndo]);
+  }, [isCompletedToday, justCompleted, habit.id, habit.type, onComplete, onUndo]);
 
   const cancelHold = useCallback(() => {
     if (holdTimeoutRef.current) {
@@ -53,10 +67,13 @@ export function WidgetHabitCard({ habit, isCompletedToday, doneToday = false, on
 
   const isCompleted = isCompletedToday || justCompleted;
   const isLimiter = habit.type === 'limiter';
+  const isCommitted = isCompletedToday && !justCompleted;
+  const isPendingUndo = justCompleted;
+  const isDoneToday = doneToday && !isCompleted;
 
   return (
     <div
-      className={`widget-habit-card ${isCompleted ? 'completed' : ''} ${isLimiter ? 'limiter' : ''}`}
+      className={`widget-habit-card ${isCommitted ? 'committed' : ''} ${isPendingUndo ? 'pending-undo' : ''} ${isDoneToday ? 'done-today' : ''} ${isLimiter ? 'limiter' : ''}`}
       style={{ '--card-accent': isLimiter ? 'var(--strike-red)' : habit.color } as React.CSSProperties}
       onMouseDown={startHold}
       onMouseUp={cancelHold}
@@ -79,7 +96,7 @@ export function WidgetHabitCard({ habit, isCompletedToday, doneToday = false, on
         <span className="widget-habit-card__title t-body">
           {habit.title}
         </span>
-        {doneToday && (
+        {isDoneToday && (
           <span className="widget-habit-card__done-today t-meta">
             ✓ DONE TODAY
           </span>
@@ -91,9 +108,16 @@ export function WidgetHabitCard({ habit, isCompletedToday, doneToday = false, on
           <span>🔥 {habit.currentStreak}</span>
         )}
         {justCompleted && (
-          <span className="widget-habit-card__undo">UNDO</span>
+          <span
+            className="widget-habit-card__undo"
+            onMouseDown={handleUndo}
+            onTouchStart={handleUndo}
+          >
+            UNDO
+          </span>
         )}
       </div>
     </div>
   );
 }
+

@@ -31,6 +31,7 @@ static BLOCKLIST: Mutex<Vec<String>> = Mutex::new(Vec::new());
 pub struct BlockPayload {
     pub app_title: String,
     pub matched_rule: String,
+    pub pid: u32,
     pub x: i32,
     pub y: i32,
     pub width: i32,
@@ -261,6 +262,7 @@ fn start_polling(app_handle: tauri::AppHandle) {
                     let payload = BlockPayload {
                         app_title: display_name,
                         matched_rule: rule,
+                        pid: info.pid,
                         x: info.x,
                         y: info.y,
                         width: info.width,
@@ -347,6 +349,7 @@ pub fn test_lockdown_block(app: tauri::AppHandle) -> Result<(), String> {
     let payload = BlockPayload {
         app_title: "TEST APP".to_string(),
         matched_rule: "test".to_string(),
+        pid: 0,
         x: 100,
         y: 100,
         width: 800,
@@ -355,6 +358,42 @@ pub fn test_lockdown_block(app: tauri::AppHandle) -> Result<(), String> {
     app.emit("lockdown-block", payload)
         .map_err(|e| format!("emit failed: {}", e))?;
     eprintln!("[lockdown] test_lockdown_block — event emitted OK");
+    Ok(())
+}
+
+/// Kill a blocked process by PID. Called when the user clicks "Close" on the overlay.
+#[tauri::command]
+pub fn kill_blocked_process(pid: u32) -> Result<(), String> {
+    eprintln!("[lockdown] kill_blocked_process called for PID {}", pid);
+
+    // Safety: never allow killing our own process
+    let own_pid = std::process::id();
+    if pid == own_pid || pid == 0 {
+        return Err("Cannot kill own process or PID 0".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::Foundation::CloseHandle;
+        use windows::Win32::System::Threading::{
+            OpenProcess, TerminateProcess, PROCESS_TERMINATE,
+        };
+
+        unsafe {
+            let handle = OpenProcess(PROCESS_TERMINATE, false, pid)
+                .map_err(|e| format!("OpenProcess failed: {}", e))?;
+            TerminateProcess(handle, 1)
+                .map_err(|e| format!("TerminateProcess failed: {}", e))?;
+            let _ = CloseHandle(handle);
+        }
+        eprintln!("[lockdown] Process {} terminated successfully", pid);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        return Err("Process termination not supported on this platform".to_string());
+    }
+
     Ok(())
 }
 

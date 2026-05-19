@@ -115,7 +115,8 @@ pub fn run() {
             lockdown::start_lockdown_monitor,
             lockdown::stop_lockdown_monitor,
             lockdown::update_lockdown_blocklist,
-            lockdown::test_lockdown_block
+            lockdown::test_lockdown_block,
+            lockdown::kill_blocked_process
         ])
         .on_window_event(|window, event| {
             // Closing the main window hides it (sends to tray) instead of exiting

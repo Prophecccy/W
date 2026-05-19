@@ -38,6 +38,16 @@ export function subtractDays(dateStr: string, days: number): string {
 }
 
 /**
+ * Adds N days to a given YYYY-MM-DD string and returns a new string.
+ */
+export function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + days);
+  return formatDate(date);
+}
+
+/**
  * Given a reset time like '04:00', determines if the current time is before the reset boundary.
  */
 export function isBeforeResetTime(date: Date, resetTime: string): boolean {

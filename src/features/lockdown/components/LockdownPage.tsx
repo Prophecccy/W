@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import {
-  Shield, ShieldOff, Check, X, Gamepad2, MessageCircle, Tv, Globe, Lock, Construction,
+  Shield, ShieldOff, Check, X, Gamepad2, MessageCircle, Tv, Globe, Lock, ShoppingBag, Newspaper,
 } from "lucide-react";
 import { useLockdown } from "../../lockdown/hooks/useLockdown";
 import { LOCKDOWN_PRESETS, LOCKDOWN_DURATIONS } from "../../lockdown/types";
@@ -98,6 +98,8 @@ export function LockdownPage() {
     MessageCircle,
     Tv,
     Globe,
+    ShoppingBag,
+    Newspaper,
   };
 
   // ── Format time remaining ──────────────────────────────────────
@@ -122,56 +124,10 @@ export function LockdownPage() {
 
   const fullBlocklist = computeBlocklist();
 
-  // Dummy reference to satisfy TS noUnusedLocals / noUnusedParameters compile checks
-  if (false as boolean) {
-    console.log(
-      Shield, ShieldOff, Check, X, Lock, LOCKDOWN_DURATIONS,
-      isActive, timeRemaining, setSelectedDuration,
-      togglePreset, addCustomEntry, removeBlocklistItem,
-      iconMap, formatTime, handleActivate, handleDeactivate,
-      fullBlocklist
-    );
-  }
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        height: "100%",
-        width: "100%",
-        opacity: 0.5,
-        gap: "1.5rem",
-        textAlign: "center",
-        padding: "2rem",
-      }}
-    >
-      <Construction size={48} style={{ color: "var(--text-muted)", strokeWidth: 1.5 }} />
-      <div>
-        <h1 className="t-display" style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>
-          [ SYSTEM MAINTENANCE ]
-        </h1>
-        <p
-          style={{
-            fontFamily: "monospace",
-            fontSize: "0.75rem",
-            color: "var(--text-muted)",
-            letterSpacing: "0.05em",
-          }}
-        >
-          FOCUS PROTOCOL IS CURRENTLY OFFLINE FOR UPGRADES.
-        </p>
-      </div>
-    </div>
-  );
-
-  /*
   return (
     <div className="lockdown-page">
       <div className="lockdown-page__content">
-        {/* ── Hero / Status ─────────────────────────────────────── * /}
+        {/* ── Hero / Status ─────────────────────────────────────── */}
         <div className="lockdown-section" id="lockdown-status">
           <div className="lockdown-section__content">
             <div className="lockdown-hero">
@@ -229,24 +185,7 @@ export function LockdownPage() {
                 </button>
               )}
 
-              {/* TEMP DEBUG BUTTON * /}
-              <button
-                className="lockdown-activate-btn"
-                onClick={async () => {
-                  const { invoke } = await import("@tauri-apps/api/core");
-                  try {
-                    await invoke("test_lockdown_block");
-                    alert("Fired test command to Rust.");
-                  } catch (e) {
-                    alert("Test command failed: " + e);
-                  }
-                }}
-                style={{ marginTop: 12, background: 'rgba(255, 255, 255, 0.1)', color: 'white' }}
-              >
-                TEST OVERLAY (DEBUG)
-              </button>
-
-              {/* Duration picker (only when inactive) * /}
+              {/* Duration picker (only when inactive) */}
               {!isActive && (
                 <div className="lockdown-duration">
                   {LOCKDOWN_DURATIONS.map((opt) => (
@@ -264,7 +203,7 @@ export function LockdownPage() {
               )}
             </div>
 
-            {/* Stats * /}
+            {/* Stats */}
             <div className="lockdown-stats">
               <div className="lockdown-stat">
                 <span className="lockdown-stat__value">{state.totalSessions || 0}</span>
@@ -282,7 +221,7 @@ export function LockdownPage() {
           </div>
         </div>
 
-        {/* ── Blocklist Presets ─────────────────────────────────── * /}
+        {/* ── Blocklist Presets ─────────────────────────────────── */}
         {!isActive && (
           <div className="lockdown-section" id="lockdown-blocklist">
             <h2 className="lockdown-section__header t-label">[ BLOCKLIST ]</h2>
@@ -312,7 +251,7 @@ export function LockdownPage() {
                 })}
               </div>
 
-              {/* Custom entries * /}
+              {/* Custom entries */}
               <div className="lockdown-custom">
                 <div className="lockdown-custom__input-row">
                   <input
@@ -329,7 +268,7 @@ export function LockdownPage() {
                 </div>
               </div>
 
-              {/* Current blocklist as tags * /}
+              {/* Current blocklist as tags */}
               {fullBlocklist.length > 0 && (
                 <div className="lockdown-tags">
                   {fullBlocklist.map((item) => (
@@ -349,7 +288,7 @@ export function LockdownPage() {
           </div>
         )}
 
-        {/* ── Recent Violations ─────────────────────────────────── * /}
+        {/* ── Recent Violations ─────────────────────────────────── */}
         {state.violations && state.violations.length > 0 && (
           <div className="lockdown-section" id="lockdown-violations">
             <h2 className="lockdown-section__header t-label">[ RECENT VIOLATIONS ]</h2>
@@ -375,5 +314,5 @@ export function LockdownPage() {
       </div>
     </div>
   );
-  */
 }
+

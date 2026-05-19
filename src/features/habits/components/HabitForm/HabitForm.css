@@ -184,3 +184,14 @@
   color: var(--accent);
   opacity: 0.8;
 }
+
+/* Nuke native browser number input spinners */
+.habit-form__input[type=number]::-webkit-inner-spin-button,
+.habit-form__input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.habit-form__input[type=number] {
+  -moz-appearance: textfield;
+}
+

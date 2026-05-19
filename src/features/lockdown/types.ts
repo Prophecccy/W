@@ -42,20 +42,106 @@ export interface BlocklistPreset {
   items: string[];
 }
 
+// ─── Blocklist Data (2026-current) ───────────────────────────────
+// .exe entries  → exact match on foreground process executable name
+// plain strings → substring match on foreground window title
+
 export const GAMING_BLOCKLIST = [
-  "steam.exe", "epicgameslauncher.exe", "riotclientux.exe", "battlenet.exe", "upc.exe", "origin.exe", "ealocalhostsvc.exe", "goggalaxy.exe", "xboxapp.exe", "valorant.exe", "valorant-win64-shipping.exe", "leagueclient.exe", "league of legends.exe", "cs2.exe", "csgo.exe", "dota2.exe", "overwatch.exe", "r5apex.exe", "robloxplayerbeta.exe", "minecraft.exe", "javaw.exe", "fortniteclient-win64-shipping.exe", "cod.exe", "gta5.exe", "rainbowsix.exe"
+  // Launchers & clients
+  "steam.exe", "steamwebhelper.exe",
+  "epicgameslauncher.exe",
+  "riotclientux.exe", "riotclientservices.exe",
+  "battlenet.exe",
+  "ubisoftconnect.exe",
+  "eadesktop.exe", "eabackgroundservice.exe",
+  "goggalaxy.exe",
+  "xboxapp.exe", "gamingservices.exe",
+  // Popular titles
+  "valorant.exe", "valorant-win64-shipping.exe",
+  "leagueclient.exe", "league of legends.exe",
+  "cs2.exe",
+  "dota2.exe",
+  "overwatch.exe",
+  "r5apex.exe",
+  "robloxplayerbeta.exe", "robloxstudio.exe",
+  "minecraft.exe", "javaw.exe",
+  "fortniteclient-win64-shipping.exe",
+  "cod.exe",
+  "gta5.exe",
+  "rainbowsix.exe",
+  "eldenring.exe",
+  "helldivers2.exe",
+  "genshinimpact.exe",
+  "starrailbase.exe",
+  "cyberpunk2077.exe",
+  "palworld-win64-shipping.exe",
+  "deadlock.exe",
+  "marvelrivals.exe",
 ];
 
 export const SOCIAL_BLOCKLIST = [
-  "discord.exe", "whatsapp.exe", "telegram.exe", "signal.exe", "viber.exe", "skype.exe", "line.exe", "messenger.exe", "teams.exe", "slack.exe"
+  "discord.exe",
+  "whatsapp.exe",
+  "telegram.exe",
+  "signal.exe",
+  "viber.exe",
+  "skype.exe",
+  "line.exe",
+  "messenger.exe",
+  "ms-teams.exe", "teams.exe",
+  "slack.exe",
+  "wechat.exe",
+  "zoom.exe",
+  "guilded.exe",
+  "element.exe",
 ];
 
 export const ENTERTAINMENT_BLOCKLIST = [
-  "spotify.exe", "netflix.exe", "itunes.exe", "amazon music.exe", "stremio.exe", "vlc.exe", "mpc-hc.exe", "kodi.exe", "popcorntime.exe", "hulu.exe", "disneyplus.exe"
+  "spotify.exe",
+  "netflix.exe",
+  "applemusic.exe",
+  "appletv.exe",
+  "amazon music.exe",
+  "stremio.exe",
+  "vlc.exe",
+  "mpc-hc.exe",
+  "kodi.exe",
+  "plex.exe", "plexmediaplayer.exe",
+  "youtube music.exe",
+  "tidal.exe",
+  "deezer.exe",
+  "amazonprimevideo.exe",
 ];
 
 export const BROWSING_KEYWORDS = [
-  "YouTube", "Twitch", "Reddit", "Twitter", "Instagram", "Facebook", "TikTok", "Pinterest", "Tumblr", "Netflix", "Hulu", "Prime Video", "Crunchyroll", "9gag", "4chan", "Kick", "Rumble"
+  // Video & streaming
+  "YouTube", "Twitch", "Kick", "Rumble", "Vimeo", "DailyMotion",
+  // Social media (browser tabs)
+  "Reddit", "Twitter", "X.com", "Instagram", "Facebook", "TikTok",
+  "Threads", "Bluesky", "Pinterest", "Tumblr", "Imgur", "9gag", "4chan",
+  // Streaming services
+  "Netflix", "Hulu", "Prime Video", "Crunchyroll", "Disney+",
+  // Misc time-sinks
+  "BuzzFeed", "iFunny",
+];
+
+export const SHOPPING_BLOCKLIST = [
+  "Amazon.in", "Amazon.com",
+  "Flipkart", "Myntra", "Ajio",
+  "eBay", "AliExpress", "Etsy",
+  "Walmart", "Best Buy", "Target",
+  // Trading & crypto
+  "Robinhood", "Coinbase", "Binance",
+  "TradingView", "Zerodha", "Groww",
+];
+
+export const NEWS_BLOCKLIST = [
+  "Hacker News", "TechCrunch", "The Verge", "Engadget", "Gizmodo",
+  "Ars Technica", "Slashdot",
+  "Quora", "Medium", "Substack",
+  "Wikipedia", "Fandom",
+  "Google News", "Apple News",
+  "CNN", "BBC News",
 ];
 
 export const LOCKDOWN_PRESETS: BlocklistPreset[] = [
@@ -82,6 +168,18 @@ export const LOCKDOWN_PRESETS: BlocklistPreset[] = [
     label: "BROWSING",
     icon: "Globe",
     items: BROWSING_KEYWORDS,
+  },
+  {
+    id: "shopping",
+    label: "SHOPPING & TRADING",
+    icon: "ShoppingBag",
+    items: SHOPPING_BLOCKLIST,
+  },
+  {
+    id: "news",
+    label: "NEWS & FEEDS",
+    icon: "Newspaper",
+    items: NEWS_BLOCKLIST,
   },
 ];
 

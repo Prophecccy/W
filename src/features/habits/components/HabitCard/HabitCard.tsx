@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Habit } from "../../types";
 import { LucideIcon } from "../../../../shared/components/IconPicker/LucideIcon";
+import { addDays, getToday } from "../../../../shared/utils/dateUtils";
 import { useToast } from "../../../../shared/components/Toast/Toast";
 import { playCompletionSound } from "../../../../shared/services/completionSound";
 import { FlameIcon } from "../../../../shared/components/FlameIcon/FlameIcon";
@@ -19,6 +20,35 @@ interface HabitCardProps {
   onClick: () => void;
   currentValue?: number; // For metric/limiter types
   riskScore?: number;    // 0–100 from Predictive Strike Risk Engine
+  isResting?: boolean;
+  userResetTime?: string;
+}
+
+function getCooldownText(habit: Habit, userResetTime?: string): string {
+  if (!habit.lastCompletedDate) return "";
+  const nextActiveStr = addDays(habit.lastCompletedDate, habit.intervalDays);
+  const todayStr = getToday(undefined, userResetTime);
+  
+  const nextActive = new Date(nextActiveStr + "T00:00:00");
+  const today = new Date(todayStr + "T00:00:00");
+  const diffMs = nextActive.getTime() - today.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffDays <= 0) {
+    return "RETURNS TODAY";
+  }
+  if (diffDays === 1) {
+    return "RETURNS TOMORROW";
+  }
+  if (diffDays === 2) {
+    return "RETURNS IN 2 DAYS";
+  }
+  if (diffDays < 7) {
+    const weekdays = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+    const dayName = weekdays[nextActive.getDay()];
+    return `RETURNS ON ${dayName}`;
+  }
+  return `RETURNS IN ${diffDays} DAYS`;
 }
 
 export function HabitCard({
@@ -30,6 +60,8 @@ export function HabitCard({
   onClick,
   currentValue = 0,
   riskScore,
+  isResting = false,
+  userResetTime,
 }: HabitCardProps) {
   const { showToast } = useToast();
   const [isHolding, setIsHolding] = useState(false);
@@ -51,6 +83,7 @@ export function HabitCard({
 
   // ─── Interaction Handlers ───────────────────────────────────────
   const startHold = () => {
+    if (isResting) return;
     if (isCompletedToday || habit.type === "metric" || habit.type === "limiter") {
       // Metric/limiter standard hold logic might differ (maybe tap opens input dialog instead).
       // For checklist scope, let's treat standard types with hold-to-verify.
@@ -104,7 +137,7 @@ export function HabitCard({
 
   return (
     <div
-      className={`habit-card ${isCompletedToday ? "habit-card--completed" : ""} ${isHolding ? "habit-card--holding" : ""} level-tier-${Math.min(habit.level, 10)}${riskScore != null && riskScore > 90 ? " risk-critical" : riskScore != null && riskScore > 75 ? " risk-elevated" : ""}`}
+      className={`habit-card ${isCompletedToday ? "habit-card--completed" : ""} ${isResting ? "habit-card--resting" : ""} ${isHolding ? "habit-card--holding" : ""} level-tier-${Math.min(habit.level, 10)}${riskScore != null && riskScore > 90 ? " risk-critical" : riskScore != null && riskScore > 75 ? " risk-elevated" : ""}`}
       style={cardStyle}
       onPointerDown={startHold}
       onPointerUp={handlePointerUp}
@@ -126,7 +159,7 @@ export function HabitCard({
           />
         )}
       </AnimatePresence>
-
+      
       <div className="habit-card__content">
         <div className="habit-card__header">
           <div className="habit-card__title-group">
@@ -181,21 +214,29 @@ export function HabitCard({
             )}
           </div>
 
-          {/* Metric / Limiter Progress Display */}
-          {(habit.type === "metric" || habit.type === "limiter") && habit.metric && (
-            <div className="habit-card__metric-display t-meta">
-              <span>{Math.floor(currentValue)}/{Math.floor(target)} {habit.metric.unit}</span>
+          {isResting ? (
+            <div className="habit-card__cooldown t-meta" style={{ color: "var(--text-muted)", fontFamily: "monospace" }}>
+              [ {getCooldownText(habit, userResetTime)} ]
             </div>
-          )}
-          
-          {/* Checkmark and Confetti on finish */}
-          {isCompletedToday && (
-             <div className="habit-card__complete-check">
-               <LucideIcon name="Check" size={16} />
-               {completeTriggered && (
-                 <ConfettiParticles particleCount={16} />
-               )}
-             </div>
+          ) : (
+            <>
+              {/* Metric / Limiter Progress Display */}
+              {(habit.type === "metric" || habit.type === "limiter") && habit.metric && (
+                <div className="habit-card__metric-display t-meta">
+                  <span>{Math.floor(currentValue)}/{Math.floor(target)} {habit.metric.unit}</span>
+                </div>
+              )}
+              
+              {/* Checkmark and Confetti on finish */}
+              {isCompletedToday && (
+                 <div className="habit-card__complete-check">
+                   <LucideIcon name="Check" size={16} />
+                   {completeTriggered && (
+                     <ConfettiParticles particleCount={16} />
+                   )}
+                 </div>
+              )}
+            </>
           )}
         </div>
       </div>

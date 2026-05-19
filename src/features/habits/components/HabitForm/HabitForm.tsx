@@ -26,7 +26,7 @@ export interface HabitFormProps {
   onCancel: () => void;
 }
 
-const DEFAULT_METRIC: HabitMetric = { unit: "pages", targetValue: 10, originalTarget: 10 };
+const DEFAULT_METRIC: HabitMetric = { unit: "", targetValue: "" as any, originalTarget: "" as any };
 const DEFAULT_DURATION: HabitDuration = { type: "continuing" };
 
 export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitFormProps) {
@@ -58,7 +58,14 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
     switch (step) {
       case 0: return data.title.trim() !== "";
       case 1: return true; // Period
-      case 2: return true; // Type
+      case 2:
+        if (data.type === "metric" || data.type === "limiter") {
+          if (!data.metric) return false;
+          const targetVal = Number(data.metric.targetValue);
+          const unit = data.metric.unit.trim();
+          return !isNaN(targetVal) && targetVal >= 2 && unit !== "";
+        }
+        return true; // Type
       case 3: // Duration
         if (data.duration.type === "endpoint") return !!data.duration.endDate || !!data.duration.completionCount;
         return true;
@@ -153,13 +160,13 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
               <button
                 type="button"
                 className={`habit-form__radio-btn t-body ${data.type === "limiter" ? "habit-form__radio-btn--active" : ""}`}
-                onClick={() => update({ type: "limiter", metric: data.metric || { ...DEFAULT_METRIC, unit: "cigarettes" } })}
+                onClick={() => update({ type: "limiter", metric: data.metric || DEFAULT_METRIC })}
               >
                 LIMITER (Avoid/Reduce)
               </button>
             </div>
 
-            {data.type === "metric" && data.metric && (
+            {(data.type === "metric" || data.type === "limiter") && data.metric && (
               <div style={{ marginTop: 24 }}>
                 <div className="habit-form__field">
                   <label className="t-meta">TARGET NUMBER</label>
@@ -170,8 +177,12 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
                     min={1}
                     step={1}
                     onChange={(e) => {
-                      if (e.target.value === "") return;
-                      const n = Math.max(1, Number(e.target.value));
+                      const val = e.target.value;
+                      if (val === "") {
+                        update({ metric: { ...data.metric!, targetValue: "" as any, originalTarget: "" as any } });
+                        return;
+                      }
+                      const n = Number(val);
                       if (!Number.isFinite(n)) return;
                       update({ metric: { ...data.metric!, targetValue: n, originalTarget: n } });
                     }}

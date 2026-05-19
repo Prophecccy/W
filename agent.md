@@ -104,7 +104,11 @@ To support native window movement in the frameless Tauri UI, specific elements u
 
 ### 7. Habit Creation Wizard
 The Habit creation flow is a streamlined 6-step wizard (`src/features/habits/components/HabitForm`).
-- **Flow:** Basics → Period → Type → Duration → Appearance → Grouping.
+- **Flow:** Basics → Period → Type/Metric → Duration → Appearance → Grouping.
+- **Type/Metric Step:** Metric and Limiter types allow capturing a custom target quantity and unit (metric label). Both values default to empty strings (`""`) to prevent default text trapping.
+- **Sticky 1 Bypass:** The local Target Number state accepts an empty string (`""`) during active editing so the user can freely backspace.
+- **Minimum 2 Validation Gate:** The step transition to Step 3 is physically blocked (disabling the `[ NEXT ]` button) if `targetValue` is less than `2` or if `unit` (metric label) is empty.
+- **Input Spinner Nuking:** Standard HTML5 number spinner controls (arrows) are completely hidden using CSS in `HabitForm.css` to respect the minimalist typography aesthetic.
 - **Appearance Step:** Focuses exclusively on iconography. The `ColorPicker` is omitted to maintain global theme consistency and prevent accidental overrides during habit setup.
 - **Aesthetic:** The icon grid is expanded to fill the vertical space, adhering to the "Instrument" design philosophy.
 
@@ -126,6 +130,7 @@ To maintain consistent date boundaries across isolated processes in the Tauri ap
 - **Multiprocess State Syncing**: 
   - The main dashboard's `UserProvider` writes the active user's Firestore daily reset time settings to `localStorage` under `w_daily_reset_time` synchronously *before* updating `setUserDoc` state to prevent rendering race conditions.
   - The desktop background Widget's `useWidgetData` snapshot listener dynamically receives `settings.dailyResetTime` via Firestore updates, reactively updates `localStorage`, and instantly unsubscribes/resubscribes to the correct day's habit logs `/logs/{today}`.
+  - **Tauri IPC Real-Time Sync**: When a habit is completed or undone inside the desktop background widget (`useWidgetData.ts`), it emits a custom Tauri IPC event (`widget-habit-updated`). The primary app dashboard (`DashboardPage.tsx`) registers a global event listener inside a lifecycle-safe `useEffect` hook. On receiving this event, it increments a local `refreshTrigger` state counter, prompting an instantaneous, seamless data re-fetch and UI update to maintain parity across all active window processes.
 
 ### 10. System Tray (Notification Area)
 The app registers a persistent Windows System Tray icon on launch so users running background processes (widget, overlays) can always regain control or fully exit.
@@ -145,6 +150,21 @@ The desktop Widget app reconfigures the standard dashboard header and stats comp
 - **Widget Header**: Renders the custom `[ W ]` brand logo alongside `[ ACTIVE PROTOCOLS ]` sub-text. The high-precision ticking clock has been relocated to the bottom compartment below the stats deck to prevent header wrapping.
 - **PowerHub Stats Deck**: Located in the stats section. Renders a horizontal 3-column deck containing completed count, total habits count, and progress percentage separated by vertical hairline dividers.
 - **Height Bounds Safeguard**: The stats deck and bottom clock are structurally designed to fit within the `POWERHUB_H = 170px` height budget mapped in `WidgetApp.tsx`'s auto-resize calculations to prevent window boundary overflow.
+
+### 12. Habit Item Visual States
+To ensure strict visual hierarchy and quick readability in the Widget list, four distinct CSS/DOM visual states are implemented for the Habit Items:
+- **Active State (Default)**: Normal card rendering with `opacity: 1.0` and default typography.
+- **Done Today State (Interacted Today)**: Applied to metric habits that have some progress (`interactedToday: true` / `doneToday: true`) but are not fully completed/committed. The card opacity is set to `0.7`, but the green `✓ DONE TODAY` tag stays bright and vibrant at `opacity: 1.0` and color `#4ade80`.
+- **Pending Undo State (Grace Period)**: Active during the 8-second (`8000ms`) completion grace period. The card opacity is kept at `1.0`. A dynamic, absolutely-positioned `::after` pseudo-element at the bottom of the card animates its width from `100%` to `0%` using a linear keyframe transition over exactly 8 seconds to serve as the visual timer.
+- **Committed State (Fully Completed)**: Reached after the 8-second undo grace period closes. The card opacity is reduced to `0.5` with muted borders and background. The title text receives a strike-through (`text-decoration: line-through`) and `color: var(--text-muted)` styling. The `✓ DONE TODAY` tag is completely hidden.
+
+### 13. Interval Cooldown & UI Routing System
+Introduced to enforce strict cooldown routines for 'interval' (every N days) habits.
+- **Is Resting Calculation (Date Math):** Checked via the `isHabitResting(habit, userResetTime)` utility. It calculates the `nextActiveDate = lastCompletedDate + intervalDays` (incorporating the user's custom daily reset time). If the current time is before `nextActiveDate`, the habit is flagged as resting.
+- **Active Surface Purge:** Pinned widget views (`useWidgetData.ts`) and the main Dashboard (`DashboardPage.tsx`) strictly filter out resting interval habits (`isResting === true`), removing them completely from active lists.
+- **Holding Section:** In the main App's Habits tab (`HabitsPage.tsx`), resting habits are extracted into a separate group and rendered under a designated `[ INTERVALS ]` section at the bottom of the page in a faded visual state (`opacity: 0.65`).
+- **Cooldown Display:** Within `HabitCard.tsx`, the standard hold-to-complete handlers and progress metrics are completely disabled and replaced with a monospace, muted bracketed cooldown message (e.g. `[ RETURNS IN 2 DAYS ]`, `[ RETURNS ON THURSDAY ]` or `[ RETURNS TOMORROW ]`) to clearly show remaining cooldown duration.
+
 ---
 
 

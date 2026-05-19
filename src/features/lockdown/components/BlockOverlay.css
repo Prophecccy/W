@@ -6,12 +6,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(8, 9, 10, 0.8);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(8, 9, 10, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   animation: overlayFadeIn 0.25s ease-out;
   user-select: none;
-  cursor: not-allowed;
 }
 
 @keyframes overlayFadeIn {
@@ -70,10 +69,39 @@
   margin-top: 8px;
 }
 
-.block-overlay__hint {
+/* ─── Close Button ────────────────────────────────────────────── */
+
+.block-overlay__close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 24px;
+  padding: 12px 32px;
   font-family: "Departure Mono", monospace;
-  font-size: 8px;
-  letter-spacing: 2px;
-  color: rgba(255, 255, 255, 0.3);
-  margin: 16px 0 0;
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: #ffffff;
+  background: rgba(232, 115, 108, 0.15);
+  border: 1px solid rgba(232, 115, 108, 0.4);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.block-overlay__close-btn:hover:not(:disabled) {
+  background: rgba(232, 115, 108, 0.3);
+  border-color: rgba(232, 115, 108, 0.6);
+  box-shadow: 0 0 20px rgba(232, 115, 108, 0.2);
+  transform: translateY(-1px);
+}
+
+.block-overlay__close-btn:active:not(:disabled) {
+  transform: translateY(0);
+  background: rgba(232, 115, 108, 0.4);
+}
+
+.block-overlay__close-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

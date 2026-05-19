@@ -10,13 +10,13 @@ export function DesktopSection() {
   const { showToast } = useToast();
   const { phase, startUpdate, reboot } = useUpdateManager();
   const [isChecking, setIsChecking] = useState(false);
-  const [appVersion, setAppVersion] = useState("Alpha.v.1.0");
+  const [appVersion, setAppVersion] = useState("Alpha.v.1.1");
   const [autostartEnabled, setAutostartEnabled] = useState(true);
   const inTauri = isTauri();
 
   useEffect(() => {
     if (inTauri) {
-      setAppVersion("Alpha.v.1.0");
+      setAppVersion("Alpha.v.1.1");
 
       // Check actual autostart state from the plugin
       import('@tauri-apps/plugin-autostart').then(({ isEnabled }) => {
