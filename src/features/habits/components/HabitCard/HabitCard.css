@@ -74,6 +74,12 @@
   gap: 12px;
 }
 
+.habit-card__title-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
 .habit-card__icon {
   margin-right: 4px;
 }
@@ -81,6 +87,11 @@
 .habit-card__title {
   font-weight: 500;
   text-shadow: var(--text-shadow-sharp);
+}
+
+.habit-card__done-today {
+  color: #4ade80;
+  letter-spacing: 1px;
 }
 
 .habit-card__stats-group {

@@ -6,6 +6,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useToast } from "../../../shared/components/Toast/Toast";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../../shared/config/firebase";
+import { TimeInput } from "../../../shared/components/RadialTimePicker/TimeInput";
 import "./OnboardingPage.css";
 
 interface OnboardingProps {
@@ -133,12 +134,9 @@ export function OnboardingPage({ onComplete }: OnboardingProps) {
                 <p className="t-meta" style={{ marginBottom: 8, textTransform: "none", color: "var(--text-muted)" }}>
                    When do your daily habit counts and strikes reset? (Default: 04:00 AM)
                 </p>
-                <input 
-                  type="time" 
-                  className="onboarding__input t-data"
+                <TimeInput 
                   value={resetTime}
-                  onChange={(e) => setResetTime(e.target.value)}
-                  required
+                  onChange={(v) => setResetTime(v)}
                 />
               </div>
 
@@ -159,23 +157,17 @@ export function OnboardingPage({ onComplete }: OnboardingProps) {
               <div className="onboarding__time-row">
                 <div className="form-group">
                   <label className="t-label">[ WAKE TIME ]</label>
-                  <input 
-                    type="time" 
-                    className="onboarding__input t-data"
+                  <TimeInput 
                     value={wakeTime}
-                    onChange={(e) => setWakeTime(e.target.value)}
-                    required
+                    onChange={(v) => setWakeTime(v)}
                   />
                 </div>
 
                 <div className="form-group">
                   <label className="t-label">[ BED TIME ]</label>
-                  <input 
-                    type="time" 
-                    className="onboarding__input t-data"
+                  <TimeInput 
                     value={sleepTime}
-                    onChange={(e) => setSleepTime(e.target.value)}
-                    required
+                    onChange={(v) => setSleepTime(v)}
                   />
                 </div>
               </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { collection, query, where, onSnapshot, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, orderBy } from 'firebase/firestore';
 import { db } from '../../../shared/config/firebase';
 import { useAuthContext } from '../../auth/context';
 import { Habit, HabitLog, HabitLogEntry } from '../../habits/types';
@@ -10,7 +10,9 @@ import { isHabitScheduledToday } from '../../habits/utils/scheduleEngine';
 
 export interface WidgetData {
   habits: Habit[];
+  today: string;
   todayLog: HabitLog | null;
+  periodLogs: HabitLog[];
   userDoc: User | null;
   loading: boolean;
   scheduledHabits: Habit[];
@@ -26,6 +28,7 @@ export function useWidgetData(): WidgetData {
   const { user } = useAuthContext();
   const [habits, setHabits] = useState<Habit[]>([]);
   const [todayLog, setTodayLog] = useState<HabitLog | null>(null);
+  const [periodLogs, setPeriodLogs] = useState<HabitLog[]>([]);
   const [userDoc, setUserDoc] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -63,6 +66,35 @@ export function useWidgetData(): WidgetData {
     return unsub;
   }, [user, today]);
 
+  useEffect(() => {
+    if (!user) return;
+
+    const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
+    const scheduled = habits.filter(h => isHabitScheduledToday(h, today));
+    const multiDayMetric = scheduled.filter(isMultiDayMetric);
+
+    let minStart = today;
+    for (const h of multiDayMetric) {
+      const start = getPeriodStart(h, today, weeklyResetDay);
+      if (start < minStart) minStart = start;
+    }
+
+    const logsRef = collection(db, 'users', user.uid, 'logs');
+    const q = query(
+      logsRef,
+      where('date', '>=', minStart),
+      where('date', '<=', today),
+      orderBy('date', 'asc')
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      const data = snap.docs.map((d) => d.data() as HabitLog);
+      setPeriodLogs(data);
+    });
+
+    return unsub;
+  }, [user, habits, today, userDoc?.settings?.weeklyResetDay]);
+
   // Listen to user doc (strikes, freeze, wallpapers)
   useEffect(() => {
     if (!user) return;
@@ -87,6 +119,9 @@ export function useWidgetData(): WidgetData {
 
   const completedCount = scheduledHabits.filter(h => {
     const entry = todayLog?.habits?.[h.id];
+    if (isMultiDayMetric(h)) {
+      return (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
+    }
     return entry?.completed === true;
   }).length;
 
@@ -120,7 +155,9 @@ export function useWidgetData(): WidgetData {
 
   return {
     habits,
+    today,
     todayLog,
+    periodLogs,
     userDoc,
     loading,
     scheduledHabits,
@@ -131,4 +168,45 @@ export function useWidgetData(): WidgetData {
     completeHabit,
     undoHabit,
   };
+}
+
+function formatDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getWeekStart(dateStr: string, weekStartDay: number): string {
+  const d = new Date(dateStr + "T12:00:00");
+  while (d.getDay() !== weekStartDay) {
+    d.setDate(d.getDate() - 1);
+  }
+  return formatDate(d);
+}
+
+function getMonthStart(dateStr: string): string {
+  return `${dateStr.slice(0, 7)}-01`;
+}
+
+function isMultiDayMetric(habit: Habit): boolean {
+  return habit.type === "metric" && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
+}
+
+function getIntervalStart(habit: Habit, todayStr: string): string {
+  if (habit.period !== "interval" || habit.intervalDays <= 0) return todayStr;
+  const created = new Date(habit.createdAt);
+  const today = new Date(todayStr + "T12:00:00");
+  const diffDays = Math.floor((today.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) return formatDate(created);
+  const segmentStart = diffDays - (diffDays % habit.intervalDays);
+  created.setDate(created.getDate() + segmentStart);
+  return formatDate(created);
+}
+
+function getPeriodStart(habit: Habit, todayStr: string, weekStartDay: number): string {
+  if (habit.period === "weekly") return getWeekStart(todayStr, weekStartDay);
+  if (habit.period === "monthly") return getMonthStart(todayStr);
+  if (habit.period === "interval") return getIntervalStart(habit, todayStr);
+  return todayStr;
 }

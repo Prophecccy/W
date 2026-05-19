@@ -6,11 +6,12 @@ import './WidgetHabitCard.css';
 interface WidgetHabitCardProps {
   habit: Habit;
   isCompletedToday: boolean;
+  doneToday?: boolean;
   onComplete: (habitId: string) => void;
   onUndo: (habitId: string) => void;
 }
 
-export function WidgetHabitCard({ habit, isCompletedToday, onComplete, onUndo }: WidgetHabitCardProps) {
+export function WidgetHabitCard({ habit, isCompletedToday, doneToday = false, onComplete, onUndo }: WidgetHabitCardProps) {
   const [isHolding, setIsHolding] = useState(false);
   const [justCompleted, setJustCompleted] = useState(false);
   const holdTimeoutRef = useRef<number | null>(null);
@@ -74,9 +75,16 @@ export function WidgetHabitCard({ habit, isCompletedToday, onComplete, onUndo }:
         )}
       </div>
 
-      <span className="widget-habit-card__title t-body">
-        {habit.title}
-      </span>
+      <div className="widget-habit-card__text">
+        <span className="widget-habit-card__title t-body">
+          {habit.title}
+        </span>
+        {doneToday && (
+          <span className="widget-habit-card__done-today t-meta">
+            ✓ DONE TODAY
+          </span>
+        )}
+      </div>
 
       <div className="widget-habit-card__streak t-meta">
         {habit.currentStreak > 0 && !isCompleted && (

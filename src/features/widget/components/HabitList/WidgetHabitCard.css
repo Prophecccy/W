@@ -83,7 +83,6 @@
 
 /* ─── Title ──────────────────────────────────────────────── */
 .widget-habit-card__title {
-  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -91,6 +90,19 @@
   font-size: 14px;
   font-weight: 500;
   letter-spacing: 0.5px;
+}
+
+.widget-habit-card__text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.widget-habit-card__done-today {
+  color: #4ade80;
+  letter-spacing: 1px;
 }
 
 .widget-habit-card.completed .widget-habit-card__title {

@@ -1,4 +1,4 @@
-import { Clock, CalendarDays, Globe, Sunrise, Moon } from "lucide-react";
+import { Clock, CalendarDays, Globe, Sunrise, Moon, Type } from "lucide-react";
 import { Settings } from "../../../shared/types";
 import { TimeInput } from "../../../shared/components/RadialTimePicker/TimeInput";
 
@@ -28,8 +28,6 @@ export function ScheduleSection({ settings, onUpdate }: ScheduleSectionProps) {
   const resetTime  = settings.dailyResetTime;
   const weeklyDay  = settings.weeklyResetDay;
   const timezone   = settings.timezone;
-  const wakeUpTime = settings.wakeUpTime;
-  const bedTime    = settings.bedTime;
 
   return (
     <div className="settings-section" id="settings-schedule">
@@ -46,32 +44,6 @@ export function ScheduleSection({ settings, onUpdate }: ScheduleSectionProps) {
             id="schedule-daily-reset"
             value={resetTime}
             onChange={(v) => onUpdate({ dailyResetTime: v })}
-          />
-        </div>
-
-        {/* Wake Up Time */}
-        <div className="settings-row">
-          <div className="settings-row__label">
-            <Sunrise size={14} strokeWidth={1.5} />
-            <span className="t-body">Wake Up Time</span>
-          </div>
-          <TimeInput
-            id="schedule-wake-up"
-            value={wakeUpTime}
-            onChange={(v) => onUpdate({ wakeUpTime: v })}
-          />
-        </div>
-
-        {/* Bed Time */}
-        <div className="settings-row">
-          <div className="settings-row__label">
-            <Moon size={14} strokeWidth={1.5} />
-            <span className="t-body">Bed Time</span>
-          </div>
-          <TimeInput
-            id="schedule-bed-time"
-            value={bedTime}
-            onChange={(v) => onUpdate({ bedTime: v })}
           />
         </div>
 

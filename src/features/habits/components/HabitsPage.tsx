@@ -121,14 +121,30 @@ export function HabitsPage() {
   // Actions
   const handleComplete = async (habitId: string) => {
     try {
+      const habit = habits.find(h => h.id === habitId);
+      const target = habit?.metric?.targetValue ?? 1;
       // Optimistic UI
       setLog(prev => {
         if (!prev) return prev;
+        const existing = prev.habits?.[habitId];
+        const existingValue = existing?.value ?? 0;
+        const newValue = existingValue + 1;
+        const isCompleted =
+          habit?.type === "metric"
+            ? newValue >= target
+            : habit?.type === "limiter"
+              ? false
+              : true;
         return {
           ...prev,
           habits: {
             ...prev.habits,
-            [habitId]: { completed: true, value: 1, target: 1, completions: [{ timestamp: Date.now(), value: 1 }], timerSeconds: 0 }
+            [habitId]: {
+              completed: isCompleted,
+              value: newValue,
+              target,
+              completions: [...(existing?.completions ?? []), { timestamp: Date.now(), value: 1 }]
+            }
           }
         };
       });
@@ -144,7 +160,22 @@ export function HabitsPage() {
       setLog(prev => {
         if (!prev) return prev;
         const newHabits = { ...prev.habits };
-        delete newHabits[habitId];
+        const existing = newHabits[habitId];
+        if (!existing || !existing.completions?.length) {
+          delete newHabits[habitId];
+          return { ...prev, habits: newHabits };
+        }
+
+        const newCompletions = existing.completions.slice(0, -1);
+        const lastValue = existing.completions[existing.completions.length - 1].value;
+        const newValue = Math.max(0, (existing.value ?? 0) - lastValue);
+        const isCompleted = newValue >= (existing.target ?? 1);
+
+        if (newCompletions.length === 0) {
+          delete newHabits[habitId];
+        } else {
+          newHabits[habitId] = { ...existing, completions: newCompletions, value: newValue, completed: isCompleted };
+        }
         return { ...prev, habits: newHabits };
       });
       await uncompleteHabit(habitId);
@@ -258,6 +289,7 @@ export function HabitsPage() {
                     key={h.id} 
                     habit={h} 
                     isCompletedToday={false} 
+                    doneToday={h.type === "metric" && (h.period === "weekly" || h.period === "monthly" || h.period === "interval") && ((log?.habits?.[h.id]?.completions?.length ?? 0) > 0)}
                     onComplete={() => handleComplete(h.id)} 
                     onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
                     currentValue={log?.habits[h.id]?.value || 0}
@@ -276,7 +308,7 @@ export function HabitsPage() {
                     <HabitGroupHeader key={g.id} title={g.name} count={groupHabits.length}>
                       <div className="habits-grid">
                          {groupHabits.map(h => (
-                          <HabitCard key={h.id} habit={h} isCompletedToday={false} onComplete={() => handleComplete(h.id)} onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)} currentValue={log?.habits[h.id]?.value || 0} riskScore={riskScores[h.id]} />
+                          <HabitCard key={h.id} habit={h} isCompletedToday={false} doneToday={h.type === "metric" && (h.period === "weekly" || h.period === "monthly" || h.period === "interval") && ((log?.habits?.[h.id]?.completions?.length ?? 0) > 0)} onComplete={() => handleComplete(h.id)} onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)} currentValue={log?.habits?.[h.id]?.value || 0} riskScore={riskScores[h.id]} />
                         ))}
                       </div>
                     </HabitGroupHeader>
@@ -290,7 +322,7 @@ export function HabitsPage() {
                       <HabitGroupHeader title="UNGROUPED" count={ungrouped.length}>
                         <div className="habits-grid">
                            {ungrouped.map(h => (
-                            <HabitCard key={h.id} habit={h} isCompletedToday={false} onComplete={() => handleComplete(h.id)} onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)} currentValue={log?.habits[h.id]?.value || 0} riskScore={riskScores[h.id]} />
+                            <HabitCard key={h.id} habit={h} isCompletedToday={false} doneToday={h.type === "metric" && (h.period === "weekly" || h.period === "monthly" || h.period === "interval") && ((log?.habits?.[h.id]?.completions?.length ?? 0) > 0)} onComplete={() => handleComplete(h.id)} onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)} currentValue={log?.habits?.[h.id]?.value || 0} riskScore={riskScores[h.id]} />
                           ))}
                         </div>
                       </HabitGroupHeader>
@@ -314,6 +346,7 @@ export function HabitsPage() {
                       key={h.id} 
                       habit={h} 
                       isCompletedToday={false} 
+                      doneToday={h.type === "metric" && (h.period === "weekly" || h.period === "monthly" || h.period === "interval") && ((log?.habits?.[h.id]?.completions?.length ?? 0) > 0)}
                       onComplete={() => handleComplete(h.id)} 
                       onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
                       currentValue={log?.habits[h.id]?.value || 0}
@@ -332,6 +365,7 @@ export function HabitsPage() {
                       key={h.id} 
                       habit={h} 
                       isCompletedToday={false} 
+                      doneToday={h.type === "metric" && (h.period === "weekly" || h.period === "monthly" || h.period === "interval") && ((log?.habits?.[h.id]?.completions?.length ?? 0) > 0)}
                       onComplete={() => handleComplete(h.id)} 
                       onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
                       currentValue={log?.habits[h.id]?.value || 0}
@@ -349,6 +383,7 @@ export function HabitsPage() {
                       key={h.id} 
                       habit={h} 
                       isCompletedToday={true} 
+                      doneToday={false}
                       onComplete={() => handleComplete(h.id)} 
                       onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
                       currentValue={log?.habits[h.id]?.value || 0}

@@ -15,7 +15,9 @@ import './WidgetApp.css';
 
 export function WidgetApp() {
   const {
+    today,
     todayLog,
+    periodLogs,
     userDoc,
     loading,
     scheduledHabits,
@@ -385,8 +387,11 @@ export function WidgetApp() {
 
           <div className="widget-app__habits-scroll">
             <WidgetHabitList
+              today={today}
               scheduledHabits={scheduledHabits}
               todayLog={todayLog}
+              periodLogs={periodLogs}
+              weeklyResetDay={userDoc?.settings?.weeklyResetDay ?? 1}
               onComplete={completeHabit}
               onUndo={undoHabit}
             />

@@ -59,6 +59,11 @@ export async function completeHabit(
   const userId = uid();
   const today = getToday();
   const ref = logRef(userId, today);
+  const habitRef = doc(db, "users", userId, "habits", habitId);
+
+  const habitSnap = await getDoc(habitRef);
+  const habit = habitSnap.exists() ? habitSnap.data() : null;
+  const resolvedTarget = habit?.metric?.targetValue ?? target;
 
   const snap = await getDoc(ref);
   const log = snap.exists() ? (snap.data() as HabitLog) : null;
@@ -66,7 +71,7 @@ export async function completeHabit(
   const existing: HabitLogEntry = log?.habits?.[habitId] ?? {
     completed: false,
     value: 0,
-    target,
+    target: resolvedTarget,
     completions: [],
   };
 
@@ -76,10 +81,18 @@ export async function completeHabit(
     ...(note ? { note } : {}),
   };
 
+  const newValue = existing.value + value;
+  const isCompleted =
+    habit?.type === "metric"
+      ? newValue >= resolvedTarget
+      : habit?.type === "limiter"
+        ? false
+        : true;
+
   const newEntry: HabitLogEntry = {
-    completed: true,
-    value: existing.value + value,
-    target,
+    completed: isCompleted,
+    value: newValue,
+    target: resolvedTarget,
     completions: [...existing.completions, entry],
   };
 
@@ -98,11 +111,8 @@ export async function completeHabit(
 
   // ── Sync habit document stats ───────────────────────────────────
   try {
-    const habitRef = doc(db, "users", userId, "habits", habitId);
-    const habitSnap = await getDoc(habitRef);
-    if (habitSnap.exists()) {
-      const habit = habitSnap.data();
-      const lastDate = habit.lastCompletedDate as string | null;
+    if (habit) {
+      const lastDate = (habit.lastCompletedDate as string | null) ?? null;
       let streakUpdate: Record<string, any> = {
         totalCompletions: increment(1),
         lastCompletedDate: today,
@@ -116,9 +126,9 @@ export async function completeHabit(
         const diffDays = Math.round((now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
         if (diffDays === 1) {
           // Consecutive day → increment streak
-          const newStreak = (habit.currentStreak || 0) + 1;
+          const newStreak = ((habit as any).currentStreak || 0) + 1;
           streakUpdate.currentStreak = newStreak;
-          if (newStreak > (habit.longestStreak || 0)) {
+          if (newStreak > ((habit as any).longestStreak || 0)) {
             streakUpdate.longestStreak = newStreak;
           }
         } else if (diffDays > 1) {
@@ -145,6 +155,7 @@ export async function uncompleteHabit(habitId: string): Promise<void> {
   const userId = uid();
   const today = getToday();
   const ref = logRef(userId, today);
+  const habitRef = doc(db, "users", userId, "habits", habitId);
 
   const snap = await getDoc(ref);
   if (!snap.exists()) return;
@@ -153,14 +164,25 @@ export async function uncompleteHabit(habitId: string): Promise<void> {
   const existing = log.habits?.[habitId];
   if (!existing || existing.completions.length === 0) return;
 
+  const habitSnap = await getDoc(habitRef);
+  const habit = habitSnap.exists() ? habitSnap.data() : null;
+
   // Remove last completion
   const newCompletions = existing.completions.slice(0, -1);
   const lastValue = existing.completions[existing.completions.length - 1].value;
+  const newValue = Math.max(0, existing.value - lastValue);
+
+  const isCompleted =
+    habit?.type === "metric"
+      ? newValue >= existing.target
+      : habit?.type === "limiter"
+        ? false
+        : newCompletions.length > 0;
 
   const newEntry: HabitLogEntry = {
     ...existing,
-    completed: newCompletions.length > 0,
-    value: Math.max(0, existing.value - lastValue),
+    completed: isCompleted,
+    value: newValue,
     completions: newCompletions,
   };
 
@@ -210,4 +232,3 @@ export async function getNoteHistory(userId: string): Promise<HabitLog[]> {
     .map((d) => d.data() as HabitLog)
     .filter((log) => log.notes && log.notes.trim() !== "");
 }
-

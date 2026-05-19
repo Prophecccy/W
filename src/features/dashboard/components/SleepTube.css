@@ -22,6 +22,10 @@
   justify-content: flex-end;
 }
 
+.sleep-tube__track.is-empty {
+  background: transparent;
+}
+
 .sleep-tube__marker {
   position: absolute;
   left: 100%;
@@ -63,6 +67,22 @@
   color: var(--text-muted);
   text-align: center;
   white-space: nowrap;
+}
+
+.sleep-tube__empty-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  color: var(--accent);
+  text-transform: uppercase;
+  text-align: center;
+  width: 100%;
+  pointer-events: none;
+  font-size: 12px;
+  letter-spacing: 2px;
 }
 
 /* ─── Widget Specific ─── */

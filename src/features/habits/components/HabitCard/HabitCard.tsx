@@ -13,6 +13,7 @@ import "./HabitCardTiers.css";
 interface HabitCardProps {
   habit: Habit;
   isCompletedToday: boolean;
+  doneToday?: boolean;
   onComplete: () => void;
   onUndo: () => void;
   onClick: () => void;
@@ -23,6 +24,7 @@ interface HabitCardProps {
 export function HabitCard({
   habit,
   isCompletedToday,
+  doneToday = false,
   onComplete,
   onUndo,
   onClick,
@@ -134,15 +136,22 @@ export function HabitCard({
               className="habit-card__icon"
               style={{ color: isCompletedToday ? "var(--text-muted)" : "var(--card-accent)" }}
             />
-            <span 
-              className="habit-card__title t-body"
-              style={{
-                textDecoration: isCompletedToday ? "line-through" : "none",
-                color: isCompletedToday ? "var(--text-muted)" : "var(--text-primary)"
-              }}
-            >
-              {habit.title}
-            </span>
+            <div className="habit-card__title-stack">
+              <span 
+                className="habit-card__title t-body"
+                style={{
+                  textDecoration: isCompletedToday ? "line-through" : "none",
+                  color: isCompletedToday ? "var(--text-muted)" : "var(--text-primary)"
+                }}
+              >
+                {habit.title}
+              </span>
+              {doneToday && !isCompletedToday && (
+                <span className="habit-card__done-today t-meta">
+                  ✓ DONE TODAY
+                </span>
+              )}
+            </div>
             {riskScore != null && riskScore > 75 && !isCompletedToday && (
               <span className={`habit-card__risk-tag t-meta ${riskScore > 90 ? 'risk-critical-tag' : 'risk-elevated-tag'}`}>
                 [ RISK: {riskScore}% ]

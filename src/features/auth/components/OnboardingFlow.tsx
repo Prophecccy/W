@@ -4,6 +4,7 @@ import { createUserDoc } from "../services/userService";
 import { useNavigate } from "react-router-dom";
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useToast } from "../../../shared/components/Toast/Toast";
+import { TimeInput } from "../../../shared/components/RadialTimePicker/TimeInput";
 import "./OnboardingFlow.css";
 
 interface OnboardingFlowProps {
@@ -190,12 +191,9 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                   <p className="onboarding-flow__input-desc t-meta">
                     ESTABLISH YOUR DAILY AWAKENING TIME.
                   </p>
-                  <input
-                    type="time"
-                    className="onboarding-flow__time-input t-data"
+                  <TimeInput
                     value={wakeTime}
-                    onChange={(e) => setWakeTime(e.target.value)}
-                    required
+                    onChange={(v) => setWakeTime(v)}
                   />
                 </div>
 
@@ -204,12 +202,9 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                   <p className="onboarding-flow__input-desc t-meta">
                     ESTABLISH YOUR SCHEDULED SLEEP TIMEOUT.
                   </p>
-                  <input
-                    type="time"
-                    className="onboarding-flow__time-input t-data"
+                  <TimeInput
                     value={sleepTime}
-                    onChange={(e) => setSleepTime(e.target.value)}
-                    required
+                    onChange={(v) => setSleepTime(v)}
                   />
                 </div>
               </div>
@@ -219,12 +214,9 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 <p className="onboarding-flow__input-desc t-meta">
                   TIME FOR THE ACCUMULATED STRIKES AND TARGET COUNTS TO RESET (DEFAULT 04:00 AM).
                 </p>
-                <input
-                  type="time"
-                  className="onboarding-flow__time-input t-data"
+                <TimeInput
                   value={resetTime}
-                  onChange={(e) => setResetTime(e.target.value)}
-                  required
+                  onChange={(v) => setResetTime(v)}
                 />
               </div>
             </div>

@@ -30,6 +30,11 @@ const W_LOAD = 0.20;
 
 const MIN_DATA_POINTS = 3;      // need at least 3 completions for stats
 const EXPONENTIAL_STEEPNESS = 4; // controls how sharply time pressure ramps
+const BASELINE_DAYS = 14;
+const EARLY_WARNING_WINDOW_HOURS = 6;
+const EARLY_SUPPRESSION_CAP = 70;
+const OVERWHELMING_FAIL_RATE = 0.9;
+const OVERWHELMING_MIN_AT_RISK_DAYS = 7;
 
 // ─── Public API ───────────────────────────────────────────────────
 
@@ -49,19 +54,40 @@ export function calculateRisk(
   uncompletedToday: number,
   now: Date = new Date()
 ): RiskResult {
+  const ageMs = now.getTime() - habit.createdAt;
+  const historyCount = historicalLogs.filter((log) => log.habits[habit.id]).length;
+
+  if (ageMs < BASELINE_DAYS * 24 * 3600 * 1000 || historyCount < BASELINE_DAYS) {
+    return {
+      habitId: habit.id,
+      score: 0,
+      timePressure: 0,
+      variance: 0,
+      loadFactor: 0,
+    };
+  }
+
+  const msUntilReset = getMsUntilReset(dailyResetTime, now);
+  const hoursToReset = msUntilReset / (1000 * 60 * 60);
+
   const timePressure = calcTimePressure(dailyResetTime, now);
   const variance = calcVariance(habit.id, historicalLogs, dailyResetTime, now);
   const loadFactor = calcLoadFactor(habit.id, historicalLogs, uncompletedToday);
 
   const raw = W_TIME * timePressure + W_VARIANCE * variance + W_LOAD * loadFactor;
-  const score = Math.round(Math.max(0, Math.min(100, raw)));
+  const shouldSuppressEarly =
+    hoursToReset > EARLY_WARNING_WINDOW_HOURS &&
+    !hasOverwhelmingEarlyFailureEvidence(habit.id, historicalLogs, now);
+
+  const earlyAdjusted = shouldSuppressEarly ? Math.min(raw, EARLY_SUPPRESSION_CAP) : raw;
+  const score = Math.round(Math.max(0, Math.min(100, earlyAdjusted)));
 
   return {
     habitId: habit.id,
     score,
-    timePressure: Math.round(timePressure),
-    variance: Math.round(variance),
-    loadFactor: Math.round(loadFactor),
+    timePressure: Math.round(Math.max(0, Math.min(100, timePressure))),
+    variance: Math.round(Math.max(0, Math.min(100, variance))),
+    loadFactor: Math.round(Math.max(0, Math.min(100, loadFactor))),
   };
 }
 
@@ -70,28 +96,56 @@ export function calculateRisk(
 // Where elapsed = time since wake-up, totalWindow = wake → reset
 
 function calcTimePressure(dailyResetTime: string, now: Date): number {
-  const [resetH, resetM] = dailyResetTime.split(":").map(Number);
-
-  // Build today's reset deadline as a Date
-  const resetToday = new Date(now);
-  resetToday.setHours(resetH, resetM, 0, 0);
-
-  // If reset is in the early AM (e.g. 04:00), the effective deadline
-  // for "today" is actually tomorrow at that time
-  if (resetToday.getTime() <= now.getTime() - 12 * 3600 * 1000) {
-    // reset is behind us by >12h → it's actually tomorrow's reset
-    resetToday.setDate(resetToday.getDate() + 1);
-  }
-
-  // Total window = 24h (full cycle). We measure fraction used.
-  const msUntilReset = resetToday.getTime() - now.getTime();
+  const msUntilReset = getMsUntilReset(dailyResetTime, now);
   const totalWindow = 24 * 3600 * 1000; // 24 hours in ms
 
   // Fraction of the day elapsed (1.0 = reset imminent, 0.0 = just started)
-  const elapsed = Math.max(0, 1 - msUntilReset / totalWindow);
+  const elapsed = Math.max(0, Math.min(1, 1 - msUntilReset / totalWindow));
 
   // Exponential ramp — low early, spikes near the end
   return Math.pow(elapsed, EXPONENTIAL_STEEPNESS) * 100;
+}
+
+function getMsUntilReset(dailyResetTime: string, now: Date): number {
+  const [resetH, resetM] = dailyResetTime.split(":").map(Number);
+  const resetDate = new Date(now);
+  resetDate.setHours(resetH, resetM, 0, 0);
+  if (now.getTime() >= resetDate.getTime()) resetDate.setDate(resetDate.getDate() + 1);
+  return Math.max(0, resetDate.getTime() - now.getTime());
+}
+
+function hasOverwhelmingEarlyFailureEvidence(habitId: string, logs: HabitLog[], now: Date): boolean {
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  let missed = 0;
+  let atRisk = 0;
+
+  for (const log of logs) {
+    const entry = log.habits[habitId];
+    if (!entry) continue;
+
+    if (!entry.completed) {
+      missed++;
+      atRisk++;
+      continue;
+    }
+
+    if (!entry.completions?.length) continue;
+
+    const earliest = entry.completions.reduce<CompletionEntry | null>(
+      (min, c) => (!min || c.timestamp < min.timestamp ? c : min),
+      null
+    );
+
+    if (!earliest) continue;
+
+    const d = new Date(earliest.timestamp);
+    const completionMinutes = d.getHours() * 60 + d.getMinutes();
+
+    if (completionMinutes > nowMinutes) atRisk++;
+  }
+
+  if (atRisk < OVERWHELMING_MIN_AT_RISK_DAYS) return false;
+  return missed / atRisk >= OVERWHELMING_FAIL_RATE;
 }
 
 // ─── V: Variance Signal ──────────────────────────────────────────

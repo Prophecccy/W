@@ -6,7 +6,7 @@ import { DailyNote } from '../../habits/components/DailyNote/DailyNote';
 import { Habit, HabitLog } from '../../habits/types';
 import { Todo } from '../../todos/types';
 import { getHabits } from '../../habits/services/habitService';
-import { getTodayLog, completeHabit, uncompleteHabit } from '../../habits/services/logService';
+import { getTodayLog, getLogRange, completeHabit, uncompleteHabit } from '../../habits/services/logService';
 import { getTodos, completeTodo, completeNumberedTodoFull, incrementNumberedTodo } from '../../todos/services/todoService';
 import { isHabitScheduledToday } from '../../habits/utils/scheduleEngine';
 import { getToday } from '../../../shared/utils/dateUtils';
@@ -25,6 +25,7 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [log, setLog] = useState<HabitLog | null>(null);
+  const [periodLogs, setPeriodLogs] = useState<HabitLog[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
   
   const today = getToday();
@@ -40,6 +41,22 @@ export function DashboardPage() {
         setHabits(fetchedHabits);
         setLog(fetchedLog);
         setTodos(fetchedTodos);
+
+        const scheduled = fetchedHabits.filter(h => isHabitScheduledToday(h, today));
+        const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
+        let minStart = today;
+        for (const h of scheduled) {
+          if (!isMultiDayMetric(h)) continue;
+          const start = getPeriodStart(h, today, weeklyResetDay);
+          if (start < minStart) minStart = start;
+        }
+
+        if (scheduled.some(isMultiDayMetric)) {
+          const logs = await getLogRange(minStart, today);
+          setPeriodLogs(logs);
+        } else {
+          setPeriodLogs([]);
+        }
       } catch (e) {
         console.error("Unified Dashboard Load Error", e);
       } finally {
@@ -47,16 +64,32 @@ export function DashboardPage() {
       }
     }
     loadData();
-  }, [today]);
+  }, [today, userDoc?.settings?.weeklyResetDay]);
 
   // Derived state for Habits
   const scheduledHabits = useMemo(() => {
-    return habits.filter(h => {
+    const filtered = habits.filter(h => {
+      if (isMultiDayMetric(h) && h.metric) {
+        const target = h.metric.targetValue;
+        const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
+        const start = getPeriodStart(h, today, weeklyResetDay);
+        const total = getTotalInRange(periodLogs, h.id, start);
+        if (target > 0 && total >= target) return false;
+      }
+
       const isComplete = !!log?.habits[h.id]?.completed;
       if (isComplete) return false;
       return isHabitScheduledToday(h, today) && h.type !== 'limiter';
     });
-  }, [habits, log, today]);
+
+    return filtered.sort((a, b) => {
+      const aEntry = log?.habits?.[a.id];
+      const bEntry = log?.habits?.[b.id];
+      const aDoneToday = isMultiDayMetric(a) && (aEntry?.completions?.length ?? 0) > 0;
+      const bDoneToday = isMultiDayMetric(b) && (bEntry?.completions?.length ?? 0) > 0;
+      return Number(aDoneToday) - Number(bDoneToday);
+    });
+  }, [habits, log, today, periodLogs, userDoc?.settings?.weeklyResetDay]);
 
   // Derived state for Todos (Current Active Todos)
   const currentTodos = useMemo(() => {
@@ -66,11 +99,30 @@ export function DashboardPage() {
   // Actions for Habits
   const handleHabitComplete = async (habitId: string) => {
     try {
+      const habit = habits.find(h => h.id === habitId);
+      const target = habit?.metric?.targetValue ?? 1;
       setLog(prev => {
         if (!prev) return prev;
+        const existing = prev.habits?.[habitId];
+        const existingValue = existing?.value ?? 0;
+        const newValue = existingValue + 1;
+        const isCompleted =
+          habit?.type === "metric"
+            ? newValue >= target
+            : habit?.type === "limiter"
+              ? false
+              : true;
         return {
           ...prev,
-          habits: { ...prev.habits, [habitId]: { completed: true, value: 1, target: 1, completions: [{ timestamp: Date.now(), value: 1 }] } }
+          habits: {
+            ...prev.habits,
+            [habitId]: {
+              completed: isCompleted,
+              value: newValue,
+              target,
+              completions: [...(existing?.completions ?? []), { timestamp: Date.now(), value: 1 }]
+            }
+          }
         };
       });
       await completeHabit(habitId, 1);
@@ -84,7 +136,22 @@ export function DashboardPage() {
       setLog(prev => {
         if (!prev) return prev;
         const newHabits = { ...prev.habits };
-        delete newHabits[habitId];
+        const existing = newHabits[habitId];
+        if (!existing || !existing.completions?.length) {
+          delete newHabits[habitId];
+          return { ...prev, habits: newHabits };
+        }
+
+        const newCompletions = existing.completions.slice(0, -1);
+        const lastValue = existing.completions[existing.completions.length - 1].value;
+        const newValue = Math.max(0, (existing.value ?? 0) - lastValue);
+        const isCompleted = newValue >= (existing.target ?? 1);
+
+        if (newCompletions.length === 0) {
+          delete newHabits[habitId];
+        } else {
+          newHabits[habitId] = { ...existing, completions: newCompletions, value: newValue, completed: isCompleted };
+        }
         return { ...prev, habits: newHabits };
       });
       await uncompleteHabit(habitId);
@@ -185,6 +252,16 @@ export function DashboardPage() {
                     key={h.id} 
                     habit={h} 
                     isCompletedToday={false} 
+                    doneToday={(() => {
+                      if (!isMultiDayMetric(h) || !h.metric) return false;
+                      const entry = log?.habits?.[h.id];
+                      const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
+                      const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
+                      const start = getPeriodStart(h, today, weeklyResetDay);
+                      const total = getTotalInRange(periodLogs, h.id, start);
+                      const periodCompleted = h.metric.targetValue > 0 ? total >= h.metric.targetValue : false;
+                      return interactedToday && !periodCompleted;
+                    })()}
                     onComplete={() => handleHabitComplete(h.id)} 
                     onUndo={() => handleHabitUndo(h.id)}
                     onClick={() => {}}
@@ -237,4 +314,54 @@ export function DashboardPage() {
       </div>
     </div>
   );
+}
+
+function formatDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getWeekStart(dateStr: string, weekStartDay: number): string {
+  const d = new Date(dateStr + "T12:00:00");
+  while (d.getDay() !== weekStartDay) {
+    d.setDate(d.getDate() - 1);
+  }
+  return formatDate(d);
+}
+
+function getMonthStart(dateStr: string): string {
+  return `${dateStr.slice(0, 7)}-01`;
+}
+
+function getIntervalStart(habit: Habit, todayStr: string): string {
+  if (habit.period !== "interval" || habit.intervalDays <= 0) return todayStr;
+  const created = new Date(habit.createdAt);
+  const today = new Date(todayStr + "T12:00:00");
+  const diffDays = Math.floor((today.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) return formatDate(created);
+  const segmentStart = diffDays - (diffDays % habit.intervalDays);
+  created.setDate(created.getDate() + segmentStart);
+  return formatDate(created);
+}
+
+function getPeriodStart(habit: Habit, todayStr: string, weekStartDay: number): string {
+  if (habit.period === "weekly") return getWeekStart(todayStr, weekStartDay);
+  if (habit.period === "monthly") return getMonthStart(todayStr);
+  if (habit.period === "interval") return getIntervalStart(habit, todayStr);
+  return todayStr;
+}
+
+function isMultiDayMetric(habit: Habit): boolean {
+  return habit.type === "metric" && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
+}
+
+function getTotalInRange(logs: HabitLog[], habitId: string, startDate: string): number {
+  let total = 0;
+  for (const log of logs) {
+    if (log.date < startDate) continue;
+    total += log.habits?.[habitId]?.value ?? 0;
+  }
+  return total;
 }

@@ -5,6 +5,7 @@ import { AccountSection } from "./AccountSection";
 import { AppearanceSection } from "./AppearanceSection";
 import { DesktopSection } from "./DesktopSection";
 import { ScheduleSection } from "./ScheduleSection";
+import { SleepTubeSection } from "./SleepTubeSection";
 import { NotificationsSection } from "./NotificationsSection";
 import { DataSection } from "./DataSection";
 import { ManualFreezeToggle } from "../../freeze/components/ManualFreezeToggle";
@@ -14,7 +15,7 @@ import { Save, RotateCcw, User, Palette, Monitor, Clock, Bell, HardDrive } from 
 
 import "./SettingsPage.css";
 
-type TabId = "account" | "appearance" | "desktop" | "schedule" | "notifications" | "data";
+type TabId = "account" | "appearance" | "desktop" | "sleep-tube" | "schedule" | "notifications" | "data";
 
 interface TabConfig {
   id: TabId;
@@ -26,6 +27,7 @@ const TABS: TabConfig[] = [
   { id: "account", label: "ACCOUNT", icon: User },
   { id: "appearance", label: "APPEARANCE", icon: Palette },
   { id: "desktop", label: "DESKTOP & WALLPAPERS", icon: Monitor },
+  { id: "sleep-tube", label: "SLEEP TUBE", icon: Clock },
   { id: "schedule", label: "SCHEDULE & TIME", icon: Clock },
   { id: "notifications", label: "NOTIFICATIONS", icon: Bell },
   { id: "data", label: "DATA & SYSTEM", icon: HardDrive }
@@ -138,6 +140,8 @@ export function SettingsPage() {
             </div>
           </>
         );
+      case "sleep-tube":
+        return <SleepTubeSection settings={draftSettings} onUpdate={handleUpdateDraft} />;
       case "schedule":
         return <ScheduleSection settings={draftSettings} onUpdate={handleUpdateDraft} />;
       case "notifications":

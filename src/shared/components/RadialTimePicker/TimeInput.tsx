@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { RadialTimePicker } from './RadialTimePicker';
 
@@ -13,39 +13,28 @@ interface PopoverPos {
   left: number;
 }
 
-const POPOVER_W = 268; // must match .rtp-overlay width in CSS
-const POPOVER_H = 340; // approximate height — used for flip logic
-const GAP       = 6;   // gap between trigger and popover
+const GAP = 6;
 
-/**
- * Drop-in replacement for <input type="time">.
- * Renders a tactical button trigger that opens a RadialTimePicker as a
- * viewport-aware fixed-position portal — never clipped by parent overflow.
- */
 export function TimeInput({ value, onChange, id }: TimeInputProps) {
   const [open, setOpen]       = useState(false);
   const [pos,  setPos]        = useState<PopoverPos | null>(null);
   const triggerRef            = useRef<HTMLButtonElement>(null);
+  const popoverRef            = useRef<HTMLDivElement>(null);
 
-  // ── Calculate popover position from trigger's viewport rect ─────────────
   const calcPos = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
     const vw   = window.innerWidth;
     const vh   = window.innerHeight;
 
-    // Prefer: open below the trigger, right-aligned to it
+    // Initial guess: below the trigger, right-aligned
+    // We'll refine this in useLayoutEffect once we have the actual popover size
     let top  = rect.bottom + GAP;
-    let left = rect.right - POPOVER_W;
+    let left = rect.right - 268; // Default POPOVER_W
 
-    // Flip left if it would go off the left edge
     if (left < 8) left = rect.left;
-
-    // Flip right if it would go off the right edge
-    if (left + POPOVER_W > vw - 8) left = vw - POPOVER_W - 8;
-
-    // Flip upward if not enough space below
-    if (top + POPOVER_H > vh - 8) top = rect.top - POPOVER_H - GAP;
+    if (left + 268 > vw - 8) left = vw - 268 - 8;
+    if (top + 340 > vh - 8) top = rect.top - 340 - GAP;
 
     setPos({ top, left });
   }, []);
@@ -55,7 +44,36 @@ export function TimeInput({ value, onChange, id }: TimeInputProps) {
     setOpen(true);
   };
 
-  // Reposition on scroll / resize while open
+  useLayoutEffect(() => {
+    if (!open || !popoverRef.current) return;
+
+    const popoverRect = popoverRef.current.getBoundingClientRect();
+    const triggerRect = triggerRef.current?.getBoundingClientRect();
+    if (!triggerRect) return;
+
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const pw = popoverRect.width;
+    const ph = popoverRect.height;
+
+    let { top, left } = pos || { top: 0, left: 0 };
+
+    // 1. Right edge collision
+    if (left + pw > vw - 8) {
+      left = vw - pw - 8;
+    }
+    // 2. Left edge collision
+    if (left < 8) {
+      left = 8;
+    }
+    // 3. Bottom edge collision -> Flip to top
+    if (top + ph > vh - 8) {
+      top = triggerRect.top - ph - GAP;
+    }
+
+    setPos({ top, left });
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const handler = () => calcPos();
@@ -80,7 +98,7 @@ export function TimeInput({ value, onChange, id }: TimeInputProps) {
         ref={triggerRef}
         id={id}
         type="button"
-        className={`rtp-trigger ${open ? 'rtp-trigger--open' : ''}`}
+        className={`rtp-trigger t-data ${open ? 'rtp-trigger--open' : ''}`}
         onClick={handleOpen}
         aria-label={`Select time, current value: ${value}`}
       >
@@ -89,6 +107,7 @@ export function TimeInput({ value, onChange, id }: TimeInputProps) {
 
       {open && pos && createPortal(
         <div
+          ref={popoverRef}
           className="rtp-portal-popover"
           style={{ top: pos.top, left: pos.left }}
         >

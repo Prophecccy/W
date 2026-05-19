@@ -14,6 +14,7 @@ export interface Settings {
   lowGraphicsMode: boolean;
   wakeUpTime: string; // e.g. "07:00"
   bedTime: string; // e.g. "23:00"
+  emptyTubeText: string;
 }
 
 export interface Aesthetics {

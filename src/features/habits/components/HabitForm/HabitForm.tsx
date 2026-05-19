@@ -158,6 +158,37 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
                 LIMITER (Avoid/Reduce)
               </button>
             </div>
+
+            {data.type === "metric" && data.metric && (
+              <div style={{ marginTop: 24 }}>
+                <div className="habit-form__field">
+                  <label className="t-meta">TARGET NUMBER</label>
+                  <input
+                    type="number"
+                    className="t-data habit-form__input"
+                    value={data.metric.targetValue}
+                    min={1}
+                    step={1}
+                    onChange={(e) => {
+                      if (e.target.value === "") return;
+                      const n = Math.max(1, Number(e.target.value));
+                      if (!Number.isFinite(n)) return;
+                      update({ metric: { ...data.metric!, targetValue: n, originalTarget: n } });
+                    }}
+                  />
+                </div>
+                <div className="habit-form__field">
+                  <label className="t-meta">METRIC LABEL</label>
+                  <input
+                    type="text"
+                    className="t-data habit-form__input"
+                    placeholder="E.g. pages, sessions, ml, hours"
+                    value={data.metric.unit}
+                    onChange={(e) => update({ metric: { ...data.metric!, unit: e.target.value } })}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         );
 

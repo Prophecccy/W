@@ -7,6 +7,7 @@ interface SleepTubeProps {
   settings?: {
     wakeUpTime: string;
     bedTime: string;
+    emptyTubeText?: string;
   };
   isWidget?: boolean;
 }
@@ -28,6 +29,8 @@ export function SleepTube({ settings: propsSettings, isWidget }: SleepTubeProps)
   );
 
   const isSleeping = phase === 'sleeping';
+  const isEmpty = percent <= 0;
+  const emptyText = settings?.emptyTubeText || 'DEPLETED';
   const MARKERS = [100, 75, 50, 25, 0];
 
   return (
@@ -37,7 +40,7 @@ export function SleepTube({ settings: propsSettings, isWidget }: SleepTubeProps)
       style={isDesktop && !isWidget ? { height: '100%', maxHeight: 'none', minHeight: '400px' } : undefined}
     >
       <div className="sleep-tube__label t-meta">{isWidget ? '[ FUEL ]' : '[ WAKING FUEL ]'}</div>
-      <div className="sleep-tube__track">
+      <div className={`sleep-tube__track ${isEmpty ? 'is-empty' : ''}`}>
         {MARKERS.map(m => (
           <div 
             key={m} 
@@ -55,6 +58,11 @@ export function SleepTube({ settings: propsSettings, isWidget }: SleepTubeProps)
           className={`sleep-tube__fill ${isSleeping ? 'is-sleeping' : ''}`}
           style={{ height: `${percent}%` }}
         />
+        {isEmpty && !isWidget && (
+          <div className="sleep-tube__empty-text t-data">
+            {emptyText}
+          </div>
+        )}
       </div>
     </div>
   );
