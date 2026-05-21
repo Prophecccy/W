@@ -13,6 +13,8 @@
 // ─────────────────────────────────────────────────────────────────
 
 import type { Habit, HabitLog, CompletionEntry } from "../types";
+import { getMsUntilReset } from "../../../shared/utils/dateUtils";
+
 
 /** Final risk result for a single habit */
 export interface RiskResult {
@@ -104,14 +106,6 @@ function calcTimePressure(dailyResetTime: string, now: Date): number {
 
   // Exponential ramp — low early, spikes near the end
   return Math.pow(elapsed, EXPONENTIAL_STEEPNESS) * 100;
-}
-
-function getMsUntilReset(dailyResetTime: string, now: Date): number {
-  const [resetH, resetM] = dailyResetTime.split(":").map(Number);
-  const resetDate = new Date(now);
-  resetDate.setHours(resetH, resetM, 0, 0);
-  if (now.getTime() >= resetDate.getTime()) resetDate.setDate(resetDate.getDate() + 1);
-  return Math.max(0, resetDate.getTime() - now.getTime());
 }
 
 function hasOverwhelmingEarlyFailureEvidence(habitId: string, logs: HabitLog[], now: Date): boolean {

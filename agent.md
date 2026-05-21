@@ -43,21 +43,34 @@ graph TD
 
 ### 3. [ Data_State_Engineer ]
 * **Role**: Orchestrates database connections, localized state providers, daily cycle calculations, local caching, and real-time cross-webview synchronization.
-* **Domain/Tech Stack**: Firestore SDK, React Context/Providers, Web Storage API (LocalStorage), Tauri IPC Events.
+* **Domain/Tech Stack**: Firestore SDK, React Context/Providers, Web Storage API (LocalStorage), Tauri IPC Events, IndexedDB (idb-keyval), Google Drive REST API.
 * **Strict Operational Constraints**:
   - **Race Condition Prevention**: Synchronously commit critical setting modifications (e.g., daily reset shifts) to `localStorage` *before* updating React state variables.
   - **Timezone-Aware Reset Logic**: Daily cycle queries must compute shifted dates dynamically when local clocks fall behind user-customized daily reset hours (e.g., 04:00 AM shifts `today` to `YYYY-MM-DD - 1`).
   - **Webview Syncing**: Listen and reactively sync state between isolated Tauri windows using lightweight IPC events (`widget-habit-updated`). Maintain seamless data re-fetching.
   - **Firebase Optimization**: Bind/unbind listeners dynamically; never allow active Firestore subscriptions to drift or leak memory on unmount.
+  - **Local-First Caching & Google Drive Sync**: All plain-text Daily Notes must save instantly and synchronously to local IndexedDB (under keys `note_record_YYYY-MM-DD`). The background sync worker manages seamless mirroring to the user's personal Google Drive folder (`W_Logbook/[Year]/[Date].md`) using a 5-minute heartbeat and instant reconnection triggers.
+  - **Event-Driven UI Reactivity**: Broadcast note saving/sync states globally using CustomEvents (`w:note-saved` and `w:note-synced`). Active UI elements (Dashboard, Logbook feed, slide-out Archive) must subscribe to these events to dynamically update their visual panels and sync badges instantly without hard-reloads.
+  - **Google Drive Integration Lockout**: The `isDriveLinked` reactive status in `AuthContext` governs feature lockdowns. If `isDriveLinked` is false, access to the `Daily Note` input editor and the historical `Logbook Archive` timeline page is strictly blocked and replaced by a pulsing, high-fidelity `<GDriveLockout>` interceptor card/page, urging the user to securely activate cloud sync inside settings to prevent local data loss.
+  - **Event-Driven OAuth Reactivity**: Synchronize the `isDriveLinked` state between the non-react background Google Drive token caching service (`googleDriveService.ts`) and the React hook (`useAuth.ts`) via standard window events `w:gdrive-linked` and `w:gdrive-unlinked`. The hook reactively captures these events to toggle `isDriveLinked` in sub-milliseconds and updates the persistent `driveLinked` state in `localStorage` synchronously.
+  - **Secure Desktop OAuth Flow (PKCE)**: Desktop integrations must strictly avoid embedding client secrets. The Tauri client implements Proof Key for Code Exchange (PKCE) flow compliant with RFC 7636. Prior to system browser redirection, a cryptographically secure high-entropy random verifier string (`[A-Za-z0-9\-._~]`) is generated alongside its SHA-256 hashed and Base64url-encoded code challenge (`code_challenge_method=S256`). This code challenge is sent to Google, and the unhashed code verifier is securely presented during the POST token exchange request to fetch the access/refresh credentials without exposing any secrets.
+
 
 ### 4. [ Security_Quality_Auditor ]
 * **Role**: Guards system safety boundaries, validates input integrity, manages Firestore security rules, and enforces compilation/typing correctness.
 * **Domain/Tech Stack**: Firestore Security Rules (`firestore.rules`), Tauri Security Capabilities, TypeScript Compiler, Build Pipelines.
 * **Strict Operational Constraints**:
   - **Self-Lockout Safeguard**: System monitoring hooks must validate application process IDs and window titles to ensure the Command Center never blocks itself.
-  - **Zero Default Trapping**: Validations on numeric and custom metrics must block submissions of uncalibrated or out-of-bounds metrics (e.g., habit targets must block values < 2).
+  - **Zero Default Trapping**: Validations on numeric and custom metrics must block submissions of uncalibrated or out-of-bounds metrics (e.g., habit targets must block values < 2 for metrics, and < 1 for limiters).
   - **Input Sanitization**: Reject any raw or unvalidated external parameters in IPC bridges.
   - **TypeScript Zero-Error Standard**: All changes must successfully pass typing checks (`tsc`) with zero errors in `tsconfig.json`.
+
+### 5. [ Lockout Penance & Difficulty System ]
+* **Zero-Bypass Form State**: Users cannot bypass the lockout overlay by clicking cancel on compensation forms. The form wizards (`HabitForm`, `TodoForm`) are securely embedded **inline** within the `PunishmentModal` overlay. Cancelling a form simply routes the user back to the primary penance choice menu without unlocking the viewport.
+* **Delayed Strike Resolution**: Strikes are strictly reset only *after* successful database writing of compensatory habits/todos, at which point the app reactively unlocks.
+* **Interactive Difficulty Escalation**: Selecting difficulty increase dynamically prompts the user to select an active metric or limiter habit to calibrate:
+  * **Metric Habits**: Raise target value by $+33\%$ (min $+1$).
+  * **Limiter Habits**: Restrict/decrease target limit by $-33\%$ (min $-1$, clamped to a minimum target value of `1`).
 
 ---
 
@@ -72,5 +85,5 @@ graph TD
 ## Modular File Map (Layout Structure)
 * `src/App.tsx` & `src/app/routes.tsx` — Application Router & shell navigation.
 * `src/app/Layout.tsx` — Phase-state loader UI (Loading → Processing → Ready).
-* `src/features/` — Feature modules: `dashboard`, `habits`, `todos`, `logbook`, `analytics`, `strikes`, `sticky-notes`, `lockdown`, `widget`, `freeze`, `auth`, `settings`, `updater`, `wallpaper`.
+* `src/features/` — Feature modules: `dashboard`, `habits`, `todos`, `logs`, `analytics`, `strikes`, `sticky-notes`, `lockdown`, `widget`, `freeze`, `auth`, `settings`, `updater`, `wallpaper`.
 * `src/shared/` — Reusable components, utility providers, and generic hooks.

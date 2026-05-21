@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { HabitLog } from "../../types";
-import { getNoteHistory } from "../../services/logService";
-import { auth } from "../../../../shared/config/firebase";
+import { getLocalNoteHistory } from "../../../logs/services/localLogService";
 import "./DailyNoteArchive.css";
 
 interface DailyNoteArchiveProps {
@@ -16,23 +15,35 @@ export function DailyNoteArchive({ isOpen, onClose }: DailyNoteArchiveProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (isOpen) {
-      const fetchNotes = async () => {
-        setIsLoading(true);
-        try {
-          const user = auth.currentUser;
-          if (user) {
-            const history = await getNoteHistory(user.uid);
-            setNotes(history);
-          }
-        } catch (e) {
-          console.error("Failed to fetch note history", e);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchNotes();
-    }
+    if (!isOpen) return;
+
+    const fetchNotes = async () => {
+      setIsLoading(true);
+      try {
+        const history = await getLocalNoteHistory();
+        setNotes(history);
+      } catch (e) {
+        console.error("Failed to fetch note history", e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchNotes();
+
+    const handleSyncUpdate = () => {
+      getLocalNoteHistory()
+        .then((history) => setNotes(history))
+        .catch((err) => console.error("Failed to reload archive on sync event:", err));
+    };
+
+    window.addEventListener("w:note-saved", handleSyncUpdate);
+    window.addEventListener("w:note-synced", handleSyncUpdate);
+
+    return () => {
+      window.removeEventListener("w:note-saved", handleSyncUpdate);
+      window.removeEventListener("w:note-synced", handleSyncUpdate);
+    };
   }, [isOpen]);
 
   return (
@@ -78,7 +89,12 @@ export function DailyNoteArchive({ isOpen, onClose }: DailyNoteArchiveProps) {
 
                     return (
                       <div key={log.date} className="daily-note-archive__card">
-                        <div className="t-meta daily-note-archive__card-date">[ {dateStr} ]</div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                          <div className="t-meta daily-note-archive__card-date">[ {dateStr} ]</div>
+                          <div className="t-meta" style={{ color: (log as any).sync_pending ? "#e2b13c" : "var(--text-muted)", fontSize: "10px", fontFamily: "var(--font-mono)" }}>
+                            {(log as any).sync_pending ? "[ OFFLINE ]" : "[ BACKED UP ]"}
+                          </div>
+                        </div>
                         <div className="t-body daily-note-archive__card-text">
                           {log.notes}
                         </div>

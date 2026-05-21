@@ -31,7 +31,9 @@ export function HabitsPage() {
   const [deleteSubId, setDeleteSubId] = useState<string | null>(null);
   const [focusedIndex, _setFocusedIndex] = useState(0);
 
-  const today = getToday();
+  const today = useMemo(() => {
+    return getToday(undefined, userDoc?.settings?.dailyResetTime);
+  }, [userDoc?.settings?.dailyResetTime]);
 
   // ── Predictive Strike Risk Engine ─────────────────────────────
   const riskScores = useRiskEngine(habits, log);
@@ -42,14 +44,9 @@ export function HabitsPage() {
       try {
         const fetchedHabits = await getHabits();
         const fetchedLog = await getTodayLog();
-        
-        const processHabits = fetchedHabits.map(h => {
-           return h;
-        });
-
         const fetchedGroups = await getGroups();
 
-        setHabits(processHabits);
+        setHabits(fetchedHabits);
         setGroups(fetchedGroups);
         setLog(fetchedLog);
       } catch (err) {
@@ -79,31 +76,32 @@ export function HabitsPage() {
   }, []);
 
   // Derived State Filters
-  const { scheduled, unscheduled, limiters, completed, resting } = useMemo(() => {
+  const { scheduled, upcoming, limiters, completed } = useMemo(() => {
     const s: Habit[] = [];
-    const u: Habit[] = [];
+    const up: Habit[] = [];
     const l: Habit[] = [];
     const c: Habit[] = [];
-    const r: Habit[] = [];
 
     habits.forEach(h => {
       const logEntry = log?.habits[h.id];
       const isComplete = !!logEntry?.completed;
 
-      if (isHabitResting(h, userDoc?.settings?.dailyResetTime)) {
-        r.push(h);
-      } else if (isComplete) {
+      if (isComplete) {
         c.push(h);
+      } else if (
+        isHabitResting(h, userDoc?.settings?.dailyResetTime) ||
+        (h.startDate && h.startDate > today) ||
+        !isHabitScheduledToday(h, today)
+      ) {
+        up.push(h);
       } else if (h.type === 'limiter') {
         l.push(h);
-      } else if (isHabitScheduledToday(h, today)) {
-        s.push(h);
       } else {
-        u.push(h);
+        s.push(h);
       }
     });
 
-    return { scheduled: s, unscheduled: u, limiters: l, completed: c, resting: r };
+    return { scheduled: s, upcoming: up, limiters: l, completed: c };
   }, [habits, log, today, userDoc]);
 
   // ── Space key quick-complete (complete focused scheduled habit) ──
@@ -203,6 +201,7 @@ export function HabitsPage() {
         metric: data.metric,
         duration: data.duration,
         group: data.group,
+        startDate: data.startDate,
         isActive: true,
         order: habits.length,
         createdAt: Date.now(),
@@ -216,6 +215,7 @@ export function HabitsPage() {
       };
 
       const id = await createHabit(newHabit as Omit<Habit, 'id' | 'uid'>);
+      
       setHabits(prev => [...prev, { ...newHabit, id, uid: '' } as unknown as Habit]);
       
       if (deleteSubId) {
@@ -280,14 +280,14 @@ export function HabitsPage() {
         </div>
 
       <div className="habits-page__content">
-        {scheduled.length === 0 && limiters.length === 0 && completed.length === 0 && unscheduled.length === 0 && resting.length === 0 ? (
+        {scheduled.length === 0 && limiters.length === 0 && completed.length === 0 && upcoming.length === 0 ? (
           <div className="habits-page__empty t-body">
             No habits yet. Create your first habit!
           </div>
         ) : (
-          <div className="habits-grid">
+          <div className="habits-page__layout-container">
             {layoutMode === 'default' && (
-              <>
+              <div className="habits-grid">
                 {scheduled.map(h => (
                   <HabitCard 
                     key={h.id} 
@@ -300,7 +300,7 @@ export function HabitsPage() {
                     riskScore={riskScores[h.id]}
                   />
                 ))}
-              </>
+              </div>
             )}
 
             {layoutMode === 'grouped' && (
@@ -341,22 +341,31 @@ export function HabitsPage() {
               </div>
             )}
 
-            {unscheduled.length > 0 && (
+            {upcoming.length > 0 && (
               <div className="habits-section">
-                <h3 className="habits-section-title t-label">[ NOT SCHEDULED TODAY ]</h3>
-                 <div className="habits-grid habits-grid--dimmed">
-                  {unscheduled.map(h => (
-                    <HabitCard 
-                      key={h.id} 
-                      habit={h} 
-                      isCompletedToday={false} 
-                      doneToday={h.type === "metric" && (h.period === "weekly" || h.period === "monthly" || h.period === "interval") && ((log?.habits?.[h.id]?.completions?.length ?? 0) > 0)}
-                      onComplete={() => handleComplete(h.id)} 
-                      onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
-                      currentValue={log?.habits[h.id]?.value || 0}
-                    />
-                  ))}
-                 </div>
+                <h3 className="habits-section-title t-label">[ UPCOMING ]</h3>
+                <div className="habits-grid" style={{ opacity: 0.55 }}>
+                  {upcoming.map(h => {
+                    const isResting = isHabitResting(h, userDoc?.settings?.dailyResetTime);
+                    const isFuture = h.startDate && h.startDate > today;
+                    const upcomingStatus = isFuture ? `STARTS ON ${h.startDate}` : undefined;
+                    return (
+                      <HabitCard 
+                        key={h.id} 
+                        habit={h} 
+                        isCompletedToday={false} 
+                        doneToday={h.type === "metric" && (h.period === "weekly" || h.period === "monthly" || h.period === "interval") && ((log?.habits?.[h.id]?.completions?.length ?? 0) > 0)}
+                        onComplete={() => handleComplete(h.id)} 
+                        onUndo={() => handleUndo(h.id)} 
+                        onClick={() => setSelectedHabitId(h.id)}
+                        currentValue={log?.habits[h.id]?.value || 0}
+                        isResting={isResting}
+                        userResetTime={userDoc?.settings?.dailyResetTime}
+                        upcomingStatus={upcomingStatus}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -395,28 +404,6 @@ export function HabitsPage() {
                   ))}
                 </div>
               </HabitGroupHeader>
-            )}
-
-            {resting.length > 0 && (
-              <div className="habits-section">
-                <h3 className="habits-section-title t-label">[ INTERVALS ]</h3>
-                <div className="habits-grid">
-                  {resting.map(h => (
-                    <HabitCard 
-                      key={h.id} 
-                      habit={h} 
-                      isCompletedToday={false} 
-                      doneToday={false}
-                      onComplete={() => handleComplete(h.id)} 
-                      onUndo={() => handleUndo(h.id)} 
-                      onClick={() => setSelectedHabitId(h.id)}
-                      currentValue={log?.habits[h.id]?.value || 0}
-                      isResting={true}
-                      userResetTime={userDoc?.settings?.dailyResetTime}
-                    />
-                  ))}
-                </div>
-              </div>
             )}
           </div>
         )}

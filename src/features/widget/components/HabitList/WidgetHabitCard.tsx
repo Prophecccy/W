@@ -7,11 +7,19 @@ interface WidgetHabitCardProps {
   habit: Habit;
   isCompletedToday: boolean;
   doneToday?: boolean;
+  currentValue?: number;
   onComplete: (habitId: string) => void;
   onUndo: (habitId: string) => void;
 }
 
-export function WidgetHabitCard({ habit, isCompletedToday, doneToday = false, onComplete, onUndo }: WidgetHabitCardProps) {
+export function WidgetHabitCard({
+  habit,
+  isCompletedToday,
+  doneToday = false,
+  currentValue = 0,
+  onComplete,
+  onUndo,
+}: WidgetHabitCardProps) {
   const [isHolding, setIsHolding] = useState(false);
   const [justCompleted, setJustCompleted] = useState(false);
   const holdTimeoutRef = useRef<number | null>(null);
@@ -28,15 +36,16 @@ export function WidgetHabitCard({ habit, isCompletedToday, doneToday = false, on
   }, [habit.id, onUndo]);
 
   const startHold = useCallback(() => {
-    const isMetric = habit.type === 'metric';
-    if (isMetric) {
-      if (isCompletedToday) return;
+    const isMetricLike = habit.type === 'metric' || habit.type === 'limiter';
+    if (isMetricLike) {
+      // Metric/limiter types are metric-like: we do not block clicks/holds even when completed
+      // because we want to allow multiple rep logging.
     } else {
       if (isCompletedToday && !justCompleted) return;
     }
 
-    if (justCompleted && !isMetric) {
-      // Cancel undo and revert (for non-metric habits only on card level)
+    if (justCompleted && !isMetricLike) {
+      // Cancel undo and revert (for non-metric-like habits only on card level)
       if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
       onUndo(habit.id);
       setJustCompleted(false);
@@ -85,7 +94,7 @@ export function WidgetHabitCard({ habit, isCompletedToday, doneToday = false, on
       {isHolding && <div className="widget-habit-card__hold-fill" />}
 
       <div className="widget-habit-card__icon">
-        {isCompleted ? (
+        {isCompleted && !isLimiter ? (
           <Check size={18} strokeWidth={3.5} />
         ) : (
           <Circle size={18} strokeWidth={2.5} opacity={0.6} />
@@ -93,9 +102,16 @@ export function WidgetHabitCard({ habit, isCompletedToday, doneToday = false, on
       </div>
 
       <div className="widget-habit-card__text">
-        <span className="widget-habit-card__title t-body">
-          {habit.title}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+          <span className="widget-habit-card__title t-body" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {habit.title}
+          </span>
+          {(habit.type === 'metric' || habit.type === 'limiter') && habit.metric && (
+            <span className="t-meta" style={{ flexShrink: 0, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+              {currentValue}/{habit.metric.targetValue}
+            </span>
+          )}
+        </div>
         {isDoneToday && (
           <span className="widget-habit-card__done-today t-meta">
             ✓ DONE TODAY

@@ -7,20 +7,28 @@ import { updateHabit, getHabits } from "../../habits/services/habitService";
 // lockout overlay dismisses and the user can interact with the app.
 
 export async function applyPunishment(
-  choice: PunishmentChoice
+  choice: PunishmentChoice,
+  habitId?: string
 ): Promise<"resolved" | "redirect_habit" | "redirect_todo"> {
   switch (choice) {
     case "increase_difficulty": {
-      // Auto-select the first habit with a metric target
       const habits = await getHabits();
-      const target = habits.find(
-        (h) => h.isActive && h.metric && h.metric.targetValue > 0
-      );
+      const target = habitId
+        ? habits.find((h) => h.id === habitId)
+        : habits.find((h) => h.isActive && h.metric && h.metric.targetValue > 0);
 
       if (target && target.metric) {
         const currentTarget = target.metric.targetValue;
-        const increase = Math.max(1, Math.round(currentTarget / 3)); // +33%, minimum +1
-        const newTarget = currentTarget + increase;
+        let newTarget = currentTarget;
+        if (target.type === "limiter") {
+          // Difficulty increase for avoid/reduce means reducing the target limit
+          const decrease = Math.max(1, Math.round(currentTarget / 3)); // -33%, minimum -1
+          newTarget = Math.max(1, currentTarget - decrease);
+        } else {
+          // Difficulty increase for positive habits means raising the target
+          const increase = Math.max(1, Math.round(currentTarget / 3)); // +33%, minimum +1
+          newTarget = currentTarget + increase;
+        }
 
         await updateHabit(target.id, {
           metric: {
@@ -29,20 +37,17 @@ export async function applyPunishment(
           },
         });
       }
-      // If no metric habit exists, punishment is waived — still reset strikes
+      
       await resetStrikes();
       return "resolved";
     }
 
     case "add_habit":
-      // Reset strikes immediately so the lockout overlay dismisses
-      // and the user can reach the habit creation form.
-      await resetStrikes();
+      // Do not reset strikes here immediately; let user submit the inline HabitForm first.
       return "redirect_habit";
 
     case "add_todo":
-      // Same — unlock first, then redirect.
-      await resetStrikes();
+      // Do not reset strikes here immediately; let user submit the inline TodoForm first.
       return "redirect_todo";
 
     default:

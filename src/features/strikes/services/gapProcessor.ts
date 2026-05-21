@@ -123,6 +123,9 @@ export async function processGap(
 
       // Was it completed in the log?
       const logEntry = dayLog?.habits?.[habit.id];
+      if (!logEntry && habit.type === "limiter") {
+        continue;
+      }
       if (logEntry && logEntry.completed) {
         continue;
       }

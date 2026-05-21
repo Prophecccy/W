@@ -7,6 +7,7 @@ import { Habit, HabitLog } from '../../habits/types';
 import { Todo } from '../../todos/types';
 import { getHabits } from '../../habits/services/habitService';
 import { getTodayLog, getLogRange, completeHabit, uncompleteHabit } from '../../habits/services/logService';
+import { getLocalNote } from '../../logs/services/localLogService';
 import { getTodos, completeTodo, completeNumberedTodoFull, incrementNumberedTodo } from '../../todos/services/todoService';
 import { isHabitScheduledToday, isHabitResting } from '../../habits/utils/scheduleEngine';
 import { getToday } from '../../../shared/utils/dateUtils';
@@ -67,16 +68,20 @@ export function DashboardPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [fetchedHabits, fetchedLog, fetchedTodos] = await Promise.all([
+        const [fetchedHabits, fetchedLog, fetchedTodos, localNote] = await Promise.all([
           getHabits(),
           getTodayLog(),
-          getTodos()
+          getTodos(),
+          getLocalNote(today)
         ]);
-        setHabits(fetchedHabits);
+        fetchedLog.notes = localNote;
+        
+        const activeHabits = fetchedHabits.filter(h => !h.startDate || h.startDate <= today);
+        setHabits(activeHabits);
         setLog(fetchedLog);
         setTodos(fetchedTodos);
 
-        const scheduled = fetchedHabits.filter(h => isHabitScheduledToday(h, today));
+        const scheduled = activeHabits.filter(h => isHabitScheduledToday(h, today));
         const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
         let minStart = today;
         for (const h of scheduled) {
@@ -99,6 +104,17 @@ export function DashboardPage() {
     }
     loadData();
   }, [today, userDoc?.settings?.weeklyResetDay, refreshTrigger]);
+
+  useEffect(() => {
+    const handleSaved = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.date === today) {
+        setLog(prev => prev ? { ...prev, notes: customEvent.detail.notes } : prev);
+      }
+    };
+    window.addEventListener("w:note-saved", handleSaved);
+    return () => window.removeEventListener("w:note-saved", handleSaved);
+  }, [today]);
 
   // Derived state for Habits
   const scheduledHabits = useMemo(() => {

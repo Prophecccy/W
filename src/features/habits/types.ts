@@ -32,6 +32,7 @@ export interface Habit {
   daysOfWeek: number[]; // [1,3,5] = Mon/Wed/Fri, for weekly habits
   intervalDays: number; // for interval habits: every N days
   lastCompletedDate: string | null; // "YYYY-MM-DD"
+  startDate?: string; // "YYYY-MM-DD"
 
   // Metric / Limiter config
   metric: HabitMetric | null; // null for standard habits
@@ -79,6 +80,7 @@ export interface HabitLog {
   uid: string;
   notes: string; // daily note text
   habits: Record<string, HabitLogEntry>; // habitId → entry
+  sync_pending?: boolean;
 }
 
 // ────────────────────────────────────────────────────────────────

@@ -23,7 +23,7 @@ import { Todo } from "../features/todos/types";
 import { getHabits } from "../features/habits/services/habitService";
 import { getTodos } from "../features/todos/services/todoService";
 import { completeHabit } from "../features/habits/services/logService";
-import { getToday } from "../shared/utils/dateUtils";
+import { getToday, getMsUntilBackup } from "../shared/utils/dateUtils";
 import { useNotifications } from "../shared/hooks/useNotifications";
 import { getLocalWallpaper } from "../shared/utils/storageUtils";
 import { UpdateHUD } from "../features/updater/components/UpdateHUD";
@@ -279,6 +279,114 @@ function LayoutInner() {
     };
   }, [phase]);
 
+  // ── Sync Engine: Past Notes Migration & GDrive Background Heartbeat ──
+  useEffect(() => {
+    if (phase !== "ready" || !user) return;
+
+    const currentUserId = user.uid;
+    let isUnmounted = false;
+    let heartbeatInterval: any;
+
+    async function initializeSync() {
+      // 1. One-time legacy Firestore daily notes migration (non-blocking)
+      try {
+        const { migrateNotesFromFirestore } = await import("../features/logs/services/localLogService");
+        await migrateNotesFromFirestore(currentUserId);
+      } catch (err) {
+        console.error("[Sync Engine] Firestore notes migration failed:", err);
+      }
+
+      if (isUnmounted) return;
+
+      // 2. Trigger GDrive sync background worker instantly to flush pending offline writes
+      try {
+        const { runBackgroundSync } = await import("../shared/services/googleDriveService");
+        await runBackgroundSync();
+      } catch (err) {
+        console.error("[Sync Engine] Initial background sync execution failed:", err);
+      }
+
+      if (isUnmounted) return;
+
+      // 3. Register standard browser online event listener for instant reconnection triggers
+      const handleOnline = async () => {
+        console.info("[Sync Engine] Connection restored. Firing background sync worker...");
+        try {
+          const { runBackgroundSync } = await import("../shared/services/googleDriveService");
+          await runBackgroundSync();
+        } catch (err) {
+          console.error("[Sync Engine] Reconnection sync execution failed:", err);
+        }
+      };
+      window.addEventListener("online", handleOnline);
+
+      // 4. Setup periodic 5-minute heartbeat interval (300,000 milliseconds)
+      heartbeatInterval = setInterval(async () => {
+        console.info("[Sync Engine] Running periodic 5-minute background sync heartbeat...");
+        try {
+          const { runBackgroundSync } = await import("../shared/services/googleDriveService");
+          await runBackgroundSync();
+        } catch (err) {
+          console.error("[Sync Engine] Heartbeat sync execution failed:", err);
+        }
+      }, 300000);
+
+      return () => {
+        window.removeEventListener("online", handleOnline);
+      };
+    }
+
+    let cleanupOnlineListener: (() => void) | undefined;
+    initializeSync().then((cleanup) => {
+      cleanupOnlineListener = cleanup;
+    });
+
+    return () => {
+      isUnmounted = true;
+      if (cleanupOnlineListener) cleanupOnlineListener();
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+    };
+  }, [phase, user]);
+
+  // ── Sync Engine: 5-minute pre-reset daily note backup scheduler ───────
+  useEffect(() => {
+    if (phase !== "ready" || !user) return;
+
+    let backupTimer: NodeJS.Timeout | null = null;
+    let isUnmounted = false;
+
+    // Fetch user reset time (reactive dynamically)
+    const resetTime = userDoc?.settings?.dailyResetTime || localStorage.getItem("w_daily_reset_time") || "04:00";
+
+    function scheduleBackup() {
+      if (isUnmounted) return;
+
+      const msUntilBackup = getMsUntilBackup(resetTime, new Date());
+      console.info(`[Sync Scheduler] Scheduling next daily note backup in ${Math.round(msUntilBackup / 1000 / 60)} minutes (${msUntilBackup} ms) for reset time ${resetTime}.`);
+
+      if (backupTimer) clearTimeout(backupTimer);
+
+      backupTimer = setTimeout(async () => {
+        console.info("[Sync Scheduler] Target pre-reset backup window reached! Triggering sync background worker...");
+        try {
+          const { runBackgroundSync } = await import("../shared/services/googleDriveService");
+          await runBackgroundSync();
+        } catch (err) {
+          console.error("[Sync Scheduler] Background backup sync task failed:", err);
+        }
+        // Reschedule for next day's cycle
+        scheduleBackup();
+      }, msUntilBackup);
+    }
+
+    scheduleBackup();
+
+    return () => {
+      isUnmounted = true;
+      if (backupTimer) clearTimeout(backupTimer);
+    };
+  }, [phase, user, userDoc?.settings?.dailyResetTime]);
+
   // ── Phase 4: Load palette data (habits + todos for CommandPalette) ─
   const paletteDataLoaded = useRef(false);
   useEffect(() => {
@@ -288,7 +396,8 @@ function LayoutInner() {
     async function loadPaletteData() {
       try {
         const [habits, todos] = await Promise.all([getHabits(), getTodos()]);
-        setPaletteHabits(habits);
+        const activeHabits = habits.filter(h => !h.startDate || h.startDate <= getToday());
+        setPaletteHabits(activeHabits);
         setPaletteTodos(todos);
       } catch {
         // Non-critical — palette will just show pages/actions
@@ -327,7 +436,8 @@ function LayoutInner() {
       await completeHabit(habitId, 1);
       // Refresh palette data
       const habits = await getHabits();
-      setPaletteHabits(habits);
+      const activeHabits = habits.filter(h => !h.startDate || h.startDate <= getToday());
+      setPaletteHabits(activeHabits);
     } catch (err) {
       console.error("Failed to complete habit via palette:", err);
     }
@@ -397,9 +507,17 @@ function LayoutInner() {
   }
 
   // ── Render: Normal operation ───────────────────────────────────
-  const handlePunishment = async (choice: PunishmentChoice) => {
+  const handlePunishment = async (
+    choice: PunishmentChoice,
+    habitId?: string,
+    completedInline?: boolean
+  ) => {
     try {
-      const result = await applyPunishment(choice);
+      if (completedInline) {
+        setShowPunishment(false);
+        return;
+      }
+      const result = await applyPunishment(choice, habitId);
       setShowPunishment(false);
       if (result === "redirect_habit") {
         navigate("/habits");

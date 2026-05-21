@@ -1,148 +1,208 @@
-import { useState, useEffect, useRef } from "react";
-import { getNoteHistory } from "../../habits/services/logService";
+import { useState, useEffect } from "react";
+import { useOutletContext } from "react-router-dom";
+import { getLocalNoteHistory } from "../services/localLogService";
 import { HabitLog } from "../../habits/types";
 import { useAuthContext } from "../../auth/context";
-import { BookOpen } from "lucide-react";
+import { getToday } from "../../../shared/utils/dateUtils";
+import { Archive, FolderOpen, Lock } from "lucide-react";
+import { GDriveLockout } from "../../lockdown/components/GDriveLockout";
 import "./LogbookPage.css";
 
-// Formats a date string like "2026-05-08" to "08 MAY 2026"
-function formatDate(dateStr: string): string {
-  if (!dateStr) return "";
-  const d = new Date(dateStr + "T00:00:00");
-  if (isNaN(d.getTime())) return dateStr;
-  
-  const day = d.getDate().toString().padStart(2, "0");
-  const month = d.toLocaleString("en-US", { month: "short" }).toUpperCase();
-  const year = d.getFullYear();
-  
-  return `${day} ${month} ${year}`;
+interface GroupedDateEntry {
+  formattedDate: string; // e.g. "May 19, Tuesday"
+  rawDate: string; // "2026-05-19"
+  notes: string;
+  sync_pending: boolean;
+}
+
+interface GroupedMonthEntry {
+  monthYear: string; // e.g. "MAY 2026"
+  dates: GroupedDateEntry[];
+}
+
+/**
+ * Groups and formats the sorted logs by Month/Year and specific dates.
+ * Ensures local timezone parsing to prevent off-by-one calendar dates.
+ */
+function groupNotesByMonthAndDate(logs: HabitLog[]): GroupedMonthEntry[] {
+  // Sort logs in descending order of dates (newest first)
+  const sortedLogs = [...logs].sort((a, b) => b.date.localeCompare(a.date));
+  const groups: GroupedMonthEntry[] = [];
+
+  for (const log of sortedLogs) {
+    if (!log.notes || log.notes.trim() === "") continue;
+
+    // Parse YYYY-MM-DD safely in user's local timezone
+    const [year, monthVal, dayVal] = log.date.split("-").map(Number);
+    const dateObj = new Date(year, monthVal - 1, dayVal);
+
+    if (isNaN(dateObj.getTime())) continue;
+
+    // Format Month/Year (e.g., 'MAY 2026')
+    const monthName = dateObj.toLocaleString("en-US", { month: "long" }).toUpperCase();
+    const monthYearStr = `${monthName} ${year}`;
+
+    // Format Specific Date (e.g., 'May 19, Tuesday')
+    const monthShort = dateObj.toLocaleString("en-US", { month: "short" });
+    const dayOfWeek = dateObj.toLocaleString("en-US", { weekday: "long" });
+    const dateStr = `${monthShort} ${dayVal}, ${dayOfWeek}`;
+
+    let monthGroup = groups.find((g) => g.monthYear === monthYearStr);
+    if (!monthGroup) {
+      monthGroup = { monthYear: monthYearStr, dates: [] };
+      groups.push(monthGroup);
+    }
+
+    monthGroup.dates.push({
+      formattedDate: dateStr,
+      rawDate: log.date,
+      notes: log.notes,
+      sync_pending: !!(log as any).sync_pending,
+    });
+  }
+
+  return groups;
 }
 
 export function LogbookPage() {
-  const { user } = useAuthContext();
-  const [logs, setLogs] = useState<HabitLog[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, isDriveLinked } = useAuthContext();
+  const { userDoc } = useOutletContext<{ userDoc: any }>() || {};
   
-  // Refs for auto-scrolling
-  const listRef = useRef<HTMLDivElement>(null);
-  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [groupedLogs, setGroupedLogs] = useState<GroupedMonthEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const resetTime = userDoc?.settings?.dailyResetTime || "04:00";
+  const logicalToday = getToday(undefined, resetTime);
 
   useEffect(() => {
     async function loadLogs() {
-      if (!user) return;
       setIsLoading(true);
       try {
-        const history = await getNoteHistory(user.uid);
-        setLogs(history);
-        if (history.length > 0) {
-          setSelectedIndex(0);
-        }
+        const history = await getLocalNoteHistory();
+        
+        // Strictly exclude the current day's daily note
+        const pastLogs = history.filter((log) => log.date !== logicalToday);
+        
+        const grouped = groupNotesByMonthAndDate(pastLogs);
+        setGroupedLogs(grouped);
       } catch (err) {
         console.error("Failed to load logbook history:", err);
       } finally {
         setIsLoading(false);
       }
     }
+    
     loadLogs();
-  }, [user]);
 
-  // Arrow key navigation
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      // Ignore if typing in an input
-      if (
-        document.activeElement?.tagName === "INPUT" ||
-        document.activeElement?.tagName === "TEXTAREA" ||
-        document.activeElement?.closest(".command-palette")
-      ) {
-        return;
-      }
+    const handleSyncUpdate = () => {
+      getLocalNoteHistory().then((history) => {
+        const pastLogs = history.filter((log) => log.date !== logicalToday);
+        const grouped = groupNotesByMonthAndDate(pastLogs);
+        setGroupedLogs(grouped);
+      }).catch((err) => console.error("Failed to reload history on sync event:", err));
+    };
 
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setSelectedIndex((prev) => (prev < logs.length - 1 ? prev + 1 : prev));
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev));
-      }
-    }
+    window.addEventListener("w:note-saved", handleSyncUpdate);
+    window.addEventListener("w:note-synced", handleSyncUpdate);
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [logs.length]);
+    return () => {
+      window.removeEventListener("w:note-saved", handleSyncUpdate);
+      window.removeEventListener("w:note-synced", handleSyncUpdate);
+    };
+  }, [user, logicalToday]);
 
-  // Auto-scroll selected item into view
-  useEffect(() => {
-    if (selectedIndex >= 0 && itemRefs.current[selectedIndex]) {
-      itemRefs.current[selectedIndex]?.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-      });
-    }
-  }, [selectedIndex]);
+  if (!isDriveLinked) {
+    return <GDriveLockout mode="page" />;
+  }
 
   if (isLoading) {
     return (
       <div className="logbook-loading">
-        <span className="t-meta">[ LOADING LOGBOOK... ]</span>
+        <span className="t-meta animate-pulse">[ DECRYPTING TACTICAL ARCHIVES... ]</span>
       </div>
     );
   }
 
-  const selectedLog = selectedIndex >= 0 ? logs[selectedIndex] : null;
-
   return (
     <div className="logbook-page">
-      {/* LEFT COLUMN: INDEX */}
-      <aside className="logbook-index" ref={listRef}>
-        <div className="logbook-index__header">
-          <BookOpen size={16} strokeWidth={1.5} />
-          <h2 className="t-display">[ LOGBOOK INDEX ]</h2>
+      {/* HEADER SECTION */}
+      <header className="logbook-header">
+        <div className="logbook-header__title-area">
+          <Archive size={20} className="accent-text" />
+          <h1 className="t-display">[ LOGBOOK ARCHIVE ]</h1>
         </div>
-        
-        <div className="logbook-index__list">
-          {logs.length === 0 ? (
-            <div className="logbook-index__empty t-body">[ NO LOGS FOUND ]</div>
-          ) : (
-            logs.map((log, idx) => (
-              <div
-                key={log.date}
-                ref={(el) => { itemRefs.current[idx] = el; }}
-                className={`logbook-index__item ${
-                  idx === selectedIndex ? "logbook-index__item--active" : ""
-                }`}
-                onClick={() => setSelectedIndex(idx)}
-              >
-                <div className="logbook-index__item-date t-meta">
-                  {formatDate(log.date)}
-                </div>
-                <div className="logbook-index__item-preview t-body">
-                  {log.notes}
-                </div>
-              </div>
-            ))
-          )}
+        <div className="logbook-header__meta t-meta">
+          <span>HISTORICAL RECORD DIRECTORY // READ-ONLY</span>
         </div>
-      </aside>
+      </header>
 
-      {/* RIGHT COLUMN: READING PANE */}
-      <section className="logbook-reading-pane">
-        {selectedLog ? (
-          <article className="logbook-entry">
-            <header className="logbook-entry__header">
-              <h1 className="t-display">[ {formatDate(selectedLog.date)} ]</h1>
-            </header>
-            <div className="logbook-entry__content t-body">
-              {selectedLog.notes}
-            </div>
-          </article>
+      {/* TIMELINE FEED */}
+      <main className="logbook-timeline-container">
+        {groupedLogs.length === 0 ? (
+          <div className="logbook-empty-state">
+            <FolderOpen size={48} className="logbook-empty-icon" />
+            <span className="t-label">[ NO ARCHIVED ENTRIES COMMITTED ]</span>
+            <p className="t-body">Past notes will assemble here once current logs are completed and archived.</p>
+          </div>
         ) : (
-          <div className="logbook-empty-prompt">
-            <span className="t-meta">[ SELECT AN ENTRY TO READ ]</span>
+          <div className="logbook-timeline">
+            {groupedLogs.map((monthGroup) => (
+              <section key={monthGroup.monthYear} className="logbook-month-section">
+                {/* STICKY MONTH HEADER */}
+                <div className="logbook-month-header t-label">
+                  <span className="logbook-month-bracket">[ {monthGroup.monthYear} ]</span>
+                  <div className="logbook-month-header__line" />
+                </div>
+
+                {/* MONTHLY ENTRIES */}
+                <div className="logbook-month-entries">
+                  {monthGroup.dates.map((entry) => (
+                    <article key={entry.rawDate} className="logbook-entry">
+                      <div className="logbook-entry__meta-wrapper">
+                        {/* Tree Line Connector */}
+                        <div className="logbook-entry__tree-line" />
+                        
+                        <div className="logbook-entry__header">
+                          <span className="logbook-entry__date t-meta">
+                            {entry.formattedDate}
+                          </span>
+                          
+                          <div className="logbook-entry__header-badges">
+                            <span className="logbook-index-badge t-data" style={{ marginRight: "12px" }}>
+                              ID: {entry.rawDate}
+                            </span>
+                            {entry.sync_pending ? (
+                              <span className="logbook-badge-pending t-label" style={{ marginRight: "12px" }}>
+                                [ PENDING BACKUP ]
+                              </span>
+                            ) : (
+                              <span className="logbook-badge-synced t-label" style={{ marginRight: "12px" }}>
+                                [ BACKED UP ]
+                              </span>
+                            )}
+                            <span className="logbook-locked-badge">
+                              <Lock size={10} />
+                              <span className="t-label">LOCKED</span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* SUBTLE SEPARATOR */}
+                      <hr className="logbook-entry__divider" />
+
+                      {/* READ-ONLY NOTE CONTENT */}
+                      <div className="logbook-entry__content t-body">
+                        {entry.notes}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ))}
           </div>
         )}
-      </section>
+      </main>
     </div>
   );
 }

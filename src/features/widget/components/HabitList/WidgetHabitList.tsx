@@ -66,6 +66,7 @@ export function WidgetHabitList({ today, scheduledHabits, todayLog, periodLogs, 
             habit={habit}
             isCompletedToday={status.isCompletedToday}
             doneToday={status.doneToday}
+            currentValue={todayLog?.habits?.[habit.id]?.value || 0}
             onComplete={onComplete}
             onUndo={onUndo}
           />
@@ -86,6 +87,7 @@ export function WidgetHabitList({ today, scheduledHabits, todayLog, periodLogs, 
                 habit={habit}
                 isCompletedToday={status.isCompletedToday}
                 doneToday={status.doneToday}
+                currentValue={todayLog?.habits?.[habit.id]?.value || 0}
                 onComplete={onComplete}
                 onUndo={onUndo}
               />

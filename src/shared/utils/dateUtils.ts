@@ -59,3 +59,41 @@ export function isBeforeResetTime(date: Date, resetTime: string): boolean {
   if (hour === resetHour && minute < resetMinute) return true;
   return false;
 }
+
+/**
+ * Calculates milliseconds remaining until the next daily reset time.
+ */
+export function getMsUntilReset(dailyResetTime: string, now: Date = new Date()): number {
+  const [resetH, resetM] = dailyResetTime.split(":").map(Number);
+  const resetDate = new Date(now);
+  resetDate.setHours(resetH, resetM, 0, 0);
+  if (now.getTime() >= resetDate.getTime()) {
+    resetDate.setDate(resetDate.getDate() + 1);
+  }
+  return Math.max(0, resetDate.getTime() - now.getTime());
+}
+
+/**
+ * Calculates milliseconds remaining until exactly 5 minutes before the next daily reset time.
+ */
+export function getMsUntilBackup(dailyResetTime: string, now: Date = new Date()): number {
+  const [resetH, resetM] = dailyResetTime.split(":").map(Number);
+  const resetDate = new Date(now);
+  resetDate.setHours(resetH, resetM, 0, 0);
+  
+  // Calculate next reset date (standard boundary)
+  if (now.getTime() >= resetDate.getTime()) {
+    resetDate.setDate(resetDate.getDate() + 1);
+  }
+
+  // Backup target time is exactly 5 minutes before resetDate
+  const backupDate = new Date(resetDate.getTime() - 5 * 60 * 1000);
+  
+  // If we are already past this cycle's backup window, push to the next day's backup time
+  if (now.getTime() >= backupDate.getTime()) {
+    backupDate.setDate(backupDate.getDate() + 1);
+  }
+
+  return Math.max(0, backupDate.getTime() - now.getTime());
+}
+

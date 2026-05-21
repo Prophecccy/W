@@ -8,6 +8,28 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
+  const [isDriveLinked, setIsDriveLinked] = useState<boolean>(() => {
+    return localStorage.getItem("driveLinked") === "true" || !!localStorage.getItem("w_gdrive_refresh_token");
+  });
+
+  useEffect(() => {
+    const handleLinked = () => {
+      console.info("[W Auth Hook] Google Drive linked event captured. Synchronizing state to true.");
+      setIsDriveLinked(true);
+    };
+    const handleUnlinked = () => {
+      console.info("[W Auth Hook] Google Drive unlinked event captured. Synchronizing state to false.");
+      setIsDriveLinked(false);
+    };
+
+    window.addEventListener("w:gdrive-linked", handleLinked);
+    window.addEventListener("w:gdrive-unlinked", handleUnlinked);
+
+    return () => {
+      window.removeEventListener("w:gdrive-linked", handleLinked);
+      window.removeEventListener("w:gdrive-unlinked", handleUnlinked);
+    };
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged((firebaseUser) => {
@@ -23,6 +45,7 @@ export function useAuth() {
     setSigningIn(true);
     try {
       await signInWithGoogle();
+      setIsDriveLinked(localStorage.getItem("driveLinked") === "true" || !!localStorage.getItem("w_gdrive_refresh_token"));
     } catch (err: unknown) {
       let message: string;
       if (err instanceof Error) {
@@ -43,6 +66,7 @@ export function useAuth() {
     try {
       localStorage.removeItem("w-auth-mock");
       await signOut();
+      setIsDriveLinked(false);
     } catch (err: unknown) {
       console.error("[W Auth] Sign-out failed:", err);
     }
@@ -84,5 +108,7 @@ export function useAuth() {
     signOut: handleSignOut,
     clearError,
     devSkip,
+    isDriveLinked,
+    setIsDriveLinked,
   };
 }

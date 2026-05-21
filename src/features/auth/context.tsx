@@ -11,6 +11,8 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   clearError: () => void;
   devSkip: () => void;
+  isDriveLinked: boolean;
+  setIsDriveLinked: (linked: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,4 +34,5 @@ export function useAuthContext() {
   }
   return context;
 }
+
 

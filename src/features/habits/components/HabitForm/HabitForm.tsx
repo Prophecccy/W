@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { IconPicker } from "../../../../shared/components/IconPicker/IconPicker";
 import { HabitPeriod, HabitType, HabitMetric, HabitDuration, HabitGroup } from "../../types";
-import { getToday } from "../../../../shared/utils/dateUtils";
+import { getToday, addDays } from "../../../../shared/utils/dateUtils";
 import "./HabitForm.css";
 
 interface HabitFormData {
@@ -17,6 +17,7 @@ interface HabitFormData {
   icon: string;
   color: string;
   group: string | null;
+  startDate: string;
 }
 
 export interface HabitFormProps {
@@ -44,11 +45,23 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
     icon: "Target",
     color: "#5B8DEF",
     group: null,
+    startDate: getToday(),
     ...initialData,
   });
 
   const [newGroupName, setNewGroupName] = useState("");
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [intervalDays, setIntervalDays] = useState(initialData?.intervalDays ? String(initialData.intervalDays) : "");
+  const [error, setError] = useState<string | null>(null);
+
+  const todayDate = getToday();
+  const tomorrowDate = addDays(todayDate, 1);
+  const initialOption = data.startDate === todayDate
+    ? "today"
+    : data.startDate === tomorrowDate
+      ? "tomorrow"
+      : "custom";
+  const [startDateOption, setStartDateOption] = useState<"today" | "tomorrow" | "custom">(initialOption);
 
   const update = (updates: Partial<HabitFormData>) => {
     setData((prev) => ({ ...prev, ...updates }));
@@ -63,24 +76,36 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
           if (!data.metric) return false;
           const targetVal = Number(data.metric.targetValue);
           const unit = data.metric.unit.trim();
-          return !isNaN(targetVal) && targetVal >= 2 && unit !== "";
+          const minTarget = data.type === "limiter" ? 1 : 2;
+          return !isNaN(targetVal) && targetVal >= minTarget && unit !== "";
         }
         return true; // Type
       case 3: // Duration
         if (data.duration.type === "endpoint") return !!data.duration.endDate || !!data.duration.completionCount;
         return true;
-      case 4: return !!data.icon; // Appearance
-      case 5: return true; // Group (optional)
+      case 4: return !!data.startDate; // Start Date
+      case 5: return !!data.icon; // Appearance
+      case 6: return true; // Group (optional)
       default: return true;
     }
   };
 
   const handleNext = () => {
-    if (step < 5) setStep(step + 1);
+    if (step === 1 && data.period === "interval") {
+      const days = Number(intervalDays);
+      if (intervalDays.trim() === "" || isNaN(days) || days < 2) {
+        setError("Interval must be a number greater than 1 day.");
+        return;
+      }
+      setError(null);
+      update({ intervalDays: days });
+    }
+    if (step < 6) setStep(step + 1);
     else handleSubmit();
   };
 
   const handleBack = () => {
+    setError(null);
     if (step > 0) setStep(step - 1);
     else onCancel();
   };
@@ -129,12 +154,33 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
                   key={p}
                   type="button"
                   className={`habit-form__radio-btn t-body ${data.period === p ? "habit-form__radio-btn--active" : ""}`}
-                  onClick={() => update({ period: p })}
+                  onClick={() => {
+                    update({ period: p });
+                    setError(null);
+                  }}
                 >
                   {p.toUpperCase()}
                 </button>
               ))}
             </div>
+            {data.period === "interval" && (
+              <div className="habit-form__field habit-form__interval-field">
+                <label className="t-label">[ INTERVAL DAYS ]</label>
+                <input
+                  type="number"
+                  className="t-data habit-form__input habit-form__interval-input"
+                  placeholder="E.g. 3"
+                  value={intervalDays}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setIntervalDays(val);
+                    setError(null);
+                  }}
+                  autoFocus
+                />
+                {error && <span className="habit-form__error t-meta">{error}</span>}
+              </div>
+            )}
           </div>
         );
 
@@ -174,7 +220,7 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
                     type="number"
                     className="t-data habit-form__input"
                     value={data.metric.targetValue}
-                    min={1}
+                    min={data.type === "limiter" ? 1 : 2}
                     step={1}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -240,6 +286,63 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
 
       case 4:
         return (
+          <div className="habit-form__step">
+            <h2 className="t-label">[ START DATE ]</h2>
+            <p className="t-meta habit-form__help">When should this protocol become active?</p>
+            
+            <div className="habit-form__radio-group">
+              <button
+                type="button"
+                className={`habit-form__radio-btn t-body ${startDateOption === "today" ? "habit-form__radio-btn--active" : ""}`}
+                onClick={() => {
+                  setStartDateOption("today");
+                  update({ startDate: todayDate });
+                }}
+              >
+                TODAY
+              </button>
+              <button
+                type="button"
+                className={`habit-form__radio-btn t-body ${startDateOption === "tomorrow" ? "habit-form__radio-btn--active" : ""}`}
+                onClick={() => {
+                  setStartDateOption("tomorrow");
+                  update({ startDate: tomorrowDate });
+                }}
+              >
+                TOMORROW
+              </button>
+              <button
+                type="button"
+                className={`habit-form__radio-btn t-body ${startDateOption === "custom" ? "habit-form__radio-btn--active" : ""}`}
+                onClick={() => {
+                  setStartDateOption("custom");
+                  const nextDate = data.startDate && data.startDate !== todayDate && data.startDate !== tomorrowDate
+                    ? data.startDate
+                    : tomorrowDate;
+                  update({ startDate: nextDate });
+                }}
+              >
+                SELECT DATE
+              </button>
+            </div>
+
+            <div className={`habit-form__custom-date-container ${startDateOption === "custom" ? "habit-form__custom-date-container--visible" : ""}`}>
+              <div className="habit-form__field">
+                <label className="t-meta">SPECIFY PROTOCOL COMMENCEMENT</label>
+                <input
+                  type="date"
+                  className="t-data habit-form__date-input"
+                  value={data.startDate || todayDate}
+                  min={todayDate}
+                  onChange={(e) => update({ startDate: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+        );
+
+      case 5:
+        return (
           <div className="habit-form__step habit-form__step--appearance">
             <h2 className="t-label">[ APPEARANCE ]</h2>
             <div className="habit-form__field habit-form__field--full">
@@ -252,7 +355,7 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
           </div>
         );
 
-      case 5:
+      case 6:
         return (
           <div className="habit-form__step">
             <h2 className="t-label">[ GROUPING ]</h2>
@@ -296,7 +399,6 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
                   value={newGroupName} 
                   onChange={e => {
                     setNewGroupName(e.target.value);
-                    // Generate a slug-like ID for the new group to submit
                     update({ group: `new_${e.target.value.toLowerCase().replace(/\s+/g, '_')}` });
                   }}
                   autoFocus
@@ -311,7 +413,7 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
   return (
     <div className="habit-form">
       <div className="habit-form__header">
-        <span className="t-meta">STEP {step + 1} OF 6</span>
+        <span className="t-meta">STEP {step + 1} OF 7</span>
         <button type="button" className="habit-form__close t-label" onClick={onCancel}>
           [ CANCEL ]
         </button>
@@ -335,7 +437,7 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
           onClick={handleNext}
           disabled={!currentStepIsValid()}
         >
-          {step === 5 ? "[ SAVE HABIT ]" : "[ NEXT ]"}
+          {step === 6 ? "[ SAVE HABIT ]" : "[ NEXT ]"}
         </button>
       </div>
     </div>

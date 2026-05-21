@@ -8,8 +8,12 @@ import {
 } from "firebase/auth";
 import { auth } from "../../../shared/config/firebase";
 import { isTauri } from "../../../shared/utils/tauri";
+import { saveOAuthTokens, clearOAuthTokens } from "../../../shared/services/googleDriveService";
 
 const googleProvider = new GoogleAuthProvider();
+
+// Request Drive file scope for the browser popup authentication too
+googleProvider.addScope("https://www.googleapis.com/auth/drive.file");
 
 const AUTH_SUCCESS_HTML = `
 <!DOCTYPE html>
@@ -136,8 +140,9 @@ export async function signInWithGoogle(): Promise<FirebaseUser> {
 // Uses tauri-plugin-oauth to:
 // 1. Start a temp localhost server
 // 2. Open system browser for Google sign-in
-// 3. Capture the OAuth callback with tokens
-// 4. Sign in to Firebase with the credential
+// 3. Capture the OAuth callback with code
+// 4. Exchange code for tokens at accounts.google.com
+// 5. Sign in to Firebase with the credential
 async function signInWithGoogleDesktop(): Promise<FirebaseUser> {
   console.info("[W Auth] Starting desktop OAuth flow...");
 
@@ -150,23 +155,33 @@ async function signInWithGoogleDesktop(): Promise<FirebaseUser> {
     throw new Error("VITE_GOOGLE_CLIENT_ID is not set in environment");
   }
 
+  // Generate PKCE verifier and challenge
+  console.info("[W Auth] Generating PKCE verifier and challenge...");
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = await generateCodeChallenge(codeVerifier);
+  console.info("[W Auth] PKCE verifier and challenge generated.");
+
   // 1. Start local OAuth server (random available port)
   const port = await oauthPlugin.start({
     response: AUTH_SUCCESS_HTML
   });
   console.info(`[W Auth] OAuth server started on port ${port}`);
 
-  // 2. Build Google OAuth URL (implicit flow → returns access_token directly)
+  // 2. Build Google OAuth URL (Authorization Code Flow with PKCE)
   const state = crypto.randomUUID(); // CSRF protection
   const redirectUri = `http://localhost:${port}`;
 
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.searchParams.set("client_id", clientId);
   authUrl.searchParams.set("redirect_uri", redirectUri);
-  authUrl.searchParams.set("response_type", "token");
-  authUrl.searchParams.set("scope", "openid email profile");
+  authUrl.searchParams.set("response_type", "code");
+  authUrl.searchParams.set("scope", "openid email profile https://www.googleapis.com/auth/drive.file");
   authUrl.searchParams.set("state", state);
-  authUrl.searchParams.set("prompt", "select_account");
+  authUrl.searchParams.set("access_type", "offline");
+  authUrl.searchParams.set("prompt", "consent select_account");
+  // Set PKCE parameters
+  authUrl.searchParams.set("code_challenge", codeChallenge);
+  authUrl.searchParams.set("code_challenge_method", "S256");
 
   // 3. Set up callback listener BEFORE opening browser
   let resolveToken: (url: string) => void;
@@ -202,48 +217,149 @@ async function signInWithGoogleDesktop(): Promise<FirebaseUser> {
     try { await oauthPlugin.cancel(port); } catch { /* ignore cleanup errors */ }
   }
 
-  // 6. Parse the access_token from the callback URL
-  const accessToken = extractToken(callbackUrl, state);
-  if (!accessToken) {
-    throw new Error("No access token received from Google. Please try again.");
+  // 6. Parse the authorization code from the callback URL
+  const code = extractCode(callbackUrl, state);
+  if (!code) {
+    throw new Error("No authorization code received from Google. Please try again.");
   }
-  console.info("[W Auth] Access token received, signing in to Firebase...");
+  console.info("[W Auth] Authorization code received. Exchanging for tokens using PKCE verifier...");
 
-  // 7. Sign in to Firebase with the Google credential
-  const credential = GoogleAuthProvider.credential(null, accessToken);
+  // 6.5 Exchange authorization code for tokens
+  const tokenParams: Record<string, string> = {
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    code: code,
+    code_verifier: codeVerifier, // Provide the PKCE code verifier
+    grant_type: "authorization_code",
+  };
+
+  const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET;
+  if (clientSecret) {
+    console.info("[W Auth] Including client_secret in token exchange payload.");
+    tokenParams.client_secret = clientSecret;
+  }
+
+  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams(tokenParams),
+  });
+
+  if (!tokenRes.ok) {
+    const errorText = await tokenRes.text();
+    console.error("[W Auth] Token exchange failed:", errorText);
+    throw new Error(`Token exchange failed (HTTP ${tokenRes.status}): ${errorText || "Unknown error"}`);
+  }
+
+  const tokenData = await tokenRes.json();
+  const accessToken = tokenData.access_token;
+  const refreshToken = tokenData.refresh_token;
+  const idToken = tokenData.id_token;
+  const expiresIn = tokenData.expires_in || 3600;
+
+  if (!accessToken || !idToken) {
+    throw new Error("Missing access_token or id_token in token exchange response.");
+  }
+
+  console.info("[W Auth] Tokens received. Saving credentials...");
+  
+  // Cache credentials securely
+  saveOAuthTokens(accessToken, refreshToken || "", expiresIn);
+
+  // 7. Sign in to Firebase with the Google credential (ID Token and Access Token)
+  const credential = GoogleAuthProvider.credential(idToken, accessToken);
   const result = await signInWithCredential(auth, credential);
   console.info("[W Auth] Firebase sign-in successful.");
   return result.user;
 }
 
-// ─── Token Parser ──────────────────────────────────────────────
-function extractToken(url: string, expectedState: string): string | null {
-  // The URL might contain tokens in the fragment (#) or query (?)
-  // tauri-plugin-oauth may convert fragments to query params
+// ─── PKCE Cryptographic Helpers ─────────────────────────────────
+
+/**
+ * Generates a high-entropy cryptographically secure random string (code verifier)
+ * compliant with RFC 7636 (length 43-128 characters, containing [A-Za-z0-9-._~]).
+ */
+function generateCodeVerifier(): string {
+  const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+  const array = new Uint8Array(96);
+  crypto.getRandomValues(array);
+  let verifier = "";
+  for (let i = 0; i < array.length; i++) {
+    verifier += charset[array[i] % charset.length];
+  }
+  return verifier;
+}
+
+/**
+ * Computes the SHA-256 hash of a code verifier and encodes it as Base64url without padding.
+ */
+async function generateCodeChallenge(verifier: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  
+  // Convert ArrayBuffer hash to binary string
+  const bytes = new Uint8Array(hash);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  
+  // Base64 encode and format to Base64url (no padding, url-safe chars)
+  const base64 = btoa(binary);
+  return base64
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+
+// ─── Code Parser ───────────────────────────────────────────────
+function extractCode(url: string, expectedState: string): string | null {
+  console.info(`[W Auth] Extracting code from URL: "${url}"`);
+  console.info(`[W Auth] Expected CSRF state: "${expectedState}"`);
+  
   let params: URLSearchParams;
 
-  if (url.includes("#")) {
-    // Fragment-based: http://localhost:PORT/#access_token=...
-    const hash = url.split("#")[1];
-    params = new URLSearchParams(hash);
-  } else {
-    // Query-based: http://localhost:PORT/?access_token=...
-    const parsed = new URL(url);
-    params = parsed.searchParams;
+  try {
+    if (url.includes("#")) {
+      const hash = url.split("#")[1];
+      params = new URLSearchParams(hash);
+    } else {
+      // Safely support relative paths by passing a base URL
+      const parsed = url.startsWith("http") ? new URL(url) : new URL(url, "http://localhost");
+      params = parsed.searchParams;
+    }
+  } catch (err) {
+    console.warn("[W Auth] Standard URL construction failed. Falling back to manual search param extraction.", err);
+    try {
+      const queryPart = url.includes("?") ? url.split("?")[1] : url;
+      params = new URLSearchParams(queryPart);
+    } catch (fallbackErr) {
+      console.error("[W Auth] Manual extraction failed entirely:", fallbackErr);
+      return null;
+    }
   }
 
   // Validate CSRF state
   const returnedState = params.get("state");
+  console.info(`[W Auth] Returned state token: "${returnedState}"`);
+  
   if (returnedState && returnedState !== expectedState) {
-    console.error("OAuth state mismatch — possible CSRF attack");
+    console.error(`[W Auth] OAuth state mismatch! Expected "${expectedState}" but got "${returnedState}". Possible CSRF attack.`);
     return null;
   }
 
-  return params.get("access_token");
+  const code = params.get("code");
+  console.info(`[W Auth] Extracted authorization code: ${code ? "[FOUND]" : "[NOT FOUND]"}`);
+  return code;
 }
 
 // ─── Sign Out ──────────────────────────────────────────────────
 export function signOut(): Promise<void> {
+  clearOAuthTokens();
   return firebaseSignOut(auth).catch((error) => {
     console.error("Error signing out", error);
     throw error;

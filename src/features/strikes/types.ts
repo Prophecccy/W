@@ -5,7 +5,7 @@
 export interface StrikeHistoryEntry {
   habitId: string;
   habitTitle: string;
-  reason: "missed" | "manual" | "lockdown_violation" | "snoozed_high_stakes";
+  reason: "missed" | "manual" | "lockdown_violation" | "snoozed_high_stakes" | "limiter_exceeded";
   date: string;        // YYYY-MM-DD
   timestamp: number;   // Date.now()
 }

@@ -140,3 +140,48 @@
   from { opacity: 0; transform: translateY(24px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+/* Inline form styling */
+.punishment-modal--form {
+  padding: 0;
+  gap: 0;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+/* Scrollable container for many habits */
+.punishment-modal__options--scroll {
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+/* Custom scrollbar for tactical feel */
+.punishment-modal__options--scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.punishment-modal__options--scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.punishment-modal__options--scroll::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 2px;
+}
+
+/* Empty and loading feedback states */
+.punishment-modal__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.punishment-modal__loading {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 24px;
+}
+

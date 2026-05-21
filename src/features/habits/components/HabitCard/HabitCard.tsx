@@ -22,6 +22,7 @@ interface HabitCardProps {
   riskScore?: number;    // 0–100 from Predictive Strike Risk Engine
   isResting?: boolean;
   userResetTime?: string;
+  upcomingStatus?: string;
 }
 
 function getCooldownText(habit: Habit, userResetTime?: string): string {
@@ -62,6 +63,7 @@ export function HabitCard({
   riskScore,
   isResting = false,
   userResetTime,
+  upcomingStatus,
 }: HabitCardProps) {
   const { showToast } = useToast();
   const [isHolding, setIsHolding] = useState(false);
@@ -83,7 +85,7 @@ export function HabitCard({
 
   // ─── Interaction Handlers ───────────────────────────────────────
   const startHold = () => {
-    if (isResting) return;
+    if (isResting || upcomingStatus) return;
     if (isCompletedToday || habit.type === "metric" || habit.type === "limiter") {
       // Metric/limiter standard hold logic might differ (maybe tap opens input dialog instead).
       // For checklist scope, let's treat standard types with hold-to-verify.
@@ -105,7 +107,16 @@ export function HabitCard({
       hasHeldRef.current = true;
       playCompletionSound();
       onComplete();
-      showToast(`Completed ${habit.title}`, {
+
+      const isLimiter = habit.type === "limiter";
+      const isExceeded = isLimiter && (currentValue + 1) > target;
+      const toastMessage = isLimiter
+        ? isExceeded
+          ? `[ LIMIT EXCEEDED ] Strike added!`
+          : `Logged ${habit.title}`
+        : `Completed ${habit.title}`;
+
+      showToast(toastMessage, {
         actionLabel: 'UNDO',
         onAction: () => onUndo()
       });
@@ -214,7 +225,11 @@ export function HabitCard({
             )}
           </div>
 
-          {isResting ? (
+          {upcomingStatus ? (
+            <div className="habit-card__cooldown t-meta" style={{ color: "var(--text-muted)", fontFamily: "monospace" }}>
+              [ {upcomingStatus.toUpperCase()} ]
+            </div>
+          ) : isResting ? (
             <div className="habit-card__cooldown t-meta" style={{ color: "var(--text-muted)", fontFamily: "monospace" }}>
               [ {getCooldownText(habit, userResetTime)} ]
             </div>

@@ -14,6 +14,8 @@ import {
 import { db, auth } from "../../../shared/config/firebase";
 import { HabitLog, HabitLogEntry, CompletionEntry } from "../types";
 import { getToday } from "../../../shared/utils/dateUtils";
+import { saveLocalNote } from "../../logs/services/localLogService";
+import { addStrike, removeLimiterStrike } from "../../strikes/services/strikeService";
 
 function uid(): string {
   const u = auth.currentUser;
@@ -109,6 +111,15 @@ export async function completeHabit(
     });
   }
 
+  // ─── Limiter Exceeded Strike Logic ──────────────────────────────
+  if (habit?.type === "limiter" && newValue > resolvedTarget) {
+    try {
+      await addStrike(habitId, habit.title || "Limiter", "limiter_exceeded");
+    } catch (e) {
+      console.error("Failed to add limiter strike:", e);
+    }
+  }
+
   // ── Sync habit document stats ───────────────────────────────────
   try {
     if (habit) {
@@ -189,6 +200,15 @@ export async function uncompleteHabit(habitId: string): Promise<void> {
   await updateDoc(ref, {
     [`habits.${habitId}`]: newEntry,
   });
+
+  // ─── Limiter Undo Strike Logic ──────────────────────────────────
+  if (habit?.type === "limiter" && existing.value > existing.target) {
+    try {
+      await removeLimiterStrike(habitId);
+    } catch (e) {
+      console.error("Failed to revert limiter strike:", e);
+    }
+  }
 }
 
 // ─── Log range (for analytics) ────────────────────────────────────
@@ -212,11 +232,8 @@ export async function getLogRange(
 // ─── Update Daily Note ───────────────────────────────────────────
 
 export async function updateNote(notes: string): Promise<void> {
-  const userId = uid();
   const today = getToday();
-  const ref = logRef(userId, today);
-  // getTodayLog ensures doc exists
-  await updateDoc(ref, { notes });
+  await saveLocalNote(today, notes);
 }
 
 // ─── Get Note History ────────────────────────────────────────────

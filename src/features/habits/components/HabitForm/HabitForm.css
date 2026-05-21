@@ -190,8 +190,69 @@
 .habit-form__input[type=number]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
+  display: none;
 }
 .habit-form__input[type=number] {
   -moz-appearance: textfield;
 }
+
+.habit-form__interval-field {
+  margin-top: 16px;
+  animation: fade-in 0.2s ease forwards;
+}
+
+.habit-form__interval-input::-webkit-inner-spin-button,
+.habit-form__interval-input::-webkit-outer-spin-button {
+  display: none;
+}
+
+.habit-form__error {
+  color: var(--strike-red);
+  font-size: 0.8rem;
+  margin-top: 4px;
+}
+
+/* Custom Date Picker & Container styles */
+.habit-form__custom-date-container {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease-out, opacity 0.3s ease-out, margin-top 0.3s ease-out;
+  margin-top: 0;
+}
+
+.habit-form__custom-date-container--visible {
+  max-height: 140px;
+  opacity: 1;
+  margin-top: 24px;
+}
+
+.habit-form__date-input {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: 12px;
+  border-radius: 4px;
+  outline: none;
+  width: 100%;
+  font-family: inherit;
+  transition: border-color 0.2s ease;
+}
+
+.habit-form__date-input:focus {
+  border-color: var(--accent);
+}
+
+/* Strip ugly native browser calendar icons / make it look tactical */
+.habit-form__date-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.4;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.habit-form__date-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 0.8;
+}
+
 

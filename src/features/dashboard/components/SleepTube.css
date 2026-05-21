@@ -89,6 +89,7 @@
 .sleep-tube--widget {
   padding-right: 28px; /* Tighter padding for widget */
   gap: 8px;
+  max-height: none; /* Allows the tube height to scale dynamically with widget size */
 }
 
 .sleep-tube--widget .sleep-tube__track {

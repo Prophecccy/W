@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { FlameIcon } from "../FlameIcon/FlameIcon";
 import { isTauri } from "../../utils/tauri";
+import { useAuthContext } from "../../../features/auth/context";
+import { GoogleDriveIcon } from "../GoogleDriveIcon/GoogleDriveIcon";
 import "./Sidebar.css";
 
 interface SidebarProps {
@@ -26,6 +28,7 @@ interface SidebarProps {
 
 
 export function Sidebar({ strikeCount = 0, globalStreak = 0, isLockdownActive = false }: SidebarProps) {
+  const { isDriveLinked } = useAuthContext();
   const isWarning = strikeCount >= 3;
   const isLocked = strikeCount >= 5;
 
@@ -58,6 +61,15 @@ export function Sidebar({ strikeCount = 0, globalStreak = 0, isLockdownActive = 
           >
             <item.icon size={16} strokeWidth={1.5} />
             <span>{item.label}</span>
+            {item.label === "Logbook" && (
+              <GoogleDriveIcon
+                size={12}
+                style={{
+                  marginLeft: "auto",
+                  color: isDriveLinked ? "var(--accent)" : "rgba(255, 255, 255, 0.15)",
+                }}
+              />
+            )}
           </NavLink>
         ))}
       </nav>

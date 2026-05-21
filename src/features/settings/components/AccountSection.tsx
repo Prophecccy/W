@@ -4,9 +4,11 @@ import { getUserDoc } from "../../auth/services/userService";
 import { signOut } from "../../auth/services/authService";
 import { User } from "../../../shared/types";
 import { LogOut, User as UserIcon } from "lucide-react";
+import { clearOAuthTokens } from "../../../shared/services/googleDriveService";
+import { GoogleDriveIcon } from "../../../shared/components/GoogleDriveIcon/GoogleDriveIcon";
 
 export function AccountSection() {
-  const { user } = useAuthContext();
+  const { user, isDriveLinked, setIsDriveLinked, signIn, error, signingIn, clearError } = useAuthContext();
   const [userDoc, setUserDoc] = useState<User | null>(null);
 
   useEffect(() => {
@@ -18,6 +20,21 @@ export function AccountSection() {
   const handleSignOut = async () => {
     if (confirm("Are you sure you want to sign out?")) {
       await signOut();
+    }
+  };
+
+  const handleLinkDrive = async () => {
+    try {
+      await signIn();
+    } catch (err) {
+      console.error("Failed to link Google Drive:", err);
+    }
+  };
+
+  const handleUnlinkDrive = async () => {
+    if (confirm("Are you sure you want to unlink Google Drive? Your local logs and notes remain fully secure, but cloud backup will be disabled and access to notes/logbook will be locked until reconnected.")) {
+      clearOAuthTokens();
+      setIsDriveLinked(false);
     }
   };
 
@@ -60,7 +77,61 @@ export function AccountSection() {
           <LogOut size={12} strokeWidth={2} />
           <span>[ SIGN OUT ]</span>
         </button>
+
+        <hr className="settings-divider" />
+
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <span className="t-meta" style={{ letterSpacing: "1px", fontWeight: 500 }}>GOOGLE DRIVE SYNC</span>
+          </div>
+          <div className="settings-row__action">
+            {isDriveLinked ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <span className="t-meta" style={{ color: "#4ade80", fontWeight: 600 }}>[ CONNECTED ]</span>
+                <button
+                  className="settings-btn settings-btn--danger"
+                  onClick={handleUnlinkDrive}
+                >
+                  <GoogleDriveIcon size={12} />
+                  <span>[ UNLINK ]</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                className="settings-btn"
+                style={{ color: "var(--accent)" }}
+                onClick={handleLinkDrive}
+                disabled={signingIn}
+              >
+                <GoogleDriveIcon size={12} />
+                <span>{signingIn ? "[ LINKING... ]" : "[ LINK DRIVE ]"}</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {error && (
+          <div
+            className="t-meta"
+            style={{
+              marginTop: "16px",
+              color: "var(--strike-red)",
+              border: "1px solid var(--strike-red)",
+              padding: "8px 12px",
+              cursor: "pointer",
+              display: "flex",
+              justifyContent: "space-between",
+              fontFamily: "var(--font-mono, monospace)",
+              userSelect: "none"
+            }}
+            onClick={clearError}
+          >
+            <span>⚠️ ERROR: {error.toUpperCase()}</span>
+            <span style={{ opacity: 0.5 }}>[ DISMISS ]</span>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
