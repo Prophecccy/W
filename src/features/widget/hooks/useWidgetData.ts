@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { collection, query, where, onSnapshot, doc, orderBy } from 'firebase/firestore';
 import { db } from '../../../shared/config/firebase';
 import { useAuthContext } from '../../auth/context';
-import { Habit, HabitLog, HabitLogEntry } from '../../habits/types';
+import { Habit, HabitLog } from '../../habits/types';
 import { User } from '../../../shared/types';
 import { getToday } from '../../../shared/utils/dateUtils';
 import { completeHabit as completeHabitLog, uncompleteHabit as uncompleteHabitLog } from '../../habits/services/logService';
@@ -45,7 +45,7 @@ export function useWidgetData(): WidgetData {
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Habit));
       data.sort((a, b) => a.order - b.order);
-      const activeData = data.filter(h => !h.startDate || h.startDate <= today);
+      const activeData = data.filter(h => (!h.startDate || h.startDate <= today) && h.type !== 'limiter');
       setHabits(activeData);
     });
 
@@ -135,9 +135,11 @@ export function useWidgetData(): WidgetData {
   // Global streak = longest current streak across all habits
   const globalStreak = habits.reduce((max, h) => Math.max(max, h.currentStreak), 0);
 
-  // Weekly completions: count completed entries in today's log (rough proxy)
+  // Weekly completions: count completed entries in today's log (excluding limiters)
   const weeklyCompletions = todayLog
-    ? Object.values(todayLog.habits || {}).filter((e: HabitLogEntry) => e.completed).length
+    ? Object.entries(todayLog.habits || {})
+        .filter(([habitId, entry]) => entry.completed && habits.some(h => h.id === habitId))
+        .length
     : 0;
 
   const completeHabit = useCallback(async (habitId: string) => {

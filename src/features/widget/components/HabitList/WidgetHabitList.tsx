@@ -12,10 +12,6 @@ interface WidgetHabitListProps {
 }
 
 export function WidgetHabitList({ today, scheduledHabits, todayLog, periodLogs, weeklyResetDay, onComplete, onUndo }: WidgetHabitListProps) {
-  // Separate regular habits from limiters
-  const regularHabits = scheduledHabits.filter(h => h.type !== 'limiter');
-  const limiterHabits = scheduledHabits.filter(h => h.type === 'limiter');
-
   const getTotalInRange = (habitId: string, startDate: string) => {
     let total = 0;
     for (const log of periodLogs) {
@@ -52,13 +48,12 @@ export function WidgetHabitList({ today, scheduledHabits, todayLog, periodLogs, 
     });
   };
 
-  const sortedRegular = sortByCompletion(regularHabits);
-  const sortedLimiters = sortByCompletion(limiterHabits);
+  const sortedHabits = sortByCompletion(scheduledHabits);
 
   return (
     <div className="widget-habit-list">
       {/* Regular Habits */}
-      {sortedRegular.map(habit => {
+      {sortedHabits.map(habit => {
         const status = getStatus(habit);
         return (
           <WidgetHabitCard
@@ -72,29 +67,6 @@ export function WidgetHabitList({ today, scheduledHabits, todayLog, periodLogs, 
           />
         );
       })}
-
-      {/* Limiter Section */}
-      {sortedLimiters.length > 0 && (
-        <>
-          <div className="widget-habit-list__section-header t-label">
-            [ LIMITERS ]
-          </div>
-          {sortedLimiters.map(habit => {
-            const status = getStatus(habit);
-            return (
-              <WidgetHabitCard
-                key={habit.id}
-                habit={habit}
-                isCompletedToday={status.isCompletedToday}
-                doneToday={status.doneToday}
-                currentValue={todayLog?.habits?.[habit.id]?.value || 0}
-                onComplete={onComplete}
-                onUndo={onUndo}
-              />
-            );
-          })}
-        </>
-      )}
 
       {scheduledHabits.length === 0 && (
         <div className="widget-habit-list__empty t-meta">

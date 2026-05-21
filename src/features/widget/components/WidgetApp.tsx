@@ -207,8 +207,6 @@ export function WidgetApp() {
     const EMPTY_H      = 60;  // Height of empty habits state
     const CARD_GAP     = 12;  // Card margin-bottom
 
-    const regularHabits = scheduledHabits.filter(h => h.type !== 'limiter');
-    const limiterHabits = scheduledHabits.filter(h => h.type === 'limiter');
     const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
 
     // Helper to calculate total value logged in a period
@@ -249,16 +247,9 @@ export function WidgetApp() {
     let habitAreaHeight = 0;
     const n = scheduledHabits.length;
     if (n > 0) {
-      regularHabits.forEach(habit => {
+      scheduledHabits.forEach(habit => {
         habitAreaHeight += getHabitCardHeight(habit) + CARD_GAP;
       });
-
-      if (limiterHabits.length > 0) {
-        habitAreaHeight += 24; // .widget-habit-list__section-header [LIMITERS] height
-        limiterHabits.forEach(habit => {
-          habitAreaHeight += getHabitCardHeight(habit) + CARD_GAP;
-        });
-      }
     } else {
       habitAreaHeight += EMPTY_H;
     }
