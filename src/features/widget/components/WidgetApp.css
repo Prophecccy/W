@@ -132,6 +132,7 @@
   flex-direction: column;
   flex: 1;
   justify-content: center;
+  overflow-y: auto;
 }
 
 /* Custom scrollbar for widget */

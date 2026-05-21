@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useWidgetData } from '../hooks/useWidgetData';
 import { StatsDeck } from './StatsDeck/StatsDeck';
 import { WidgetHabitList } from './HabitList/WidgetHabitList';
@@ -33,6 +33,7 @@ export function WidgetApp() {
 
   // ─── Real-Time Clock ─────────────────────────────────────
   const [timeString, setTimeString] = useState('');
+  const [isPositionInitialized, setIsPositionInitialized] = useState(false);
 
   useEffect(() => {
     const updateClock = () => {
@@ -195,53 +196,96 @@ export function WidgetApp() {
     };
   }, [accentColor]);
 
+  // ─── Precise height memoization for auto-scaling ──────────
+  const targetLogicalHeight = useMemo(() => {
+    // CSS Pixel-Matched Metrics
+    const HEADER_H     = 34;  // .widget-app__header height + padding
+    const PANEL_GAP    = 12;  // .widget-app__right-panel gaps
+    const STATS_DECK_H = 80;  // Actual height of stats deck
+    const CLOCK_H      = 72;  // .widget-app__clock-container height (enlarged clock)
+    const INSET        = 48;  // Window absolute offset (16px) + content padding (32px)
+    const EMPTY_H      = 60;  // Height of empty habits state
+    const CARD_GAP     = 12;  // Card margin-bottom
+
+    const regularHabits = scheduledHabits.filter(h => h.type !== 'limiter');
+    const limiterHabits = scheduledHabits.filter(h => h.type === 'limiter');
+    const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
+
+    // Helper to calculate total value logged in a period
+    const getTotalInRange = (habitId: string, startDate: string) => {
+      let total = 0;
+      for (const log of periodLogs) {
+        if (log.date < startDate) continue;
+        total += log.habits?.[habitId]?.value ?? 0;
+      }
+      return total;
+    };
+
+    // Helper to calculate height of a single habit card
+    const getHabitCardHeight = (habit: any) => {
+      let cardHeight = 52; // Default height
+
+      const entry = todayLog?.habits?.[habit.id];
+      const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
+
+      if (isMultiDayMetric(habit)) {
+        const target = habit.metric?.targetValue ?? 0;
+        const start = getPeriodStart(habit, today, weeklyResetDay);
+        const periodCompleted = target > 0 ? getTotalInRange(habit.id, start) >= target : false;
+        
+        // If interacted today but period is not fully completed, show "✓ DONE TODAY" second line (+15px)
+        const isCompletedToday = periodCompleted;
+        const doneToday = interactedToday && !periodCompleted;
+        const isCompleted = isCompletedToday; // no justCompleted here since it's initial sizing
+        const isDoneToday = doneToday && !isCompleted;
+
+        if (isDoneToday) {
+          cardHeight += 15;
+        }
+      }
+      return cardHeight;
+    };
+
+    let habitAreaHeight = 0;
+    const n = scheduledHabits.length;
+    if (n > 0) {
+      regularHabits.forEach(habit => {
+        habitAreaHeight += getHabitCardHeight(habit) + CARD_GAP;
+      });
+
+      if (limiterHabits.length > 0) {
+        habitAreaHeight += 24; // .widget-habit-list__section-header [LIMITERS] height
+        limiterHabits.forEach(habit => {
+          habitAreaHeight += getHabitCardHeight(habit) + CARD_GAP;
+        });
+      }
+    } else {
+      habitAreaHeight += EMPTY_H;
+    }
+
+    // Calculate Right Panel: 4 components with 3 vertical gaps
+    const targetLogicalRightPanel = HEADER_H + habitAreaHeight + STATS_DECK_H + CLOCK_H + (3 * PANEL_GAP);
+    
+    // Left Panel: Progress circle (40px) + margin (12px) + SleepTube container (200px)
+    const targetLogicalLeftPanel = 252;
+
+    // Outer window logical height is the maximum panel height + vertical padding/inset
+    const targetLogical = Math.max(targetLogicalRightPanel, targetLogicalLeftPanel) + INSET;
+    
+    // Apply an additional 24px rendering safety buffer
+    const targetLogicalWithBuffer = targetLogical + 24;
+
+    return Math.max(300, Math.min(800, targetLogicalWithBuffer));
+  }, [scheduledHabits, todayLog, periodLogs, today, userDoc?.settings?.weeklyResetDay]);
+
   // ─── Auto-resize window height to fit habit count ─────────
   useEffect(() => {
     async function resizeToContent() {
+      if (!isPositionInitialized) return;
       try {
         const win = getCurrentWindow();
         const scaleFactor = await win.scaleFactor();
-
-        // CSS Pixel-Matched Metrics
-        const CARD_H       = 52;  // Card padding + title text height
-        const CARD_GAP     = 12;  // Card margin-bottom
-        const HEADER_H     = 34;  // .widget-app__header height + padding
-        const PANEL_GAP    = 12;  // .widget-app__right-panel gaps
-        const STATS_DECK_H = 80;  // Actual height of stats deck
-        const CLOCK_H      = 72;  // .widget-app__clock-container height (enlarged clock)
-        const INSET        = 48;  // Window absolute offset (16px) + content padding (32px)
-        const EMPTY_H      = 60;  // Height of empty habits state
-
-        const n = scheduledHabits.length;
-        const regularHabits = scheduledHabits.filter(h => h.type !== 'limiter');
-        const limiterHabits = scheduledHabits.filter(h => h.type === 'limiter');
-
-        // Calculate the habit list area height
-        let habitAreaHeight = 0;
-        if (n > 0) {
-          habitAreaHeight += regularHabits.length * (CARD_H + CARD_GAP);
-          if (limiterHabits.length > 0) {
-            habitAreaHeight += 24; // .widget-habit-list__section-header [LIMITERS] height
-            habitAreaHeight += limiterHabits.length * (CARD_H + CARD_GAP);
-          }
-        } else {
-          habitAreaHeight += EMPTY_H;
-        }
-
-        // Calculate Right Panel: 4 components with 3 vertical gaps
-        const targetLogicalRightPanel = HEADER_H + habitAreaHeight + STATS_DECK_H + CLOCK_H + (3 * PANEL_GAP);
-        
-        // Left Panel: Progress circle (40px) + margin (12px) + SleepTube container (200px)
-        const targetLogicalLeftPanel = 252;
-
-        // Outer window logical height is the maximum panel height + vertical padding/inset
-        const targetLogical = Math.max(targetLogicalRightPanel, targetLogicalLeftPanel) + INSET;
-        
-        // Apply an additional 24px rendering safety buffer
-        const targetLogicalWithBuffer = targetLogical + 24;
-
-        const clamped = Math.max(300, Math.min(800, targetLogicalWithBuffer));
-        const targetPhysical = Math.round(clamped * scaleFactor);
+        const targetPhysical = Math.round(targetLogicalHeight * scaleFactor);
 
         const currentSize = await win.innerSize();
         if (Math.abs(currentSize.height - targetPhysical) > 2) {
@@ -259,12 +303,16 @@ export function WidgetApp() {
       }
     }
 
-    if (!loading) resizeToContent();
-  }, [scheduledHabits.length, loading]);
+    if (!loading && isPositionInitialized) {
+      resizeToContent();
+    }
+  }, [targetLogicalHeight, loading, isPositionInitialized]);
 
   // ─── Restore & persist widget position ───────────────────
   useEffect(() => {
     let cleanup = false;
+    let unlistenMove: (() => void) | undefined;
+    let unlistenResize: (() => void) | undefined;
 
     async function initPosition() {
       try {
@@ -284,7 +332,9 @@ export function WidgetApp() {
         await win.setPosition(new PhysicalPosition(saved.x, saved.y));
         await win.setSize(new PhysicalSize(saved.width, saved.height));
 
-        const unlistenMove = await win.onMoved(async (pos) => {
+        setIsPositionInitialized(true);
+
+        unlistenMove = await win.onMoved(async (pos) => {
           if (cleanup) return;
           const size = await win.innerSize();
           saveWidgetPosition({
@@ -295,7 +345,7 @@ export function WidgetApp() {
           });
         });
 
-        const unlistenResize = await win.onResized(async (size) => {
+        unlistenResize = await win.onResized(async (size) => {
           if (cleanup) return;
           const pos = await win.outerPosition();
           saveWidgetPosition({
@@ -305,18 +355,18 @@ export function WidgetApp() {
             height: size.payload.height,
           });
         });
-
-        return () => {
-          cleanup = true;
-          unlistenMove();
-          unlistenResize();
-        };
       } catch {
-        // Not in Tauri
+        setIsPositionInitialized(true);
       }
     }
 
     initPosition();
+
+    return () => {
+      cleanup = true;
+      if (unlistenMove) unlistenMove();
+      if (unlistenResize) unlistenResize();
+    };
   }, []);
 
   useEffect(() => {
@@ -428,4 +478,46 @@ export function WidgetApp() {
       )}
     </div>
   );
+}
+
+// ─── Precise Height Helper Functions ─────────────────────────
+function formatDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getWeekStart(dateStr: string, weekStartDay: number): string {
+  const d = new Date(dateStr + "T12:00:00");
+  while (d.getDay() !== weekStartDay) {
+    d.setDate(d.getDate() - 1);
+  }
+  return formatDate(d);
+}
+
+function getMonthStart(dateStr: string): string {
+  return `${dateStr.slice(0, 7)}-01`;
+}
+
+function getIntervalStart(habit: any, todayStr: string): string {
+  if (habit.period !== "interval" || habit.intervalDays <= 0) return todayStr;
+  const created = new Date(habit.createdAt);
+  const today = new Date(todayStr + "T12:00:00");
+  const diffDays = Math.floor((today.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) return formatDate(created);
+  const segmentStart = diffDays - (diffDays % habit.intervalDays);
+  created.setDate(created.getDate() + segmentStart);
+  return formatDate(created);
+}
+
+function getPeriodStart(habit: any, todayStr: string, weekStartDay: number): string {
+  if (habit.period === "weekly") return getWeekStart(todayStr, weekStartDay);
+  if (habit.period === "monthly") return getMonthStart(todayStr);
+  if (habit.period === "interval") return getIntervalStart(habit, todayStr);
+  return todayStr;
+}
+
+function isMultiDayMetric(habit: any): boolean {
+  return habit.type === "metric" && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
 }
