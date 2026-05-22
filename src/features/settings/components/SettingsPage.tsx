@@ -11,7 +11,8 @@ import { DataSection } from "./DataSection";
 import { ManualFreezeToggle } from "../../freeze/components/ManualFreezeToggle";
 import { UndoHistory } from "./UndoHistory/UndoHistory";
 import { WallpaperPicker } from "../../wallpaper/components/WallpaperPicker/WallpaperPicker";
-import { Save, RotateCcw, User, Palette, Monitor, Clock, Bell, HardDrive } from "lucide-react";
+import { Save, RotateCcw, User, Palette, Monitor, Clock, Bell, HardDrive, LogOut } from "lucide-react";
+import { useAuthContext } from "../../auth/context";
 
 import "./SettingsPage.css";
 
@@ -35,6 +36,7 @@ const TABS: TabConfig[] = [
 
 export function SettingsPage() {
   const { userDoc, loading } = useUserStore();
+  const { signOut } = useAuthContext();
   const [activeTab, setActiveTab] = useState<TabId>("account");
   const [draftSettings, setDraftSettings] = useState<Settings | null>(null);
   const [draftAesthetics, setDraftAesthetics] = useState<Aesthetics | null>(null);
@@ -180,6 +182,18 @@ export function SettingsPage() {
               <span>{label}</span>
             </button>
           ))}
+          
+          <button
+            className="settings-tab settings-tab--logout t-label"
+            onClick={async () => {
+              if (confirm("Are you sure you want to sign out?")) {
+                await signOut();
+              }
+            }}
+          >
+            <LogOut size={16} className="settings-tab__icon" style={{ color: "var(--strike-red)" }} />
+            <span>[ LOG OUT ]</span>
+          </button>
         </div>
 
         <div className="settings-content">

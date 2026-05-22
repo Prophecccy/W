@@ -12,7 +12,7 @@ interface OnboardingFlowProps {
 }
 
 export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
-  const { user, error, signingIn, signIn, clearError, devSkip } = useAuthContext();
+  const { user, error, signingIn, signIn, signOut, clearError, devSkip } = useAuthContext();
   const navigate = useNavigate();
   const { showToast } = useToast();
 
@@ -246,6 +246,22 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                   >
                     {isSubmitting ? "[ RUNNING ENGINE... ]" : "[ LAUNCH SYSTEM ]"}
                   </button>
+                  {!isSubmitting && (
+                    <button
+                      className="onboarding-flow__auth-btn onboarding-flow__auth-btn--dev t-label"
+                      onClick={async () => {
+                        try {
+                          await signOut();
+                          navigate("/login");
+                        } catch (err) {
+                          console.error("[OnboardingFlow] Sign out failed:", err);
+                        }
+                      }}
+                      style={{ marginTop: "12px", width: "100%", maxWidth: "320px" }}
+                    >
+                      [ SWITCH ACCOUNT ]
+                    </button>
+                  )}
                 </>
               ) : (
                 <>
@@ -275,7 +291,23 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
         {/* Dynamic Footer Controls */}
         <div className="onboarding-flow__footer">
-          {step > 1 && step < 5 ? (
+          {step === 1 ? (
+            <button
+              type="button"
+              className="onboarding-flow__nav-btn t-label"
+              onClick={async () => {
+                try {
+                  await signOut();
+                  navigate("/login");
+                } catch (err) {
+                  console.error("[OnboardingFlow] Sign out failed:", err);
+                }
+              }}
+              disabled={isSubmitting}
+            >
+              [ SWITCH ACCOUNT ]
+            </button>
+          ) : step > 1 && step < 5 ? (
             <button
               type="button"
               className="onboarding-flow__nav-btn t-label"

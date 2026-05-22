@@ -2,9 +2,9 @@
   display: flex;
   flex-direction: column;
   min-height: 100%;
-  max-width: 800px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 40px;
+  padding: 24px 40px 40px;
 }
 
 .lockdown-page__header {
@@ -22,9 +22,25 @@
 }
 
 .lockdown-page__content {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+.lockdown-page__left {
+  position: sticky;
+  top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.lockdown-page__right {
   display: flex;
   flex-direction: column;
   gap: 32px;
+  min-width: 0; /* Prevents grid items blowing out */
 }
 
 .lockdown-section {
@@ -398,3 +414,237 @@
   align-items: center;
   gap: 12px;
 }
+
+/* ─── Shield Telemetry Monitor Deck ────────────────────────────── */
+
+.telemetry-deck {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.telemetry-visual {
+  display: flex;
+  gap: 28px;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 24px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* Radar Sweeper */
+.telemetry-radar {
+  position: relative;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: radial-gradient(circle, rgba(239, 68, 68, 0.04) 0%, rgba(0, 0, 0, 0) 70%);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.telemetry-radar__circle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px dashed rgba(239, 68, 68, 0.15);
+  width: 60px;
+  height: 60px;
+}
+
+.telemetry-radar__sweep {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: conic-gradient(from 0deg, rgba(239, 68, 68, 0.35) 0deg, rgba(239, 68, 68, 0) 90deg);
+  transform-origin: center;
+  animation: radarSweepAnim 4s linear infinite;
+  border-radius: 50%;
+}
+
+.telemetry-radar__grid::before,
+.telemetry-radar__grid::after {
+  content: '';
+  position: absolute;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.telemetry-radar__grid::before {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+}
+
+.telemetry-radar__grid::after {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+}
+
+.telemetry-radar__ping {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: var(--strike-red);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--strike-red);
+  top: 25%;
+  left: 65%;
+  animation: radarPingAnim 3s ease-out infinite;
+}
+
+@keyframes radarSweepAnim {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes radarPingAnim {
+  0% { opacity: 0; transform: scale(0.6); }
+  15% { opacity: 1; transform: scale(1.1); }
+  60% { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+/* Diagnostics Data Grid */
+.telemetry-diagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-grow: 1;
+}
+
+.telemetry-diagnostic-row {
+  display: flex;
+  justify-content: space-between;
+  font-family: "Departure Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.04);
+  padding-bottom: 6px;
+}
+
+.telemetry-diagnostic-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.telemetry-diagnostic-label {
+  color: var(--text-muted);
+}
+
+.telemetry-diagnostic-value {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.telemetry-diagnostic-value--green {
+  color: var(--accent);
+  text-shadow: 0 0 6px rgba(16, 185, 129, 0.2);
+}
+
+.telemetry-diagnostic-value--pulse {
+  color: var(--strike-red);
+  animation: telemetryPulseText 1.6s ease-in-out infinite;
+}
+
+@keyframes telemetryPulseText {
+  0%, 100% { opacity: 0.65; }
+  50% { opacity: 1; text-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
+}
+
+/* Simulated Matrix Terminal Logs */
+.telemetry-terminal {
+  position: relative;
+  font-family: "Departure Mono", monospace;
+  font-size: 10px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 190px;
+  overflow-y: auto;
+  box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.85);
+}
+
+.telemetry-terminal::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.22) 50%);
+  background-size: 100% 4px;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0.45;
+}
+
+.telemetry-terminal__line {
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.82);
+  letter-spacing: 0.5px;
+}
+
+.telemetry-terminal__prompt {
+  color: var(--accent);
+  margin-right: 8px;
+}
+
+.telemetry-terminal__timestamp {
+  color: var(--text-muted);
+  margin-right: 8px;
+  font-size: 9px;
+}
+
+.telemetry-terminal__line--dim {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.telemetry-terminal__line--success {
+  color: var(--accent);
+  text-shadow: 0 0 4px rgba(16, 185, 129, 0.35);
+}
+
+/* ─── Responsive Media Queries ────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  .lockdown-page {
+    padding: 24px 20px 40px;
+  }
+  
+  .lockdown-page__content {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  
+  .lockdown-page__left {
+    position: static;
+  }
+  
+  .telemetry-visual {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 20px;
+  }
+  
+  .telemetry-diagnostics {
+    width: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  .lockdown-presets {
+    grid-template-columns: 1fr;
+  }
+}
+

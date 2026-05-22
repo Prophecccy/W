@@ -61,7 +61,7 @@ export function useTimeLeft(
       const progress = Math.min(100, Math.max(0, (elapsed / totalAwakeMinutes) * 100));
       
       // Fuel: 100 to 0 (Drainage)
-      const percent = 100 - progress;
+      const percent = (currentPhase === 'sleeping' || currentPhase === 'day-ended') ? 0 : 100 - progress;
 
       setData({
         percent,

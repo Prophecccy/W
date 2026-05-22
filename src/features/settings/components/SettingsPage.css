@@ -68,6 +68,22 @@
   color: var(--accent);
 }
 
+.settings-tab--logout {
+  margin-top: 32px;
+  color: var(--strike-red) !important;
+  border: 1px dashed transparent;
+}
+
+.settings-tab--logout:hover {
+  background: rgba(232, 115, 108, 0.04) !important;
+  border-color: var(--strike-red) !important;
+  color: var(--strike-red) !important;
+}
+
+.settings-tab--logout:hover .settings-tab__icon {
+  color: var(--strike-red) !important;
+}
+
 /* ─── Content Area ───────────────────────────────────────────── */
 
 .settings-content {

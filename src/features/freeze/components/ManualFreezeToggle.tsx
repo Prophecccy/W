@@ -99,7 +99,7 @@ export function ManualFreezeToggle() {
       </div>
 
       {/* Freeze history count */}
-      {freeze && freeze.history.length > 0 && (
+      {freeze && (freeze.history?.length ?? 0) > 0 && (
         <p className="t-meta freeze-toggle__history">
           {freeze.history.length} PREVIOUS FREEZE{freeze.history.length !== 1 ? "S" : ""}
         </p>

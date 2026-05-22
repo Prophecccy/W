@@ -43,6 +43,7 @@
 .habit-form__step--appearance {
   flex: 1;
   gap: 16px;
+  height: 380px; /* Constrain step height to prevent modal stretching */
 }
 
 @keyframes fade-in {

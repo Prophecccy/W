@@ -349,7 +349,12 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
               <label className="t-meta">ICON</label>
               <IconPicker 
                 selectedIcon={data.icon} 
-                onSelect={(i: string) => update({ icon: i })} 
+                onSelect={(i: string) => {
+                  update({ icon: i });
+                  setTimeout(() => {
+                    setStep(6);
+                  }, 220); // 220ms delay for smooth transition and visual feedback
+                }} 
               />
             </div>
           </div>

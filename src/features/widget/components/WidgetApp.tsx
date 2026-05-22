@@ -407,7 +407,7 @@ export function WidgetApp() {
               tiny
             />
           </div>
-          <div style={{ flex: 1, marginTop: '80px', width: '40px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, marginTop: '48px', marginBottom: '64px', width: '40px', display: 'flex', flexDirection: 'column' }}>
             <SleepTube 
               isWidget
               settings={userDoc?.settings ? {

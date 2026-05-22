@@ -31,7 +31,12 @@ export async function getFreezeState(): Promise<FreezeState> {
   const snap = await getDoc(userRef(userId));
   if (!snap.exists()) throw new Error("User doc not found");
   const data = snap.data();
-  return (data.freeze ?? { ...DEFAULT_FREEZE, lastInteractionDate: data.lastActiveDate ?? getToday() }) as FreezeState;
+  const raw = (data.freeze ?? { ...DEFAULT_FREEZE, lastInteractionDate: data.lastActiveDate ?? getToday() }) as FreezeState;
+  // Ensure history is always an array (Firestore may omit it on first activation)
+  if (!Array.isArray(raw.history)) {
+    raw.history = [];
+  }
+  return raw;
 }
 
 export async function isCurrentlyFrozen(): Promise<boolean> {
@@ -148,7 +153,7 @@ export function isDateInFreezeRange(
   }
 
   // Check historical freeze entries
-  for (const entry of freeze.history) {
+  for (const entry of (freeze.history ?? [])) {
     if (dateStr >= entry.startDate && dateStr <= entry.endDate) {
       return true;
     }

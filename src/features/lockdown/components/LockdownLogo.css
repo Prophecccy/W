@@ -1,0 +1,243 @@
+.lockdown-logo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 28px auto;
+  user-select: none;
+  filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.6));
+}
+
+.lockdown-logo__svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* ─── LAYER 1: Background Grid & Brackets ─── */
+.logo-hud-circle-grid {
+  stroke: rgba(255, 255, 255, 0.02);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+
+.logo-hud-bracket {
+  stroke: var(--border-default);
+  stroke-width: 1;
+  fill: none;
+  transition: stroke 0.4s ease, filter 0.4s ease;
+}
+
+.lockdown-logo--active .logo-hud-bracket {
+  stroke: rgba(232, 115, 108, 0.3);
+  filter: drop-shadow(0 0 4px var(--strike-red));
+}
+
+/* ─── LAYER 3: Concentric Dashed Telemetry Rings ─── */
+.logo-hud-ring-outer {
+  stroke: var(--border-default);
+  stroke-width: 0.75;
+  fill: none;
+  stroke-dasharray: 8 36;
+  transform-origin: 50px 50px;
+  animation: spinClockwise 25s linear infinite;
+  transition: stroke 0.4s ease;
+}
+
+.logo-hud-ring-middle {
+  stroke: var(--border-subtle);
+  stroke-width: 0.5;
+  fill: none;
+  stroke-dasharray: 30 15;
+  transform-origin: 50px 50px;
+  animation: spinCounter 12s linear infinite;
+  transition: stroke 0.4s ease;
+}
+
+.logo-hud-ring-inner {
+  stroke: var(--border-default);
+  stroke-width: 0.75;
+  fill: none;
+  stroke-dasharray: 4 8 12 8;
+  transform-origin: 50px 50px;
+  animation: spinClockwise 18s linear infinite;
+  transition: stroke 0.4s ease;
+}
+
+/* Active ring speeds and colors */
+.lockdown-logo--active .logo-hud-ring-outer {
+  stroke: var(--strike-red);
+  opacity: 0.6;
+  animation-duration: 8s;
+}
+
+.lockdown-logo--active .logo-hud-ring-middle {
+  stroke: var(--strike-red);
+  opacity: 0.3;
+  animation-duration: 4s;
+}
+
+.lockdown-logo--active .logo-hud-ring-inner {
+  stroke: var(--strike-red);
+  opacity: 0.5;
+  animation-duration: 6s;
+}
+
+/* ─── LAYER 4: Shield Frame & Warning Grid (Clipped) ─── */
+.logo-shield-grid {
+  fill: rgba(0, 0, 0, 0.45);
+  stroke: rgba(255, 255, 255, 0.03);
+  stroke-width: 0.5;
+  transition: fill 0.4s ease;
+}
+
+.lockdown-logo--active .logo-shield-grid {
+  fill: rgba(232, 115, 108, 0.06);
+}
+
+.logo-hazard-stripes {
+  stroke: rgba(255, 255, 255, 0.03);
+  opacity: 0.2;
+  transition: stroke 0.4s ease, opacity 0.4s ease;
+}
+
+.lockdown-logo--active .logo-hazard-stripes {
+  stroke: var(--strike-red);
+  opacity: 0.18;
+  animation: hazardPulse 1.5s ease-in-out infinite alternate;
+}
+
+.logo-scanline {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  opacity: 0.2;
+  animation: scanlineSweep 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  filter: url(#glow-subtle);
+  transition: stroke 0.4s ease;
+}
+
+.lockdown-logo--active .logo-scanline {
+  stroke: var(--strike-red);
+  opacity: 0.7;
+  animation-duration: 2.5s;
+}
+
+/* ─── LAYER 5: Main Shield Vector Contour ─── */
+.logo-shield-outline {
+  stroke: var(--border-default);
+  stroke-width: 1.5;
+  fill: rgba(17, 18, 20, 0.8);
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lockdown-logo--inactive:hover .logo-shield-outline {
+  stroke: var(--accent);
+  filter: drop-shadow(0 0 8px rgba(var(--accent-rgb), 0.3));
+}
+
+.lockdown-logo--active .logo-shield-outline {
+  stroke: var(--strike-red);
+  fill: rgba(20, 10, 10, 0.95);
+  stroke-width: 2.2;
+  filter: drop-shadow(0 0 12px rgba(232, 115, 108, 0.35));
+}
+
+/* ─── LAYER 6: Mechanical Lock Core ─── */
+.logo-lock-group {
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.logo-shackle {
+  stroke: var(--text-muted);
+  transition: stroke 0.4s ease, transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: 50px 38px;
+}
+
+.lockdown-logo--inactive .logo-shackle {
+  stroke: var(--text-secondary);
+  transform: translateY(-3px) rotate(-14deg);
+}
+
+.lockdown-logo--active .logo-shackle {
+  stroke: var(--strike-red);
+  transform: translateY(0) rotate(0deg);
+  filter: url(#glow-subtle);
+}
+
+.logo-lock-body {
+  fill: var(--bg-elevated);
+  stroke: var(--border-default);
+  transition: all 0.4s ease;
+}
+
+.lockdown-logo--inactive:hover .logo-lock-body {
+  stroke: var(--accent);
+}
+
+.lockdown-logo--active .logo-lock-body {
+  fill: rgba(232, 115, 108, 0.1);
+  stroke: var(--strike-red);
+  filter: drop-shadow(0 0 4px rgba(232, 115, 108, 0.3));
+}
+
+.logo-lock-core {
+  fill: var(--text-muted);
+  transition: fill 0.4s ease;
+}
+
+.logo-lock-core-pin {
+  stroke: var(--text-muted);
+  transition: stroke 0.4s ease;
+}
+
+.lockdown-logo--active .logo-lock-core {
+  fill: var(--strike-red);
+}
+
+.lockdown-logo--active .logo-lock-core-pin {
+  stroke: var(--strike-red);
+}
+
+/* ─── LAYER 7: Tactical Crosshairs ─── */
+.logo-crosshairs line {
+  stroke: var(--border-subtle);
+  transition: stroke 0.4s ease;
+}
+
+.lockdown-logo--active .logo-crosshairs line {
+  stroke: rgba(232, 115, 108, 0.4);
+}
+
+/* ─── KEYFRAME ANIMATIONS ─── */
+@keyframes spinClockwise {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes spinCounter {
+  0% { transform: rotate(360deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes hazardPulse {
+  0% { opacity: 0.1; }
+  100% { opacity: 0.35; }
+}
+
+@keyframes scanlineSweep {
+  0% {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.6;
+  }
+  90% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(82px);
+    opacity: 0;
+  }
+}

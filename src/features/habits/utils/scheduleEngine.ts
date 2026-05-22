@@ -31,8 +31,11 @@ export function isHabitScheduledToday(
 ): boolean {
   if (!habit.isActive) return false;
 
-  const creationDateStr = formatDate(new Date(habit.createdAt));
-  if (today < creationDateStr) return false;
+  // Use startDate (user-facing activation date) if available, else fall back to createdAt
+  const activationDate = habit.startDate
+    ? habit.startDate
+    : formatDate(new Date(habit.createdAt));
+  if (today < activationDate) return false;
 
 
   // Check endpoint duration

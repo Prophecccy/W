@@ -106,4 +106,7 @@
 
 .sleep-tube--widget .sleep-tube__label {
   font-size: 8px;
+  line-height: 8px;
+  height: 8px;
+  margin-left: 12px;
 }

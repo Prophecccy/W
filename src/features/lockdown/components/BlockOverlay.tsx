@@ -4,7 +4,8 @@
 // button that kills the banned process and dismisses the overlay.
 
 import { useState, useEffect, useCallback } from "react";
-import { Shield, X } from "lucide-react";
+import { X } from "lucide-react";
+import { LockdownLogo } from "./LockdownLogo";
 import "./BlockOverlay.css";
 
 interface BlockInfo {
@@ -77,7 +78,7 @@ export function BlockOverlay() {
   return (
     <div className="block-overlay">
       <div className="block-overlay__content">
-        <Shield size={48} className="block-overlay__icon" />
+        <LockdownLogo isActive={true} size={80} className="block-overlay__icon" />
         <h1 className="block-overlay__title">[ ACCESS DENIED ]</h1>
         <p className="block-overlay__subtitle">FOCUS PROTOCOL ACTIVE</p>
         {blockInfo && (

@@ -1,14 +1,13 @@
 import { useState, useEffect } from "react";
 import { useAuthContext } from "../../auth/context";
 import { getUserDoc } from "../../auth/services/userService";
-import { signOut } from "../../auth/services/authService";
 import { User } from "../../../shared/types";
 import { LogOut, User as UserIcon } from "lucide-react";
 import { clearOAuthTokens } from "../../../shared/services/googleDriveService";
 import { GoogleDriveIcon } from "../../../shared/components/GoogleDriveIcon/GoogleDriveIcon";
 
 export function AccountSection() {
-  const { user, isDriveLinked, setIsDriveLinked, signIn, error, signingIn, clearError } = useAuthContext();
+  const { user, isDriveLinked, setIsDriveLinked, signIn, signOut, error, signingIn, clearError } = useAuthContext();
   const [userDoc, setUserDoc] = useState<User | null>(null);
 
   useEffect(() => {

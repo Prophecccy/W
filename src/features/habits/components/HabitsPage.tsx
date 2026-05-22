@@ -348,17 +348,21 @@ export function HabitsPage() {
                   {upcoming.map(h => {
                     const isResting = isHabitResting(h, userDoc?.settings?.dailyResetTime);
                     const isFuture = h.startDate && h.startDate > today;
-                    const upcomingStatus = isFuture ? `STARTS ON ${h.startDate}` : undefined;
+                    const upcomingStatus = isFuture
+                      ? `STARTS ${h.startDate}`
+                      : isResting
+                        ? "RESTING"
+                        : "NOT SCHEDULED TODAY";
                     return (
                       <HabitCard 
                         key={h.id} 
                         habit={h} 
                         isCompletedToday={false} 
-                        doneToday={h.type === "metric" && (h.period === "weekly" || h.period === "monthly" || h.period === "interval") && ((log?.habits?.[h.id]?.completions?.length ?? 0) > 0)}
-                        onComplete={() => handleComplete(h.id)} 
-                        onUndo={() => handleUndo(h.id)} 
+                        doneToday={false}
+                        onComplete={() => {}} 
+                        onUndo={() => {}} 
                         onClick={() => setSelectedHabitId(h.id)}
-                        currentValue={log?.habits[h.id]?.value || 0}
+                        currentValue={0}
                         isResting={isResting}
                         userResetTime={userDoc?.settings?.dailyResetTime}
                         upcomingStatus={upcomingStatus}
