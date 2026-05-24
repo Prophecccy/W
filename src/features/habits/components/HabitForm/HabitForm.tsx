@@ -25,12 +25,13 @@ export interface HabitFormProps {
   groups: HabitGroup[];
   onSubmit: (data: HabitFormData) => void;
   onCancel: () => void;
+  userResetTime?: string;
 }
 
 const DEFAULT_METRIC: HabitMetric = { unit: "", targetValue: "" as any, originalTarget: "" as any };
 const DEFAULT_DURATION: HabitDuration = { type: "continuing" };
 
-export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitFormProps) {
+export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTime }: HabitFormProps) {
   const [step, setStep] = useState(0);
   const [data, setData] = useState<HabitFormData>({
     title: "",
@@ -38,14 +39,14 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
     period: "daily",
     type: "standard",
     frequency: 1,
-    daysOfWeek: [1, 2, 3, 4, 5], // Mon-Fri default
+    daysOfWeek: [0, 1, 2, 3, 4, 5, 6], // All 7 days default
     intervalDays: 2,
     metric: null,
     duration: DEFAULT_DURATION,
     icon: "Target",
     color: "#5B8DEF",
     group: null,
-    startDate: getToday(),
+    startDate: getToday(undefined, userResetTime),
     ...initialData,
   });
 
@@ -54,7 +55,7 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel }: HabitForm
   const [intervalDays, setIntervalDays] = useState(initialData?.intervalDays ? String(initialData.intervalDays) : "");
   const [error, setError] = useState<string | null>(null);
 
-  const todayDate = getToday();
+  const todayDate = getToday(undefined, userResetTime);
   const tomorrowDate = addDays(todayDate, 1);
   const initialOption = data.startDate === todayDate
     ? "today"

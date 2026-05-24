@@ -19,6 +19,19 @@ export function isHabitResting(
   return today < nextActiveDate;
 }
 
+// Helper functions for period calculations
+function getWeekStart(dateStr: string, weekStartDay: number): string {
+  const d = new Date(dateStr + "T12:00:00");
+  while (d.getDay() !== weekStartDay) {
+    d.setDate(d.getDate() - 1);
+  }
+  return formatDate(d);
+}
+
+function getMonthStart(dateStr: string): string {
+  return `${dateStr.slice(0, 7)}-01`;
+}
+
 // ─── isHabitScheduledToday ────────────────────────────────────────
 
 /**
@@ -27,7 +40,8 @@ export function isHabitResting(
  */
 export function isHabitScheduledToday(
   habit: Habit,
-  today: string = getToday()
+  today: string = getToday(),
+  weeklyResetDay: number = 1
 ): boolean {
   if (!habit.isActive) return false;
 
@@ -48,26 +62,39 @@ export function isHabitScheduledToday(
       return true;
 
     case "weekly": {
-      // daysOfWeek: 0=Sunday … 6=Saturday, matching JS getDay()
-      // Note: new Date("YYYY-MM-DD") parses as UTC — adjust for local
-      const d = new Date(today + "T12:00:00");
-      return habit.daysOfWeek.includes(d.getDay());
+      if (habit.type === "standard" && habit.lastCompletedDate) {
+        const currentWeekStart = getWeekStart(today, weeklyResetDay);
+        if (habit.lastCompletedDate >= currentWeekStart) {
+          return false; // Already completed standard weekly habit this week
+        }
+      }
+      // If daysOfWeek is provided, check if it includes today
+      if (habit.daysOfWeek && habit.daysOfWeek.length > 0) {
+        const d = new Date(today + "T12:00:00");
+        return habit.daysOfWeek.includes(d.getDay());
+      }
+      return true;
     }
 
     case "monthly": {
-      // Scheduled on the same day-of-month as activation
-      const d = new Date(today + "T12:00:00");
-      const startD = new Date(activationDate + "T12:00:00");
-      return d.getDate() === startD.getDate();
+      if (habit.type === "standard" && habit.lastCompletedDate) {
+        const currentMonthStart = getMonthStart(today);
+        if (habit.lastCompletedDate >= currentMonthStart) {
+          return false; // Already completed standard monthly habit this month
+        }
+      }
+      return true;
     }
 
     case "interval": {
       if (habit.intervalDays <= 0) return false;
-      const startD = new Date(activationDate + "T12:00:00");
-      const targetDate = new Date(today + "T12:00:00");
-      const diffMs = targetDate.getTime() - startD.getTime();
-      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-      return diffDays >= 0 && diffDays % habit.intervalDays === 0;
+      if (habit.lastCompletedDate) {
+        const nextActiveDate = addDays(habit.lastCompletedDate, habit.intervalDays);
+        if (today < nextActiveDate) {
+          return false; // resting cooldown
+        }
+      }
+      return true;
     }
 
     default:

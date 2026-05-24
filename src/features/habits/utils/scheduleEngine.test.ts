@@ -64,25 +64,46 @@ describe("isHabitScheduledToday", () => {
     expect(isHabitScheduledToday(habit, "2026-04-08")).toBe(true); // Wednesday
   });
 
-  it("monthly habit matches same day-of-month as creation", () => {
+  it("monthly habit is active every day of the month until completed", () => {
     const habit = makeHabit({
       period: "monthly",
       createdAt: new Date("2026-01-15T00:00:00Z").getTime(),
     });
     expect(isHabitScheduledToday(habit, "2026-04-15")).toBe(true);
-    expect(isHabitScheduledToday(habit, "2026-04-16")).toBe(false);
+    expect(isHabitScheduledToday(habit, "2026-04-16")).toBe(true);
+
+    const completedHabit = {
+      ...habit,
+      lastCompletedDate: "2026-04-10",
+    };
+    expect(isHabitScheduledToday(completedHabit, "2026-04-15")).toBe(false);
   });
 
-  it("interval habit fires every N days from creation", () => {
+  it("interval habit remains scheduled until completed, then enters cooldown", () => {
     const habit = makeHabit({
       period: "interval",
       intervalDays: 3,
-      createdAt: new Date("2026-04-01T00:00:00Z").getTime(),
+      startDate: "2026-04-01",
     });
-    expect(isHabitScheduledToday(habit, "2026-04-01")).toBe(true); // Day 0
-    expect(isHabitScheduledToday(habit, "2026-04-02")).toBe(false); // Day 1
-    expect(isHabitScheduledToday(habit, "2026-04-04")).toBe(true); // Day 3
-    expect(isHabitScheduledToday(habit, "2026-04-07")).toBe(true); // Day 6
+    
+    // Day 0: Never completed, should be scheduled
+    expect(isHabitScheduledToday(habit, "2026-04-01")).toBe(true);
+    
+    // Day 1: Never completed, should still be scheduled
+    expect(isHabitScheduledToday(habit, "2026-04-02")).toBe(true);
+    
+    // Now complete it on Day 1 (April 2nd)
+    const completedHabit = {
+      ...habit,
+      lastCompletedDate: "2026-04-02",
+    };
+    
+    // Days 2 and 3 (April 3rd and 4th): resting cooldown
+    expect(isHabitScheduledToday(completedHabit, "2026-04-03")).toBe(false);
+    expect(isHabitScheduledToday(completedHabit, "2026-04-04")).toBe(false);
+    
+    // Day 4 (April 5th): returns to active (Day 1 + 3 days interval)
+    expect(isHabitScheduledToday(completedHabit, "2026-04-05")).toBe(true);
   });
 
   it("interval habit with 0 intervalDays returns false", () => {

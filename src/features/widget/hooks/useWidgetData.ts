@@ -72,7 +72,7 @@ export function useWidgetData(): WidgetData {
     if (!user) return;
 
     const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
-    const scheduled = habits.filter(h => isHabitScheduledToday(h, today) && !isHabitResting(h, userDoc?.settings?.dailyResetTime));
+    const scheduled = habits.filter(h => isHabitScheduledToday(h, today, weeklyResetDay) && !isHabitResting(h, userDoc?.settings?.dailyResetTime));
     const multiDayMetric = scheduled.filter(isMultiDayMetric);
 
     let minStart = today;
@@ -117,10 +117,11 @@ export function useWidgetData(): WidgetData {
   }, [user]);
 
   // Compute derived data
-  const scheduledHabits = habits.filter(h => 
-    isHabitScheduledToday(h, today) && 
-    !isHabitResting(h, userDoc?.settings?.dailyResetTime)
-  );
+  const scheduledHabits = habits.filter(h => {
+    const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
+    return isHabitScheduledToday(h, today, weeklyResetDay) && 
+      !isHabitResting(h, userDoc?.settings?.dailyResetTime);
+  });
 
   const completedCount = scheduledHabits.filter(h => {
     const entry = todayLog?.habits?.[h.id];

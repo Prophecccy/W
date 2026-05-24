@@ -64,12 +64,13 @@ export function useRiskEngine(
 
     const today = getToday();
     const resetTime = userDoc.settings.dailyResetTime || "04:00";
+    const weeklyResetDay = userDoc.settings.weeklyResetDay ?? 1;
 
     // 1. Filter to uncompleted, scheduled, active habits (exclude limiters)
     const uncompleted = habits.filter((h) => {
       if (!h.isActive) return false;
       if (h.type === "limiter") return false;
-      if (!isHabitScheduledToday(h, today)) return false;
+      if (!isHabitScheduledToday(h, today, weeklyResetDay)) return false;
       const logEntry = todayLog?.habits[h.id];
       return !logEntry?.completed;
     });

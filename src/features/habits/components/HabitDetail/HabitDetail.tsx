@@ -12,9 +12,10 @@ interface HabitDetailProps {
   onClose: () => void;
   onUpdate: (updated: Habit) => void;
   onDeleteRequest: (habit: Habit) => void;
+  userResetTime?: string;
 }
 
-export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest }: HabitDetailProps) {
+export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest, userResetTime }: HabitDetailProps) {
   const [logs, setLogs] = useState<HabitLog[]>([]);
   const { showToast } = useToast();
 
@@ -23,7 +24,7 @@ export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest }: Habit
   const [desc, setDesc] = useState(habit.description);
   const [isSaving, setIsSaving] = useState(false);
 
-  const today = getToday();
+  const today = getToday(undefined, userResetTime);
   const past28Days = subtractDays(today, 27);
 
   useEffect(() => {

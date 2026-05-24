@@ -8,6 +8,7 @@
   overflow: hidden;
   cursor: pointer;
   user-select: none;
+  touch-action: pan-y;
   box-shadow: 0 8px 30px rgba(0,0,0,0.7);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   min-height: 72px;

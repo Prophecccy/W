@@ -7,6 +7,7 @@ import { useAuth } from "../../auth/hooks/useAuth";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getToday, formatDate } from "../../../shared/utils/dateUtils";
+import { useUserStore } from "../../../shared/stores/userStore";
 import "./ActivityHeatmap.css";
 
 interface Props {
@@ -29,6 +30,7 @@ interface MonthData {
 
 export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
   const { user } = useAuth();
+  const { userDoc } = useUserStore();
   const [monthsData, setMonthsData] = useState<MonthData[]>([]);
   const [currentViewDate, setCurrentViewDate] = useState(() => {
     const now = new Date();
@@ -104,6 +106,7 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
 
         let totalCompleted = 0;
         let totalScheduled = 0;
+        const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
 
         for (let i = 1; i <= daysInMonth; i++) {
           const d = new Date(mYear, mMonth, i);
@@ -112,9 +115,9 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
           // Determine scheduled vs completed
           const scheduledHabits = habitId
             ? habits.filter(
-                (h) => h.id === habitId && isHabitScheduledToday(h, dateStr),
+                (h) => h.id === habitId && isHabitScheduledToday(h, dateStr, weeklyResetDay),
               )
-            : habits.filter((h) => isHabitScheduledToday(h, dateStr));
+            : habits.filter((h) => isHabitScheduledToday(h, dateStr, weeklyResetDay));
 
           const scheduled = scheduledHabits.length;
           let completed = 0;

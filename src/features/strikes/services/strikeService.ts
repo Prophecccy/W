@@ -37,9 +37,19 @@ export async function addStrike(
   reason: "missed" | "manual" | "lockdown_violation" | "snoozed_high_stakes" | "limiter_exceeded" = "missed"
 ): Promise<StrikeState> {
   const userId = uid();
-  const today = getToday();
+  const snap = await getDoc(userRef(userId));
+  if (!snap.exists()) throw new Error("User doc not found");
+  
+  const userData = snap.data();
+  const resetTime = userData.settings?.dailyResetTime;
+  const today = getToday(undefined, resetTime);
 
-  const current = await getStrikes();
+  const current = (userData.strikes ?? {
+    current: 0,
+    total: 0,
+    lastStrikeDate: null,
+    history: [],
+  }) as StrikeState;
 
   // Don't exceed max — they're already locked
   if (current.current >= MAX_STRIKES) return current;
@@ -62,24 +72,21 @@ export async function addStrike(
   });
 
   // Pull user settings for notification
-  const snap = await getDoc(userRef(userId));
-  if (snap.exists()) {
-    const settings = snap.data().settings;
-    if (settings?.notifications) {
-      import("../../../shared/services/notificationService").then(({ sendNotification }) => {
-        if (newCurrent === MAX_STRIKES && settings.lockoutAlert) {
-          sendNotification(
-            "⚠️ APP LOCKED", 
-            "You have reached 5 strikes. A punishment is required to regain access."
-          );
-        } else if ((newCurrent === 3 || newCurrent === 4) && settings.strikeWarnings) {
-          sendNotification(
-            "🚨 STRIKE WARNING", 
-            `You've accrued ${newCurrent}/${MAX_STRIKES} strikes. Be careful!`
-          );
-        }
-      });
-    }
+  const settings = userData.settings;
+  if (settings?.notifications) {
+    import("../../../shared/services/notificationService").then(({ sendNotification }) => {
+      if (newCurrent === MAX_STRIKES && settings.lockoutAlert) {
+        sendNotification(
+          "⚠️ APP LOCKED", 
+          "You have reached 5 strikes. A punishment is required to regain access."
+        );
+      } else if ((newCurrent === 3 || newCurrent === 4) && settings.strikeWarnings) {
+        sendNotification(
+          "🚨 STRIKE WARNING", 
+          `You've accrued ${newCurrent}/${MAX_STRIKES} strikes. Be careful!`
+        );
+      }
+    });
   }
 
   return {
@@ -102,9 +109,20 @@ export async function resetStrikes(): Promise<void> {
 // ─── Remove Limiter Strike (undo) ────────────────────────────────
 export async function removeLimiterStrike(habitId: string): Promise<void> {
   const userId = uid();
-  const today = getToday();
+  const snap = await getDoc(userRef(userId));
+  if (!snap.exists()) return;
+  
+  const userData = snap.data();
+  const resetTime = userData.settings?.dailyResetTime;
+  const today = getToday(undefined, resetTime);
 
-  const current = await getStrikes();
+  const current = (userData.strikes ?? {
+    current: 0,
+    total: 0,
+    lastStrikeDate: null,
+    history: [],
+  }) as StrikeState;
+
   if (current.current === 0) return;
 
   // Find the last strike in history for this habit on this day with reason "limiter_exceeded"

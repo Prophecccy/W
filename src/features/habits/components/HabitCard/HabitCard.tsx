@@ -70,6 +70,7 @@ export function HabitCard({
   const [completeTriggered, setCompleteTriggered] = useState(false);
   const holdTimeoutRef = useRef<number | null>(null);
   const hasHeldRef = useRef(false);
+  const pointerStartCoordsRef = useRef<{ x: number; y: number } | null>(null);
 
   const HOLD_DURATION = 500; // ms to hold to verify
 
@@ -84,18 +85,18 @@ export function HabitCard({
   } as React.CSSProperties;
 
   // ─── Interaction Handlers ───────────────────────────────────────
-  const startHold = () => {
+  const startHold = (e: React.PointerEvent<HTMLDivElement>) => {
     if (isResting || upcomingStatus) return;
-    if (isCompletedToday || habit.type === "metric" || habit.type === "limiter") {
-      // Metric/limiter standard hold logic might differ (maybe tap opens input dialog instead).
-      // For checklist scope, let's treat standard types with hold-to-verify.
-      // Limiters might auto-complete or increment on tap. Let's allow standard hold for now unless overridden.
-      // We will allow holding for all boolean completions if target is 1. 
-      // If it's a multi-metric, holding could just increment. 
-      // The requirement doesn't specify metric hold-to-verify split from standard, so we'll enable it globally.
-    }
-    
     if (isCompletedToday) return; // Cannot hold to verify if already verified. Undo is separate.
+
+    // Cancel any existing running hold first to ensure double-tap safety
+    if (holdTimeoutRef.current) {
+      clearTimeout(holdTimeoutRef.current);
+      holdTimeoutRef.current = null;
+    }
+
+    // Keep track of the initial touch coordinate to prevent scroll/drag completion collisions
+    pointerStartCoordsRef.current = { x: e.clientX, y: e.clientY };
     
     setIsHolding(true);
     setCompleteTriggered(false);
@@ -129,6 +130,19 @@ export function HabitCard({
       holdTimeoutRef.current = null;
     }
     setIsHolding(false);
+    pointerStartCoordsRef.current = null;
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isHolding || !pointerStartCoordsRef.current) return;
+    
+    const deltaX = Math.abs(e.clientX - pointerStartCoordsRef.current.x);
+    const deltaY = Math.abs(e.clientY - pointerStartCoordsRef.current.y);
+    
+    // If the pointer has drifted by more than 5px, cancel the hold immediately!
+    if (deltaX > 5 || deltaY > 5) {
+      cancelHold();
+    }
   };
 
   useEffect(() => {
@@ -152,6 +166,7 @@ export function HabitCard({
       style={cardStyle}
       onPointerDown={startHold}
       onPointerUp={handlePointerUp}
+      onPointerMove={handlePointerMove}
       onPointerLeave={cancelHold}
       onPointerCancel={cancelHold}
       onContextMenu={(e) => {

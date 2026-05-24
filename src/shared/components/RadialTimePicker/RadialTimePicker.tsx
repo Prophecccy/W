@@ -210,6 +210,8 @@ export function RadialTimePicker({ value, onChange, onClose }: RadialTimePickerP
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onLostPointerCapture={() => setDrag(false)}
           style={{ cursor: dragging ? 'crosshair' : 'pointer', touchAction: 'none' }}
         >
           {/* Outer track ring */}

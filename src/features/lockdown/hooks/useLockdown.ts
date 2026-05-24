@@ -49,6 +49,7 @@ export function useLockdown(): UseLockdownReturn {
 
   // ── Listen for block/unblock events from Rust ─────────────────
   useEffect(() => {
+    let active = true;
     let unlistenBlock: (() => void) | undefined;
     let unlistenUnblock: (() => void) | undefined;
 
@@ -57,6 +58,7 @@ export function useLockdown(): UseLockdownReturn {
         const { listen } = await import("@tauri-apps/api/event");
         const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
 
+        if (!active) return;
         console.log("[lockdown] Setting up block/unblock listeners...");
 
         // Helper: get the statically defined block-overlay window
@@ -65,7 +67,7 @@ export function useLockdown(): UseLockdownReturn {
         }
 
         // ── BLOCK: position overlay over the banned window ───────
-        unlistenBlock = await listen<{
+        const unsubBlock = await listen<{
           app_title: string;
           matched_rule: string;
           pid: number;
@@ -74,6 +76,7 @@ export function useLockdown(): UseLockdownReturn {
           width: number;
           height: number;
         }>("lockdown-block", async (event) => {
+          if (!active) return;
           const { x, y, width, height } = event.payload;
           
           try {
@@ -101,7 +104,8 @@ export function useLockdown(): UseLockdownReturn {
         });
 
         // ── UNBLOCK: hide the overlay ───────────────────────────
-        unlistenUnblock = await listen("lockdown-unblock", async () => {
+        const unsubUnblock = await listen("lockdown-unblock", async () => {
+          if (!active) return;
           try {
             const overlay = await WebviewWindow.getByLabel("block-overlay");
             if (overlay) {
@@ -112,7 +116,14 @@ export function useLockdown(): UseLockdownReturn {
           }
         });
 
-        console.log("[lockdown] Block/unblock listeners registered");
+        if (!active) {
+          unsubBlock();
+          unsubUnblock();
+        } else {
+          unlistenBlock = unsubBlock;
+          unlistenUnblock = unsubUnblock;
+          console.log("[lockdown] Block/unblock listeners registered");
+        }
       } catch (err) {
         console.error("[lockdown] Failed to setup listeners:", err);
       }
@@ -120,6 +131,7 @@ export function useLockdown(): UseLockdownReturn {
 
     setupListeners();
     return () => {
+      active = false;
       if (unlistenBlock) unlistenBlock();
       if (unlistenUnblock) unlistenUnblock();
     };

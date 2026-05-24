@@ -13,10 +13,12 @@ import { ChartMonthlyComparison } from "./Charts/ChartMonthlyComparison";
 import { TimelineReview } from "./TimelineReview";
 import { HabitDeepDive } from "./HabitDeepDive";
 import { ConsistencyScore } from "./ConsistencyScore";
+import { useUserStore } from "../../../shared/stores/userStore";
 import "./AnalyticsPage.css";
 
 export const AnalyticsPage: React.FC = () => {
   const { user } = useAuth();
+  const { userDoc } = useUserStore();
   const [habits, setHabits] = useState<Habit[]>([]);
   const [monthSummary, setMonthSummary] = useState<MonthlySummary | null>(null);
   const [weekSummary, setWeekSummary] = useState<WeeklySummary | null>(null);
@@ -24,8 +26,6 @@ export const AnalyticsPage: React.FC = () => {
 
   // For deep dive
   const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
-
-      // In a real scenario we'd click a habit somewhere to set this. For now we just mock an array list at bottom to click.
 
   useEffect(() => {
     async function load() {
@@ -36,6 +36,7 @@ export const AnalyticsPage: React.FC = () => {
       setHabits(h);
 
       const today = new Date(getToday() + "T00:00:00");
+      const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
       
       // Calculate start dates
       const weekEnd = new Date(today);
@@ -61,8 +62,8 @@ export const AnalyticsPage: React.FC = () => {
       const d = (dt: Date) => formatDate(dt);
 
       const [wSum, mSum] = await Promise.all([
-        generateWeeklySummary(d(weekStart), d(weekEnd), d(pWeekStart), d(pWeekEnd), h),
-        generateMonthlySummary(d(monthStart), d(monthEnd), d(pMonthStart), d(pMonthEnd), h)
+        generateWeeklySummary(d(weekStart), d(weekEnd), d(pWeekStart), d(pWeekEnd), h, weeklyResetDay),
+        generateMonthlySummary(d(monthStart), d(monthEnd), d(pMonthStart), d(pMonthEnd), h, weeklyResetDay)
       ]);
 
       setWeekSummary(wSum);
@@ -70,7 +71,7 @@ export const AnalyticsPage: React.FC = () => {
       setLoading(false);
     }
     load();
-  }, [user]);
+  }, [user, userDoc]);
 
   const insights: InsightCard[] = useMemo(() => {
     if (!monthSummary || !weekSummary) return [];

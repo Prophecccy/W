@@ -31,7 +31,9 @@ export function DashboardPage() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   
-  const today = getToday();
+  const today = useMemo(() => {
+    return getToday(undefined, userDoc?.settings?.dailyResetTime);
+  }, [userDoc?.settings?.dailyResetTime]);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -81,8 +83,8 @@ export function DashboardPage() {
         setLog(fetchedLog);
         setTodos(fetchedTodos);
 
-        const scheduled = activeHabits.filter(h => isHabitScheduledToday(h, today));
         const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
+        const scheduled = activeHabits.filter(h => isHabitScheduledToday(h, today, weeklyResetDay));
         let minStart = today;
         for (const h of scheduled) {
           if (!isMultiDayMetric(h)) continue;
@@ -118,12 +120,12 @@ export function DashboardPage() {
 
   // Derived state for Habits
   const scheduledHabits = useMemo(() => {
+    const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
     const filtered = habits.filter(h => {
       if (isHabitResting(h, userDoc?.settings?.dailyResetTime)) return false;
 
       if (isMultiDayMetric(h) && h.metric) {
         const target = h.metric.targetValue;
-        const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
         const start = getPeriodStart(h, today, weeklyResetDay);
         const total = getTotalInRange(periodLogs, h.id, start);
         if (target > 0 && total >= target) return false;
@@ -131,7 +133,7 @@ export function DashboardPage() {
 
       const isComplete = !!log?.habits[h.id]?.completed;
       if (isComplete) return false;
-      return isHabitScheduledToday(h, today) && h.type !== 'limiter';
+      return isHabitScheduledToday(h, today, weeklyResetDay) && h.type !== 'limiter';
     });
 
     return filtered.sort((a, b) => {

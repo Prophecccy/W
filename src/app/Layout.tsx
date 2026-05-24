@@ -122,22 +122,32 @@ function LayoutInner() {
 
   // ── Z-Order Enforcer: Main Window Pull-Up ───────────────────────
   useEffect(() => {
+    let active = true;
     let unlisten: (() => void) | undefined;
     async function setupZOrderEnforcer() {
       try {
         const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
         const mainWin = getCurrentWebviewWindow();
         if (mainWin.label === "main") {
-          unlisten = await mainWin.onFocusChanged(async ({ payload: focused }) => {
+          const unsub = await mainWin.onFocusChanged(async ({ payload: focused }) => {
+            if (!active) return;
             if (focused) {
               await mainWin.setFocus();
             }
           });
+          if (!active) {
+            unsub();
+          } else {
+            unlisten = unsub;
+          }
         }
       } catch { /* Not in Tauri */ }
     }
     setupZOrderEnforcer();
-    return () => { if (unlisten) unlisten(); };
+    return () => {
+      active = false;
+      if (unlisten) unlisten();
+    };
   }, []);
 
   // ── Initialize global toasts ─────────────────────────────────

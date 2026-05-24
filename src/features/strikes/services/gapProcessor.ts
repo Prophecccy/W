@@ -4,7 +4,7 @@ import { addStrike } from "./strikeService";
 import { getLogRange } from "../../habits/services/logService";
 import { getHabits } from "../../habits/services/habitService";
 import { getFreezeState, isDateInFreezeRange, checkAutoFreeze } from "../../freeze/services/freezeService";
-import { updateUserDoc } from "../../auth/services/userService";
+import { updateUserDoc, getUserDoc } from "../../auth/services/userService";
 import { auth } from "../../../shared/config/firebase";
 import { getToday, formatDate } from "../../../shared/utils/dateUtils";
 
@@ -73,6 +73,20 @@ export async function processGap(
     return result;
   }
 
+  // Fetch user settings to respect custom weeklyResetDay
+  let weeklyResetDay = 1;
+  const u = auth.currentUser;
+  if (u) {
+    try {
+      const userD = await getUserDoc(u.uid);
+      if (userD?.settings?.weeklyResetDay !== undefined) {
+        weeklyResetDay = userD.settings.weeklyResetDay;
+      }
+    } catch (e) {
+      console.warn("[GapProcessor] Failed to fetch user doc for weeklyResetDay settings, using default Monday(1):", e);
+    }
+  }
+
   // 4. Calculate the date range to process: (lastActiveDate + 1) … yesterday
   const startDate = nextDay(lastActiveDate);
   const yesterday = prevDay(today);
@@ -117,7 +131,7 @@ export async function processGap(
       }
 
       // Was this habit scheduled on this day?
-      if (!isHabitScheduledToday(habit, dateStr)) {
+      if (!isHabitScheduledToday(habit, dateStr, weeklyResetDay)) {
         continue;
       }
 

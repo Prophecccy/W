@@ -81,6 +81,8 @@ export function HabitsPage() {
     const up: Habit[] = [];
     const l: Habit[] = [];
     const c: Habit[] = [];
+    
+    const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
 
     habits.forEach(h => {
       const logEntry = log?.habits[h.id];
@@ -91,7 +93,7 @@ export function HabitsPage() {
       } else if (
         isHabitResting(h, userDoc?.settings?.dailyResetTime) ||
         (h.startDate && h.startDate > today) ||
-        !isHabitScheduledToday(h, today)
+        !isHabitScheduledToday(h, today, weeklyResetDay)
       ) {
         up.push(h);
       } else if (h.type === 'limiter') {
@@ -420,6 +422,7 @@ export function HabitsPage() {
               groups={groups} 
               onSubmit={handleCreateSubmit} 
               onCancel={() => setIsFormOpen(false)} 
+              userResetTime={userDoc?.settings?.dailyResetTime}
             />
           </div>
         </div>
@@ -437,6 +440,7 @@ export function HabitsPage() {
         <HabitDetail
           habit={habits.find(h => h.id === selectedHabitId)!}
           onClose={() => setSelectedHabitId(null)}
+          userResetTime={userDoc?.settings?.dailyResetTime}
           onUpdate={(updated) => {
             if (updated.isArchived) {
               setHabits(prev => prev.filter(h => h.id !== updated.id));

@@ -16,6 +16,7 @@ export function getCompletionRate(
   startDateStr: string,
   endDateStr: string,
   habitId?: string,
+  weeklyResetDay?: number,
 ): number {
   const logMap: Record<string, HabitLog> = {};
   for (const log of logs) logMap[log.date] = log;
@@ -35,8 +36,8 @@ export function getCompletionRate(
     if (dStr > todayStr) break;
 
     const scheduledHabits = habitId
-      ? habits.filter((h) => h.id === habitId && isHabitScheduledToday(h, dStr))
-      : habits.filter((h) => isHabitScheduledToday(h, dStr));
+      ? habits.filter((h) => h.id === habitId && isHabitScheduledToday(h, dStr, weeklyResetDay))
+      : habits.filter((h) => isHabitScheduledToday(h, dStr, weeklyResetDay));
 
     const dayScheduled = scheduledHabits.length;
     let dayCompleted = 0;
@@ -125,6 +126,7 @@ export function getMostConsistent(
   logs: HabitLog[],
   startDateStr: string,
   endDateStr: string,
+  weeklyResetDay?: number,
 ): Habit | null {
   let highestRate = -1;
   let mostConsistent: Habit | null = null;
@@ -136,6 +138,7 @@ export function getMostConsistent(
       startDateStr,
       endDateStr,
       habit.id,
+      weeklyResetDay,
     );
     if (rate > highestRate && rate > 0) {
       highestRate = rate;
@@ -151,6 +154,7 @@ export function getMostImproved(
   logs: HabitLog[],
   startDateStr: string,
   endDateStr: string,
+  weeklyResetDay?: number,
 ): Habit | null {
   const start = new Date(startDateStr + "T12:00:00");
   const end = new Date(endDateStr + "T12:00:00");
@@ -167,6 +171,7 @@ export function getMostImproved(
       startDateStr,
       midDateStr,
       habit.id,
+      weeklyResetDay,
     );
     const rate2 = getCompletionRate(
       logs,
@@ -174,6 +179,7 @@ export function getMostImproved(
       midDateStr,
       endDateStr,
       habit.id,
+      weeklyResetDay,
     );
     const improvement = rate2 - rate1;
 
@@ -191,6 +197,7 @@ function processDayActivities(
   habits: Habit[],
   startDate: string,
   endDate: string,
+  weeklyResetDay?: number,
 ): DayActivity[] {
   const logMap: Record<string, HabitLog> = {};
   for (const log of logs) logMap[log.date] = log;
@@ -218,7 +225,7 @@ function processDayActivities(
     }
 
     const scheduledHabits = habits.filter((h) =>
-      isHabitScheduledToday(h, dStr),
+      isHabitScheduledToday(h, dStr, weeklyResetDay),
     );
     const scheduled = scheduledHabits.length;
     let completed = 0;
@@ -251,11 +258,12 @@ export async function generateWeeklySummary(
   previousStartDate: string,
   previousEndDate: string,
   habits: Habit[],
+  weeklyResetDay?: number,
 ): Promise<WeeklySummary> {
   const currentLogs = await getLogRange(startDate, endDate);
   const prevLogs = await getLogRange(previousStartDate, previousEndDate);
 
-  const days = processDayActivities(currentLogs, habits, startDate, endDate);
+  const days = processDayActivities(currentLogs, habits, startDate, endDate, weeklyResetDay);
   let bestDay: DayActivity | null = null;
   let worstDay: DayActivity | null = null;
 
@@ -279,12 +287,14 @@ export async function generateWeeklySummary(
   return {
     startDate,
     endDate,
-    completionRate: getCompletionRate(currentLogs, habits, startDate, endDate),
+    completionRate: getCompletionRate(currentLogs, habits, startDate, endDate, undefined, weeklyResetDay),
     previousWeekCompletionRate: getCompletionRate(
       prevLogs,
       habits,
       previousStartDate,
       previousEndDate,
+      undefined,
+      weeklyResetDay,
     ),
     days,
     bestDay,
@@ -298,28 +308,32 @@ export async function generateMonthlySummary(
   previousStartDate: string,
   previousEndDate: string,
   habits: Habit[],
+  weeklyResetDay?: number,
 ): Promise<MonthlySummary> {
   const currentLogs = await getLogRange(startDate, endDate);
   const prevLogs = await getLogRange(previousStartDate, previousEndDate);
 
   return {
     month: startDate.substring(0, 7), // YYYY-MM
-    completionRate: getCompletionRate(currentLogs, habits, startDate, endDate),
+    completionRate: getCompletionRate(currentLogs, habits, startDate, endDate, undefined, weeklyResetDay),
     previousMonthCompletionRate: getCompletionRate(
       prevLogs,
       habits,
       previousStartDate,
       previousEndDate,
+      undefined,
+      weeklyResetDay,
     ),
-    days: processDayActivities(currentLogs, habits, startDate, endDate),
-    mostConsistent: getMostConsistent(habits, currentLogs, startDate, endDate),
-    mostImproved: getMostImproved(habits, currentLogs, startDate, endDate),
+    days: processDayActivities(currentLogs, habits, startDate, endDate, weeklyResetDay),
+    mostConsistent: getMostConsistent(habits, currentLogs, startDate, endDate, weeklyResetDay),
+    mostImproved: getMostImproved(habits, currentLogs, startDate, endDate, weeklyResetDay),
   };
 }
 
 export function generateHabitAnalytics(
   habit: Habit,
   logs: HabitLog[],
+  weeklyResetDay?: number,
 ): HabitAnalytics {
   const timeOfDayDistribution = new Array(24).fill(0);
 
@@ -360,6 +374,7 @@ export function generateHabitAnalytics(
       creationDateStr,
       todayStr,
       habit.id,
+      weeklyResetDay,
     ),
     completionRateCurrentMonth: getCompletionRate(
       logs,
@@ -367,6 +382,7 @@ export function generateHabitAnalytics(
       monthStartStr,
       todayStr,
       habit.id,
+      weeklyResetDay,
     ),
     completionRatePreviousMonth: getCompletionRate(
       logs,
@@ -374,6 +390,7 @@ export function generateHabitAnalytics(
       prevMonthStartStr,
       prevMonthEndStr,
       habit.id,
+      weeklyResetDay,
     ),
     streakProximity: getStreakProximity(habit),
     bestDayOfWeek: getBestWorstDays(logs).best || 0,

@@ -16,6 +16,7 @@ export function TodoCard({ todo, onComplete, onClick }: TodoCardProps) {
   const [completeTriggered, setCompleteTriggered] = useState(false);
   const holdTimeoutRef = useRef<number | null>(null);
   const hasHeldRef = useRef(false);
+  const pointerStartCoordsRef = useRef<{ x: number; y: number } | null>(null);
 
   const HOLD_DURATION = 500; // ms to hold to complete
   const isCompleted = todo.status === "done";
@@ -25,8 +26,17 @@ export function TodoCard({ todo, onComplete, onClick }: TodoCardProps) {
   } as React.CSSProperties;
 
   // ─── Interaction Handlers ───────────────────────────────────────
-  const startHold = () => {
+  const startHold = (e: React.PointerEvent<HTMLDivElement>) => {
     if (isCompleted) return;
+
+    // Cancel any existing running hold first to ensure double-tap safety
+    if (holdTimeoutRef.current) {
+      clearTimeout(holdTimeoutRef.current);
+      holdTimeoutRef.current = null;
+    }
+
+    // Keep track of the initial touch coordinate to prevent scroll/drag completion collisions
+    pointerStartCoordsRef.current = { x: e.clientX, y: e.clientY };
     
     setIsHolding(true);
     setCompleteTriggered(false);
@@ -46,6 +56,19 @@ export function TodoCard({ todo, onComplete, onClick }: TodoCardProps) {
       holdTimeoutRef.current = null;
     }
     setIsHolding(false);
+    pointerStartCoordsRef.current = null;
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isHolding || !pointerStartCoordsRef.current) return;
+    
+    const deltaX = Math.abs(e.clientX - pointerStartCoordsRef.current.x);
+    const deltaY = Math.abs(e.clientY - pointerStartCoordsRef.current.y);
+    
+    // If the pointer has drifted by more than 5px, cancel the hold immediately!
+    if (deltaX > 5 || deltaY > 5) {
+      cancelHold();
+    }
   };
 
   useEffect(() => {
@@ -87,6 +110,7 @@ export function TodoCard({ todo, onComplete, onClick }: TodoCardProps) {
       style={cardStyle}
       onPointerDown={startHold}
       onPointerUp={handlePointerUp}
+      onPointerMove={handlePointerMove}
       onPointerLeave={cancelHold}
       onPointerCancel={cancelHold}
       onContextMenu={(e) => {

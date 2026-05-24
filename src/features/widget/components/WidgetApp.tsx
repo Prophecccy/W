@@ -50,13 +50,15 @@ export function WidgetApp() {
 
   // ── Z-Order Enforcer: Active Defense ───────────────────────
   useEffect(() => {
+    let active = true;
     let unlisten: (() => void) | undefined;
     async function setupZOrderDefense() {
       try {
         const { getCurrentWebviewWindow, WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
         const { invoke } = await import("@tauri-apps/api/core");
         const currentWin = getCurrentWebviewWindow();
-        unlisten = await currentWin.onFocusChanged(async ({ payload: focused }) => {
+        const unsub = await currentWin.onFocusChanged(async ({ payload: focused }) => {
+          if (!active) return;
           if (focused) {
             // Force main window back to top if open and not minimized
             try {
@@ -70,10 +72,18 @@ export function WidgetApp() {
             try { await invoke("pin_widget_bottom"); } catch {}
           }
         });
+        if (!active) {
+          unsub();
+        } else {
+          unlisten = unsub;
+        }
       } catch { /* Not in Tauri */ }
     }
     setupZOrderDefense();
-    return () => { if (unlisten) unlisten(); };
+    return () => {
+      active = false;
+      if (unlisten) unlisten();
+    };
   }, []);
 
   // ─── Manual Drag State ───────────────────────────────────
@@ -184,15 +194,32 @@ export function WidgetApp() {
 
   // Apply accent color to widget
   useEffect(() => {
+    let active = true;
+    let unlisten: (() => void) | undefined;
+
     document.documentElement.style.setProperty('--accent', accentColor);
 
     // Listen for live preview from main settings window
     const unlistenPromise = listen<string>('color-preview', (event) => {
+      if (!active) return;
       document.documentElement.style.setProperty('--accent', event.payload);
     });
 
+    unlistenPromise.then((unsub) => {
+      if (!active) {
+        unsub();
+      } else {
+        unlisten = unsub;
+      }
+    }).catch(() => {});
+
     return () => {
-      unlistenPromise.then(unlisten => unlisten()).catch(() => {});
+      active = false;
+      if (unlisten) {
+        unlisten();
+      } else {
+        unlistenPromise.then(unsub => unsub()).catch(() => {});
+      }
     };
   }, [accentColor]);
 

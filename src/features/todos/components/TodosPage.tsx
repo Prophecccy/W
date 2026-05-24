@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useOutletContext } from "react-router-dom";
 import { Todo } from "../types";
 import { Habit, HabitGroup } from "../../habits/types";
 import { getTodos, getCompletedTodos, completeTodo, completeNumberedTodoFull, incrementNumberedTodo } from "../services/todoService";
@@ -16,6 +17,7 @@ import "../../habits/components/HabitsPage.css";
 type LayoutMode = 'default' | 'grouped';
 
 export function TodosPage() {
+  const { userDoc } = useOutletContext<{ userDoc: any }>();
   const [activeTodos, setActiveTodos] = useState<Todo[]>([]);
   const [completedTodos, setCompletedTodos] = useState<Todo[]>([]);
   const [intervalHabits, setIntervalHabits] = useState<(Habit & { nextDue: string })[]>([]);
@@ -40,7 +42,7 @@ export function TodosPage() {
       setCompletedTodos(completed);
       setGroups(fetchedGroups);
 
-      const today = getToday();
+      const today = getToday(undefined, userDoc?.settings?.dailyResetTime);
       const upcomingIntervals = habits
         .filter(h => h.period === "interval")
         .map(h => ({ ...h, nextDue: getNextDueDate(h) || "" }))
@@ -113,7 +115,7 @@ export function TodosPage() {
     }
   };
 
-  const today = getToday();
+  const today = getToday(undefined, userDoc?.settings?.dailyResetTime);
   const currentTodos = activeTodos.filter(t => !t.future || t.future <= today);
   const futureTodos = activeTodos.filter(t => t.future && t.future > today);
 
