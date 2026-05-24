@@ -234,10 +234,14 @@ async function signInWithGoogleDesktop(): Promise<FirebaseUser> {
   };
 
   const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET;
-  if (clientSecret) {
-    console.info("[W Auth] Including client_secret in token exchange payload.");
-    tokenParams.client_secret = clientSecret;
+  if (!clientSecret) {
+    throw new Error(
+      "VITE_GOOGLE_CLIENT_SECRET is not set in environment. " +
+      "Please add it to your .env file. The OAuth token exchange requires a client_secret."
+    );
   }
+  console.info("[W Auth] Including client_secret in token exchange payload.");
+  tokenParams.client_secret = clientSecret;
 
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",

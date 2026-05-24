@@ -72,16 +72,16 @@ export async function getValidAccessToken(): Promise<string | null> {
   }
 
   const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET;
+  if (!clientSecret) {
+    console.error("[GDrive Service] VITE_GOOGLE_CLIENT_SECRET environment variable is missing.");
+    return null;
+  }
   const refreshParams: Record<string, string> = {
     client_id: clientId,
+    client_secret: clientSecret,
     refresh_token: refreshToken,
     grant_type: "refresh_token",
   };
-
-  if (clientSecret) {
-    console.info("[GDrive Service] Including client_secret in token refresh payload.");
-    refreshParams.client_secret = clientSecret;
-  }
 
   try {
     const response = await fetch("https://oauth2.googleapis.com/token", {
