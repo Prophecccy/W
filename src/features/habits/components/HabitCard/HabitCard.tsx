@@ -153,6 +153,7 @@ export function HabitCard({
       onPointerDown={startHold}
       onPointerUp={handlePointerUp}
       onPointerLeave={cancelHold}
+      onPointerCancel={cancelHold}
       onContextMenu={(e) => {
          // Prevent right click menu on touch hold
          e.preventDefault();

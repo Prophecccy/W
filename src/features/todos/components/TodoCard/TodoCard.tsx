@@ -88,6 +88,7 @@ export function TodoCard({ todo, onComplete, onClick }: TodoCardProps) {
       onPointerDown={startHold}
       onPointerUp={handlePointerUp}
       onPointerLeave={cancelHold}
+      onPointerCancel={cancelHold}
       onContextMenu={(e) => {
          e.preventDefault();
       }}

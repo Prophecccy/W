@@ -36,7 +36,7 @@ export function isHabitScheduledToday(
     ? habit.startDate
     : formatDate(new Date(habit.createdAt));
   if (today < activationDate) return false;
-
+  if (today === activationDate) return true; // Commencement date is ALWAYS active
 
   // Check endpoint duration
   if (habit.duration.type === "endpoint" && habit.duration.endDate) {
@@ -55,18 +55,18 @@ export function isHabitScheduledToday(
     }
 
     case "monthly": {
-      // Scheduled on the same day-of-month as creation
+      // Scheduled on the same day-of-month as activation
       const d = new Date(today + "T12:00:00");
-      const creationDay = new Date(habit.createdAt).getDate();
-      return d.getDate() === creationDay;
+      const startD = new Date(activationDate + "T12:00:00");
+      return d.getDate() === startD.getDate();
     }
 
     case "interval": {
       if (habit.intervalDays <= 0) return false;
-      const creationDate = new Date(habit.createdAt);
+      const startD = new Date(activationDate + "T12:00:00");
       const targetDate = new Date(today + "T12:00:00");
-      const diffMs = targetDate.getTime() - creationDate.getTime();
-      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      const diffMs = targetDate.getTime() - startD.getTime();
+      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
       return diffDays >= 0 && diffDays % habit.intervalDays === 0;
     }
 
@@ -85,18 +85,26 @@ export function getNextDueDate(habit: Habit): string | null {
   if (habit.period !== "interval" || habit.intervalDays <= 0) return null;
 
   const today = getToday();
-  const creationDate = new Date(habit.createdAt);
-  const todayDate = new Date(today + "T12:00:00");
+  const activationDate = habit.startDate
+    ? habit.startDate
+    : formatDate(new Date(habit.createdAt));
 
-  const diffDays = Math.floor(
-    (todayDate.getTime() - creationDate.getTime()) / (1000 * 60 * 60 * 24)
-  );
+  const startD = new Date(activationDate + "T12:00:00");
+  const todayD = new Date(today + "T12:00:00");
+
+  const diffMs = todayD.getTime() - startD.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+  // If today is before activationDate, the next due date is the activationDate itself!
+  if (diffDays < 0) {
+    return activationDate;
+  }
 
   // How many full intervals have elapsed?
   const completedIntervals = Math.floor(diffDays / habit.intervalDays);
   // Next due interval
   const nextIntervalDays = (completedIntervals + 1) * habit.intervalDays;
-  const nextDate = new Date(creationDate);
+  const nextDate = new Date(startD);
   nextDate.setDate(nextDate.getDate() + nextIntervalDays);
 
   return formatDate(nextDate);
