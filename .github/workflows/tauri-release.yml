@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g. v0.2.8) — must match tauri.conf.json version'
+        description: 'Version tag (e.g. Alpha.v.1.2) — must match tauri.conf.json version'
         required: true
-        default: 'v0.2.8'
+        default: 'Alpha.v.1.2'
 
 jobs:
   release:
@@ -27,7 +27,7 @@ jobs:
           node-version: 20
           
       - name: Install Rust Stable
-        uses: dtolnay/rust-toolchain@master
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
 
