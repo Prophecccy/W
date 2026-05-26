@@ -19,7 +19,7 @@ interface UserStoreContextType {
   setUserDoc: (doc: User) => void;
 }
 
-const UserStoreContext = createContext<UserStoreContextType | undefined>(undefined);
+export const UserStoreContext = createContext<UserStoreContextType | undefined>(undefined);
 
 // ─── Provider ────────────────────────────────────────────────────
 export function UserProvider({ children }: { children: ReactNode }) {
@@ -63,7 +63,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   // ── Actions ──────────────────────────────────────────────────
   const updateSettings = useCallback(async (patch: Partial<Settings>) => {
-    if (!user || !userDoc) return;
+    if (!user) return;
 
     if (typeof window !== "undefined" && patch.dailyResetTime) {
       localStorage.setItem("w_daily_reset_time", patch.dailyResetTime);
@@ -84,7 +84,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       updates[`settings.${key}`] = value;
     }
     await updateUserDoc(user.uid, updates as any);
-  }, [user, userDoc]);
+  }, [user]);
 
 
   const reload = useCallback(async () => {

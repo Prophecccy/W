@@ -1,5 +1,6 @@
+import { useContext } from 'react';
 import { useTimeLeft } from '../hooks/useTimeLeft';
-import { useUserStore } from '../../../shared/stores/userStore';
+import { UserStoreContext } from '../../../shared/stores/userStore';
 import { isTauri } from '../../../shared/utils/tauri';
 import './SleepTube.css';
 
@@ -14,13 +15,8 @@ interface SleepTubeProps {
 
 export function SleepTube({ settings: propsSettings, isWidget }: SleepTubeProps) {
   const isDesktop = isTauri();
-  let userStoreDoc = null;
-  try {
-    const store = useUserStore();
-    userStoreDoc = store.userDoc;
-  } catch {
-    // Silent catch for widget context where UserProvider is missing
-  }
+  const store = useContext(UserStoreContext);
+  const userStoreDoc = store?.userDoc ?? null;
 
   const settings = propsSettings || userStoreDoc?.settings;
   const { percent, phase, minutesPassed, totalMinutes } = useTimeLeft(

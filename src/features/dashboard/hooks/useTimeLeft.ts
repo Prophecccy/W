@@ -25,18 +25,24 @@ export function useTimeLeft(
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-      const [wakeH, wakeM] = wakeUpTime.split(':').map(Number);
-      const wakeMinutes = wakeH * 60 + wakeM;
+      const wakeVal = wakeUpTime || "07:00";
+      const bedVal = bedTime || "23:00";
 
-      const [bedH, bedM] = bedTime.split(':').map(Number);
-      let bedMinutes = bedH * 60 + bedM;
+      const [wakeH, wakeM] = (wakeVal.includes(':') ? wakeVal : "07:00").split(':').map(Number);
+      const wakeMinutes = (isNaN(wakeH) ? 7 : wakeH) * 60 + (isNaN(wakeM) ? 0 : wakeM);
+
+      const [bedH, bedM] = (bedVal.includes(':') ? bedVal : "23:00").split(':').map(Number);
+      let bedMinutes = (isNaN(bedH) ? 23 : bedH) * 60 + (isNaN(bedM) ? 0 : bedM);
 
       // Night-Owl Logic: if bedTime is earlier than wakeUpTime, it means it's the next day
       if (bedMinutes <= wakeMinutes) {
         bedMinutes += 24 * 60;
       }
 
-      const totalAwakeMinutes = bedMinutes - wakeMinutes;
+      let totalAwakeMinutes = bedMinutes - wakeMinutes;
+      if (isNaN(totalAwakeMinutes) || totalAwakeMinutes <= 0) {
+        totalAwakeMinutes = 960; // Default to 16 hours awake fallback
+      }
       
       // Calculate current position relative to the wake window
       let adjustedNow = currentMinutes;

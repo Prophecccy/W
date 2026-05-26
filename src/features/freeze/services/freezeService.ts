@@ -105,8 +105,16 @@ export async function checkAutoFreeze(
   lastInteractionDate: string,
   today: string
 ): Promise<{ triggered: boolean; frozenSince: string | null }> {
+  if (!lastInteractionDate || !today || lastInteractionDate === "Invalid Date" || today === "Invalid Date") {
+    return { triggered: false, frozenSince: null };
+  }
+
   const lastDate = new Date(lastInteractionDate + "T12:00:00");
   const todayDate = new Date(today + "T12:00:00");
+  if (isNaN(lastDate.getTime()) || isNaN(todayDate.getTime())) {
+    return { triggered: false, frozenSince: null };
+  }
+
   const gapDays = Math.round(
     (todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24)
   );
@@ -135,7 +143,7 @@ export function isDateFrozen(
   freeze: FreezeState,
   dateStr: string
 ): boolean {
-  if (!freeze.active || !freeze.startDate) return false;
+  if (!freeze || !freeze.active || !freeze.startDate) return false;
   // Active freeze: any date >= startDate is frozen
   return dateStr >= freeze.startDate;
 }
@@ -147,6 +155,7 @@ export function isDateInFreezeRange(
   freeze: FreezeState,
   dateStr: string
 ): boolean {
+  if (!freeze) return false;
   // Check active freeze
   if (freeze.active && freeze.startDate && dateStr >= freeze.startDate) {
     return true;

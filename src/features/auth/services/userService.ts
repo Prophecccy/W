@@ -133,6 +133,18 @@ export async function deleteUserAccountAndData(): Promise<void> {
 
   const uid = user.uid;
 
+  // Pre-flight check: Firebase deleteUser requires a recent login (< 5 mins ago).
+  // If the session is older, we throw BEFORE deleting any Firestore data to prevent complete data loss.
+  const lastSignInTime = user.metadata.lastSignInTime;
+  if (lastSignInTime) {
+    const ageMs = Date.now() - new Date(lastSignInTime).getTime();
+    if (ageMs > 5 * 60 * 1000) {
+      const error = new Error("This operation is sensitive and requires recent authentication. Please log out and log back in, then try again.") as any;
+      error.code = "auth/requires-recent-login";
+      throw error;
+    }
+  }
+
   // 1. Wipe data
   await wipeUserSubcollections(uid);
   

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { TodoType } from "../../types";
 import { createTodo } from "../../services/todoService";
 import { HabitGroup } from "../../../habits/types";
+import { createGroup } from "../../../habits/services/groupService";
 import "./TodoForm.css";
 
 interface TodoFormProps {
@@ -35,6 +36,12 @@ export function TodoForm({ onClose, onSuccess, groups = [] }: TodoFormProps) {
     if (!title.trim()) return;
     setIsSubmitting(true);
     try {
+      let finalGroup = group;
+      if (group && group.startsWith("new_") && newGroupName.trim()) {
+        const created = await createGroup(newGroupName.trim(), groups.length);
+        finalGroup = created.id;
+      }
+
       const todoData: Parameters<typeof createTodo>[0] = {
         title,
         description,
@@ -43,7 +50,7 @@ export function TodoForm({ onClose, onSuccess, groups = [] }: TodoFormProps) {
         order: 0,
         deadline: deadline || null,
         future: future || null,
-        group,
+        group: finalGroup,
       };
       if (type === "numbered") {
         todoData.numbered = { current: 0, target };

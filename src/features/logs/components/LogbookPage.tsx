@@ -72,16 +72,18 @@ export function LogbookPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const resetTime = userDoc?.settings?.dailyResetTime || "04:00";
-  const logicalToday = getToday(undefined, resetTime);
 
   useEffect(() => {
+    const getLogicalToday = () => getToday(undefined, resetTime);
+
     async function loadLogs() {
       setIsLoading(true);
       try {
         const history = await getLocalNoteHistory();
+        const currentToday = getLogicalToday();
         
         // Strictly exclude the current day's daily note
-        const pastLogs = history.filter((log) => log.date !== logicalToday);
+        const pastLogs = history.filter((log) => log.date !== currentToday);
         
         const grouped = groupNotesByMonthAndDate(pastLogs);
         setGroupedLogs(grouped);
@@ -96,7 +98,8 @@ export function LogbookPage() {
 
     const handleSyncUpdate = () => {
       getLocalNoteHistory().then((history) => {
-        const pastLogs = history.filter((log) => log.date !== logicalToday);
+        const currentToday = getLogicalToday();
+        const pastLogs = history.filter((log) => log.date !== currentToday);
         const grouped = groupNotesByMonthAndDate(pastLogs);
         setGroupedLogs(grouped);
       }).catch((err) => console.error("Failed to reload history on sync event:", err));
@@ -109,7 +112,7 @@ export function LogbookPage() {
       window.removeEventListener("w:note-saved", handleSyncUpdate);
       window.removeEventListener("w:note-synced", handleSyncUpdate);
     };
-  }, [user, logicalToday]);
+  }, [user, resetTime]);
 
   if (!isDriveLinked) {
     return <GDriveLockout mode="page" />;

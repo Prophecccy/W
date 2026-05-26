@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, PointerEvent } from 'react';
 import './WallpaperCropEditor.css';
 
 export interface CropResult {
@@ -45,13 +45,13 @@ export function WallpaperCropEditor({ imageFile, onConfirm, onCancel }: Wallpape
   const previewH = Math.round(PREVIEW_W * currentSize.logicalH / WIDGET_W);
 
   // ─── Drag to reposition ───────────────────────────────────
-  const onPointerDown = (e: React.PointerEvent) => {
+  const onPointerDown = (e: PointerEvent) => {
     isDragging.current = true;
     lastPos.current = { x: e.clientX, y: e.clientY };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
-  const onPointerMove = (e: React.PointerEvent) => {
+  const onPointerMove = (e: PointerEvent) => {
     if (!isDragging.current || !previewRef.current) return;
     const dx = e.clientX - lastPos.current.x;
     const dy = e.clientY - lastPos.current.y;
@@ -66,7 +66,12 @@ export function WallpaperCropEditor({ imageFile, onConfirm, onCancel }: Wallpape
     setCropY(prev => Math.max(0, Math.min(100, prev - pctDy)));
   };
 
-  const onPointerUp = () => { isDragging.current = false; };
+  const onPointerUp = (e: PointerEvent) => {
+    isDragging.current = false;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
+  };
 
   // ─── Confirm ─────────────────────────────────────────────
   const handleConfirm = () => {

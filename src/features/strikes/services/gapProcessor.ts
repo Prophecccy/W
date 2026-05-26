@@ -96,8 +96,31 @@ export async function processGap(
     return result;
   }
 
-  // 5. Fetch all logs in the gap range (batch read — efficient)
-  const logs = await getLogRange(startDate, yesterday);
+  // Calculate earliest start date for logs if we have active weekly/monthly metric/limiter habits
+  let logFetchStartDate = startDate;
+  
+  const hasWeeklyMetric = habits.some(
+    (h) => h.period === "weekly" && (h.type === "metric" || h.type === "limiter")
+  );
+  const hasMonthlyMetric = habits.some(
+    (h) => h.period === "monthly" && (h.type === "metric" || h.type === "limiter")
+  );
+
+  if (hasWeeklyMetric) {
+    const weeklyStart = getWeekStart(startDate, weeklyResetDay);
+    if (weeklyStart < logFetchStartDate) {
+      logFetchStartDate = weeklyStart;
+    }
+  }
+  if (hasMonthlyMetric) {
+    const monthlyStart = getMonthStart(startDate);
+    if (monthlyStart < logFetchStartDate) {
+      logFetchStartDate = monthlyStart;
+    }
+  }
+
+  // 5. Fetch all logs in the query range (batch read — efficient)
+  const logs = await getLogRange(logFetchStartDate, yesterday);
   const logMap = new Map<string, HabitLog>();
   for (const log of logs) {
     logMap.set(log.date, log);
@@ -130,28 +153,80 @@ export async function processGap(
         continue;
       }
 
-      // Was this habit scheduled on this day?
-      if (!isHabitScheduledToday(habit, dateStr, weeklyResetDay)) {
-        continue;
-      }
+      // Special evaluation for multi-day metric/limiter habits
+      const isMultiDayMetric =
+        (habit.period === "weekly" || habit.period === "monthly") &&
+        (habit.type === "metric" || habit.type === "limiter");
 
-      // Was it completed in the log?
-      const logEntry = dayLog?.habits?.[habit.id];
-      if (!logEntry && habit.type === "limiter") {
-        continue;
-      }
-      if (logEntry && logEntry.completed) {
-        continue;
-      }
+      if (isMultiDayMetric) {
+        // Only evaluate at the end of the period
+        let isPeriodEnd = false;
+        if (habit.period === "weekly") {
+          isPeriodEnd = currentDate.getDay() === (weeklyResetDay === 0 ? 6 : weeklyResetDay - 1);
+        } else if (habit.period === "monthly") {
+          const next = new Date(currentDate);
+          next.setDate(next.getDate() + 1);
+          isPeriodEnd = next.getMonth() !== currentDate.getMonth();
+        }
 
-      // For metric/limiter: check if value meets target
-      if (logEntry && habit.metric) {
+        if (!isPeriodEnd) {
+          continue;
+        }
+
+        // Calculate cumulative progress over the period
+        const periodStart =
+          habit.period === "weekly"
+            ? getWeekStart(dateStr, weeklyResetDay)
+            : getMonthStart(dateStr);
+
+        const habitStartStr = habit.startDate || formatDate(new Date(habit.createdAt));
+        if (habitStartStr > periodStart) {
+          continue;
+        }
+
+        let cumulativeValue = 0;
+        let tempDate = new Date(periodStart + "T12:00:00");
+        const periodEndD = new Date(dateStr + "T12:00:00");
+        while (tempDate <= periodEndD) {
+          const log = logMap.get(formatDate(tempDate));
+          const entry = log?.habits?.[habit.id];
+          if (entry) {
+            cumulativeValue += entry.value || 0;
+          }
+          tempDate.setDate(tempDate.getDate() + 1);
+        }
+
+        const targetValue = habit.metric?.targetValue ?? 0;
         if (habit.type === "limiter") {
-          // Limiter: strike only if EXCEEDED the limit
-          if (logEntry.value <= logEntry.target) continue;
+          if (cumulativeValue <= targetValue) continue;
         } else {
-          // Metric: strike only if value didn't reach target
-          if (logEntry.value >= logEntry.target) continue;
+          if (cumulativeValue >= targetValue) continue;
+        }
+      } else {
+        // Standard non-multi-day habit evaluation (daily, interval, standard weekly/monthly)
+        // Was this habit scheduled on this day?
+        if (!isHabitScheduledToday(habit, dateStr, weeklyResetDay)) {
+          continue;
+        }
+
+        // Was it completed in the log?
+        const logEntry = dayLog?.habits?.[habit.id];
+        if (!logEntry && habit.type === "limiter") {
+          continue;
+        }
+        if (logEntry && logEntry.completed) {
+          continue;
+        }
+
+        // For daily metric/limiter: check if value meets target
+        if (logEntry && habit.metric) {
+          if (habit.type === "limiter") {
+            // Limiter: strike only if EXCEEDED the limit
+            if (logEntry.value <= logEntry.target) continue;
+          } else {
+            // Metric: strike only if value didn't reach target
+            if (logEntry.value >= logEntry.target) continue;
+          }
         }
       }
 
@@ -213,4 +288,16 @@ function prevDay(dateStr: string): string {
   const d = new Date(dateStr + "T12:00:00");
   d.setDate(d.getDate() - 1);
   return formatDate(d);
+}
+
+function getWeekStart(dateStr: string, weekStartDay: number): string {
+  const d = new Date(dateStr + "T12:00:00");
+  while (d.getDay() !== weekStartDay) {
+    d.setDate(d.getDate() - 1);
+  }
+  return formatDate(d);
+}
+
+function getMonthStart(dateStr: string): string {
+  return `${dateStr.slice(0, 7)}-01`;
 }

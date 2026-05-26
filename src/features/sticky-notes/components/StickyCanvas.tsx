@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { doc, onSnapshot } from "firebase/firestore";
-import { db, auth } from "../../../shared/config/firebase";
+import { db } from "../../../shared/config/firebase";
+import { useAuthContext } from "../../auth/context";
 import { useStickyNotes } from "../hooks/useStickyNotes";
 import { StickyNote } from "./StickyNote";
 import {
@@ -83,6 +84,7 @@ export async function forceInteractive() {
 // ─── StickyCanvas Component ─────────────────────────────────────
 
 export function StickyCanvas() {
+  const { user } = useAuthContext();
   const { todos, positions, loading: notesLoading, suppressSnapshot } = useStickyNotes();
   const [accentReady, setAccentReady] = useState(false);
   const initRef = useRef(false);
@@ -97,7 +99,6 @@ export function StickyCanvas() {
   // Real-time accent color listener (mirrors useWidgetData pattern)
   // onSnapshot fires immediately with current data AND on every subsequent change.
   useEffect(() => {
-    const user = auth.currentUser;
     if (!user) {
       setAccentReady(true);
       return;
@@ -124,7 +125,7 @@ export function StickyCanvas() {
       unsub();
       unlistenPromise.then(u => u()).catch(() => {});
     };
-  }, []);
+  }, [user]);
 
   // Start the Rust-side mouse hook on mount
   useEffect(() => {

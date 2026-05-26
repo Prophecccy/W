@@ -8,6 +8,74 @@ import { formatDate } from "../../../shared/utils/dateUtils";
  * Handles daily, weekly, monthly, and interval period types.
  */
 export function calculateStreak(habit: Habit, logs: HabitLog[]): number {
+  if (habit.type === "limiter") {
+    const today = formatDate(new Date());
+    const startLimitDate = habit.startDate || formatDate(new Date(habit.createdAt));
+    const sorted = [...logs].sort((a, b) => (a.date > b.date ? -1 : 1));
+    let streak = 0;
+
+    if (habit.period === "daily") {
+      let expectedDate = today;
+      while (expectedDate >= startLimitDate) {
+        const log = sorted.find((l) => l.date === expectedDate);
+        const entry = log?.habits?.[habit.id];
+        if (entry && entry.value > entry.target) {
+          break;
+        }
+        streak++;
+        const d = new Date(expectedDate + "T00:00:00");
+        d.setDate(d.getDate() - 1);
+        expectedDate = formatDate(d);
+      }
+      return streak;
+    }
+
+    if (habit.period === "weekly") {
+      const byWeek = groupLogsByISOWeek(sorted);
+      const weeks = getRecentWeeks(today, byWeek.size + 2);
+      const startWeek = getISOWeek(startLimitDate);
+      for (const week of weeks) {
+        if (week < startWeek) break;
+        const weekLogs = byWeek.get(week) ?? [];
+        const hasViolation = weekLogs.some((l) => {
+          const entry = l.habits?.[habit.id];
+          return entry && entry.value > entry.target;
+        });
+        if (hasViolation) break;
+        streak++;
+      }
+      return streak;
+    }
+
+    if (habit.period === "monthly") {
+      const byMonth = groupLogsByMonth(sorted);
+      const months = getRecentMonths(today, byMonth.size + 2);
+      const startMonth = startLimitDate.slice(0, 7);
+      for (const month of months) {
+        if (month < startMonth) break;
+        const monthLogs = byMonth.get(month) ?? [];
+        const hasViolation = monthLogs.some((l) => {
+          const entry = l.habits?.[habit.id];
+          return entry && entry.value > entry.target;
+        });
+        if (hasViolation) break;
+        streak++;
+      }
+      return streak;
+    }
+
+    if (habit.period === "interval") {
+      const dueDates = buildDueDates(habit, startLimitDate, today);
+      for (const dueDate of dueDates) {
+        const matchLog = sorted.find((l) => l.date === dueDate);
+        const entry = matchLog?.habits?.[habit.id];
+        if (entry && entry.value > entry.target) break;
+        streak++;
+      }
+      return streak;
+    }
+  }
+
   if (logs.length === 0) return 0;
 
   // Sort logs newest-first

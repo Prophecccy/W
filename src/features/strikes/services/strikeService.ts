@@ -126,15 +126,16 @@ export async function removeLimiterStrike(habitId: string): Promise<void> {
   if (current.current === 0) return;
 
   // Find the last strike in history for this habit on this day with reason "limiter_exceeded"
-  const idx = [...current.history].reverse().findIndex(
+  const history = Array.isArray(current.history) ? current.history : [];
+  const idx = [...history].reverse().findIndex(
     (s) => s.habitId === habitId && s.date === today && s.reason === "limiter_exceeded"
   );
 
   if (idx === -1) return;
 
   // Real index in the original history array
-  const realIdx = current.history.length - 1 - idx;
-  const newHistory = [...current.history];
+  const realIdx = history.length - 1 - idx;
+  const newHistory = [...history];
   newHistory.splice(realIdx, 1);
 
   const newCurrent = Math.max(0, current.current - 1);

@@ -131,7 +131,7 @@ export function DashboardPage() {
         if (target > 0 && total >= target) return false;
       }
 
-      const isComplete = !!log?.habits[h.id]?.completed;
+      const isComplete = !!log?.habits?.[h.id]?.completed;
       if (isComplete) return false;
       return isHabitScheduledToday(h, today, weeklyResetDay) && h.type !== 'limiter';
     });
@@ -319,7 +319,7 @@ export function DashboardPage() {
                     onComplete={() => handleHabitComplete(h.id)} 
                     onUndo={() => handleHabitUndo(h.id)}
                     onClick={() => {}}
-                    currentValue={log?.habits[h.id]?.value || 0}
+                    currentValue={log?.habits?.[h.id]?.value || 0}
                   />
                 ))}
               </div>

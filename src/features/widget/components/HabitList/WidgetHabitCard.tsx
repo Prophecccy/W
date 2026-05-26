@@ -30,6 +30,9 @@ export function WidgetHabitCard({
 
   const handleUndo = useCallback((e: MouseEvent | TouchEvent) => {
     e.stopPropagation();
+    if ('touches' in e) {
+      e.preventDefault();
+    }
     if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
     onUndo(habit.id);
     setJustCompleted(false);

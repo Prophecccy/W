@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db, auth } from "../../../shared/config/firebase";
+import { db } from "../../../shared/config/firebase";
 import { Todo } from "../../todos/types";
+import { useAuthContext } from "../../auth/context";
 import { loadPositions, savePositionLocal } from "../services/positionStore";
 
 interface StickyNotesReturn {
@@ -32,6 +33,7 @@ interface StickyNotesReturn {
  * write (1s) to commit + propagate back via onSnapshot.
  */
 export function useStickyNotes(): StickyNotesReturn {
+  const { user } = useAuthContext();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [loading, setLoading] = useState(true);
@@ -57,7 +59,6 @@ export function useStickyNotes(): StickyNotesReturn {
   }, []);
 
   useEffect(() => {
-    const user = auth.currentUser;
     if (!user) {
       setLoading(false);
       return;
@@ -96,10 +97,17 @@ export function useStickyNotes(): StickyNotesReturn {
 
       // Merge: Firestore positions take priority (for non-suppressed IDs),
       // local cache fills gaps
-      setPositions((prev) => ({
-        ...prev,
-        ...firestorePositions,
-      }));
+      setPositions((prev) => {
+        const cleaned: Record<string, { x: number; y: number }> = {};
+        activeTodos.forEach((t) => {
+          if (firestorePositions[t.id]) {
+            cleaned[t.id] = firestorePositions[t.id];
+          } else if (prev[t.id]) {
+            cleaned[t.id] = prev[t.id];
+          }
+        });
+        return cleaned;
+      });
 
       setLoading(false);
     });
@@ -109,7 +117,7 @@ export function useStickyNotes(): StickyNotesReturn {
       // Clean up all suppression timers
       suppressTimersRef.current.forEach((timer) => clearTimeout(timer));
     };
-  }, []);
+  }, [user]);
 
   return { todos, positions, loading, suppressSnapshot };
 }

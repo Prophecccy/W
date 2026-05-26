@@ -55,13 +55,18 @@ export function WidgetHabitList({ today, scheduledHabits, todayLog, periodLogs, 
       {/* Regular Habits */}
       {sortedHabits.map(habit => {
         const status = getStatus(habit);
+        const isMulti = habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval";
+        const start = getPeriodStart(habit, today, weeklyResetDay);
+        const currentValue = isMulti
+          ? getTotalInRange(habit.id, start)
+          : (todayLog?.habits?.[habit.id]?.value || 0);
         return (
           <WidgetHabitCard
             key={habit.id}
             habit={habit}
             isCompletedToday={status.isCompletedToday}
             doneToday={status.doneToday}
-            currentValue={todayLog?.habits?.[habit.id]?.value || 0}
+            currentValue={currentValue}
             onComplete={onComplete}
             onUndo={onUndo}
           />

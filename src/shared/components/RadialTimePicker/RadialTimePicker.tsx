@@ -250,7 +250,7 @@ export function RadialTimePicker({ value, onChange, onClose }: RadialTimePickerP
           {clockNumbers.map((n) => {
             const isSelected = mode === 'HOURS'
               ? n.value === hours
-              : n.value === Math.round(minutes / 5) * 5 % 60;
+              : n.value === minutes;
             return (
               <text
                 key={`${n.ring}-${n.value}`}

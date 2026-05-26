@@ -83,7 +83,9 @@ export function isHabitScheduledToday(
           return false; // Already completed standard monthly habit this month
         }
       }
-      return true;
+      const dayOfMonth = new Date(today + "T12:00:00").getDate();
+      const creationDay = new Date(habit.createdAt).getDate();
+      return dayOfMonth === creationDay;
     }
 
     case "interval": {

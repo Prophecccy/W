@@ -154,8 +154,9 @@ export function HabitCard({
   const progressPercent = Math.min(100, (currentValue / target) * 100);
 
   const handlePointerUp = () => {
+    const shouldClick = !hasHeldRef.current && pointerStartCoordsRef.current !== null;
     cancelHold();
-    if (!hasHeldRef.current) {
+    if (shouldClick) {
       onClick();
     }
   };

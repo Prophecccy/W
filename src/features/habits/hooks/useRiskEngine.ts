@@ -71,7 +71,7 @@ export function useRiskEngine(
       if (!h.isActive) return false;
       if (h.type === "limiter") return false;
       if (!isHabitScheduledToday(h, today, weeklyResetDay)) return false;
-      const logEntry = todayLog?.habits[h.id];
+      const logEntry = todayLog?.habits?.[h.id];
       return !logEntry?.completed;
     });
 

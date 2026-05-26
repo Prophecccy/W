@@ -18,6 +18,7 @@ interface HabitFormData {
   color: string;
   group: string | null;
   startDate: string;
+  newGroupName?: string;
 }
 
 export interface HabitFormProps {
@@ -112,7 +113,10 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
   };
 
   const handleSubmit = () => {
-    onSubmit(data);
+    onSubmit({
+      ...data,
+      newGroupName: isCreatingGroup && newGroupName.trim() ? newGroupName.trim() : undefined,
+    });
   };
 
   const renderStepContent = () => {

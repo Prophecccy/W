@@ -64,19 +64,13 @@ describe("isHabitScheduledToday", () => {
     expect(isHabitScheduledToday(habit, "2026-04-08")).toBe(true); // Wednesday
   });
 
-  it("monthly habit is active every day of the month until completed", () => {
+  it("monthly habit is scheduled on its anniversary date", () => {
     const habit = makeHabit({
       period: "monthly",
       createdAt: new Date("2026-01-15T00:00:00Z").getTime(),
     });
     expect(isHabitScheduledToday(habit, "2026-04-15")).toBe(true);
-    expect(isHabitScheduledToday(habit, "2026-04-16")).toBe(true);
-
-    const completedHabit = {
-      ...habit,
-      lastCompletedDate: "2026-04-10",
-    };
-    expect(isHabitScheduledToday(completedHabit, "2026-04-15")).toBe(false);
+    expect(isHabitScheduledToday(habit, "2026-04-16")).toBe(false);
   });
 
   it("interval habit remains scheduled until completed, then enters cooldown", () => {

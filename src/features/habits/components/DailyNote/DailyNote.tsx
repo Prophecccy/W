@@ -18,6 +18,10 @@ const DEBOUNCE_MS = 500;
 export function DailyNote({ initialNote }: DailyNoteProps) {
   const { isDriveLinked } = useAuthContext();
   const [note, setNote] = useState(initialNote);
+  const latestNoteRef = useRef(initialNote);
+  
+  // Keep latestNoteRef in sync
+  latestNoteRef.current = note;
   const [isSaving, setIsSaving] = useState(false);
   const [syncStatus, setSyncStatus] = useState<"synced" | "pending" | "offline">("synced");
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
@@ -29,6 +33,7 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
   // Sync initial prop if it changes externally (e.g. initial load)
   useEffect(() => {
     setNote(initialNote);
+    latestNoteRef.current = initialNote;
   }, [initialNote]);
 
   // Determine initial sync status from IndexedDB record on boot
@@ -104,6 +109,7 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
     if (newVal.length > MAX_CHARS) return;
     
     setNote(newVal);
+    latestNoteRef.current = newVal;
     setIsSaving(true);
 
     if (debounceTimer.current) {
@@ -178,7 +184,7 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
         onBlur={() => {
           if (debounceTimer.current) {
             clearTimeout(debounceTimer.current);
-            saveNote(note);
+            saveNote(latestNoteRef.current);
           }
         }}
       />

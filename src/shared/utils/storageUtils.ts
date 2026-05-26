@@ -7,6 +7,9 @@ import { Wallpapers } from '../types';
 const WP_PREFIX = 'wallpaper_';
 const channel = new BroadcastChannel('w_channel');
 
+// Static tracking map to hold active Object URLs for each slot, preventing memory leaks
+const activeUrls = new Map<string, string>();
+
 /**
  * Save a wallpaper blob to IndexedDB.
  */
@@ -18,7 +21,15 @@ export async function setLocalWallpaper(slot: keyof Wallpapers, blob: Blob): Pro
   channel.postMessage({ type: 'WALLPAPER_CHANGED' });
   window.dispatchEvent(new Event('wallpaper-changed'));
 
-  return URL.createObjectURL(blob);
+  // Revoke previous URL to release it from RAM
+  const oldUrl = activeUrls.get(slot);
+  if (oldUrl) {
+    URL.revokeObjectURL(oldUrl);
+  }
+
+  const url = URL.createObjectURL(blob);
+  activeUrls.set(slot, url);
+  return url;
 }
 
 /**
@@ -27,8 +38,24 @@ export async function setLocalWallpaper(slot: keyof Wallpapers, blob: Blob): Pro
 export async function getLocalWallpaper(slot: keyof Wallpapers): Promise<string | null> {
   const key = `${WP_PREFIX}${slot}`;
   const blob = await get<Blob>(key);
-  if (!blob) return null;
-  return URL.createObjectURL(blob);
+  if (!blob) {
+    const oldUrl = activeUrls.get(slot);
+    if (oldUrl) {
+      URL.revokeObjectURL(oldUrl);
+      activeUrls.delete(slot);
+    }
+    return null;
+  }
+
+  // Revoke previous URL before creating a new one
+  const oldUrl = activeUrls.get(slot);
+  if (oldUrl) {
+    URL.revokeObjectURL(oldUrl);
+  }
+
+  const url = URL.createObjectURL(blob);
+  activeUrls.set(slot, url);
+  return url;
 }
 
 /**
@@ -41,6 +68,13 @@ export async function removeLocalWallpaper(slot: keyof Wallpapers): Promise<void
   // Notify other windows/tabs
   channel.postMessage({ type: 'WALLPAPER_CHANGED' });
   window.dispatchEvent(new Event('wallpaper-changed'));
+
+  // Revoke active URL
+  const oldUrl = activeUrls.get(slot);
+  if (oldUrl) {
+    URL.revokeObjectURL(oldUrl);
+    activeUrls.delete(slot);
+  }
 }
 
 /**

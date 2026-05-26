@@ -201,6 +201,26 @@ export async function uncompleteHabit(habitId: string): Promise<void> {
     [`habits.${habitId}`]: newEntry,
   });
 
+  // ── Sync habit document stats (Rollback) ────────────────────────
+  try {
+    if (habit) {
+      let statsUpdate: Record<string, any> = {
+        totalCompletions: Math.max(0, (habit.totalCompletions || 0) - 1),
+        levelProgress: Math.max(0, (habit.levelProgress || 0) - 1),
+      };
+
+      // If it transitioned from completed to uncompleted
+      if (existing.completed && !isCompleted) {
+        statsUpdate.currentStreak = Math.max(0, (habit.currentStreak || 0) - 1);
+        statsUpdate.lastCompletedDate = null; // Revert to uncompleted state
+      }
+
+      await updateDoc(habitRef, statsUpdate);
+    }
+  } catch (e) {
+    console.error("Failed to sync habit stats on undo:", e);
+  }
+
   // ─── Limiter Undo Strike Logic ──────────────────────────────────
   if (habit?.type === "limiter" && existing.value > existing.target) {
     try {

@@ -40,6 +40,7 @@ export async function createTodo(
     status: "active",
     createdAt: Date.now(),
     completedAt: null,
+    order: todoData.order || Date.now(),
   };
   await setDoc(newRef, todo);
   return todo.id;

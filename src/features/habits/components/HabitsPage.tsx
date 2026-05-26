@@ -7,7 +7,7 @@ import { HabitGroupHeader } from './HabitGroupHeader/HabitGroupHeader';
 import { Habit, HabitLog, HabitGroup } from '../types';
 import { HabitDetail } from './HabitDetail/HabitDetail';
 import { getHabits, createHabit, deleteHabit } from '../services/habitService';
-import { getGroups } from '../services/groupService';
+import { getGroups, createGroup } from '../services/groupService';
 import { getTodayLog, completeHabit, uncompleteHabit } from '../services/logService';
 import { isHabitScheduledToday, isHabitResting } from '../utils/scheduleEngine';
 import { getToday } from '../../../shared/utils/dateUtils';
@@ -85,7 +85,7 @@ export function HabitsPage() {
     const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
 
     habits.forEach(h => {
-      const logEntry = log?.habits[h.id];
+      const logEntry = log?.habits?.[h.id];
       const isComplete = !!logEntry?.completed;
 
       if (isComplete) {
@@ -190,6 +190,14 @@ export function HabitsPage() {
 
   const handleCreateSubmit = async (data: any) => {
     try {
+      let finalGroup = data.group;
+      if (data.group && data.group.startsWith('new_') && data.newGroupName) {
+        const created = await createGroup(data.newGroupName, groups.length);
+        finalGroup = created.id;
+        const fetchedGroups = await getGroups();
+        setGroups(fetchedGroups);
+      }
+
       const newHabit = {
         title: data.title,
         description: data.description,
@@ -202,7 +210,7 @@ export function HabitsPage() {
         intervalDays: data.intervalDays,
         metric: data.metric,
         duration: data.duration,
-        group: data.group,
+        group: finalGroup,
         startDate: data.startDate,
         isActive: true,
         order: habits.length,
@@ -298,7 +306,7 @@ export function HabitsPage() {
                     doneToday={h.type === "metric" && (h.period === "weekly" || h.period === "monthly" || h.period === "interval") && ((log?.habits?.[h.id]?.completions?.length ?? 0) > 0)}
                     onComplete={() => handleComplete(h.id)} 
                     onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
-                    currentValue={log?.habits[h.id]?.value || 0}
+                    currentValue={log?.habits?.[h.id]?.value || 0}
                     riskScore={riskScores[h.id]}
                   />
                 ))}
@@ -387,7 +395,7 @@ export function HabitsPage() {
                       doneToday={h.type === "metric" && (h.period === "weekly" || h.period === "monthly" || h.period === "interval") && ((log?.habits?.[h.id]?.completions?.length ?? 0) > 0)}
                       onComplete={() => handleComplete(h.id)} 
                       onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
-                      currentValue={log?.habits[h.id]?.value || 0}
+                      currentValue={log?.habits?.[h.id]?.value || 0}
                     />
                   ))}
                 </div>
@@ -405,7 +413,7 @@ export function HabitsPage() {
                       doneToday={false}
                       onComplete={() => handleComplete(h.id)} 
                       onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
-                      currentValue={log?.habits[h.id]?.value || 0}
+                      currentValue={log?.habits?.[h.id]?.value || 0}
                     />
                   ))}
                 </div>

@@ -92,11 +92,11 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
       await updateRef.downloadAndInstall((event: any) => {
         switch (event.event) {
           case 'Started':
-            totalBytes = event.data.contentLength || 1;
+            totalBytes = event.data?.contentLength || 1;
             set({ progress: { downloaded: 0, total: totalBytes, percent: 0 } });
             break;
           case 'Progress':
-            downloadedBytes += event.data.chunkLength;
+            downloadedBytes += event.data?.chunkLength || 0;
             const percent = Math.min(
               Math.round((downloadedBytes / totalBytes) * 100),
               100

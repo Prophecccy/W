@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { User as FirebaseUser, signInAnonymously } from "firebase/auth";
 import { auth } from "../../../shared/config/firebase";
 import { signInWithGoogle, signOut, onAuthStateChanged } from "../services/authService";
@@ -11,6 +11,7 @@ export function useAuth() {
   const [isDriveLinked, setIsDriveLinked] = useState<boolean>(() => {
     return localStorage.getItem("driveLinked") === "true" || !!localStorage.getItem("w_gdrive_refresh_token");
   });
+  const restoringRef = useRef(false);
 
   useEffect(() => {
     const handleLinked = () => {
@@ -91,10 +92,13 @@ export function useAuth() {
 
   useEffect(() => {
     // Auto-restore: if previously dev-skipped and no user yet, sign in anonymously again
-    if (window.location.hostname === "localhost" && localStorage.getItem("w-auth-mock") && !user && !loading) {
+    if (window.location.hostname === "localhost" && localStorage.getItem("w-auth-mock") && !user && !loading && !restoringRef.current) {
+      restoringRef.current = true;
       signInAnonymously(auth).catch((err) => {
         console.error("[W Auth] Dev-skip auto-restore failed:", err);
         localStorage.removeItem("w-auth-mock");
+      }).finally(() => {
+        restoringRef.current = false;
       });
     }
   }, [user, loading]);

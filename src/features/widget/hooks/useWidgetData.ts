@@ -45,7 +45,7 @@ export function useWidgetData(): WidgetData {
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Habit));
       data.sort((a, b) => a.order - b.order);
-      const activeData = data.filter(h => (!h.startDate || h.startDate <= today) && h.type !== 'limiter');
+      const activeData = data.filter(h => (!h.startDate || h.startDate <= today));
       setHabits(activeData);
     });
 

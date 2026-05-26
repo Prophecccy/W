@@ -76,8 +76,9 @@ export function TodoCard({ todo, onComplete, onClick }: TodoCardProps) {
   }, []);
 
   const handlePointerUp = () => {
+    const shouldClick = !hasHeldRef.current && pointerStartCoordsRef.current !== null;
     cancelHold();
-    if (!hasHeldRef.current) {
+    if (shouldClick) {
       onClick();
     }
   };

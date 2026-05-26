@@ -340,7 +340,7 @@ export function generateHabitAnalytics(
   for (const log of logs) {
     const entry = log.habits[habit.id];
     if (entry && entry.completed) {
-      for (const comp of entry.completions) {
+      for (const comp of (entry.completions ?? [])) {
         const d = new Date(comp.timestamp);
         const hour = d.getHours();
         timeOfDayDistribution[hour] += 1;
