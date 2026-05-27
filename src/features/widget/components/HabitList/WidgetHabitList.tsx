@@ -52,7 +52,7 @@ export function WidgetHabitList({ today, scheduledHabits, todayLog, periodLogs, 
 
   return (
     <div className="widget-habit-list">
-      {/* Regular Habits */}
+      {/* Scheduled Habits */}
       {sortedHabits.map(habit => {
         const status = getStatus(habit);
         const isMulti = habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval";

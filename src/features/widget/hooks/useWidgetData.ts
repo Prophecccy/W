@@ -33,7 +33,26 @@ export function useWidgetData(): WidgetData {
   const [userDoc, setUserDoc] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const today = getToday(undefined, userDoc?.settings?.dailyResetTime);
+  const [today, setToday] = useState(() => getToday(undefined, userDoc?.settings?.dailyResetTime));
+
+  // Update today state when userDoc loads or dailyResetTime changes, and poll for midnight/reset rollover
+  useEffect(() => {
+    const dailyResetTime = userDoc?.settings?.dailyResetTime;
+    setToday(getToday(undefined, dailyResetTime));
+
+    const interval = setInterval(() => {
+      const freshToday = getToday(undefined, dailyResetTime);
+      setToday((prev) => {
+        if (prev !== freshToday) {
+          console.log(`[Widget Date Rollover] Rolled over from ${prev} to ${freshToday}`);
+          return freshToday;
+        }
+        return prev;
+      });
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [userDoc?.settings?.dailyResetTime]);
 
   // Listen to habits
   useEffect(() => {
@@ -95,7 +114,7 @@ export function useWidgetData(): WidgetData {
     });
 
     return unsub;
-  }, [user, habits, today, userDoc?.settings?.weeklyResetDay]);
+  }, [user, habits, today, userDoc?.settings?.weeklyResetDay, userDoc?.settings?.dailyResetTime]);
 
   // Listen to user doc (strikes, freeze, wallpapers)
   useEffect(() => {
@@ -120,7 +139,8 @@ export function useWidgetData(): WidgetData {
   const scheduledHabits = habits.filter(h => {
     const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
     return isHabitScheduledToday(h, today, weeklyResetDay) && 
-      !isHabitResting(h, userDoc?.settings?.dailyResetTime);
+      !isHabitResting(h, userDoc?.settings?.dailyResetTime) &&
+      h.type !== 'limiter';
   });
 
   const completedCount = scheduledHabits.filter(h => {

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, MouseEvent, TouchEvent, useEffect } from 'react';
+import { useState, useRef, useCallback, PointerEvent, useEffect } from 'react';
 import { Habit, CompletionEntry } from '../../../habits/types';
 import { Check, Circle } from 'lucide-react';
 import './WidgetHabitCard.css';
@@ -26,6 +26,8 @@ export function WidgetHabitCard({
   const [justCompleted, setJustCompleted] = useState(false);
   const holdTimeoutRef = useRef<number | null>(null);
   const undoTimeoutRef = useRef<number | null>(null);
+  const pointerStartCoordsRef = useRef<{ x: number; y: number } | null>(null);
+  const hasHeldRef = useRef(false);
 
   const HOLD_DURATION = 500;
   const UNDO_DURATION = 8000;
@@ -58,17 +60,14 @@ export function WidgetHabitCard({
     };
   }, [completions]);
 
-  const handleUndo = useCallback((e: MouseEvent | TouchEvent) => {
+  const handleUndo = useCallback((e: PointerEvent<HTMLSpanElement>) => {
     e.stopPropagation();
-    if ('touches' in e) {
-      e.preventDefault();
-    }
     if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
     onUndo(habit.id);
     setJustCompleted(false);
   }, [habit.id, onUndo]);
 
-  const startHold = useCallback(() => {
+  const startHold = useCallback((e: PointerEvent<HTMLDivElement>) => {
     const isMetricLike = habit.type === 'metric' || habit.type === 'limiter';
     if (isMetricLike) {
       // Metric/limiter types are metric-like: we do not block clicks/holds even when completed
@@ -85,10 +84,14 @@ export function WidgetHabitCard({
       return;
     }
 
+    pointerStartCoordsRef.current = { x: e.clientX, y: e.clientY };
     setIsHolding(true);
+    hasHeldRef.current = false;
+
     holdTimeoutRef.current = window.setTimeout(() => {
       setIsHolding(false);
       setJustCompleted(true);
+      hasHeldRef.current = true;
       onComplete(habit.id);
 
       // Auto-clear undo window after 8s
@@ -105,7 +108,17 @@ export function WidgetHabitCard({
       holdTimeoutRef.current = null;
     }
     setIsHolding(false);
+    pointerStartCoordsRef.current = null;
   }, []);
+
+  const handlePointerMove = useCallback((e: PointerEvent<HTMLDivElement>) => {
+    if (!isHolding || !pointerStartCoordsRef.current) return;
+    const deltaX = Math.abs(e.clientX - pointerStartCoordsRef.current.x);
+    const deltaY = Math.abs(e.clientY - pointerStartCoordsRef.current.y);
+    if (deltaX > 5 || deltaY > 5) {
+      cancelHold();
+    }
+  }, [isHolding, cancelHold]);
 
   const isCompleted = isCompletedToday || justCompleted;
   const isLimiter = habit.type === 'limiter';
@@ -117,11 +130,11 @@ export function WidgetHabitCard({
     <div
       className={`widget-habit-card ${isCommitted ? 'committed' : ''} ${isPendingUndo ? 'pending-undo' : ''} ${isDoneToday ? 'done-today' : ''} ${isLimiter ? 'limiter' : ''}`}
       style={{ '--card-accent': isLimiter ? 'var(--strike-red)' : habit.color } as React.CSSProperties}
-      onMouseDown={startHold}
-      onMouseUp={cancelHold}
-      onMouseLeave={cancelHold}
-      onTouchStart={startHold}
-      onTouchEnd={cancelHold}
+      onPointerDown={startHold}
+      onPointerUp={cancelHold}
+      onPointerMove={handlePointerMove}
+      onPointerLeave={cancelHold}
+      onPointerCancel={cancelHold}
     >
       {/* Hold fill animation */}
       {isHolding && <div className="widget-habit-card__hold-fill" />}
@@ -159,8 +172,7 @@ export function WidgetHabitCard({
         {justCompleted && (
           <span
             className="widget-habit-card__undo"
-            onMouseDown={handleUndo}
-            onTouchStart={handleUndo}
+            onPointerDown={handleUndo}
           >
             UNDO
           </span>

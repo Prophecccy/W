@@ -134,7 +134,11 @@ export function WidgetApp() {
     invoke('move_widget_by', { dx, dy });
   }, []);
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
+
     const wasDrag = dragMoved.current;
     isDragging.current = false;
     dragMoved.current = false;
