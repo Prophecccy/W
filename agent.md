@@ -87,3 +87,20 @@ graph TD
 * `src/app/Layout.tsx` — Phase-state loader UI (Loading → Processing → Ready).
 * `src/features/` — Feature modules: `dashboard`, `habits`, `todos`, `logs`, `analytics`, `strikes`, `sticky-notes`, `lockdown`, `widget`, `freeze`, `auth`, `settings`, `updater`, `wallpaper`.
 * `src/shared/` — Reusable components, utility providers, and generic hooks.
+
+---
+
+## Batch 24 — Resiliency & Codebase Integrity
+
+A series of 10 codebase-wide architectural bugs were resolved to enforce strict system execution bounds and memory integrity:
+
+1. **Scheduling Engine**: Removed the commencement day bypass (`if (today === activationDate)`) to prevent premature scheduling strikes/penalties on non-scheduled creation days.
+2. **Gap Processor**: Refactored the gap day loop to remove early `continue` statements and early date updates, isolating the date-increment call exclusively to the bottom of the loop body.
+3. **Lockout Controls**: Gated all global keyboard shortcuts and the Command Palette with an `isLocked` flag to prevent command execution, page navigation, or completion bypasses during lockout.
+4. **SleepTube Stability**: Added default settings fallbacks (`{ wakeUpTime: "07:00", bedTime: "23:00" }`) to prevent percentage calculation crashes under cold boots or unhydrated contexts.
+5. **Keyboard Shortcuts Hook**: Converted keydown handlers to use mutable React `useRef` refs, ensuring the event listener is bound exactly once on mount and eliminating all stale closures/memory leaks.
+6. **Timezone Streak Logic**: Normalised interval due-date builders and scheduling checks to compute offsets using midnight-normalized local timezone Date objects, eliminating 24-hour shifting boundaries and early streak breaks.
+7. **Widget Drag Mechanics**: Wired `onLostPointerCapture` to release dragging state on focus loss or system interruptions, preventing leaking drag styles.
+8. **Numbered Todo Completeness**: Added status and constraint guards to `incrementNumberedTodo` to ensure idempotence, preventing redundant completion fires or double animation triggers.
+9. **Toast Memory Management**: Tracked active toast timers in a `timeoutsRef` map and explicitly cleared them on dismissal or unmount to guarantee complete garbage collection.
+10. **Retroactive Freeze Logs**: Integrated Firestore `setDoc` loop in `checkAutoFreeze` to write retroactive daily logs (`[ AUTO-FREEZE ]`) during absences, ensuring freeze history is transparently captured in log timelines.
