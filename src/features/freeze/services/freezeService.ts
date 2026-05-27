@@ -74,7 +74,7 @@ export async function deactivateFreeze(): Promise<void> {
   // Calculate days frozen
   const start = new Date(freeze.startDate + "T12:00:00");
   const end = new Date(today + "T12:00:00");
-  const daysCount = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+  const daysCount = Math.max(0, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
 
   const historyEntry: FreezeHistoryEntry = {
     startDate: freeze.startDate,

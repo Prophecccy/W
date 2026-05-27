@@ -375,7 +375,7 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
               <button
                 type="button"
                 className={`habit-form__radio-btn t-body ${data.group === null && !isCreatingGroup ? "habit-form__radio-btn--active" : ""}`}
-                onClick={() => { update({ group: null }); setIsCreatingGroup(false); }}
+                onClick={() => { update({ group: null }); setIsCreatingGroup(false); setNewGroupName(""); }}
               >
                 NO GROUP
               </button>
@@ -385,7 +385,7 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
                   key={g.id}
                   type="button"
                   className={`habit-form__radio-btn t-body ${data.group === g.id && !isCreatingGroup ? "habit-form__radio-btn--active" : ""}`}
-                  onClick={() => { update({ group: g.id }); setIsCreatingGroup(false); }}
+                  onClick={() => { update({ group: g.id }); setIsCreatingGroup(false); setNewGroupName(""); }}
                 >
                   {g.name.toUpperCase()}
                 </button>
@@ -394,7 +394,14 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
               <button
                 type="button"
                 className={`habit-form__radio-btn t-body ${isCreatingGroup ? "habit-form__radio-btn--active" : ""}`}
-                onClick={() => setIsCreatingGroup(true)}
+                onClick={() => {
+                  setIsCreatingGroup(true);
+                  if (newGroupName.trim()) {
+                    update({ group: `new_${newGroupName.trim().toLowerCase().replace(/\s+/g, '_')}` });
+                  } else {
+                    update({ group: null });
+                  }
+                }}
               >
                 + NEW GROUP
               </button>

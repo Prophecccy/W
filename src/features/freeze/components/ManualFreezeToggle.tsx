@@ -114,7 +114,7 @@ function calculateDaysSince(startDate: string): number {
   const s = new Date(startDate + "T12:00:00");
   const now = new Date();
   now.setHours(12, 0, 0, 0);
-  return Math.max(1, Math.round((now.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)));
+  return Math.max(0, Math.round((now.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
 function formatDisplayDate(dateStr: string): string {

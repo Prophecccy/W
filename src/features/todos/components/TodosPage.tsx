@@ -67,10 +67,10 @@ export function TodosPage() {
     return () => window.removeEventListener("w:open-todo-form", handleOpenForm);
   }, []);
 
-  const handleComplete = async (todoId: string) => {
+  const handleComplete = async (todoId: string, updatedTodo?: Todo) => {
     try {
       // Optimistic update
-      const completedTodo = activeTodos.find(t => t.id === todoId);
+      const completedTodo = updatedTodo || activeTodos.find(t => t.id === todoId);
       if (completedTodo) {
         setActiveTodos(prev => prev.filter(t => t.id !== todoId));
         setCompletedTodos(prev => [{...completedTodo, status: "done", completedAt: Date.now()}, ...prev]);
@@ -96,7 +96,11 @@ export function TodosPage() {
           const newCurrent = todo.numbered.current + 1;
           
           if (newCurrent >= todo.numbered.target) {
-            handleComplete(todoId);
+            const finishedTodo: Todo = {
+              ...todo,
+              numbered: { ...todo.numbered, current: newCurrent }
+            };
+            handleComplete(todoId, finishedTodo);
           } else {
             // Optimistic increment
             setActiveTodos(prev => prev.map(t => 

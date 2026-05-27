@@ -190,7 +190,7 @@ export function TodoForm({ onClose, onSuccess, groups = [] }: TodoFormProps) {
             <div className="todo-form__radio-group mt-4">
               <button
                 className={`todo-form__radio-btn ${group === null && !isCreatingGroup ? "todo-form__radio-btn--active" : ""}`}
-                onClick={() => { setGroup(null); setIsCreatingGroup(false); }}
+                onClick={() => { setGroup(null); setIsCreatingGroup(false); setNewGroupName(""); }}
               >
                 <div className="t-label">NO GROUP</div>
               </button>
@@ -199,7 +199,7 @@ export function TodoForm({ onClose, onSuccess, groups = [] }: TodoFormProps) {
                 <button
                   key={g.id}
                   className={`todo-form__radio-btn ${group === g.id && !isCreatingGroup ? "todo-form__radio-btn--active" : ""}`}
-                  onClick={() => { setGroup(g.id); setIsCreatingGroup(false); }}
+                  onClick={() => { setGroup(g.id); setIsCreatingGroup(false); setNewGroupName(""); }}
                 >
                   <div className="t-label">{g.name.toUpperCase()}</div>
                 </button>
@@ -207,7 +207,14 @@ export function TodoForm({ onClose, onSuccess, groups = [] }: TodoFormProps) {
 
               <button
                 className={`todo-form__radio-btn ${isCreatingGroup ? "todo-form__radio-btn--active" : ""}`}
-                onClick={() => setIsCreatingGroup(true)}
+                onClick={() => {
+                  setIsCreatingGroup(true);
+                  if (newGroupName.trim()) {
+                    setGroup(`new_${newGroupName.trim().toLowerCase().replace(/\s+/g, '_')}`);
+                  } else {
+                    setGroup(null);
+                  }
+                }}
               >
                 <div className="t-label">+ NEW GROUP</div>
               </button>

@@ -104,7 +104,7 @@ export async function resumeLockdownIfActive(): Promise<boolean> {
   try {
     const state = await getLockdownState();
     console.log("[lockdown] resumeLockdownIfActive — active:", state.active, "blocklist:", state.blocklist?.length);
-    if (!state.active || state.blocklist.length === 0) return false;
+    if (!state.active || !state.blocklist || state.blocklist.length === 0) return false;
 
     // Check if duration has expired
     if (state.duration && state.startedAt) {

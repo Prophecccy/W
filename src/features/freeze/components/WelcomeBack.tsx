@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Snowflake, Play, Calendar, ArrowRight, X, Minus } from "lucide-react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { isTauri } from "../../../shared/utils/tauri";
 import { deactivateFreeze } from "../services/freezeService";
 import "./WelcomeBack.css";
 
@@ -12,7 +13,7 @@ interface WelcomeBackProps {
 
 export function WelcomeBack({ frozenSince, today, onResume }: WelcomeBackProps) {
   const [resuming, setResuming] = useState(false);
-  const appWindow = getCurrentWebviewWindow();
+  const appWindow = isTauri() ? getCurrentWebviewWindow() : null;
 
   const frozenDays = calculateFrozenDays(frozenSince, today);
 
@@ -28,7 +29,7 @@ export function WelcomeBack({ frozenSince, today, onResume }: WelcomeBackProps) 
   };
 
   const handleDrag = (e: React.MouseEvent) => {
-    if (e.button === 0) { // Left click only
+    if (e.button === 0 && appWindow) { // Left click only
       appWindow.startDragging();
     }
   };
@@ -43,14 +44,14 @@ export function WelcomeBack({ frozenSince, today, onResume }: WelcomeBackProps) 
         >
           <button 
             className="welcome-back__control-btn" 
-            onClick={() => appWindow.minimize()}
+            onClick={() => appWindow && appWindow.minimize()}
             title="Minimize"
           >
             <Minus size={14} />
           </button>
           <button 
             className="welcome-back__control-btn welcome-back__control-btn--close" 
-            onClick={() => appWindow.close()}
+            onClick={() => appWindow && appWindow.close()}
             title="Close"
           >
             <X size={14} />
@@ -115,7 +116,7 @@ export function WelcomeBack({ frozenSince, today, onResume }: WelcomeBackProps) 
 function calculateFrozenDays(startDate: string, endDate: string): number {
   const s = new Date(startDate + "T12:00:00");
   const e = new Date(endDate + "T12:00:00");
-  return Math.max(1, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)));
+  return Math.max(0, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
 function formatDisplayDate(dateStr: string): string {
