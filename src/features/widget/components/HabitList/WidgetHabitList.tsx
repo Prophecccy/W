@@ -60,6 +60,7 @@ export function WidgetHabitList({ today, scheduledHabits, todayLog, periodLogs, 
         const currentValue = isMulti
           ? getTotalInRange(habit.id, start)
           : (todayLog?.habits?.[habit.id]?.value || 0);
+        const completions = todayLog?.habits?.[habit.id]?.completions || [];
         return (
           <WidgetHabitCard
             key={habit.id}
@@ -67,6 +68,7 @@ export function WidgetHabitList({ today, scheduledHabits, todayLog, periodLogs, 
             isCompletedToday={status.isCompletedToday}
             doneToday={status.doneToday}
             currentValue={currentValue}
+            completions={completions}
             onComplete={onComplete}
             onUndo={onUndo}
           />

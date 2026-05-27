@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, MouseEvent, TouchEvent } from 'react';
-import { Habit } from '../../../habits/types';
+import { useState, useRef, useCallback, MouseEvent, TouchEvent, useEffect } from 'react';
+import { Habit, CompletionEntry } from '../../../habits/types';
 import { Check, Circle } from 'lucide-react';
 import './WidgetHabitCard.css';
 
@@ -8,6 +8,7 @@ interface WidgetHabitCardProps {
   isCompletedToday: boolean;
   doneToday?: boolean;
   currentValue?: number;
+  completions?: CompletionEntry[];
   onComplete: (habitId: string) => void;
   onUndo: (habitId: string) => void;
 }
@@ -17,6 +18,7 @@ export function WidgetHabitCard({
   isCompletedToday,
   doneToday = false,
   currentValue = 0,
+  completions = [],
   onComplete,
   onUndo,
 }: WidgetHabitCardProps) {
@@ -27,6 +29,34 @@ export function WidgetHabitCard({
 
   const HOLD_DURATION = 500;
   const UNDO_DURATION = 8000;
+
+  // Synchronize undo state from database completions in real-time
+  useEffect(() => {
+    if (!completions || completions.length === 0) {
+      setJustCompleted(false);
+      return;
+    }
+    
+    // Find the latest completion
+    const latest = completions[completions.length - 1];
+    const ageMs = Date.now() - latest.timestamp;
+    
+    if (ageMs < UNDO_DURATION) {
+      setJustCompleted(true);
+      
+      // Auto-clear justCompleted after remaining time expires
+      if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+      undoTimeoutRef.current = window.setTimeout(() => {
+        setJustCompleted(false);
+      }, UNDO_DURATION - ageMs);
+    } else {
+      setJustCompleted(false);
+    }
+    
+    return () => {
+      if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+    };
+  }, [completions]);
 
   const handleUndo = useCallback((e: MouseEvent | TouchEvent) => {
     e.stopPropagation();
