@@ -104,6 +104,20 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
     };
   }, [today]);
 
+  // Flush unsaved notes on component unmount to prevent data loss on page navigation
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+      if (isSaving) {
+        saveLocalNote(today, latestNoteRef.current).catch(err => {
+          console.error("Failed to flush daily note on unmount:", err);
+        });
+      }
+    };
+  }, [today, isSaving]);
+
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const newVal = e.target.value;
     if (newVal.length > MAX_CHARS) return;

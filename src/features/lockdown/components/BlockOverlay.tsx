@@ -56,6 +56,7 @@ export function BlockOverlay() {
 
   const handleClose = useCallback(async () => {
     if (!blockInfo || closing) return;
+    const targetPid = blockInfo.pid;
     setClosing(true);
 
     try {
@@ -63,10 +64,10 @@ export function BlockOverlay() {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
 
       // 1. Kill the banned process
-      if (blockInfo.pid > 0) {
+      if (targetPid > 0) {
         try {
-          await invoke("kill_blocked_process", { pid: blockInfo.pid });
-          console.log("[lockdown] Killed process:", blockInfo.pid);
+          await invoke("kill_blocked_process", { pid: targetPid });
+          console.log("[lockdown] Killed process:", targetPid);
         } catch (err) {
           console.error("[lockdown] Failed to kill process:", err);
         }
@@ -76,8 +77,8 @@ export function BlockOverlay() {
       const win = getCurrentWindow();
       await win.hide();
 
-      // 3. Clear state
-      setBlockInfo(null);
+      // 3. Clear state only if no other block event has occurred in the meantime
+      setBlockInfo((prev) => (prev && prev.pid === targetPid ? null : prev));
       setClosing(false);
     } catch (err) {
       console.error("[lockdown] Close handler error:", err);

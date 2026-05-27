@@ -137,37 +137,6 @@ export function useLockdown(): UseLockdownReturn {
     };
   }, []);
 
-  // ── Countdown timer ────────────────────────────────────────────
-  useEffect(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-
-    if (!state.active || !state.duration || !state.startedAt) {
-      setTimeRemaining(null);
-      return;
-    }
-
-    const endTime = state.startedAt + state.duration * 60 * 1000;
-
-    const tick = () => {
-      const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
-      setTimeRemaining(remaining);
-
-      if (remaining <= 0) {
-        deactivateLockdownHandler();
-      }
-    };
-
-    tick();
-    timerRef.current = setInterval(tick, 1000);
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [state.active, state.duration, state.startedAt]);
-
   // ── Actions ────────────────────────────────────────────────────
   const activateHandler = useCallback(
     async (blocklist: string[], duration: number | null) => {
@@ -194,6 +163,44 @@ export function useLockdown(): UseLockdownReturn {
 
     await reload();
   }, [reload]);
+
+  // ── Countdown timer ────────────────────────────────────────────
+  useEffect(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    if (!state.active || !state.duration || !state.startedAt) {
+      setTimeRemaining(null);
+      return;
+    }
+
+    const endTime = state.startedAt + state.duration * 60 * 1000;
+
+    const tick = () => {
+      const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+      setTimeRemaining(remaining);
+
+      if (remaining <= 0) {
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        deactivateLockdownHandler();
+      }
+    };
+
+    tick();
+    timerRef.current = setInterval(tick, 1000);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [state.active, state.duration, state.startedAt, deactivateLockdownHandler]);
 
   return {
     state,

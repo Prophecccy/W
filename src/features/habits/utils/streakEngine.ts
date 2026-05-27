@@ -1,6 +1,15 @@
 import { Habit, HabitLog } from "../types";
 import { formatDate } from "../../../shared/utils/dateUtils";
 
+/**
+ * Parses a YYYY-MM-DD date string using the local timezone to avoid
+ * UTC translation shifts that occur with standard new Date(dateStr) calls.
+ */
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 // ─── Per-habit streak ─────────────────────────────────────────────
 
 /**
@@ -23,7 +32,7 @@ export function calculateStreak(habit: Habit, logs: HabitLog[]): number {
           break;
         }
         streak++;
-        const d = new Date(expectedDate + "T00:00:00");
+        const d = parseLocalDate(expectedDate);
         d.setDate(d.getDate() - 1);
         expectedDate = formatDate(d);
       }
@@ -94,7 +103,7 @@ export function calculateStreak(habit: Habit, logs: HabitLog[]): number {
         if (!entry?.completed) break;
         streak++;
         // Move to previous day
-        const d = new Date(expectedDate);
+        const d = parseLocalDate(expectedDate);
         d.setDate(d.getDate() - 1);
         expectedDate = formatDate(d);
       }
@@ -178,7 +187,7 @@ export function calculateGlobalStreak(
     if (!allCompleted) break;
 
     streak++;
-    const d = new Date(expectedDate);
+    const d = parseLocalDate(expectedDate);
     d.setDate(d.getDate() - 1);
     expectedDate = formatDate(d);
   }
@@ -192,18 +201,18 @@ function isScheduledOnDate(habit: Habit, date: string): boolean {
   if (!habit.isActive) return false;
   if (habit.period === "daily") return true;
   if (habit.period === "weekly") {
-    const dayOfWeek = new Date(date).getDay();
+    const dayOfWeek = parseLocalDate(date).getDay();
     return habit.daysOfWeek.includes(dayOfWeek);
   }
   if (habit.period === "monthly") {
     // Simple: scheduled on the same day-of-month as creation
-    const dayOfMonth = new Date(date).getDate();
+    const dayOfMonth = parseLocalDate(date).getDate();
     const creationDay = new Date(habit.createdAt).getDate();
     return dayOfMonth === creationDay;
   }
   if (habit.period === "interval") {
     const creation = new Date(habit.createdAt);
-    const target = new Date(date);
+    const target = parseLocalDate(date);
     const diff = Math.floor(
       (target.getTime() - creation.getTime()) / (1000 * 60 * 60 * 24)
     );
@@ -213,7 +222,7 @@ function isScheduledOnDate(habit: Habit, date: string): boolean {
 }
 
 function getISOWeek(dateStr: string): string {
-  const d = new Date(dateStr);
+  const d = parseLocalDate(dateStr);
   const jan4 = new Date(d.getFullYear(), 0, 4);
   const weekNum = Math.ceil(
     ((d.getTime() - jan4.getTime()) / 86400000 + jan4.getDay() + 1) / 7
@@ -243,7 +252,7 @@ function groupLogsByMonth(logs: HabitLog[]): Map<string, HabitLog[]> {
 
 function getRecentWeeks(today: string, count: number): string[] {
   const weeks: string[] = [];
-  const d = new Date(today);
+  const d = parseLocalDate(today);
   for (let i = 0; i < count; i++) {
     weeks.push(getISOWeek(formatDate(d)));
     d.setDate(d.getDate() - 7);
@@ -253,7 +262,7 @@ function getRecentWeeks(today: string, count: number): string[] {
 
 function getRecentMonths(today: string, count: number): string[] {
   const months: string[] = [];
-  const d = new Date(today);
+  const d = parseLocalDate(today);
   for (let i = 0; i < count; i++) {
     months.push(formatDate(d).slice(0, 7));
     d.setMonth(d.getMonth() - 1);
@@ -268,7 +277,7 @@ function buildDueDates(
 ): string[] {
   const due: string[] = [];
   const d = new Date(habit.createdAt);
-  const end = new Date(today);
+  const end = parseLocalDate(today);
   while (d <= end) {
     const s = formatDate(d);
     if (s >= earliestLog) due.unshift(s);

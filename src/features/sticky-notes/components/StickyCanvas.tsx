@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { isTauri } from "../../../shared/utils/tauri";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../../../shared/config/firebase";
 import { useAuthContext } from "../../auth/context";
@@ -116,14 +117,19 @@ export function StickyCanvas() {
       setAccentReady(true);
     });
 
-    // Listen for realtime color preview from settings
-    const unlistenPromise = listen<string>('color-preview', (event) => {
-      document.documentElement.style.setProperty('--accent', event.payload);
-    });
+    // Listen for realtime color preview from settings if running in Tauri
+    let unlistenPromise: Promise<() => void> | null = null;
+    if (isTauri()) {
+      unlistenPromise = listen<string>('color-preview', (event) => {
+        document.documentElement.style.setProperty('--accent', event.payload);
+      });
+    }
 
     return () => {
       unsub();
-      unlistenPromise.then(u => u()).catch(() => {});
+      if (unlistenPromise) {
+        unlistenPromise.then(u => u()).catch(() => {});
+      }
     };
   }, [user]);
 
