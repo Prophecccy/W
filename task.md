@@ -464,3 +464,16 @@
 - [x] 324. Add custom `.habit-card--resting` CSS and implement the cooldown countdown text calculations inside HabitCard component.
 - [x] 325. Categorize resting habits into a new `[ INTERVALS ]` section in the main App's Habits tab.
 - [x] 326. Verify full routing system behavior, synchronizing all modifications to git and committing/pushing to the remote origin.
+
+## BATCH 24 — 10 Core Codebase Bugs (10 tasks)
+
+- [x] 327. Fix Weekly/Monthly Over-Scheduling Strike Loophole in `scheduleEngine.ts`
+- [x] 328. Fix Double-Increment in Gap Processor (`gapProcessor.ts`) via `if-else` refactor
+- [x] 329. Fix Lockout Penance Keyboard/Command Palette bypass in `Layout.tsx`
+- [x] 330. Fix SleepTube settings undefined fallback on cold boots in `SleepTube.tsx`
+- [x] 331. Fix Keyboard Shortcuts stale closures & memory leaks in `useKeyboardShortcuts.ts`
+- [x] 332. Fix Interval Streak timezone and hour shift boundary bugs in `streakEngine.ts`
+- [x] 333. Fix Widget drag interruption pointer capture leak in `WidgetApp.tsx`
+- [x] 334. Fix Numbered Todo redundant completion triggers in `todoService.ts`
+- [x] 335. Fix Toast component memory leaks and dangling timeouts in `Toast.tsx`
+- [x] 336. Fix Retroactive auto-freeze missing daily logs in `freezeService.ts`

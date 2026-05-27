@@ -18,7 +18,7 @@ export function SleepTube({ settings: propsSettings, isWidget }: SleepTubeProps)
   const store = useContext(UserStoreContext);
   const userStoreDoc = store?.userDoc ?? null;
 
-  const settings = propsSettings || userStoreDoc?.settings;
+  const settings = propsSettings || userStoreDoc?.settings || { wakeUpTime: '07:00', bedTime: '23:00' };
   const { percent, phase, minutesPassed, totalMinutes } = useTimeLeft(
     settings?.wakeUpTime, 
     settings?.bedTime

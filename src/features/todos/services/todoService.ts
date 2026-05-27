@@ -94,6 +94,10 @@ export async function incrementNumberedTodo(todoId: string, currentTodo: Todo): 
   const currentCount = currentTodo.numbered.current;
   const targetCount = currentTodo.numbered.target;
   
+  if (currentTodo.status === "done" || currentCount >= targetCount) {
+    return; // Already completed or reached target
+  }
+  
   const nextCount = Math.min(currentCount + 1, targetCount);
   
   if (nextCount >= targetCount) {

@@ -50,7 +50,6 @@ export function isHabitScheduledToday(
     ? habit.startDate
     : formatDate(new Date(habit.createdAt));
   if (today < activationDate) return false;
-  if (today === activationDate) return true; // Commencement date is ALWAYS active
 
   // Check endpoint duration
   if (habit.duration.type === "endpoint" && habit.duration.endDate) {

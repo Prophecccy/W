@@ -438,7 +438,7 @@ function LayoutInner() {
     window.dispatchEvent(new CustomEvent("w:quick-complete"));
   }, []);
 
-  useKeyboardShortcuts(toggleCommandPalette, handleNewItem, handleQuickComplete);
+  useKeyboardShortcuts(toggleCommandPalette, handleNewItem, handleQuickComplete, isLocked);
 
   // ── Command palette actions ────────────────────────────────────
   const handlePaletteCompleteHabit = useCallback(async (habitId: string) => {

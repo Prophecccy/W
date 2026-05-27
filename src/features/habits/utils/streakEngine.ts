@@ -211,9 +211,10 @@ function isScheduledOnDate(habit: Habit, date: string): boolean {
     return dayOfMonth === creationDay;
   }
   if (habit.period === "interval") {
-    const creation = new Date(habit.createdAt);
+    const startStr = habit.startDate || formatDate(new Date(habit.createdAt));
+    const creation = parseLocalDate(startStr);
     const target = parseLocalDate(date);
-    const diff = Math.floor(
+    const diff = Math.round(
       (target.getTime() - creation.getTime()) / (1000 * 60 * 60 * 24)
     );
     return diff >= 0 && diff % habit.intervalDays === 0;
@@ -276,7 +277,8 @@ function buildDueDates(
   today: string
 ): string[] {
   const due: string[] = [];
-  const d = new Date(habit.createdAt);
+  const startStr = habit.startDate || formatDate(new Date(habit.createdAt));
+  const d = parseLocalDate(startStr);
   const end = parseLocalDate(today);
   while (d <= end) {
     const s = formatDate(d);

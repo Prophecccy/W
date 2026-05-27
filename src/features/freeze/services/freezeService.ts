@@ -1,4 +1,4 @@
-import { doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import { doc, getDoc, updateDoc, arrayUnion, setDoc } from "firebase/firestore";
 import { db, auth } from "../../../shared/config/firebase";
 import { FreezeState, FreezeHistoryEntry, FreezeReason, AUTO_FREEZE_THRESHOLD_DAYS } from "../types";
 import { getToday, formatDate } from "../../../shared/utils/dateUtils";
@@ -129,6 +129,26 @@ export async function checkAutoFreeze(
   const frozenSince = formatDate(freezeStart);
 
   await activateFreeze("auto_absence", frozenSince);
+
+  // Write retroactive log documents to Firestore for the gap days
+  const userId = uid();
+  let logDate = new Date(freezeStart);
+  const todayD = new Date(todayDate);
+  while (logDate < todayD) {
+    const logDateStr = formatDate(logDate);
+    const logDocRef = doc(db, "users", userId, "logs", logDateStr);
+    try {
+      await setDoc(logDocRef, {
+        date: logDateStr,
+        uid: userId,
+        notes: "[ AUTO-FREEZE ]",
+        habits: {}
+      }, { merge: true });
+    } catch (e) {
+      console.warn(`[Auto-Freeze] Failed to write retroactive log for ${logDateStr}:`, e);
+    }
+    logDate.setDate(logDate.getDate() + 1);
+  }
 
   return { triggered: true, frozenSince };
 }

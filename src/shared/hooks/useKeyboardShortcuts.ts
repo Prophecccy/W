@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 /**
@@ -14,9 +14,23 @@ import { useNavigate } from "react-router-dom";
 export function useKeyboardShortcuts(
   onCommandPaletteToggle: () => void,
   onNewItem?: () => void,
-  onQuickComplete?: () => void
+  onQuickComplete?: () => void,
+  isLocked: boolean = false
 ) {
   const navigate = useNavigate();
+
+  const toggleRef = useRef(onCommandPaletteToggle);
+  const newItemRef = useRef(onNewItem);
+  const quickCompleteRef = useRef(onQuickComplete);
+  const isLockedRef = useRef(isLocked);
+
+  // Keep refs hot on every render
+  useEffect(() => {
+    toggleRef.current = onCommandPaletteToggle;
+    newItemRef.current = onNewItem;
+    quickCompleteRef.current = onQuickComplete;
+    isLockedRef.current = isLocked;
+  });
 
   useEffect(() => {
     const isTyping = () => {
@@ -32,10 +46,13 @@ export function useKeyboardShortcuts(
     };
 
     const handler = (e: KeyboardEvent) => {
+      // Block all shortcuts if locked out
+      if (isLockedRef.current) return;
+
       // Ctrl+K → Command Palette
       if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
-        onCommandPaletteToggle();
+        toggleRef.current();
         return;
       }
 
@@ -57,16 +74,16 @@ export function useKeyboardShortcuts(
           break;
         case "n":
           e.preventDefault();
-          onNewItem?.();
+          newItemRef.current?.();
           break;
         case " ": // Space key
           e.preventDefault();
-          onQuickComplete?.();
+          quickCompleteRef.current?.();
           break;
       }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [navigate, onCommandPaletteToggle, onNewItem, onQuickComplete]);
+  }, [navigate]);
 }
