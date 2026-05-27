@@ -8,7 +8,6 @@ import { getLocalWallpaper } from '../../../shared/utils/storageUtils';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { SleepTube } from '../../dashboard/components/SleepTube';
 import { ProgressCircle } from '../../../shared/components/ProgressCircle/ProgressCircle';
 import './WidgetApp.css';
@@ -198,34 +197,62 @@ export function WidgetApp() {
 
   // Apply accent color to widget
   useEffect(() => {
-    let active = true;
-    let unlisten: (() => void) | undefined;
-
     document.documentElement.style.setProperty('--accent', accentColor);
+  }, [accentColor]);
 
-    // Listen for live preview from main settings window
-    const unlistenPromise = listen<string>('color-preview', (event) => {
-      if (!active) return;
-      document.documentElement.style.setProperty('--accent', event.payload);
-    });
+  // Listen for live preview from main settings window on mount (single listener to avoid leaks)
+  useEffect(() => {
+    let active = true;
+    let unsub: (() => void) | undefined;
 
-    unlistenPromise.then((unsub) => {
-      if (!active) {
-        unsub();
-      } else {
-        unlisten = unsub;
-      }
-    }).catch(() => {});
+    const setupListener = async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        const unlisten = await listen<string>('color-preview', (event) => {
+          if (!active) return;
+          document.documentElement.style.setProperty('--accent', event.payload);
+        });
+        if (!active) {
+          unlisten();
+        } else {
+          unsub = unlisten;
+        }
+      } catch {}
+    };
+    setupListener();
 
     return () => {
       active = false;
-      if (unlisten) {
-        unlisten();
-      } else {
-        unlistenPromise.then(unsub => unsub()).catch(() => {});
-      }
+      if (unsub) unsub();
     };
-  }, [accentColor]);
+  }, []);
+
+  // Trigger a re-render to recalculate widget height when active undo windows expire
+  const [heightTrigger, setHeightTrigger] = useState(0);
+  useEffect(() => {
+    let active = true;
+    let minRemaining = Infinity;
+
+    scheduledHabits.forEach(habit => {
+      const entry = todayLog?.habits?.[habit.id];
+      const completions = entry?.completions || [];
+      if (completions.length > 0) {
+        const latest = completions[completions.length - 1];
+        const ageMs = Date.now() - latest.timestamp;
+        if (ageMs < 8000) {
+          const remaining = 8000 - ageMs;
+          if (remaining < minRemaining) minRemaining = remaining;
+        }
+      }
+    });
+
+    if (minRemaining !== Infinity && minRemaining > 0) {
+      const timer = setTimeout(() => {
+        if (active) setHeightTrigger(prev => prev + 1);
+      }, minRemaining);
+      return () => clearTimeout(timer);
+    }
+  }, [scheduledHabits, todayLog, heightTrigger]);
 
   // ─── Precise height memoization for auto-scaling ──────────
   const targetLogicalHeight = useMemo(() => {
@@ -255,7 +282,16 @@ export function WidgetApp() {
       let cardHeight = 52; // Default height
 
       const entry = todayLog?.habits?.[habit.id];
-      const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
+      const completions = entry?.completions || [];
+      
+      let justCompleted = false;
+      if (completions.length > 0) {
+        const latest = completions[completions.length - 1];
+        const ageMs = Date.now() - latest.timestamp;
+        if (ageMs < 8000) justCompleted = true;
+      }
+
+      const interactedToday = completions.length > 0 || (entry?.value ?? 0) > 0;
 
       if (isMultiDayMetric(habit)) {
         const target = habit.metric?.targetValue ?? 0;
@@ -265,7 +301,7 @@ export function WidgetApp() {
         // If interacted today but period is not fully completed, show "✓ DONE TODAY" second line (+15px)
         const isCompletedToday = periodCompleted;
         const doneToday = interactedToday && !periodCompleted;
-        const isCompleted = isCompletedToday; // no justCompleted here since it's initial sizing
+        const isCompleted = isCompletedToday || justCompleted;
         const isDoneToday = doneToday && !isCompleted;
 
         if (isDoneToday) {
@@ -298,7 +334,7 @@ export function WidgetApp() {
     const targetLogicalWithBuffer = targetLogical + 24;
 
     return Math.max(300, Math.min(800, targetLogicalWithBuffer));
-  }, [scheduledHabits, todayLog, periodLogs, today, userDoc?.settings?.weeklyResetDay]);
+  }, [scheduledHabits, todayLog, periodLogs, today, userDoc?.settings?.weeklyResetDay, heightTrigger]);
 
   // ─── Auto-resize window height to fit habit count ─────────
   useEffect(() => {
@@ -338,7 +374,7 @@ export function WidgetApp() {
 
     async function initPosition() {
       try {
-        const win = getCurrentWindow();
+        const win = getCurrentWindow() as any;
         const saved = await loadWidgetPosition();
 
         const scaleFactor = await win.scaleFactor();
@@ -351,12 +387,36 @@ export function WidgetApp() {
           saveWidgetPosition(saved);
         }
 
+        // Monitor Boundaries Guard (clamping offscreen windows)
+        try {
+          const monitor = await win.currentMonitor();
+          if (monitor) {
+            const monitorWidth = monitor.size.width;
+            const monitorHeight = monitor.size.height;
+            const monitorX = monitor.position.x;
+            const monitorY = monitor.position.y;
+
+            // Clamping check
+            const isOffScreenX = saved.x < monitorX || saved.x > (monitorX + monitorWidth - 100);
+            const isOffScreenY = saved.y < monitorY || saved.y > (monitorY + monitorHeight - 100);
+
+            if (isOffScreenX || isOffScreenY) {
+              console.warn("[Widget Monitor Guard] Off-screen detected! Resetting position to center-right safe bounds.");
+              saved.x = Math.max(100, monitorX + monitorWidth - saved.width - 100);
+              saved.y = Math.max(100, monitorY + 100);
+              saveWidgetPosition(saved);
+            }
+          }
+        } catch (e) {
+          console.warn("[Widget Monitor Guard] Monitor fetch failed:", e);
+        }
+
         await win.setPosition(new PhysicalPosition(saved.x, saved.y));
         await win.setSize(new PhysicalSize(saved.width, saved.height));
 
         setIsPositionInitialized(true);
 
-        unlistenMove = await win.onMoved(async (pos) => {
+        unlistenMove = await win.onMoved(async (pos: any) => {
           if (cleanup) return;
           const size = await win.innerSize();
           saveWidgetPosition({
@@ -367,7 +427,7 @@ export function WidgetApp() {
           });
         });
 
-        unlistenResize = await win.onResized(async (size) => {
+        unlistenResize = await win.onResized(async (size: any) => {
           if (cleanup) return;
           const pos = await win.outerPosition();
           saveWidgetPosition({
@@ -491,8 +551,22 @@ export function WidgetApp() {
             if (main) {
               await main.show();
               await main.setFocus();
+            } else {
+              // Recreate the main window if it has been closed
+              const newMain = new WebviewWindow('main', {
+                url: 'index.html',
+                title: 'W Command Center',
+                width: 1024,
+                height: 768,
+                minWidth: 800,
+                minHeight: 600,
+              });
+              await newMain.show();
+              await newMain.setFocus();
             }
-          } catch {}
+          } catch (e) {
+            console.error('Failed to restore or recreate main window:', e);
+          }
         }}>
           <ShieldAlert size={32} />
           <span className="t-label">[ LOCKED — OPEN APP ]</span>

@@ -102,6 +102,13 @@ export function WidgetHabitCard({
     }, HOLD_DURATION);
   }, [isCompletedToday, justCompleted, habit.id, habit.type, onComplete, onUndo]);
 
+  // Clean up timers on unmount to prevent memory leaks and ghost updates
+  useEffect(() => {
+    return () => {
+      if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
+    };
+  }, []);
+
   const cancelHold = useCallback(() => {
     if (holdTimeoutRef.current) {
       clearTimeout(holdTimeoutRef.current);
