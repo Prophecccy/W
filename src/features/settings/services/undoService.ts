@@ -8,6 +8,8 @@ import {
   where,
   orderBy,
   limit,
+  getDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { db, auth } from "../../../shared/config/firebase";
 import { UndoAction, UndoActionType } from "./undoTypes";
@@ -58,12 +60,11 @@ export async function getHistory(days: number = 7): Promise<UndoAction[]> {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as UndoAction));
 }
 
-// ─── Undo an action ─────────────────────────────────────────────
-
 export async function undoAction(actionId: string): Promise<void> {
-  const actions = await getHistory(7);
-  const action = actions.find((a) => a.id === actionId);
-  if (!action) throw new Error("Action not found or expired");
+  const actionRef = doc(db, "users", uid(), "undoHistory", actionId);
+  const snap = await getDoc(actionRef);
+  if (!snap.exists()) throw new Error("Action not found or expired");
+  const action = { id: snap.id, ...snap.data() } as UndoAction;
 
   // Execute the reverse operation based on action type
   switch (action.type) {
@@ -127,10 +128,12 @@ export async function purgeOldEntries(): Promise<number> {
     limit(50)
   );
   const snap = await getDocs(q);
-  let deleted = 0;
-  for (const d of snap.docs) {
-    await deleteDoc(d.ref);
-    deleted++;
-  }
-  return deleted;
+  if (snap.empty) return 0;
+
+  const batch = writeBatch(db);
+  snap.docs.forEach((d) => {
+    batch.delete(d.ref);
+  });
+  await batch.commit();
+  return snap.docs.length;
 }

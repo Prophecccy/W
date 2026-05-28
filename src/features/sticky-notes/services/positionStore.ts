@@ -44,7 +44,12 @@ export function removePositionLocal(todoId: string): void {
 
 // ─── Firestore Sync (debounced) ─────────────────────────────────
 
-const pendingSyncs = new Map<string, number>();
+interface PendingSync {
+  timer: number;
+  pos: { x: number; y: number };
+}
+
+const pendingSyncs = new Map<string, PendingSync>();
 
 /**
  * Debounced sync to Firestore. Waits 1 second after the last call
@@ -54,7 +59,7 @@ export function syncPositionToFirestore(todoId: string, pos: { x: number; y: num
   // Clear existing timer for this todo
   const existing = pendingSyncs.get(todoId);
   if (existing) {
-    clearTimeout(existing);
+    clearTimeout(existing.timer);
   }
 
   // Set new debounced write
@@ -67,13 +72,26 @@ export function syncPositionToFirestore(todoId: string, pos: { x: number; y: num
     }
   }, 1000);
 
-  pendingSyncs.set(todoId, timer);
+  pendingSyncs.set(todoId, { timer, pos });
 }
 
 /**
  * Immediately flush all pending syncs (e.g., on window close).
  */
 export function flushPendingSyncs(): void {
-  pendingSyncs.forEach((timer) => clearTimeout(timer));
+  pendingSyncs.forEach((sync, todoId) => {
+    clearTimeout(sync.timer);
+    // Write immediately to prevent data loss on close/reload
+    updateTodo(todoId, { stickyPosition: sync.pos }).catch((e) => {
+      console.error("Failed to flush sticky position to Firestore:", todoId, e);
+    });
+  });
   pendingSyncs.clear();
+}
+
+// Automatically register global unload listener to guarantee persistence
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", () => {
+    flushPendingSyncs();
+  });
 }

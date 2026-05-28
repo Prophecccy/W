@@ -8,8 +8,7 @@ import {
   where,
   orderBy,
   getDocs,
-  increment,
-  documentId,
+  runTransaction,
 } from "firebase/firestore";
 import { db, auth } from "../../../shared/config/firebase";
 import { HabitLog, HabitLogEntry, CompletionEntry } from "../types";
@@ -63,100 +62,102 @@ export async function completeHabit(
   const ref = logRef(userId, today);
   const habitRef = doc(db, "users", userId, "habits", habitId);
 
-  const habitSnap = await getDoc(habitRef);
-  const habit = habitSnap.exists() ? habitSnap.data() : null;
-  const resolvedTarget = habit?.metric?.targetValue ?? target;
+  const result = await runTransaction(db, async (transaction) => {
+    const habitSnap = await transaction.get(habitRef);
+    const habit = habitSnap.exists() ? habitSnap.data() : null;
+    const resolvedTarget = habit?.metric?.targetValue ?? target;
 
-  const snap = await getDoc(ref);
-  const log = snap.exists() ? (snap.data() as HabitLog) : null;
+    const snap = await transaction.get(ref);
+    const log = snap.exists() ? (snap.data() as HabitLog) : null;
 
-  const existing: HabitLogEntry = log?.habits?.[habitId] ?? {
-    completed: false,
-    value: 0,
-    target: resolvedTarget,
-    completions: [],
-  };
+    const existing: HabitLogEntry = log?.habits?.[habitId] ?? {
+      completed: false,
+      value: 0,
+      target: resolvedTarget,
+      completions: [],
+    };
 
-  const entry: CompletionEntry = {
-    timestamp: Date.now(),
-    value,
-    ...(note ? { note } : {}),
-  };
+    const entry: CompletionEntry = {
+      timestamp: Date.now(),
+      value,
+      ...(note ? { note } : {}),
+    };
 
-  const newValue = existing.value + value;
-  const isCompleted =
-    habit?.type === "metric"
-      ? newValue >= resolvedTarget
-      : habit?.type === "limiter"
-        ? false
-        : true;
+    const newValue = existing.value + value;
+    const isCompleted =
+      habit?.type === "metric"
+        ? newValue >= resolvedTarget
+        : habit?.type === "limiter"
+          ? false
+          : true;
 
-  const newEntry: HabitLogEntry = {
-    completed: isCompleted,
-    value: newValue,
-    target: resolvedTarget,
-    completions: [...existing.completions, entry],
-  };
+    const newEntry: HabitLogEntry = {
+      completed: isCompleted,
+      value: newValue,
+      target: resolvedTarget,
+      completions: [...existing.completions, entry],
+    };
 
-  if (!snap.exists()) {
-    await setDoc(ref, {
-      date: today,
-      uid: userId,
-      notes: "",
-      habits: { [habitId]: newEntry },
-    });
-  } else {
-    await updateDoc(ref, {
-      [`habits.${habitId}`]: newEntry,
-    });
-  }
-
-  // ─── Limiter Exceeded Strike Logic ──────────────────────────────
-  if (habit?.type === "limiter" && newValue > resolvedTarget) {
-    try {
-      await addStrike(habitId, habit.title || "Limiter", "limiter_exceeded");
-    } catch (e) {
-      console.error("Failed to add limiter strike:", e);
+    if (!snap.exists()) {
+      transaction.set(ref, {
+        date: today,
+        uid: userId,
+        notes: "",
+        habits: { [habitId]: newEntry },
+      });
+    } else {
+      transaction.update(ref, {
+        [`habits.${habitId}`]: newEntry,
+      });
     }
-  }
 
-  // ── Sync habit document stats ───────────────────────────────────
-  try {
+    let habitTitle = "Limiter";
+    let limitExceeded = false;
+
     if (habit) {
-      const lastDate = (habit.lastCompletedDate as string | null) ?? null;
-      let streakUpdate: Record<string, any> = {
-        totalCompletions: increment(1),
-        lastCompletedDate: today,
-        levelProgress: increment(1),
-      };
+      habitTitle = habit.title || "Limiter";
+      limitExceeded = habit.type === "limiter" && newValue > resolvedTarget;
 
-      // Calculate streak: if last completion was yesterday, increment streak
+      const lastDate = (habit.lastCompletedDate as string | null) ?? null;
+      let currentStreak = habit.currentStreak || 0;
+      let longestStreak = habit.longestStreak || 0;
+
       if (lastDate) {
         const last = new Date(lastDate + "T00:00:00");
         const now = new Date(today + "T00:00:00");
         const diffDays = Math.round((now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
         if (diffDays === 1) {
-          // Consecutive day → increment streak
-          const newStreak = ((habit as any).currentStreak || 0) + 1;
-          streakUpdate.currentStreak = newStreak;
-          if (newStreak > ((habit as any).longestStreak || 0)) {
-            streakUpdate.longestStreak = newStreak;
+          currentStreak += 1;
+          if (currentStreak > longestStreak) {
+            longestStreak = currentStreak;
           }
         } else if (diffDays > 1) {
-          // Gap → reset streak to 1
-          streakUpdate.currentStreak = 1;
+          currentStreak = 1;
         }
-        // diffDays === 0 means same day, don't change streak
       } else {
-        // First ever completion
-        streakUpdate.currentStreak = 1;
-        streakUpdate.longestStreak = 1;
+        currentStreak = 1;
+        longestStreak = 1;
       }
 
-      await updateDoc(habitRef, streakUpdate);
+      transaction.update(habitRef, {
+        totalCompletions: (habit.totalCompletions || 0) + 1,
+        lastCompletedDate: today,
+        levelProgress: (habit.levelProgress || 0) + 1,
+        currentStreak,
+        longestStreak,
+      });
     }
-  } catch (e) {
-    console.error("Failed to sync habit stats:", e);
+
+    return { limitExceeded, habitTitle };
+  });
+
+  // ─── Limiter Exceeded Strike Logic ──────────────────────────────
+  if (result.limitExceeded) {
+    try {
+      await addStrike(habitId, result.habitTitle, "limiter_exceeded");
+    } catch (e) {
+      console.error("Failed to add limiter strike:", e);
+    }
   }
 }
 
@@ -262,10 +263,10 @@ export async function getNoteHistory(userId: string): Promise<HabitLog[]> {
   const logsRef = collection(db, "users", userId, "logs");
   const q = query(
     logsRef,
-    orderBy(documentId(), "desc")
+    where("notes", "!=", "")
   );
   const snap = await getDocs(q);
   return snap.docs
     .map((d) => d.data() as HabitLog)
-    .filter((log) => log.notes && log.notes.trim() !== "");
+    .sort((a, b) => b.date.localeCompare(a.date));
 }

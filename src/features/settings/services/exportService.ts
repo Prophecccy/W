@@ -24,6 +24,8 @@ export async function exportJSON(): Promise<boolean> {
   const habits = await getAllCollectionData("habits");
   const todos = await getAllCollectionData("todos");
   const logs = await getAllCollectionData("logs");
+  const groups = await getAllCollectionData("groups");
+  const stickyNotes = await getAllCollectionData("sticky-notes");
 
   const data = {
     exportedAt: new Date().toISOString(),
@@ -31,6 +33,8 @@ export async function exportJSON(): Promise<boolean> {
     habits,
     todos,
     logs,
+    groups,
+    "sticky-notes": stickyNotes,
   };
 
   const json = JSON.stringify(data, null, 2);

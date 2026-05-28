@@ -24,6 +24,8 @@ async function gatherAllData(): Promise<Record<string, unknown>> {
   const habits = await getAllCollectionData("habits");
   const todos = await getAllCollectionData("todos");
   const logs = await getAllCollectionData("logs");
+  const groups = await getAllCollectionData("groups");
+  const stickyNotes = await getAllCollectionData("sticky-notes");
 
   return {
     exportedAt: new Date().toISOString(),
@@ -31,6 +33,8 @@ async function gatherAllData(): Promise<Record<string, unknown>> {
     habits,
     todos,
     logs,
+    groups,
+    "sticky-notes": stickyNotes,
   };
 }
 

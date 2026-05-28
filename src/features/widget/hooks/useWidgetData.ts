@@ -156,12 +156,13 @@ export function useWidgetData(): WidgetData {
   // Global streak = longest current streak across all habits
   const globalStreak = habits.reduce((max, h) => Math.max(max, h.currentStreak), 0);
 
-  // Weekly completions: count completed entries in today's log (excluding limiters)
-  const weeklyCompletions = todayLog
-    ? Object.entries(todayLog.habits || {})
-        .filter(([habitId, entry]) => entry.completed && habits.some(h => h.id === habitId))
-        .length
-    : 0;
+  // Weekly completions: count completed entries across all period logs (excluding limiters)
+  const weeklyCompletions = periodLogs.reduce((acc, log) => {
+    const completionsInLog = Object.entries(log.habits || {})
+      .filter(([habitId, entry]) => entry.completed && habits.some(h => h.id === habitId))
+      .length;
+    return acc + completionsInLog;
+  }, 0);
 
   const completeHabit = useCallback(async (habitId: string) => {
     if (!user) return;

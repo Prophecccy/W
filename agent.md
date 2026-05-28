@@ -104,3 +104,21 @@ A series of 10 codebase-wide architectural bugs were resolved to enforce strict 
 8. **Numbered Todo Completeness**: Added status and constraint guards to `incrementNumberedTodo` to ensure idempotence, preventing redundant completion fires or double animation triggers.
 9. **Toast Memory Management**: Tracked active toast timers in a `timeoutsRef` map and explicitly cleared them on dismissal or unmount to guarantee complete garbage collection.
 10. **Retroactive Freeze Logs**: Integrated Firestore `setDoc` loop in `checkAutoFreeze` to write retroactive daily logs (`[ AUTO-FREEZE ]`) during absences, ensuring freeze history is transparently captured in log timelines.
+
+---
+
+## Batch 25 — Cloud, Database & Sync Integrity
+
+A series of 10 cloud, database, and sync-related improvements were implemented to establish perfect transactional data safety, eliminate redundant Firestore reads, and prevent data loss:
+
+1. **Delete Account Security Check**: Added force ID token refresh (`user.getIdToken(true)`) and a strict 3-minute safety threshold to prevent clock drift and guarantee the account is deleted successfully without creating orphaned auth records.
+2. **Lockdown Hook Recovery Race**: Patched hook lifecycle to resolve the auth race condition, only launching recovery (`resumeLockdownIfActive`) once the authenticated user context is active.
+3. **Sticky Note Drag Persistence**: Redesigned `flushPendingSyncs` to store position states along with timers, executing immediate Firestore updates on window close/unload to prevent layout data loss.
+4. **Notes Migration Efficiency**: Shifted filtering for notes entirely server-side using `where("notes", "!=", "")` inside Firestore queries, saving 100x on bandwidth and Firestore read billing.
+5. **Backup & Export Subcollections**: Extended backup services to fetch and store `groups` (habit categories) and `sticky-notes` (desktop note arrangements), establishing comprehensive data durability.
+6. **Habits Write Transaction**: Wrapped the habit completion flow in a serialized Firestore transaction (`runTransaction`) to guarantee consistent, concurrent-safe updates and prevent lost completions.
+7. **Reversal point-lookups**: Replaced high-cost historical queries in action undos with highly optimized single-document `getDoc` lookups.
+8. **Purge Atomic Batches**: Refactored retention purging inside `undoService.ts` to execute in a single, high-speed atomic `writeBatch` instead of slow sequential deletes.
+9. **Official Indexes Configuration**: Created `firestore.indexes.json` at the root of the project to document and deploy the required composite indexes for Active Todos (`status ASC, order ASC`), Completed Todos (`status ASC, completedAt DESC`), and Habits (`isActive ASC, order ASC`).
+10. **Widget Weekly Stat Calculations**: Patched widget hooks to aggregate habit completions correctly across all dates loaded inside `periodLogs` instead of reading only `todayLog`.
+

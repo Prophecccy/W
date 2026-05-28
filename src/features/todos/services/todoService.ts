@@ -46,12 +46,20 @@ export async function createTodo(
   return todo.id;
 }
 
+/** 
+ * Fetches all active todos.
+ * NOTE: Requires Firestore composite index: status ASC, order ASC
+ */
 export async function getTodos(): Promise<Todo[]> {
   const q = query(todosRef(), where("status", "==", "active"), orderBy("order", "asc"));
   const snap = await getDocs(q);
   return snap.docs.map((d) => d.data() as Todo);
 }
 
+/** 
+ * Fetches completed todos.
+ * NOTE: Requires Firestore composite index: status ASC, completedAt DESC
+ */
 export async function getCompletedTodos(): Promise<Todo[]> {
   const q = query(
     todosRef(),

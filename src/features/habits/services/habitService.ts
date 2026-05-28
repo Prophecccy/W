@@ -41,6 +41,10 @@ export async function createHabit(
 
 // ─── Read ────────────────────────────────────────────────────────
 
+/**
+ * Fetches all active habits.
+ * NOTE: Requires Firestore composite index: isActive ASC, order ASC
+ */
 export async function getHabits(): Promise<Habit[]> {
   const userId = uid();
   const q = query(

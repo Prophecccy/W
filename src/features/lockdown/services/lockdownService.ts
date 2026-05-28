@@ -13,14 +13,13 @@ function uid(): string {
   return u.uid;
 }
 
-function userRef() {
-  return doc(db, "users", uid());
-}
+
 
 // ─── Read ────────────────────────────────────────────────────────
 
-export async function getLockdownState(): Promise<LockdownState> {
-  const snap = await getDoc(userRef());
+export async function getLockdownState(userId?: string): Promise<LockdownState> {
+  const activeUid = userId || uid();
+  const snap = await getDoc(doc(db, "users", activeUid));
   if (!snap.exists()) throw new Error("User doc not found");
   const data = snap.data();
   return (data.lockdown ?? { ...DEFAULT_LOCKDOWN_STATE }) as LockdownState;
@@ -33,9 +32,10 @@ export async function activateLockdown(
   duration: number | null
 ): Promise<void> {
   console.log("[lockdown] activateLockdown called", { blocklist, duration });
-  const state = await getLockdownState();
+  const activeUid = uid();
+  const state = await getLockdownState(activeUid);
 
-  await updateDoc(userRef(), {
+  await updateDoc(doc(db, "users", activeUid), {
     "lockdown.active": true,
     "lockdown.startedAt": Date.now(),
     "lockdown.duration": duration,
@@ -58,9 +58,10 @@ export async function activateLockdown(
   }
 }
 
-export async function deactivateLockdown(): Promise<void> {
+export async function deactivateLockdown(userId?: string): Promise<void> {
   console.log("[lockdown] deactivateLockdown called");
-  await updateDoc(userRef(), {
+  const activeUid = userId || uid();
+  await updateDoc(doc(db, "users", activeUid), {
     "lockdown.active": false,
     "lockdown.startedAt": null,
     "lockdown.duration": null,
@@ -82,7 +83,8 @@ export async function deactivateLockdown(): Promise<void> {
 // ─── Blocklist Management ────────────────────────────────────────
 
 export async function updateBlocklist(blocklist: string[]): Promise<void> {
-  await updateDoc(userRef(), {
+  const activeUid = uid();
+  await updateDoc(doc(db, "users", activeUid), {
     "lockdown.blocklist": blocklist,
   });
 
@@ -100,9 +102,10 @@ export async function updateBlocklist(blocklist: string[]): Promise<void> {
 
 // ─── Resume Lockdown on App Start ────────────────────────────────
 
-export async function resumeLockdownIfActive(): Promise<boolean> {
+export async function resumeLockdownIfActive(userId?: string): Promise<boolean> {
   try {
-    const state = await getLockdownState();
+    const activeUid = userId || uid();
+    const state = await getLockdownState(activeUid);
     console.log("[lockdown] resumeLockdownIfActive — active:", state.active, "blocklist:", state.blocklist?.length);
     if (!state.active || !state.blocklist || state.blocklist.length === 0) return false;
 
@@ -111,7 +114,7 @@ export async function resumeLockdownIfActive(): Promise<boolean> {
       const elapsed = (Date.now() - state.startedAt) / 1000 / 60;
       if (elapsed >= state.duration) {
         console.log("[lockdown] Duration expired — deactivating");
-        await deactivateLockdown();
+        await deactivateLockdown(activeUid);
         return false;
       }
     }

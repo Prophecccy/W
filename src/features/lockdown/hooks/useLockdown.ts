@@ -4,6 +4,7 @@
 // NO strikes, NO notifications — purely a visual/physical block.
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useAuthContext } from "../../auth/context";
 import {
   getLockdownState,
   activateLockdown,
@@ -22,30 +23,36 @@ interface UseLockdownReturn {
 }
 
 export function useLockdown(): UseLockdownReturn {
+  const { user } = useAuthContext();
   const [state, setState] = useState<LockdownState>({ ...DEFAULT_LOCKDOWN_STATE });
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Load state on mount ────────────────────────────────────────
   const reload = useCallback(async () => {
+    if (!user) return;
     try {
-      const lockdownState = await getLockdownState();
+      const lockdownState = await getLockdownState(user.uid);
       setState(lockdownState);
     } catch {
       // User doc may not exist yet
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
-    reload();
-  }, [reload]);
+    if (user) {
+      reload();
+    }
+  }, [user, reload]);
 
   // ── Resume lockdown if it was active before app restart ────────
   useEffect(() => {
-    resumeLockdownIfActive().then((resumed) => {
-      if (resumed) reload();
-    });
-  }, [reload]);
+    if (user) {
+      resumeLockdownIfActive(user.uid).then((resumed) => {
+        if (resumed) reload();
+      });
+    }
+  }, [user, reload]);
 
   // ── Listen for block/unblock events from Rust ─────────────────
   useEffect(() => {
