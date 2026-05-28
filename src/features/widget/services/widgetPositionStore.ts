@@ -17,6 +17,7 @@ const DEFAULT_POSITION: WidgetPosition = {
 };
 
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+let lastPendingPosition: WidgetPosition | null = null;
 
 export async function loadWidgetPosition(): Promise<WidgetPosition> {
   try {
@@ -33,13 +34,32 @@ export async function loadWidgetPosition(): Promise<WidgetPosition> {
 export async function saveWidgetPosition(pos: WidgetPosition): Promise<void> {
   // Debounce: only write after 500ms of no movement
   if (saveTimeout) clearTimeout(saveTimeout);
+  lastPendingPosition = pos;
   saveTimeout = setTimeout(async () => {
     try {
       await writeTextFile(POSITION_FILE, JSON.stringify(pos), { baseDir: BaseDirectory.AppData });
+      lastPendingPosition = null;
     } catch (e) {
       console.error('Failed to save widget position:', e);
     }
   }, 500);
+}
+
+/** Immediately write position to disk, bypassing the debounce.
+ *  Call on drag-end and before the window/process is destroyed. */
+export async function flushWidgetPosition(pos?: WidgetPosition): Promise<void> {
+  // Cancel any pending debounced write
+  if (saveTimeout) { clearTimeout(saveTimeout); saveTimeout = null; }
+
+  const toSave = pos ?? lastPendingPosition;
+  if (!toSave) return;
+
+  try {
+    await writeTextFile(POSITION_FILE, JSON.stringify(toSave), { baseDir: BaseDirectory.AppData });
+    lastPendingPosition = null;
+  } catch (e) {
+    console.error('Failed to flush widget position:', e);
+  }
 }
 
 export async function resetWidgetPosition(): Promise<WidgetPosition> {

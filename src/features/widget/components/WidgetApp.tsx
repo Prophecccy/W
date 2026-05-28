@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useWidgetData } from '../hooks/useWidgetData';
 import { StatsDeck } from './StatsDeck/StatsDeck';
 import { WidgetHabitList } from './HabitList/WidgetHabitList';
-import { loadWidgetPosition, saveWidgetPosition } from '../services/widgetPositionStore';
+import { loadWidgetPosition, saveWidgetPosition, flushWidgetPosition } from '../services/widgetPositionStore';
 import { ShieldAlert } from 'lucide-react';
 import { getLocalWallpaper } from '../../../shared/utils/storageUtils';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -142,10 +142,18 @@ export function WidgetApp() {
     isDragging.current = false;
     dragMoved.current = false;
 
-    // ── Z-Order Enforcer: only on TAP (no drag movement) ──
-    // During a drag we must NOT steal focus or re-pin, otherwise
-    // the window gets sent behind other windows mid-move.
-    if (!wasDrag) {
+    if (wasDrag) {
+      // ── Flush position immediately on drag-end ──
+      // The debounced save may never fire if the app is closed soon after.
+      getCurrentWindow().outerPosition().then(pos => {
+        getCurrentWindow().innerSize().then(size => {
+          flushWidgetPosition({ x: pos.x, y: pos.y, width: size.width, height: size.height });
+        });
+      }).catch(() => {});
+    } else {
+      // ── Z-Order Enforcer: only on TAP (no drag movement) ──
+      // During a drag we must NOT steal focus or re-pin, otherwise
+      // the window gets sent behind other windows mid-move.
       try {
         invoke("pin_widget_bottom");
         import("@tauri-apps/api/webviewWindow").then(({ WebviewWindow }) => {
@@ -455,6 +463,18 @@ export function WidgetApp() {
     invoke('embed_widget_in_desktop').catch((e) => {
       console.warn('Widget pin failed:', e);
     });
+  }, []);
+
+  // ─── Flush position to disk before process death ────────
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Grab current window position and flush synchronously-ish.
+      // We use the pending position tracked inside the store module
+      // so we don't need an async call that can't complete in time.
+      flushWidgetPosition();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
   if (loading) {
