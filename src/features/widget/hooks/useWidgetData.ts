@@ -167,7 +167,7 @@ export function useWidgetData(): WidgetData {
   const completeHabit = useCallback(async (habitId: string) => {
     if (!user) return;
     try {
-      await completeHabitLog(habitId);
+      await completeHabitLog(habitId, 1, undefined, "", userDoc?.settings?.dailyResetTime);
       if (isTauri()) {
         const { emit } = await import('@tauri-apps/api/event');
         await emit('widget-habit-updated', { habitId, action: 'complete' });
@@ -175,12 +175,12 @@ export function useWidgetData(): WidgetData {
     } catch (e) {
       console.error('Widget: Failed to complete habit', e);
     }
-  }, [user]);
+  }, [user, userDoc]);
 
   const undoHabit = useCallback(async (habitId: string) => {
     if (!user) return;
     try {
-      await uncompleteHabitLog(habitId);
+      await uncompleteHabitLog(habitId, userDoc?.settings?.dailyResetTime);
       if (isTauri()) {
         const { emit } = await import('@tauri-apps/api/event');
         await emit('widget-habit-updated', { habitId, action: 'undo' });
@@ -188,7 +188,7 @@ export function useWidgetData(): WidgetData {
     } catch (e) {
       console.error('Widget: Failed to undo habit', e);
     }
-  }, [user]);
+  }, [user, userDoc]);
 
   return {
     habits,

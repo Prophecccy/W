@@ -127,3 +127,13 @@
   background: var(--card-accent);
   transition: width 0.3s ease;
 }
+
+.todo-card__description {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  border-left: 2px solid var(--card-accent);
+  padding-left: 10px;
+  margin-left: 2px;
+  opacity: 0.85;
+}

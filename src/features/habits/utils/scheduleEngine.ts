@@ -82,9 +82,24 @@ export function isHabitScheduledToday(
           return false; // Already completed standard monthly habit this month
         }
       }
-      const dayOfMonth = new Date(today + "T12:00:00").getDate();
-      const creationDay = new Date(habit.createdAt).getDate();
-      return dayOfMonth === creationDay;
+      const d = new Date(today + "T12:00:00");
+      const dayOfMonth = d.getDate();
+      const targetDate = habit.startDate ? new Date(habit.startDate + "T12:00:00") : new Date(habit.createdAt);
+      const creationDay = targetDate.getDate();
+
+      if (dayOfMonth === creationDay) return true;
+
+      // Handle months shorter than creation day (e.g. Feb has 28 days but creationDay was 31)
+      if (creationDay > 28) {
+        const nextDay = new Date(d);
+        nextDay.setDate(nextDay.getDate() + 1);
+        const isLastDay = nextDay.getMonth() !== d.getMonth();
+        const lastDayVal = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        if (isLastDay && creationDay > lastDayVal) {
+          return true;
+        }
+      }
+      return false;
     }
 
     case "interval": {
@@ -117,25 +132,18 @@ export function getNextDueDate(habit: Habit): string | null {
     ? habit.startDate
     : formatDate(new Date(habit.createdAt));
 
-  const startD = new Date(activationDate + "T12:00:00");
-  const todayD = new Date(today + "T12:00:00");
-
-  const diffMs = todayD.getTime() - startD.getTime();
-  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-
-  // If today is before activationDate, the next due date is the activationDate itself!
-  if (diffDays < 0) {
-    return activationDate;
+  if (habit.lastCompletedDate) {
+    const nextActiveDate = addDays(habit.lastCompletedDate, habit.intervalDays);
+    if (today >= nextActiveDate) {
+      return today;
+    }
+    return nextActiveDate;
   }
 
-  // How many full intervals have elapsed?
-  const completedIntervals = Math.floor(diffDays / habit.intervalDays);
-  // Next due interval
-  const nextIntervalDays = (completedIntervals + 1) * habit.intervalDays;
-  const nextDate = new Date(startD);
-  nextDate.setDate(nextDate.getDate() + nextIntervalDays);
-
-  return formatDate(nextDate);
+  if (today >= activationDate) {
+    return today;
+  }
+  return activationDate;
 }
 
 // ─── getScheduledDaysInRange ──────────────────────────────────────

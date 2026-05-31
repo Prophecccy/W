@@ -14,9 +14,18 @@ export function useAuth() {
   const restoringRef = useRef(false);
 
   useEffect(() => {
-    const handleLinked = () => {
+    const handleLinked = async () => {
       console.info("[W Auth Hook] Google Drive linked event captured. Synchronizing state to true.");
       setIsDriveLinked(true);
+      try {
+        const { getValidAccessToken, pullNotesFromDrive } = await import("../../../shared/services/googleDriveService");
+        const accessToken = await getValidAccessToken();
+        if (accessToken) {
+          await pullNotesFromDrive(accessToken);
+        }
+      } catch (err) {
+        console.error("[W Auth Hook] Failed to pull notes from Drive on link:", err);
+      }
     };
     const handleUnlinked = () => {
       console.info("[W Auth Hook] Google Drive unlinked event captured. Synchronizing state to false.");

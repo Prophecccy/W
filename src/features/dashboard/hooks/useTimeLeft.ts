@@ -48,9 +48,12 @@ export function useTimeLeft(
       let adjustedNow = currentMinutes;
       
       // If we are currently before the wake time BUT the window ends after midnight,
-      // and we are currently in that "after midnight" portion
-      if (currentMinutes < wakeMinutes && bedMinutes > 1440 && currentMinutes < (bedMinutes - 1440)) {
-        adjustedNow += 24 * 60;
+      // and we are currently in that "after midnight" portion or within a 1-hour past-bedtime buffer
+      if (currentMinutes < wakeMinutes && bedMinutes + 60 > 1440) {
+        const bedtimeMinutes = bedMinutes > 1440 ? bedMinutes - 1440 : bedMinutes;
+        if (currentMinutes < bedtimeMinutes + 60) {
+          adjustedNow += 24 * 60;
+        }
       }
 
       const elapsed = adjustedNow - wakeMinutes;

@@ -43,7 +43,7 @@ export function HabitsPage() {
     async function loadData() {
       try {
         const fetchedHabits = await getHabits();
-        const fetchedLog = await getTodayLog();
+        const fetchedLog = await getTodayLog(userDoc?.settings?.dailyResetTime);
         const fetchedGroups = await getGroups();
 
         setHabits(fetchedHabits);
@@ -124,6 +124,7 @@ export function HabitsPage() {
 
   // Actions
   const handleComplete = async (habitId: string) => {
+    const originalLog = log ? JSON.parse(JSON.stringify(log)) : null;
     try {
       const habit = habits.find(h => h.id === habitId);
       const target = habit?.metric?.targetValue ?? 1;
@@ -152,14 +153,18 @@ export function HabitsPage() {
           }
         };
       });
-      await completeHabit(habitId, 1);
+      await completeHabit(habitId, 1, target, "", userDoc?.settings?.dailyResetTime);
     } catch (e) {
       console.error(e);
-      // Rollback UI would happen here ideally
+      if (originalLog) {
+        setLog(originalLog);
+      }
+      window.dispatchEvent(new CustomEvent("w:toast", { detail: "[ LOG COMPILATION FAILED ]" }));
     }
   };
 
   const handleUndo = async (habitId: string) => {
+    const originalLog = log ? JSON.parse(JSON.stringify(log)) : null;
     try {
       setLog(prev => {
         if (!prev) return prev;
@@ -182,9 +187,13 @@ export function HabitsPage() {
         }
         return { ...prev, habits: newHabits };
       });
-      await uncompleteHabit(habitId);
+      await uncompleteHabit(habitId, userDoc?.settings?.dailyResetTime);
     } catch (e) {
       console.error(e);
+      if (originalLog) {
+        setLog(originalLog);
+      }
+      window.dispatchEvent(new CustomEvent("w:toast", { detail: "[ LOG COMPILATION FAILED ]" }));
     }
   };
 
@@ -192,10 +201,16 @@ export function HabitsPage() {
     try {
       let finalGroup = data.group;
       if (data.group && data.group.startsWith('new_') && data.newGroupName) {
-        const created = await createGroup(data.newGroupName, groups.length);
-        finalGroup = created.id;
-        const fetchedGroups = await getGroups();
-        setGroups(fetchedGroups);
+        const trimmedNewName = data.newGroupName.trim().toLowerCase();
+        const existingGroup = groups.find(g => g.name.trim().toLowerCase() === trimmedNewName);
+        if (existingGroup) {
+          finalGroup = existingGroup.id;
+        } else {
+          const created = await createGroup(data.newGroupName, groups.length);
+          finalGroup = created.id;
+          const fetchedGroups = await getGroups();
+          setGroups(fetchedGroups);
+        }
       }
 
       const newHabit = {

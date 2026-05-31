@@ -35,6 +35,27 @@ export async function saveLocalNote(date: string, content: string): Promise<void
 }
 
 /**
+ * Saves a daily note downloaded from Google Drive, with sync_pending = false.
+ */
+export async function saveDownloadedNote(date: string, content: string): Promise<void> {
+  const key = `${NOTE_KEY_PREFIX}${date}`;
+  const record: LocalNoteRecord = {
+    date,
+    notes: content,
+    sync_pending: false,
+    updatedAt: Date.now(),
+  };
+
+  await set(key, record);
+
+  window.dispatchEvent(
+    new CustomEvent("w:note-saved", {
+      detail: { date, notes: content, sync_pending: false },
+    })
+  );
+}
+
+/**
  * Retrieves the raw text content of a local daily note.
  */
 export async function getLocalNote(date: string): Promise<string> {
@@ -115,7 +136,8 @@ export async function getLocalNoteHistory(): Promise<HabitLog[]> {
  * Imports historical notes from Firebase Firestore once to initialize the local-first cache.
  */
 export async function migrateNotesFromFirestore(userId: string): Promise<void> {
-  if (localStorage.getItem(MIGRATED_FLAG_KEY) === "true") {
+  const userMigratedKey = `${MIGRATED_FLAG_KEY}_${userId}`;
+  if (localStorage.getItem(userMigratedKey) === "true") {
     return;
   }
 
@@ -142,7 +164,7 @@ export async function migrateNotesFromFirestore(userId: string): Promise<void> {
       }
     }
 
-    localStorage.setItem(MIGRATED_FLAG_KEY, "true");
+    localStorage.setItem(userMigratedKey, "true");
     console.info("[localLogService] Firestore daily notes migration completed successfully.");
   } catch (err) {
     console.error("[localLogService] Failed to complete Firestore daily notes migration:", err);

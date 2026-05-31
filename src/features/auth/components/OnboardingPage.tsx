@@ -1,8 +1,7 @@
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import { useAuthContext } from "../context";
 import { createUserDoc } from "../services/userService";
 import { useNavigate } from "react-router-dom";
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useToast } from "../../../shared/components/Toast/Toast";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../../shared/config/firebase";
@@ -17,8 +16,16 @@ export function OnboardingPage({ onComplete }: OnboardingProps) {
   const { user } = useAuthContext();
   const navigate = useNavigate();
   const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__;
-  const appWindow = isTauri ? getCurrentWindow() : null;
+  const [appWindow, setAppWindow] = useState<any>(null);
   const { showToast } = useToast();
+
+  useEffect(() => {
+    if (isTauri) {
+      import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+        setAppWindow(getCurrentWindow());
+      }).catch(console.error);
+    }
+  }, [isTauri]);
 
   // Wizard state values
   const [step, setStep] = useState(1);
@@ -75,7 +82,12 @@ export function OnboardingPage({ onComplete }: OnboardingProps) {
       e.target.closest('input') ||
       e.target.closest('a')
     )) return;
-    getCurrentWindow().startDragging();
+    
+    if (isTauri) {
+      import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+        getCurrentWindow().startDragging();
+      }).catch(console.error);
+    }
   };
 
   return (

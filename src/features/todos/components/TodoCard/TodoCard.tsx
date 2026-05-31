@@ -9,9 +9,10 @@ interface TodoCardProps {
   todo: Todo;
   onComplete: () => void;
   onClick: () => void;
+  expanded?: boolean;
 }
 
-export function TodoCard({ todo, onComplete, onClick }: TodoCardProps) {
+export function TodoCard({ todo, onComplete, onClick, expanded = false }: TodoCardProps) {
   const [isHolding, setIsHolding] = useState(false);
   const [completeTriggered, setCompleteTriggered] = useState(false);
   const holdTimeoutRef = useRef<number | null>(null);
@@ -142,6 +143,21 @@ export function TodoCard({ todo, onComplete, onClick }: TodoCardProps) {
             <span className="todo-card__title t-body">{todo.title}</span>
           </div>
         </div>
+
+        <AnimatePresence initial={false}>
+          {expanded && todo.description && (
+            <motion.div
+              className="todo-card__description t-body"
+              initial={{ height: 0, opacity: 0, marginTop: 0 }}
+              animate={{ height: "auto", opacity: 1, marginTop: 8 }}
+              exit={{ height: 0, opacity: 0, marginTop: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              style={{ overflow: "hidden", color: "var(--text-secondary)" }}
+            >
+              {todo.description}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="todo-card__footer">
           <div className="todo-card__badges">

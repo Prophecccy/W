@@ -27,6 +27,7 @@ export function TodosPage() {
   const [isGroupManagerOpen, setIsGroupManagerOpen] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('default');
+  const [expandedTodoIds, setExpandedTodoIds] = useState<Record<string, boolean>>({});
 
   const loadData = async () => {
     setIsLoading(true);
@@ -65,6 +66,49 @@ export function TodosPage() {
     const handleOpenForm = () => setIsFormOpen(true);
     window.addEventListener("w:open-todo-form", handleOpenForm);
     return () => window.removeEventListener("w:open-todo-form", handleOpenForm);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let unlistenHabitPromise: Promise<() => void> | null = null;
+    let unlistenTodoPromise: Promise<() => void> | null = null;
+
+    async function setupListeners() {
+      try {
+        const { isTauri } = await import("../../../shared/utils/tauri");
+        if (!isTauri()) return;
+
+        const { listen } = await import("@tauri-apps/api/event");
+        if (!active) return;
+
+        unlistenHabitPromise = listen("widget-habit-updated", () => {
+          if (active) loadData();
+        });
+        unlistenTodoPromise = listen("widget-todo-updated", () => {
+          if (active) loadData();
+        });
+
+        const unsubHabit = await unlistenHabitPromise;
+        const unsubTodo = await unlistenTodoPromise;
+        if (!active) {
+          unsubHabit();
+          unsubTodo();
+        }
+      } catch (err) {
+        console.error("Failed to setup Tauri listeners in TodosPage:", err);
+      }
+    }
+
+    setupListeners();
+    return () => {
+      active = false;
+      if (unlistenHabitPromise) {
+        unlistenHabitPromise.then(unsub => unsub()).catch(() => {});
+      }
+      if (unlistenTodoPromise) {
+        unlistenTodoPromise.then(unsub => unsub()).catch(() => {});
+      }
+    };
   }, []);
 
   const handleComplete = async (todoId: string, updatedTodo?: Todo) => {
@@ -115,7 +159,11 @@ export function TodosPage() {
           loadData();
        }
     } else {
-       // standard - maybe open edit mode, but for now we just allow holding to complete
+       // Toggle description expansion
+       setExpandedTodoIds(prev => ({
+         ...prev,
+         [todoId]: !prev[todoId]
+       }));
     }
   };
 
@@ -219,6 +267,7 @@ export function TodosPage() {
                         todo={todo} 
                         onComplete={() => handleComplete(todo.id)}
                         onClick={() => handleCardClick(todo.id)}
+                        expanded={!!expandedTodoIds[todo.id]}
                       />
                     ))
                   ) : (
@@ -235,6 +284,7 @@ export function TodosPage() {
                                   todo={todo} 
                                   onComplete={() => handleComplete(todo.id)}
                                   onClick={() => handleCardClick(todo.id)}
+                                  expanded={!!expandedTodoIds[todo.id]}
                                 />
                               ))}
                             </div>
@@ -242,7 +292,7 @@ export function TodosPage() {
                         );
                       })}
                       {(() => {
-                         const ungrouped = currentTodos.filter(t => !t.group);
+                         const ungrouped = currentTodos.filter(t => !t.group || !groups.some(g => g.id === t.group));
                          if (ungrouped.length === 0) return null;
                          return (
                             <HabitGroupHeader title="UNGROUPED" count={ungrouped.length}>
@@ -253,6 +303,7 @@ export function TodosPage() {
                                     todo={todo} 
                                     onComplete={() => handleComplete(todo.id)}
                                     onClick={() => handleCardClick(todo.id)}
+                                    expanded={!!expandedTodoIds[todo.id]}
                                   />
                                 ))}
                               </div>
@@ -262,7 +313,7 @@ export function TodosPage() {
                     </div>
                   )}
                 </section>
-
+ 
                 <div style={{ display: "flex", flexDirection: "column", gap: "32px", marginTop: "32px" }}>
                   {(futureTodos.length > 0 || intervalHabits.length > 0) && (
                     <section>
@@ -274,6 +325,7 @@ export function TodosPage() {
                              todo={todo} 
                              onComplete={() => handleComplete(todo.id)}
                              onClick={() => handleCardClick(todo.id)}
+                             expanded={!!expandedTodoIds[todo.id]}
                            />
                          ))}
                          

@@ -19,6 +19,7 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
   const { isDriveLinked } = useAuthContext();
   const [note, setNote] = useState(initialNote);
   const latestNoteRef = useRef(initialNote);
+  const hasUnsavedChangesRef = useRef(false);
   
   // Keep latestNoteRef in sync
   latestNoteRef.current = note;
@@ -34,6 +35,7 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
   useEffect(() => {
     setNote(initialNote);
     latestNoteRef.current = initialNote;
+    hasUnsavedChangesRef.current = false;
   }, [initialNote]);
 
   // Determine initial sync status from IndexedDB record on boot
@@ -110,13 +112,13 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
       if (debounceTimer.current) {
         clearTimeout(debounceTimer.current);
       }
-      if (isSaving) {
+      if (hasUnsavedChangesRef.current) {
         saveLocalNote(today, latestNoteRef.current).catch(err => {
           console.error("Failed to flush daily note on unmount:", err);
         });
       }
     };
-  }, [today, isSaving]);
+  }, [today]);
 
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const newVal = e.target.value;
@@ -124,6 +126,7 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
     
     setNote(newVal);
     latestNoteRef.current = newVal;
+    hasUnsavedChangesRef.current = true;
     setIsSaving(true);
 
     if (debounceTimer.current) {
@@ -138,6 +141,7 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
   const saveNote = async (content: string) => {
     try {
       await saveLocalNote(today, content);
+      hasUnsavedChangesRef.current = false;
     } catch (err) {
       console.error("Failed to save daily note locally:", err);
       showToast("[ ERROR SAVING NOTE LOCALLY ]");

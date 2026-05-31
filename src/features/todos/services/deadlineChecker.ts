@@ -2,6 +2,7 @@ import { Todo } from "../types";
 import { addStrike } from "../../strikes/services/strikeService";
 import { updateTodo } from "./todoService";
 import { getToday } from "../../../shared/utils/dateUtils";
+import { getFreezeState, isDateInFreezeRange } from "../../freeze/services/freezeService";
 
 /**
  * Checks for past-due deadline todos and applies strikes.
@@ -9,15 +10,32 @@ import { getToday } from "../../../shared/utils/dateUtils";
  * OR we can rely on checking strike history. To be safe, checking strike history
  * prevents duplicate strikes, but for now we will clear the deadline so it falls back to standard todo.
  */
-export async function checkDeadlines(todos: Todo[], today: string = getToday()): Promise<number> {
+export async function checkDeadlines(
+  todos: Todo[],
+  userResetTime?: string,
+  today: string = getToday(undefined, userResetTime)
+): Promise<number> {
   let strikesAdded = 0;
+  
+  let freezeState: any = null;
+  try {
+    freezeState = await getFreezeState();
+  } catch (err) {
+    console.warn("[deadlineChecker] Failed to fetch freeze state:", err);
+  }
   
   for (const todo of todos) {
     if (todo.status !== "active") continue;
+    if (todo.future && todo.future > today) continue; // Skip future (hidden) todos
     if (!todo.deadline) continue;
 
     // String comparison works for YYYY-MM-DD
     if (todo.deadline < today) {
+      // BUG 6: Skip applying strikes or clearing deadlines if the deadline date is within a freeze range
+      if (freezeState && isDateInFreezeRange(freezeState, todo.deadline)) {
+        continue;
+      }
+
       try {
         await addStrike(todo.id, todo.title, "missed");
         strikesAdded++;

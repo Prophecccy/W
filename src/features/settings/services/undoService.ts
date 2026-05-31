@@ -71,7 +71,7 @@ export async function undoAction(actionId: string): Promise<void> {
     case "habit_complete": {
       // Reverse: uncomplete the habit
       const habitId = action.reverseData.habitId as string;
-      await uncompleteHabit(habitId);
+      await uncompleteHabit(habitId, undefined, true);
       break;
     }
     case "habit_uncomplete": {
@@ -79,13 +79,13 @@ export async function undoAction(actionId: string): Promise<void> {
       const habitId = action.reverseData.habitId as string;
       const value = (action.reverseData.value as number) ?? 1;
       const target = (action.reverseData.target as number) ?? 1;
-      await completeHabit(habitId, value, target);
+      await completeHabit(habitId, value, target, "", undefined, true);
       break;
     }
     case "todo_create": {
       // Reverse: delete the todo that was created
       const todoId = action.reverseData.todoId as string;
-      await deleteTodo(todoId);
+      await deleteTodo(todoId, true);
       break;
     }
     case "todo_complete": {
@@ -93,17 +93,20 @@ export async function undoAction(actionId: string): Promise<void> {
       // We import updateTodo dynamically to avoid circular deps
       const { updateTodo } = await import("../../todos/services/todoService");
       const todoId = action.reverseData.todoId as string;
-      await updateTodo(todoId, { status: "active", completedAt: null });
+      const prevNumbered = action.reverseData.prevNumbered as any;
+      const updates: any = { status: "active", completedAt: null };
+      if (prevNumbered !== undefined) {
+        updates.numbered = prevNumbered;
+      }
+      await updateTodo(todoId, updates);
       break;
     }
     case "todo_delete": {
-      // Reverse: re-create the todo (if reverseData contains the full todo)
-      const { createTodo } = await import("../../todos/services/todoService");
-      const todoData = action.reverseData.todoData as Record<string, unknown>;
+      // Reverse: re-create the todo exactly as it was (preserving ID and metadata)
+      const { restoreTodo } = await import("../../todos/services/todoService");
+      const todoData = action.reverseData.todoData as any;
       if (todoData) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { id, uid: _uid, createdAt, status, completedAt, ...rest } = todoData;
-        await createTodo(rest as any);
+        await restoreTodo(todoData);
       }
       break;
     }

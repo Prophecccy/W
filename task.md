@@ -71,6 +71,12 @@
 - [x] 47. Create `src/features/auth/components/OnboardingPage.css` — clean form layout, bracket-wrapped section headers
 - [x] 48. Add first-login detection: if `users/{uid}` doc doesn't exist → show OnboardingPage → create user doc → redirect to Dashboard
 - [x] 49. Update `agent.md`: document auth flow, user doc schema, onboarding flow
+- [x] **Phase 3: Reactive Hooks & Calendar Scheduling**
+  - [x] Fix Bug 6: Reactively bind `user` and track snapshot listeners in `useStrikes.ts`
+  - [x] Fix Bug 7: Correct monthly habit scheduler end-of-month skipped days boundary logic in `scheduleEngine.ts`
+  - [x] Fix Bug 8: Implement Firestore query caching/throttling in `useRiskEngine.ts` and dynamically load webview window in `WelcomeBack.tsx`
+  - [x] Fix Bug 1 & 3: Decouple static imports and add guards for `emit` in `ColorPicker.tsx`
+  - [x] Fix Bug 1 & 4: Replace static imports with dynamic plugin loading and localStorage web fallback in `widgetPositionStore.ts`
 
 **✋ STOP — Wait for model switch**
 
@@ -477,3 +483,73 @@
 - [x] 334. Fix Numbered Todo redundant completion triggers in `todoService.ts`
 - [x] 335. Fix Toast component memory leaks and dangling timeouts in `Toast.tsx`
 - [x] 336. Fix Retroactive auto-freeze missing daily logs in `freezeService.ts`
+
+---
+
+## BATCH 25 — Phase 3 Bug Fixes (5 tasks)
+
+- [x] 337. Fix SleepTube late night-owl mismatch boundary rollover in `useTimeLeft.ts`
+- [x] 338. Fix Settings page silent exit and change discard state in `SettingsPage.tsx`
+- [x] 339. Fix Sidebar bypass during lockout navigation in `Sidebar.tsx` and `Sidebar.css`
+- [x] 340. Fix StickyNote completion transition timer memory leaks in `StickyNote.tsx`
+- [x] 341. Fix Interval Habit next due date desynchronization scheduler in `scheduleEngine.ts`
+
+---
+
+## BATCH 26 — 10 Todo & Layout Bugs (10 tasks)
+
+- [x] 342. Fix Orphaned Group Reference Layout Lockout in `TodosPage.tsx` and `HabitsPage.tsx`
+- [x] 343. Fix Missing Revert on Click Failure in `DashboardPage.tsx` catch blocks
+- [x] 344. Fix Stale Document Completion Count inside Numbered Todo Auto-completes in `DashboardPage.tsx`
+- [x] 345. Fix Input Constraint Bypass on Numbered Target Values in `TodoForm.tsx`
+- [x] 346. Fix Orphaned Position Cache Leaks on Desktop Completes in `useStickyNotes.ts`
+- [x] 347. Fix Timezone-Shift Stripe Loophole in Deadline Checks in `deadlineChecker.ts` and `gapProcessor.ts`
+- [x] 348. Fix Ghost Un-rendered Desktop Todos due to Firestore Delay in `useStickyNotes.ts`
+- [x] 349. Fix Case-Insensitive Duplicate Group Creation Pollution in `TodoForm.tsx`
+- [x] 350. Fix Unclickable Card UX Disconnect on Standard Todos in `TodosPage.tsx` and `TodoCard.tsx`
+- [x] 351. Fix Tauri Event Listener Cleanup Leak on Hot-Reloads in `DashboardPage.tsx`
+
+---
+
+## Phase 5 — Core Engines, Lockdown & Strike Bugs
+
+- [x] 352. Fix Freeze State Overwrite in Auto-Absence Conflict in `freezeService.ts`
+- [x] 353. Fix Retroactive `[ AUTO-FREEZE ]` Logs Overwriting Pre-Existing User Notes/Logs in `freezeService.ts`
+- [x] 354. Fix Unhandled Batch Write Failures in Auto-Freeze Background Loop in `freezeService.ts`
+- [x] 355. Fix Timezone-Shift Daily Reset Mismatch in Layout.tsx / Gap Processor in `Layout.tsx`
+- [x] 356. Fix Asynchronous Tauri Event Listener Cleanup Memory Leak in `useLockdown.ts`
+- [x] 357. Fix Bypassing Missed Todo Deadlines Checker during Frozen Days in `deadlineChecker.ts`
+- [x] 358. Fix Limiter Failure Gap Strike Mismatch (Reason Field Conflict) in `gapProcessor.ts`
+- [x] 359. Fix Dead-Code / Redirection Gap in `applyPunishment` Penances in `punishmentService.ts`
+- [x] 360. Fix Multi-Day Period End Penalty Bypassing via a Single Frozen Day in `gapProcessor.ts`
+- [x] 361. Fix Habit Streak & Cooldown Corruption on Undo Completion (lastCompletedDate Wipeout) in `logService.ts`
+
+---
+
+## Phase 6 — Settings, Backup, Undo & System Resiliency (Batch 29)
+
+- [x] 362. Fix Restored Todo ID & Metadata Loss in Undo Delete in `undoService.ts` and `todoService.ts`
+- [x] 363. Fix Dead Weekly Auto-Backup Check Background Trigger in `Layout.tsx`
+- [x] 364. Fix Auto-Backup Web UX Interruption Gating inside Browser Contexts in `backupService.ts`
+- [x] 365. Fix Missing Undo Logging for Habit Completions and Todo CRUD Operations in `logService.ts` and `todoService.ts`
+- [x] 366. Fix Settings Discard Fails to Deep Reset nested Aesthetics in `SettingsPage.tsx`
+- [x] 367. Fix Aesthetics Sync Drift between Desktop and Tauri Windows on Discard/Unmount in `SettingsPage.tsx`
+- [x] 368. Fix Timezone Discrepancy (UTC vs Local) in Manual JSON/CSV Export Naming in `exportService.ts`
+- [x] 369. Fix Direct Firestore Mutate in NotificationsSection Bypassing Draft Settings in `NotificationsSection.tsx`
+- [x] 370. Fix Numbered Todo Completion Undo Progress Bug in `undoService.ts` and `todoService.ts`
+- [x] 371. Fix Orphaned Wallpaper Blobs in IndexedDB on Data Reset and Account Deletion in `DataSection.tsx`
+
+---
+
+## Phase 7 — 10 Most Critical Codebase Bugs (Batch 30)
+
+- [x] 372. Fix Race-Condition Data Loss on First Daily Log Completion (Firestore Log Overwriting) in `logService.ts`
+- [x] 373. Fix System Clock Tampering Bypasses Active Lockdown Durations (with Monotonic Warning Penalty) in `useLockdown.ts`, `lockdownService.ts`, and `types.ts`
+- [x] 374. Fix Total Strikes/Reset Lockout Bypass via Redirections in Punishment Service in `punishmentService.ts`
+- [x] 375. Fix Incomplete Undo Tracking on Numbered Todo Auto-Completes in `todoService.ts`
+- [x] 376. Fix Google Drive Sync Path Duplication (Race Condition Creating Multiple 'W_Logbook' Folders) in `googleDriveService.ts`
+- [x] 377. Fix Missing Revert on Optimistic Settings Failure in `userStore.tsx`
+- [x] 378. Fix Case-Insensitive Duplicate Group Creation Pollution in Habit Form and Group Manager in `HabitsPage.tsx` and `GroupManager.tsx`
+- [x] 379. Fix Unidirectional Google Drive Sync (Sync-Down Note History Pull on Link) in `googleDriveService.ts` and `useAuth.ts`
+- [x] 380. Fix Real-time Todo Desynchronization between Main Window and Widget/Command Palette in `todoService.ts`, `DashboardPage.tsx`, and `TodosPage.tsx`
+- [x] 381. Fix Hardcoded Daily Streak Logic Resets Streak for Non-Daily Habits in `logService.ts`

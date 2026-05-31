@@ -44,8 +44,8 @@ export function SettingsPage() {
   // Initialize draft when userDoc loads
   useEffect(() => {
     if (userDoc) {
-      if (!draftSettings) setDraftSettings({ ...userDoc.settings });
-      if (!draftAesthetics) setDraftAesthetics({ ...userDoc.aesthetics });
+      if (!draftSettings) setDraftSettings(JSON.parse(JSON.stringify(userDoc.settings)));
+      if (!draftAesthetics) setDraftAesthetics(JSON.parse(JSON.stringify(userDoc.aesthetics)));
     }
   }, [userDoc, draftSettings, draftAesthetics]);
 
@@ -56,6 +56,36 @@ export function SettingsPage() {
     const aestheticsChanged = JSON.stringify(userDoc.aesthetics) !== JSON.stringify(draftAesthetics);
     return settingsChanged || aestheticsChanged;
   }, [userDoc, draftSettings, draftAesthetics]);
+
+  // Revert color preview on unmount if changes were discarded/unsaved
+  useEffect(() => {
+    return () => {
+      if (userDoc) {
+        const savedColor = userDoc.aesthetics.desktop.accentColor;
+        document.documentElement.style.setProperty("--accent", savedColor);
+        try {
+          import("@tauri-apps/api/event").then(({ emit }) => {
+            emit("color-preview", savedColor).catch(() => {});
+          }).catch(() => {});
+        } catch {}
+      }
+    };
+  }, [userDoc]);
+
+  // Prevent accidental unload if changes are unsaved
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = "You have unsaved settings changes. Are you sure you want to leave?";
+        return e.returnValue;
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [isDirty]);
 
   const handleUpdateDraft = (patch: Partial<Settings>) => {
     setDraftSettings(prev => prev ? { ...prev, ...patch } : null);
@@ -108,8 +138,17 @@ export function SettingsPage() {
 
   const handleDiscard = () => {
     if (userDoc) {
-      setDraftSettings({ ...userDoc.settings });
-      setDraftAesthetics({ ...userDoc.aesthetics });
+      // Revert accent color previews instantly
+      const savedColor = userDoc.aesthetics.desktop.accentColor;
+      document.documentElement.style.setProperty("--accent", savedColor);
+      try {
+        import("@tauri-apps/api/event").then(({ emit }) => {
+          emit("color-preview", savedColor).catch(() => {});
+        }).catch(() => {});
+      } catch {}
+
+      setDraftSettings(JSON.parse(JSON.stringify(userDoc.settings)));
+      setDraftAesthetics(JSON.parse(JSON.stringify(userDoc.aesthetics)));
     }
   };
 
@@ -147,7 +186,7 @@ export function SettingsPage() {
       case "schedule":
         return <ScheduleSection settings={draftSettings} onUpdate={handleUpdateDraft} />;
       case "notifications":
-        return <NotificationsSection />;
+        return <NotificationsSection settings={draftSettings} onUpdate={handleUpdateDraft} />;
       case "data":
         return (
           <>

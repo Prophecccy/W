@@ -38,8 +38,14 @@ export function TodoForm({ onClose, onSuccess, groups = [] }: TodoFormProps) {
     try {
       let finalGroup = group;
       if (group && group.startsWith("new_") && newGroupName.trim()) {
-        const created = await createGroup(newGroupName.trim(), groups.length);
-        finalGroup = created.id;
+        const trimmed = newGroupName.trim();
+        const existingGroup = groups.find(g => g.name.toLowerCase() === trimmed.toLowerCase());
+        if (existingGroup) {
+          finalGroup = existingGroup.id;
+        } else {
+          const created = await createGroup(trimmed, groups.length);
+          finalGroup = created.id;
+        }
       }
 
       const todoData: Parameters<typeof createTodo>[0] = {
@@ -53,7 +59,8 @@ export function TodoForm({ onClose, onSuccess, groups = [] }: TodoFormProps) {
         group: finalGroup,
       };
       if (type === "numbered") {
-        todoData.numbered = { current: 0, target };
+        const clampedTarget = Math.max(2, Math.min(999, target));
+        todoData.numbered = { current: 0, target: clampedTarget };
       }
       if (showOnDesktop) {
         todoData.stickyPosition = { x: 100, y: 100 };
@@ -131,7 +138,10 @@ export function TodoForm({ onClose, onSuccess, groups = [] }: TodoFormProps) {
                   max="999"
                   className="todo-form__input t-data"
                   value={target}
-                  onChange={(e) => setTarget(parseInt(e.target.value) || 5)}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 2;
+                    setTarget(Math.max(2, Math.min(999, val)));
+                  }}
                 />
               </div>
             )}

@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { Pipette } from "lucide-react";
-import { emit } from "@tauri-apps/api/event";
 import "./ColorPicker.css";
 
 const PRESET_COLORS = [
@@ -24,12 +23,15 @@ export function ColorPicker({ selectedColor, onSelect }: ColorPickerProps) {
 
   // Live preview: apply tempColor globally when open, revert to selectedColor when closed
   useEffect(() => {
-    if (isOpen) {
-      document.documentElement.style.setProperty("--accent", tempColor);
-      emit("color-preview", tempColor).catch(() => {});
-    } else {
-      document.documentElement.style.setProperty("--accent", selectedColor);
-      emit("color-preview", selectedColor).catch(() => {});
+    const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__;
+    const targetColor = isOpen ? tempColor : selectedColor;
+
+    document.documentElement.style.setProperty("--accent", targetColor);
+
+    if (isTauri) {
+      import("@tauri-apps/api/event").then(({ emit }) => {
+        emit("color-preview", targetColor).catch(() => {});
+      }).catch(console.error);
     }
   }, [tempColor, isOpen, selectedColor]);
 

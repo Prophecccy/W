@@ -39,21 +39,32 @@ export function DashboardPage() {
     if (!isTauri()) return;
 
     let active = true;
-    let unsub: (() => void) | undefined;
+    let unlistenHabitPromise: Promise<() => void> | null = null;
+    let unlistenTodoPromise: Promise<() => void> | null = null;
 
     async function setupListener() {
       try {
         const { listen } = await import('@tauri-apps/api/event');
         if (!active) return;
-        unsub = await listen('widget-habit-updated', (event) => {
+        
+        unlistenHabitPromise = listen('widget-habit-updated', (event) => {
           console.log('Dashboard: Received widget-habit-updated event', event);
           setRefreshTrigger(prev => prev + 1);
         });
-        if (!active && unsub) {
-          unsub();
+
+        unlistenTodoPromise = listen('widget-todo-updated', (event) => {
+          console.log('Dashboard: Received widget-todo-updated event', event);
+          setRefreshTrigger(prev => prev + 1);
+        });
+
+        const unsubHabit = await unlistenHabitPromise;
+        const unsubTodo = await unlistenTodoPromise;
+        if (!active) {
+          unsubHabit();
+          unsubTodo();
         }
       } catch (e) {
-        console.error('Failed to setup widget-habit-updated listener', e);
+        console.error('Failed to setup listeners', e);
       }
     }
 
@@ -61,8 +72,11 @@ export function DashboardPage() {
 
     return () => {
       active = false;
-      if (unsub) {
-        unsub();
+      if (unlistenHabitPromise) {
+        unlistenHabitPromise.then(unsub => unsub()).catch(() => {});
+      }
+      if (unlistenTodoPromise) {
+        unlistenTodoPromise.then(unsub => unsub()).catch(() => {});
       }
     };
   }, []);
@@ -72,7 +86,7 @@ export function DashboardPage() {
       try {
         const [fetchedHabits, fetchedLog, fetchedTodos, localNote] = await Promise.all([
           getHabits(),
-          getTodayLog(),
+          getTodayLog(userDoc?.settings?.dailyResetTime),
           getTodos(),
           getLocalNote(today)
         ]);
@@ -152,6 +166,7 @@ export function DashboardPage() {
 
   // Actions for Habits
   const handleHabitComplete = async (habitId: string) => {
+    const originalLog = log ? JSON.parse(JSON.stringify(log)) : null;
     try {
       const habit = habits.find(h => h.id === habitId);
       const target = habit?.metric?.targetValue ?? 1;
@@ -179,13 +194,18 @@ export function DashboardPage() {
           }
         };
       });
-      await completeHabit(habitId, 1);
+      await completeHabit(habitId, 1, target, "", userDoc?.settings?.dailyResetTime);
     } catch (e) {
       console.error(e);
+      if (originalLog) {
+        setLog(originalLog);
+      }
+      window.dispatchEvent(new CustomEvent("w:toast", { detail: "[ LOG COMPILATION FAILED ]" }));
     }
   };
 
   const handleHabitUndo = async (habitId: string) => {
+    const originalLog = log ? JSON.parse(JSON.stringify(log)) : null;
     try {
       setLog(prev => {
         if (!prev) return prev;
@@ -208,16 +228,20 @@ export function DashboardPage() {
         }
         return { ...prev, habits: newHabits };
       });
-      await uncompleteHabit(habitId);
+      await uncompleteHabit(habitId, userDoc?.settings?.dailyResetTime);
     } catch (e) {
       console.error(e);
+      if (originalLog) {
+        setLog(originalLog);
+      }
+      window.dispatchEvent(new CustomEvent("w:toast", { detail: "[ LOG COMPILATION FAILED ]" }));
     }
   };
 
   // Actions for Todos
-  const handleTodoComplete = async (todoId: string) => {
+  const handleTodoComplete = async (todoId: string, updatedTodo?: Todo) => {
     try {
-      const completedTodo = todos.find(t => t.id === todoId);
+      const completedTodo = updatedTodo || todos.find(t => t.id === todoId);
       if (completedTodo) {
         setTodos(prev => prev.filter(t => t.id !== todoId));
         if (completedTodo.type === "numbered") {
@@ -228,6 +252,7 @@ export function DashboardPage() {
       }
     } catch (e) {
       console.error(e);
+      setRefreshTrigger(prev => prev + 1); // trigger reload to revert optimistic UI
     }
   };
 
@@ -239,7 +264,11 @@ export function DashboardPage() {
        try {
           const newCurrent = todo.numbered.current + 1;
           if (newCurrent >= todo.numbered.target) {
-            handleTodoComplete(todoId);
+            const finishedTodo: Todo = {
+              ...todo,
+              numbered: { ...todo.numbered, current: newCurrent }
+            };
+            handleTodoComplete(todoId, finishedTodo);
           } else {
             setTodos(prev => prev.map(t => 
               t.id === todoId ? { ...t, numbered: { ...t.numbered!, current: newCurrent } } : t
@@ -248,6 +277,7 @@ export function DashboardPage() {
           }
        } catch (e) {
           console.error(e);
+          setRefreshTrigger(prev => prev + 1); // trigger reload to revert optimistic UI
        }
     }
   };

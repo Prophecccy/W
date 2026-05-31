@@ -41,6 +41,7 @@ export async function activateLockdown(
     "lockdown.duration": duration,
     "lockdown.blocklist": blocklist,
     "lockdown.totalSessions": (state.totalSessions || 0) + 1,
+    "lockdown.remainingSeconds": duration ? duration * 60 : null,
   });
   console.log("[lockdown] Firestore updated — active: true");
 
@@ -65,6 +66,7 @@ export async function deactivateLockdown(userId?: string): Promise<void> {
     "lockdown.active": false,
     "lockdown.startedAt": null,
     "lockdown.duration": null,
+    "lockdown.remainingSeconds": null,
   });
 
   // Stop the Rust-side monitor
@@ -111,7 +113,15 @@ export async function resumeLockdownIfActive(userId?: string): Promise<boolean> 
 
     // Check if duration has expired
     if (state.duration && state.startedAt) {
-      const elapsed = (Date.now() - state.startedAt) / 1000 / 60;
+      const elapsedMs = Date.now() - state.startedAt;
+      const elapsed = elapsedMs / 1000 / 60;
+      
+      // Clock tampering detection on resume (jump backwards or massive jump forwards)
+      if (elapsedMs < 0 || elapsed > state.duration + 5) {
+        console.warn("[lockdown] Clock tampering detected on resume! Locking down.");
+        return true;
+      }
+      
       if (elapsed >= state.duration) {
         console.log("[lockdown] Duration expired — deactivating");
         await deactivateLockdown(activeUid);

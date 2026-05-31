@@ -135,6 +135,9 @@ export async function getLastBackupDate(): Promise<string | null> {
 
 export async function checkAutoBackup(): Promise<void> {
   try {
+    const { isTauri } = await import("../../../shared/utils/tauri");
+    if (!isTauri()) return;
+
     const lastDate = await getLastBackupDate();
     if (!lastDate) {
       // No backups ever — create one

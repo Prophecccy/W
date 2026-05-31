@@ -1,4 +1,4 @@
-import { doc, getDoc, updateDoc, arrayUnion, setDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, arrayUnion, writeBatch } from "firebase/firestore";
 import { db, auth } from "../../../shared/config/firebase";
 import { FreezeState, FreezeHistoryEntry, FreezeReason, AUTO_FREEZE_THRESHOLD_DAYS } from "../types";
 import { getToday, formatDate } from "../../../shared/utils/dateUtils";
@@ -109,6 +109,12 @@ export async function checkAutoFreeze(
     return { triggered: false, frozenSince: null };
   }
 
+  // BUG 1: Freeze State Overwrite in Auto-Absence Conflict
+  const freezeState = await getFreezeState();
+  if (freezeState.active) {
+    return { triggered: false, frozenSince: null };
+  }
+
   const lastDate = new Date(lastInteractionDate + "T12:00:00");
   const todayDate = new Date(today + "T12:00:00");
   if (isNaN(lastDate.getTime()) || isNaN(todayDate.getTime())) {
@@ -130,24 +136,66 @@ export async function checkAutoFreeze(
 
   await activateFreeze("auto_absence", frozenSince);
 
-  // Write retroactive log documents to Firestore for the gap days
+  // Write retroactive log documents to Firestore for the gap days in a single batch
   const userId = uid();
   let logDate = new Date(freezeStart);
   const todayD = new Date(todayDate);
+  
+  // BUG 2: Retroactive [ AUTO-FREEZE ] Logs Overwriting Pre-Existing User Notes/Logs
+  const { collection, query, where, getDocs } = await import("firebase/firestore");
+  const logsRef = collection(db, "users", userId, "logs");
+  const gapStartStr = formatDate(freezeStart);
+  const yesterdayDate = new Date(todayD);
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const gapEndStr = formatDate(yesterdayDate);
+
+  const logsQuery = query(
+    logsRef,
+    where("date", ">=", gapStartStr),
+    where("date", "<=", gapEndStr)
+  );
+  const existingLogsSnap = await getDocs(logsQuery);
+  const existingDates = new Set<string>();
+  existingLogsSnap.forEach((doc) => {
+    const data = doc.data();
+    if (data.notes || (data.habits && Object.keys(data.habits).length > 0)) {
+      existingDates.add(doc.id);
+    }
+  });
+
+  let batch = writeBatch(db);
+  let batchCount = 0;
+
   while (logDate < todayD) {
     const logDateStr = formatDate(logDate);
-    const logDocRef = doc(db, "users", userId, "logs", logDateStr);
-    try {
-      await setDoc(logDocRef, {
+    
+    if (!existingDates.has(logDateStr)) {
+      const logDocRef = doc(db, "users", userId, "logs", logDateStr);
+      
+      batch.set(logDocRef, {
         date: logDateStr,
         uid: userId,
-        notes: "[ AUTO-FREEZE ]",
+        notes: "",
         habits: {}
       }, { merge: true });
-    } catch (e) {
-      console.warn(`[Auto-Freeze] Failed to write retroactive log for ${logDateStr}:`, e);
+      
+      batchCount++;
+      // Firestore writeBatch has a limit of 500 operations.
+      // Commit intermediate batch if it gets close to the limit.
+      if (batchCount >= 450) {
+        // BUG 3: Unhandled Batch Write Failures in Auto-Freeze Background Loop
+        await batch.commit();
+        batch = writeBatch(db);
+        batchCount = 0;
+      }
     }
+    
     logDate.setDate(logDate.getDate() + 1);
+  }
+
+  if (batchCount > 0) {
+    // BUG 3: Unhandled Batch Write Failures in Auto-Freeze Background Loop
+    await batch.commit();
   }
 
   return { triggered: true, frozenSince };

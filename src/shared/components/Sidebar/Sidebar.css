@@ -159,3 +159,9 @@
   transform: translateY(-1px);
 }
 
+.sidebar__link--disabled {
+  opacity: 0.35;
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+

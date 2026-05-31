@@ -1,15 +1,51 @@
-import { getPendingSyncNotes, clearSyncPending } from "../../features/logs/services/localLogService";
-import { getToday, getMsUntilReset } from "../utils/dateUtils";
-
+import {
+  getPendingSyncNotes,
+  clearSyncPending,
+  getLocalNoteRecord,
+  saveDownloadedNote
+} from "../../features/logs/services/localLogService";
+import { getToday } from "../utils/dateUtils";
+import { get as idbGet, set as idbSet } from "idb-keyval";
 
 const REFRESH_TOKEN_KEY = "w_gdrive_refresh_token";
 const ACCESS_TOKEN_KEY = "w_gdrive_access_token";
 const EXPIRES_AT_KEY = "w_gdrive_expires_at";
+const FOLDER_CACHE_KEY = "w_gdrive_folder_cache";
 
 export interface GDriveTokens {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
+}
+
+interface GDriveFolderCache {
+  rootFolderId: string | null;
+  yearFolderIds: Record<string, string>;
+}
+
+async function getFolderCache(): Promise<GDriveFolderCache> {
+  try {
+    const cached = await idbGet<GDriveFolderCache>(FOLDER_CACHE_KEY);
+    return cached || { rootFolderId: null, yearFolderIds: {} };
+  } catch {
+    return { rootFolderId: null, yearFolderIds: {} };
+  }
+}
+
+async function saveFolderCache(cache: GDriveFolderCache): Promise<void> {
+  try {
+    await idbSet(FOLDER_CACHE_KEY, cache);
+  } catch (err) {
+    console.error("Failed to save folder cache:", err);
+  }
+}
+
+async function clearFolderCache(): Promise<void> {
+  try {
+    await idbSet(FOLDER_CACHE_KEY, { rootFolderId: null, yearFolderIds: {} });
+  } catch (err) {
+    console.error("Failed to clear folder cache:", err);
+  }
 }
 
 /**
@@ -40,7 +76,8 @@ export function clearOAuthTokens(): void {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(EXPIRES_AT_KEY);
   localStorage.setItem("driveLinked", "false");
-  console.info("[GDrive Service] Cached tokens cleared.");
+  clearFolderCache();
+  console.info("[GDrive Service] Cached tokens and folder caches cleared.");
   window.dispatchEvent(new CustomEvent("w:gdrive-unlinked"));
 }
 
@@ -250,37 +287,181 @@ async function uploadFileContent(accessToken: string, fileId: string, content: s
  * Syncs a single note to Google Drive under W_Logbook/[Year]/[Date].md structure.
  */
 export async function syncNoteToDrive(accessToken: string, dateStr: string, content: string): Promise<void> {
-  // Extract year from dateStr (format YYYY-MM-DD)
   const year = dateStr.substring(0, 4);
   const fileName = `${dateStr}.md`;
 
   console.info(`[GDrive Service] Syncing note for ${dateStr} to W_Logbook/${year}/${fileName}...`);
 
-  // 1. Locate or create root 'W_Logbook' folder
-  let rootFolderId = await findFolder(accessToken, "W_Logbook");
-  if (!rootFolderId) {
-    console.info("[GDrive Service] 'W_Logbook' folder not found. Creating...");
-    rootFolderId = await createFolder(accessToken, "W_Logbook");
+  try {
+    const cache = await getFolderCache();
+
+    // 1. Locate or create root 'W_Logbook' folder
+    let rootFolderId = cache.rootFolderId;
+    if (!rootFolderId) {
+      rootFolderId = await findFolder(accessToken, "W_Logbook");
+      if (!rootFolderId) {
+        console.info("[GDrive Service] 'W_Logbook' folder not found. Creating...");
+        rootFolderId = await createFolder(accessToken, "W_Logbook");
+      }
+      cache.rootFolderId = rootFolderId;
+      await saveFolderCache(cache);
+    }
+
+    // 2. Locate or create Year subfolder
+    let yearFolderId = cache.yearFolderIds[year];
+    if (!yearFolderId) {
+      const found = await findFolder(accessToken, year, rootFolderId);
+      if (found) {
+        yearFolderId = found;
+      } else {
+        console.info(`[GDrive Service] Year folder '${year}' not found. Creating...`);
+        yearFolderId = await createFolder(accessToken, year, rootFolderId);
+      }
+      cache.yearFolderIds[year] = yearFolderId;
+      await saveFolderCache(cache);
+    }
+
+    // 3. Search for existing Date.md file
+    let fileId = await findFile(accessToken, fileName, yearFolderId);
+
+    if (!fileId) {
+      console.info(`[GDrive Service] File '${fileName}' does not exist. Creating new...`);
+      fileId = await createEmptyFile(accessToken, fileName, yearFolderId);
+    }
+
+    // 4. Overwrite raw file media contents
+    await uploadFileContent(accessToken, fileId, content);
+    console.info(`[GDrive Service] Successfully sync'd ${fileName} to Drive.`);
+  } catch (err) {
+    console.error("[GDrive Service] Note sync failed, clearing folder ID cache:", err);
+    await clearFolderCache();
+    throw err;
   }
+}
 
-  // 2. Locate or create Year subfolder
-  let yearFolderId = await findFolder(accessToken, year, rootFolderId);
-  if (!yearFolderId) {
-    console.info(`[GDrive Service] Year folder '${year}' not found. Creating...`);
-    yearFolderId = await createFolder(accessToken, year, rootFolderId);
+/**
+ * Lists all Year subfolders and downloads missing daily note .md files from Google Drive W_Logbook.
+ */
+export async function pullNotesFromDrive(accessToken: string): Promise<void> {
+  try {
+    console.info("[GDrive Service] Starting historical daily notes sync-down from Google Drive...");
+    
+    // 1. Locate root folder
+    let rootFolderId = await findFolder(accessToken, "W_Logbook");
+    if (!rootFolderId) {
+      console.info("[GDrive Service] No 'W_Logbook' folder found on Drive. Nothing to sync down.");
+      return;
+    }
+
+    const cache = await getFolderCache();
+    cache.rootFolderId = rootFolderId;
+    await saveFolderCache(cache);
+
+    // 2. List all subfolders (Years) under root folder
+    const listYearsUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(
+      `'${rootFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`
+    )}&fields=files(id,name)`;
+
+    const yearsRes = await fetch(listYearsUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!yearsRes.ok) {
+      throw new Error(`Failed to list Year folders: ${yearsRes.statusText}`);
+    }
+
+    const yearsData = await yearsRes.json();
+    const yearFiles = yearsData.files || [];
+    console.info(`[GDrive Service] Found ${yearFiles.length} Year folders on Drive.`);
+
+    for (const yearFolder of yearFiles) {
+      const yearName = yearFolder.name;
+      const yearFolderId = yearFolder.id;
+      
+      // Update local cache
+      cache.yearFolderIds[yearName] = yearFolderId;
+      await saveFolderCache(cache);
+
+      // 3. List all markdown files inside this Year folder
+      const listNotesUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(
+        `'${yearFolderId}' in parents and mimeType = 'text/markdown' and trashed = false`
+      )}&fields=files(id,name)`;
+
+      const notesRes = await fetch(listNotesUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!notesRes.ok) {
+        console.error(`[GDrive Service] Failed to list files for year ${yearName}:`, notesRes.statusText);
+        continue;
+      }
+
+      const notesData = await notesRes.json();
+      const files = notesData.files || [];
+      console.info(`[GDrive Service] Year ${yearName}: Found ${files.length} markdown notes.`);
+
+      for (const file of files) {
+        // Date.md
+        const match = file.name.match(/^(\d{4}-\d{2}-\d{2})\.md$/);
+        if (!match) continue;
+
+        const dateStr = match[1];
+        
+        // Check if note exists locally
+        const existing = await getLocalNoteRecord(dateStr);
+        if (existing) {
+          // Already have it locally, skip downloading
+          continue;
+        }
+
+        console.info(`[GDrive Service] Downloading missing note for date ${dateStr}...`);
+        
+        // 4. Download content
+        const downloadUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
+        const fileRes = await fetch(downloadUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        if (!fileRes.ok) {
+          console.error(`[GDrive Service] Failed to download file ${file.name}:`, fileRes.statusText);
+          continue;
+        }
+
+        const noteContent = await fileRes.text();
+        
+        // 5. Save to local IndexedDB
+        await saveDownloadedNote(dateStr, noteContent);
+      }
+    }
+
+    console.info("[GDrive Service] Historical daily notes sync-down completed successfully.");
+  } catch (err) {
+    console.error("[GDrive Service] Failed to pull notes from Drive:", err);
+    throw err;
   }
+}
 
-  // 3. Search for existing Date.md file
-  let fileId = await findFile(accessToken, fileName, yearFolderId);
+const SYNC_LOCK_KEY = "w_gdrive_sync_lock";
+const SYNC_LOCK_TIMEOUT_MS = 30000; // 30 seconds safety timeout
 
-  if (!fileId) {
-    console.info(`[GDrive Service] File '${fileName}' does not exist. Creating new...`);
-    fileId = await createEmptyFile(accessToken, fileName, yearFolderId);
+function acquireSyncLock(): boolean {
+  if (typeof localStorage === "undefined") return true;
+  const now = Date.now();
+  const lockVal = localStorage.getItem(SYNC_LOCK_KEY);
+  if (lockVal) {
+    const lockTime = parseInt(lockVal, 10);
+    // If the lock is not expired, we fail to acquire it
+    if (!isNaN(lockTime) && now - lockTime < SYNC_LOCK_TIMEOUT_MS) {
+      return false;
+    }
   }
+  localStorage.setItem(SYNC_LOCK_KEY, now.toString());
+  return true;
+}
 
-  // 4. Overwrite raw file media contents
-  await uploadFileContent(accessToken, fileId, content);
-  console.info(`[GDrive Service] Successfully sync'd ${fileName} to Drive.`);
+function releaseSyncLock(): void {
+  if (typeof localStorage === "undefined") return;
+  localStorage.removeItem(SYNC_LOCK_KEY);
 }
 
 let isSyncRunning = false;
@@ -300,9 +481,16 @@ export async function runBackgroundSync(): Promise<void> {
     return;
   }
 
+  // Acquire cross-process lock to prevent duplicate creation race conditions
+  if (!acquireSyncLock()) {
+    console.info("[GDrive Service] Another window is currently syncing. Skipping trigger.");
+    return;
+  }
+
   const accessToken = await getValidAccessToken();
   if (!accessToken) {
     console.info("[GDrive Service] Skipping sync: User not authenticated with Google Drive.");
+    releaseSyncLock();
     return;
   }
 
@@ -320,14 +508,16 @@ export async function runBackgroundSync(): Promise<void> {
 
     const resetTime = localStorage.getItem("w_daily_reset_time") || "04:00";
     const today = getToday(undefined, resetTime);
-    const msUntilReset = getMsUntilReset(resetTime, new Date());
-    const isInBackupWindow = msUntilReset <= 5 * 60 * 1000;
 
     // Sync notes sequentially to avoid race conditions or folder creation duplication
     for (const note of pendingNotes) {
-      if (note.date === today && !isInBackupWindow) {
-        console.info(`[GDrive Service] Deferring sync of today's note (${note.date}) until 5 mins before daily reset (current ms until reset: ${msUntilReset}).`);
-        continue;
+      if (note.date === today) {
+        const lastEditAge = Date.now() - (note.updatedAt || 0);
+        // If edited within the last 15 seconds, defer to avoid constant API spamming during typing
+        if (lastEditAge < 15000) {
+          console.info(`[GDrive Service] Deferring sync of today's note (${note.date}) - active editing detected.`);
+          continue;
+        }
       }
 
       try {
@@ -335,7 +525,6 @@ export async function runBackgroundSync(): Promise<void> {
         await clearSyncPending(note.date);
         
         // Dispatch global notification for UI indicators
-
         window.dispatchEvent(new CustomEvent("w:note-synced", { detail: note.date }));
       } catch (err) {
         console.error(`[GDrive Service] Failed to sync note for date ${note.date}:`, err);
@@ -346,6 +535,7 @@ export async function runBackgroundSync(): Promise<void> {
     console.error("[GDrive Service] Error in background sync lifecycle:", err);
   } finally {
     isSyncRunning = false;
+    releaseSyncLock();
     console.info("[GDrive Service] Background sync worker completed cycle.");
   }
 }

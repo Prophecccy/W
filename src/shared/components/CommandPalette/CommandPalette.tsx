@@ -234,13 +234,25 @@ export function CommandPalette({
         onClose();
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedIndex((i) => (i + 1) % flatFiltered.length);
+        if (flatFiltered.length > 0) {
+          setSelectedIndex((i) => {
+            const current = isNaN(i) ? 0 : i;
+            return (current + 1) % flatFiltered.length;
+          });
+        }
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setSelectedIndex((i) => (i - 1 + flatFiltered.length) % flatFiltered.length);
+        if (flatFiltered.length > 0) {
+          setSelectedIndex((i) => {
+            const current = isNaN(i) ? 0 : i;
+            return (current - 1 + flatFiltered.length) % flatFiltered.length;
+          });
+        }
       } else if (e.key === "Enter") {
         e.preventDefault();
-        flatFiltered[selectedIndex]?.action();
+        if (flatFiltered.length > 0 && !isNaN(selectedIndex)) {
+          flatFiltered[selectedIndex]?.action();
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);

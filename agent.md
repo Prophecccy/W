@@ -49,7 +49,7 @@ graph TD
   - **Timezone-Aware Reset Logic**: Daily cycle queries must compute shifted dates dynamically when local clocks fall behind user-customized daily reset hours (e.g., 04:00 AM shifts `today` to `YYYY-MM-DD - 1`).
   - **Webview Syncing**: Listen and reactively sync state between isolated Tauri windows using lightweight IPC events (`widget-habit-updated`). Maintain seamless data re-fetching.
   - **Firebase Optimization**: Bind/unbind listeners dynamically; never allow active Firestore subscriptions to drift or leak memory on unmount.
-  - **Local-First Caching & Google Drive Sync**: All plain-text Daily Notes must save instantly and synchronously to local IndexedDB (under keys `note_record_YYYY-MM-DD`). The background sync worker manages seamless mirroring to the user's personal Google Drive folder (`W_Logbook/[Year]/[Date].md`) using a 5-minute heartbeat and instant reconnection triggers.
+  - **Local-First Caching & Google Drive Sync**: All plain-text Daily Notes save instantly to local IndexedDB (under keys `note_record_YYYY-MM-DD`). The background sync worker manages seamless mirroring to the user's personal Google Drive folder (`W_Logbook/[Year]/[Date].md`) using a 5-minute heartbeat, cross-process `localStorage` sync locking, and eager synchronization when typing inactivity (>15s) is detected, preventing multi-device desynchronization and directory duplication in multi-process/Tauri contexts.
   - **Event-Driven UI Reactivity**: Broadcast note saving/sync states globally using CustomEvents (`w:note-saved` and `w:note-synced`). Active UI elements (Dashboard, Logbook feed, slide-out Archive) must subscribe to these events to dynamically update their visual panels and sync badges instantly without hard-reloads.
   - **Google Drive Integration Lockout**: The `isDriveLinked` reactive status in `AuthContext` governs feature lockdowns. If `isDriveLinked` is false, access to the `Daily Note` input editor and the historical `Logbook Archive` timeline page is strictly blocked and replaced by a pulsing, high-fidelity `<GDriveLockout>` interceptor card/page, urging the user to securely activate cloud sync inside settings to prevent local data loss.
   - **Event-Driven OAuth Reactivity**: Synchronize the `isDriveLinked` state between the non-react background Google Drive token caching service (`googleDriveService.ts`) and the React hook (`useAuth.ts`) via standard window events `w:gdrive-linked` and `w:gdrive-unlinked`. The hook reactively captures these events to toggle `isDriveLinked` in sub-milliseconds and updates the persistent `driveLinked` state in `localStorage` synchronously.
@@ -103,7 +103,7 @@ A series of 10 codebase-wide architectural bugs were resolved to enforce strict 
 7. **Widget Drag Mechanics**: Wired `onLostPointerCapture` to release dragging state on focus loss or system interruptions, preventing leaking drag styles.
 8. **Numbered Todo Completeness**: Added status and constraint guards to `incrementNumberedTodo` to ensure idempotence, preventing redundant completion fires or double animation triggers.
 9. **Toast Memory Management**: Tracked active toast timers in a `timeoutsRef` map and explicitly cleared them on dismissal or unmount to guarantee complete garbage collection.
-10. **Retroactive Freeze Logs**: Integrated Firestore `setDoc` loop in `checkAutoFreeze` to write retroactive daily logs (`[ AUTO-FREEZE ]`) during absences, ensuring freeze history is transparently captured in log timelines.
+10. **Retroactive Freeze Logs**: Refactored `checkAutoFreeze` to write retroactive daily logs (`[ AUTO-FREEZE ]`) in a single atomic `writeBatch` instead of slow sequential loops, preventing main-thread blocking and improving network efficiency.
 
 ---
 
@@ -122,3 +122,82 @@ A series of 10 cloud, database, and sync-related improvements were implemented t
 9. **Official Indexes Configuration**: Created `firestore.indexes.json` at the root of the project to document and deploy the required composite indexes for Active Todos (`status ASC, order ASC`), Completed Todos (`status ASC, completedAt DESC`), and Habits (`isActive ASC, order ASC`).
 10. **Widget Weekly Stat Calculations**: Patched widget hooks to aggregate habit completions correctly across all dates loaded inside `periodLogs` instead of reading only `todayLog`.
 
+---
+
+## Batch 26 — Phase 3 Core UX & Engine Stability
+
+A series of 5 critical Phase 3 UX and scheduling-engine bug fixes were implemented to establish robust memory handling, responsive page state lifecycle guards, accurate scheduling mechanics, and proper web viewport interactions:
+
+1. **SleepTube Night-Owl Mismatch**: Refactored `useTimeLeft.ts` to adjust `adjustedNow` with a 1-hour past-bedtime buffer check. This allows late-night owls to remain in the `day-ended` phase (0% fuel) for 1 hour past bedtime before rolling over into the `sleeping` phase.
+2. **Settings Silent Discard**: Wired a `beforeunload` event listener into `SettingsPage.tsx` that checks the reactive `isDirty` state and intercepts exits/refreshes to warn users of unsaved changes.
+3. **Sidebar Lockout Navigation**: Intercepted click actions on sidebar `NavLink` items in `Sidebar.tsx` if `isLocked` is true, enforcing `e.preventDefault()`. Added `.sidebar__link--disabled` styling to dim and disable cursor pointers.
+4. **StickyNote Completion Timer Leak**: Introduced `fillTimerRef` and `exitTimerRef` in `StickyNote.tsx`. Both visual completion phases are now safely tracked and fully cleared during unmount cleanups or transaction reversals, preventing state leaks.
+5. **Interval Habit Next Due Date Desynchronization**: Refactored `getNextDueDate` in `scheduleEngine.ts` to compute the next due date dynamically based on `lastCompletedDate + intervalDays` (or `activationDate` if uncompleted), aligning next-due estimates perfectly with the calendar's `isHabitScheduledToday` cooldown rules.
+
+---
+
+## Batch 27 — Phase 4 Todo & Layout Integrity
+
+A series of 10 critical Phase 4 bug fixes were implemented to establish robust memory handling, responsive page state lifecycle guards, accurate scheduling mechanics, and proper web viewport interactions across the entire Todo feature area:
+
+1. **Orphaned Group Reference Layout Lockout**: Updated the ungrouped filter inside `TodosPage.tsx` to treat a todo as ungrouped if its `group` is not present in the active `groups` array: `!t.group || !groups.some(g => g.id === t.group)`.
+2. **Missing Optimistic Revert on Database Failures**: Reverted optimistic updates inside the catch blocks of both `handleTodoComplete` and `handleTodoClick` in `DashboardPage.tsx` by triggering a reload.
+3. **Stale Document Completion Count inside Numbered Todo Auto-completes**: Passed the freshly updated `finishedTodo` directly to `handleTodoComplete` inside `handleTodoClick` in `DashboardPage.tsx` instead of retrieving the stale todo from the list.
+4. **Input Constraint Bypass on Numbered Target Values**: Clamped parsed target values strictly to valid bounds of `[2, 999]` inside both `onChange` and `handleSubmit` in `TodoForm.tsx` to prevent division-by-zero or negative boundaries.
+5. **Orphaned Position Cache Leaks on Desktop Completes**: Purged localStorage keys in `w_sticky_positions` during snapshot checks in `useStickyNotes.ts` if the todo ID is no longer present in the active list.
+6. **Timezone-Shift Stripe Loophole in Deadline Checks**: Accept and respect custom userResetTime settings down to `checkDeadlines` inside `deadlineChecker.ts` and `gapProcessor.ts` to calculate boundaries correctly.
+7. **Ghost Un-rendered Desktop Todos due to Firestore Delay**: Integrated a fallback in `useStickyNotes.ts` that includes and renders a desktop sticky note if it is active and exists inside local positions cache, fallback-initializing coordinates to `{ x: 100, y: 100 }`.
+8. **Case-Insensitive Duplicate Group Creation Pollution**: Checked group name inputs against active groups case-insensitively inside `TodoForm.tsx` and reused the existing group's ID rather than polluting Firestore.
+9. **Unclickable Card UX Disconnect on Standard Todos**: Wired smooth Framer Motion height/opacity expansions when clicking standard cards in `TodosPage.tsx` and `TodoCard.tsx` to display inline descriptions, eliminating the unresponsive clicking UX.
+10. **Tauri Event Listener Cleanup Leak on Hot-Reloads**: Chained the dynamic listen unlisten promise cleanup inside the `useEffect` of `DashboardPage.tsx` to guarantee that listeners are destroyed regardless of when unmounting triggers.
+
+---
+
+## Phase 5 — Core Engines, Lockdown & Streak Resiliency
+
+A series of 10 highly critical, codebase-wide logical, structural, and synchronization bugs were resolved to enforce strict system execution boundaries, date-reset consistency, data-integrity on undos, and memory safety:
+
+1. **Freeze State Overwrite in Auto-Absence Conflict**: Added an active check inside `checkAutoFreeze` of `freezeService.ts` to immediately exit and avoid overriding the user's manual freeze dates or custom freeze reasons when returning after 3+ days.
+2. **Retroactive Auto-Freeze Log Preservation**: Queries the `logs` collection for gap days inside `checkAutoFreeze` first, skipping placeholder log creations if a user already has daily logs/notes to prevent overriding actual data.
+3. **Unhandled Batch Commit Failures**: Propagates batch write failures in `checkAutoFreeze` to block updating `lastActiveDate`, ensuring the gap processor retries the gap day sync on the next startup.
+4. **Timezone-Shift Daily Reset Mismatch**: Passed custom `dailyResetTime` from the user settings document down to `getToday()` inside `Layout.tsx`'s gap processing effect to align owl boundaries.
+5. **Tauri Event Listener Cleanup Leak in Lockdown**: Refactored `useLockdown.ts` to use promise-chained unlisten callbacks upon unmount, preventing active Tauri listeners from leaking during route changes.
+6. **Bypassing Todo Deadlines during Freeze**: Checked active freeze ranges inside `checkDeadlines` and skipped strikes or deadline clearings if a todo's deadline lapsed during a frozen day.
+7. **Limiter Strike Missed Reason Conflict**: Wrote exceeded limiter strikes in `gapProcessor.ts` using the correct `"limiter_exceeded"` reason field, allowing them to be fully revertible via undo.
+8. **Dead-Code / Redirection Gap in applyPunishment**: Unified strike resetting directly inside `applyPunishment` in `punishmentService.ts` for all penance choices so that the lockout is reliably resolved regardless of which interface triggered it.
+9. **Multi-Day Period End Penalty Bypassing**: Redesigned the day-by-day loop in `gapProcessor.ts` to evaluate multi-day metric/limiter habits at their period end dates even if that specific day is frozen, skipping ONLY if the entire period was frozen.
+10. **Habit Streak & Cooldown Corruption on Undo**: Queries the logs history in `uncompleteHabit` inside `logService.ts` to find and restore the correct last completed date on undo completion, preventing interval habit calendars and streaks from being permanently corrupted/reset to null.
+
+---
+
+## Phase 6 — Settings, Backup, Undo & System Resiliency (Batch 29)
+
+A series of 10 critical bugs related to Settings state synchronization, background backup triggers, export timezone consistency, complete undo tracking, and IndexedDB data leakage on account/data reset were resolved:
+
+1. **Restored Todo ID & Metadata Loss in Undo Delete**: Added `restoreTodo` in `todoService.ts` and refactored `undoService.ts` to recreate deleted todos with their original `id`, `createdAt`, `status`, and `completedAt`, preserving related local coordinate maps in `w_sticky_positions` perfectly.
+2. **Dead Weekly Auto-Backup Check**: Hooked `checkAutoBackup()` inside the Layout initialization engine in `Layout.tsx` once the startup phase becomes `"ready"` so background weekly backups are executed reliably.
+3. **Auto-Backup Web UX Interruption Gating**: Added a dynamic `isTauri()` gate inside `checkAutoBackup()` to exit immediately on web browsers, preventing unwanted download popup prompts on cold boot for browser users.
+4. **Missing Undo Logging for Habits and Todos**: Integrated dynamic `logAction` triggers inside the core service actions (`completeHabit`, `uncompleteHabit`, `createTodo`, `completeTodo`, and `deleteTodo`) to activate the previously empty Undo History subcollection. Added a `skipLog` flag to all service updates to prevent infinite loops when executing undo actions.
+5. **Settings Discard Fails to Deep Reset nested Aesthetics**: Refactored draft initializations and `handleDiscard` inside `SettingsPage.tsx` to use deep cloning (`JSON.parse(JSON.stringify(...))`) to prevent nested aesthetics draft mutations from polluting original states.
+6. **Aesthetics Sync Drift between Desktop and Tauri Windows**: Programmed `handleDiscard` and `SettingsPage.tsx` unmount effects to emit `'color-preview'` with the saved desktop accent color, instantly reverting previewed styling mismatches on secondary Tauri windows (Widget/StickyNote).
+7. **Timezone Discrepancy (UTC vs Local) in Manual Export Naming**: Refactored JSON and CSV exports in `exportService.ts` to generate date strings using the user's local timezone (matching backup filename styles) rather than UTC `toISOString().split('T')[0]`.
+8. **Direct Firestore Mutate in NotificationsSection Bypassing Draft Settings**: Refactored `NotificationsSection` to be a fully controlled component receiving `settings` and `onUpdate` props, ensuring notifications toggles operate entirely in draft state and do not trigger unsaved changes state sync warnings.
+9. **Numbered Todo Completion Undo Progress Bug**: Saved the pre-completed progress state (`prevNumbered`) when completing numbered todos and restored it during `todo_complete` undo cases inside `undoService.ts`.
+10. **Orphaned Wallpaper Blobs in IndexedDB on Data Reset and Account Deletion**: Called `clear()` from `idb-keyval` when wiping user data or deleting accounts inside `DataSection.tsx` to purge local wallpaper blobs and prevent disk space leakage.
+
+---
+
+## Phase 7 — 10 Most Critical Codebase Bugs (Batch 30)
+
+A series of 10 highly critical, architectural codebase bug fixes were implemented to establish robust data preservation, lock security, sync path coherence, and correct non-daily habit streak calculations:
+
+1. **Race-Condition Data Loss on First Daily Log Completion (Firestore Log Overwriting)**: Refactored `completeHabit` in `logService.ts` to execute concurrent-safe atomic `setDoc` merge writes. Under multiple concurrent Tauri webview completions, habits completed on the same day now correctly merge instead of overwriting each other.
+2. **System Clock Tampering Bypasses Active Lockdown Durations (with Monotonic Warning Penalty)**: Added a persistent `remainingSeconds` tracker to the `LockdownState` in `types.ts` and `lockdownService.ts`. Updated the countdown hook in `useLockdown.ts` to run a monotonic 1s timer, detect clock jumps ($>10$s deviation) and apply a severe 15-minute (+900s) focus penalty.
+3. **Total Strikes/Reset Lockout Bypass via Redirections in Punishment Service**: Removed premature strike resets in `applyPunishment` in `punishmentService.ts`. The lockout remains strictly active until the penance forms are successfully committed.
+4. **Incomplete Undo Tracking on Numbered Todo Auto-Completes**: Integrated standard `"todo_complete"` action logging into the auto-complete target boundary check inside `incrementNumberedTodo` in `todoService.ts`.
+5. **Google Drive Sync Path Duplication (Race Condition Creating Multiple 'W_Logbook' Folders)**: Created an IndexedDB cache for folder IDs in `googleDriveService.ts` to guarantee W never creates duplicate folders under concurrent Tauri processes.
+6. **Missing Revert on Optimistic Settings Failure**: Wrapped settings update inside `userStore.tsx` in a `try-catch` block. If the write fails, both the state settings and local storage daily reset time are instantly reverted to their pre-update values.
+7. **Case-Insensitive Duplicate Group Creation Pollution**: Checked case-insensitive group name matching in `HabitsPage.tsx` before group creation, and added duplication rejection blocks to `handleAdd`/`saveEdit` inside `GroupManager.tsx` with a warning toast.
+8. **Unidirectional Google Drive Sync (Sync-Down Note History Pull on Link)**: Implemented `pullNotesFromDrive` service inside `googleDriveService.ts` and hooked it into `useAuth.ts` right after account link to reconstruct the local note timeline from Drive archives on new devices.
+9. **Real-time Todo Desynchronization**: Configured `todoService.ts` to emit a `'widget-todo-updated'` Tauri event on mutations. Configured `DashboardPage.tsx` and `TodosPage.tsx` to automatically reload todo lists in real-time across Tauri windows.
+10. **Hardcoded Daily Streak Logic**: Overhauled streak calculations in `logService.ts` to dynamically calculate consecutive cycles based on period modes: `daily`, `weekly` (using the calendar week-start day), `monthly`, and `interval` (within interval days).

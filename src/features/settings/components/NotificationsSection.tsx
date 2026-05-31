@@ -1,11 +1,8 @@
-import { useState, useEffect } from "react";
-import { useAuthContext } from "../../auth/context";
-import { getUserDoc, updateUserDoc } from "../../auth/services/userService";
-import { useToast } from "../../../shared/components/Toast/Toast";
+import { Settings } from "../../../shared/types";
 import { Bell, BellOff, Moon, AlertTriangle, Lock, BarChart3, BrainCircuit } from "lucide-react";
 
 interface NotifToggle {
-  key: string;
+  key: keyof Settings;
   label: string;
   icon: React.ReactNode;
 }
@@ -15,75 +12,25 @@ const TOGGLES: NotifToggle[] = [
   { key: "strikeWarnings", label: "Strike Warnings", icon: <AlertTriangle size={14} strokeWidth={1.5} /> },
   { key: "lockoutAlert", label: "Lockout Alert", icon: <Lock size={14} strokeWidth={1.5} /> },
   { key: "weeklySummary", label: "Weekly Summary", icon: <BarChart3 size={14} strokeWidth={1.5} /> },
-
   { key: "predictiveWarnings", label: "Predictive Warnings", icon: <BrainCircuit size={14} strokeWidth={1.5} /> },
 ];
 
-export function NotificationsSection() {
-  const { user } = useAuthContext();
-  const { showToast } = useToast();
-  const [masterEnabled, setMasterEnabled] = useState(true);
-  const [settings, setSettings] = useState<Record<string, boolean>>({
-    eveningNudge: true,
-    strikeWarnings: true,
-    lockoutAlert: true,
-    weeklySummary: true,
+interface NotificationsSectionProps {
+  settings: Settings;
+  onUpdate: (patch: Partial<Settings>) => void;
+}
 
-    predictiveWarnings: true,
-  });
-  const [loaded, setLoaded] = useState(false);
+export function NotificationsSection({ settings, onUpdate }: NotificationsSectionProps) {
+  const masterEnabled = settings.notifications;
 
-  useEffect(() => {
-    if (user) {
-      getUserDoc(user.uid).then((doc) => {
-        if (doc) {
-          setMasterEnabled(doc.settings.notifications);
-          setSettings({
-            eveningNudge: doc.settings.eveningNudge,
-            strikeWarnings: doc.settings.strikeWarnings,
-            lockoutAlert: doc.settings.lockoutAlert,
-            weeklySummary: doc.settings.weeklySummary,
-
-            predictiveWarnings: (doc.settings as any).predictiveWarnings ?? true,
-          });
-          setLoaded(true);
-        }
-      });
-    }
-  }, [user]);
-
-  const handleMasterToggle = async () => {
-    const newVal = !masterEnabled;
-    setMasterEnabled(newVal);
-    if (user) {
-      try {
-        await updateUserDoc(user.uid, {
-          "settings.notifications": newVal,
-        } as any);
-      } catch {
-        showToast("[ FAILED TO SAVE ]");
-        setMasterEnabled(!newVal);
-      }
-    }
+  const handleMasterToggle = () => {
+    onUpdate({ notifications: !masterEnabled });
   };
 
-  const handleToggle = async (key: string) => {
+  const handleToggle = (key: keyof Settings) => {
     if (!masterEnabled) return;
-    const newVal = !settings[key];
-    setSettings((prev) => ({ ...prev, [key]: newVal }));
-    if (user) {
-      try {
-        await updateUserDoc(user.uid, {
-          [`settings.${key}`]: newVal,
-        } as any);
-      } catch {
-        showToast("[ FAILED TO SAVE ]");
-        setSettings((prev) => ({ ...prev, [key]: !newVal }));
-      }
-    }
+    onUpdate({ [key]: !settings[key] });
   };
-
-  if (!loaded) return null;
 
   return (
     <div className="settings-section" id="settings-notifications">

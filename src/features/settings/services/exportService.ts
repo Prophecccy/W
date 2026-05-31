@@ -38,7 +38,8 @@ export async function exportJSON(): Promise<boolean> {
   };
 
   const json = JSON.stringify(data, null, 2);
-  const datePart = new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const datePart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const filename = `w_export_${datePart}.json`;
   return await saveFileAs(json, filename, "application/json", "json");
 }
@@ -94,7 +95,8 @@ export async function exportCSV(): Promise<boolean> {
   }
 
   const csv = sections.join("\n");
-  const datePart = new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const datePart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const filename = `w_export_${datePart}.csv`;
   return await saveFileAs(csv, filename, "text/csv", "csv");
 }

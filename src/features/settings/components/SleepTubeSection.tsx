@@ -10,7 +10,7 @@ interface SleepTubeSectionProps {
 export function SleepTubeSection({ settings, onUpdate }: SleepTubeSectionProps) {
   const wakeUpTime = settings.wakeUpTime;
   const bedTime    = settings.bedTime;
-  const emptyTubeText = settings.emptyTubeText || 'DEPLETED';
+  const emptyTubeText = settings.emptyTubeText ?? 'DEPLETED';
 
   return (
     <div className="settings-section" id="settings-sleep-tube">

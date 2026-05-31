@@ -178,7 +178,8 @@ function LayoutInner() {
 
     async function runGapProcessor() {
       try {
-        const today = getToday();
+        const dailyResetTime = userDoc?.settings?.dailyResetTime;
+        const today = getToday(undefined, dailyResetTime);
         const result = await processGap(userDoc!.lastActiveDate, today);
         if (cancelled) return;
 
@@ -304,6 +305,16 @@ function LayoutInner() {
         await migrateNotesFromFirestore(currentUserId);
       } catch (err) {
         console.error("[Sync Engine] Firestore notes migration failed:", err);
+      }
+
+      if (isUnmounted) return;
+
+      // 1.5. Run weekly auto-backup check (non-blocking, only inside Tauri native environments)
+      try {
+        const { checkAutoBackup } = await import("../features/settings/services/backupService");
+        await checkAutoBackup();
+      } catch (err) {
+        console.error("[Sync Engine] Weekly auto-backup check failed:", err);
       }
 
       if (isUnmounted) return;
@@ -443,7 +454,7 @@ function LayoutInner() {
   // ── Command palette actions ────────────────────────────────────
   const handlePaletteCompleteHabit = useCallback(async (habitId: string) => {
     try {
-      await completeHabit(habitId, 1);
+      await completeHabit(habitId, 1, undefined, "", userDoc?.settings?.dailyResetTime);
       // Refresh palette data
       const habits = await getHabits();
       const activeHabits = habits.filter(h => !h.startDate || h.startDate <= getToday());
@@ -451,7 +462,7 @@ function LayoutInner() {
     } catch (err) {
       console.error("Failed to complete habit via palette:", err);
     }
-  }, []);
+  }, [userDoc]);
 
   const handlePaletteNewHabit = useCallback(() => {
     if (location.pathname !== "/habits") navigate("/habits");

@@ -78,20 +78,43 @@ export function useStickyNotes(): StickyNotesReturn {
 
       snapshot.docs.forEach((doc) => {
         const todo = doc.data() as Todo;
+        const localPos = cachedPositions[todo.id];
 
-        // Only include todos that have a stickyPosition (opted into desktop display)
-        if (todo.stickyPosition) {
-          activeTodos.push(todo);
+        // Include todo if it has a Firestore position OR if we have a cached local position
+        if (todo.stickyPosition || localPos) {
+          const finalPos = todo.stickyPosition || localPos || { x: 100, y: 100 };
+          activeTodos.push({
+            ...todo,
+            stickyPosition: finalPos
+          });
 
           // Skip position overwrite for notes being actively dragged.
           // Their local position is authoritative until the DB catches up.
           if (!suppressedIdsRef.current.has(todo.id)) {
-            firestorePositions[todo.id] = todo.stickyPosition;
+            firestorePositions[todo.id] = finalPos;
             // Also update local cache with Firestore values
-            savePositionLocal(todo.id, todo.stickyPosition);
+            savePositionLocal(todo.id, finalPos);
           }
         }
       });
+
+      // Prune old completed/deleted positions from localStorage cache to prevent leaks
+      const activeIds = new Set(activeTodos.map(t => t.id));
+      try {
+        const cached = loadPositions();
+        let changed = false;
+        Object.keys(cached).forEach(id => {
+          if (!activeIds.has(id)) {
+            delete cached[id];
+            changed = true;
+          }
+        });
+        if (changed) {
+          localStorage.setItem("w_sticky_positions", JSON.stringify(cached));
+        }
+      } catch (e) {
+        console.error("Failed to prune cached sticky positions:", e);
+      }
 
       setTodos(activeTodos);
 

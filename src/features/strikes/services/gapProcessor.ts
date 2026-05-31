@@ -73,8 +73,9 @@ export async function processGap(
     return result;
   }
 
-  // Fetch user settings to respect custom weeklyResetDay
+  // Fetch user settings to respect custom weeklyResetDay and dailyResetTime
   let weeklyResetDay = 1;
+  let dailyResetTime: string | undefined;
   const u = auth.currentUser;
   if (u) {
     try {
@@ -82,8 +83,11 @@ export async function processGap(
       if (userD?.settings?.weeklyResetDay !== undefined) {
         weeklyResetDay = userD.settings.weeklyResetDay;
       }
+      if (userD?.settings?.dailyResetTime !== undefined) {
+        dailyResetTime = userD.settings.dailyResetTime;
+      }
     } catch (e) {
-      console.warn("[GapProcessor] Failed to fetch user doc for weeklyResetDay settings, using default Monday(1):", e);
+      console.warn("[GapProcessor] Failed to fetch user doc for settings:", e);
     }
   }
 
@@ -143,108 +147,140 @@ export async function processGap(
       result.frozenDaysSkipped++;
     }
 
-    if (!isFrozen) {
-      // Check each habit
-      const dayLog = logMap.get(dateStr);
+    const dayLog = logMap.get(dateStr);
 
-      for (const habit of habits) {
-        // Only process habits that existed before this date
-        if (habit.createdAt > new Date(dateStr + "T23:59:59").getTime()) {
+    for (const habit of habits) {
+      // Only process habits that existed before this date
+      if (habit.createdAt > new Date(dateStr + "T23:59:59").getTime()) {
+        continue;
+      }
+
+      // Special evaluation for multi-day metric/limiter habits
+      const isMultiDayMetric =
+        (habit.period === "weekly" || habit.period === "monthly") &&
+        (habit.type === "metric" || habit.type === "limiter");
+
+      if (isMultiDayMetric) {
+        // BUG 9: Multi-Day Period End Penalty Bypassing via a Single Frozen Day
+        // Evaluate multi-day habits on their period end date even if that specific day was frozen.
+        let isPeriodEnd = false;
+        if (habit.period === "weekly") {
+          isPeriodEnd = currentDate.getDay() === (weeklyResetDay === 0 ? 6 : weeklyResetDay - 1);
+        } else if (habit.period === "monthly") {
+          const next = new Date(currentDate);
+          next.setDate(next.getDate() + 1);
+          isPeriodEnd = next.getMonth() !== currentDate.getMonth();
+        }
+
+        if (!isPeriodEnd) {
           continue;
         }
 
-        // Special evaluation for multi-day metric/limiter habits
-        const isMultiDayMetric =
-          (habit.period === "weekly" || habit.period === "monthly") &&
-          (habit.type === "metric" || habit.type === "limiter");
+        // Calculate cumulative progress over the period
+        const periodStart =
+          habit.period === "weekly"
+            ? getWeekStart(dateStr, weeklyResetDay)
+            : getMonthStart(dateStr);
 
-        if (isMultiDayMetric) {
-          // Only evaluate at the end of the period
-          let isPeriodEnd = false;
-          if (habit.period === "weekly") {
-            isPeriodEnd = currentDate.getDay() === (weeklyResetDay === 0 ? 6 : weeklyResetDay - 1);
-          } else if (habit.period === "monthly") {
-            const next = new Date(currentDate);
-            next.setDate(next.getDate() + 1);
-            isPeriodEnd = next.getMonth() !== currentDate.getMonth();
+        const habitStartStr = habit.startDate || formatDate(new Date(habit.createdAt));
+        if (habitStartStr > periodStart) {
+          continue;
+        }
+
+        // If the entire period was frozen, skip penalties.
+        let activeDaysInPeriod = 0;
+        let tempDateForFreezeCheck = new Date(periodStart + "T12:00:00");
+        const periodEndDForFreezeCheck = new Date(dateStr + "T12:00:00");
+        while (tempDateForFreezeCheck <= periodEndDForFreezeCheck) {
+          if (!isDateInFreezeRange(freezeState, formatDate(tempDateForFreezeCheck))) {
+            activeDaysInPeriod++;
           }
+          tempDateForFreezeCheck.setDate(tempDateForFreezeCheck.getDate() + 1);
+        }
+        if (activeDaysInPeriod === 0) {
+          continue;
+        }
 
-          if (!isPeriodEnd) {
-            continue;
+        let cumulativeValue = 0;
+        let tempDate = new Date(periodStart + "T12:00:00");
+        const periodEndD = new Date(dateStr + "T12:00:00");
+        while (tempDate <= periodEndD) {
+          const log = logMap.get(formatDate(tempDate));
+          const entry = log?.habits?.[habit.id];
+          if (entry) {
+            cumulativeValue += entry.value || 0;
           }
+          tempDate.setDate(tempDate.getDate() + 1);
+        }
 
-          // Calculate cumulative progress over the period
-          const periodStart =
-            habit.period === "weekly"
-              ? getWeekStart(dateStr, weeklyResetDay)
-              : getMonthStart(dateStr);
-
-          const habitStartStr = habit.startDate || formatDate(new Date(habit.createdAt));
-          if (habitStartStr > periodStart) {
-            continue;
-          }
-
-          let cumulativeValue = 0;
-          let tempDate = new Date(periodStart + "T12:00:00");
-          const periodEndD = new Date(dateStr + "T12:00:00");
-          while (tempDate <= periodEndD) {
-            const log = logMap.get(formatDate(tempDate));
-            const entry = log?.habits?.[habit.id];
-            if (entry) {
-              cumulativeValue += entry.value || 0;
-            }
-            tempDate.setDate(tempDate.getDate() + 1);
-          }
-
-          const targetValue = habit.metric?.targetValue ?? 0;
-          if (habit.type === "limiter") {
-            if (cumulativeValue <= targetValue) continue;
-          } else {
-            if (cumulativeValue >= targetValue) continue;
-          }
+        const targetValue = habit.metric?.targetValue ?? 0;
+        if (habit.type === "limiter") {
+          if (cumulativeValue <= targetValue) continue;
         } else {
-          // Standard non-multi-day habit evaluation (daily, interval, standard weekly/monthly)
-          // Was this habit scheduled on this day?
-          if (!isHabitScheduledToday(habit, dateStr, weeklyResetDay)) {
-            continue;
-          }
+          if (cumulativeValue >= targetValue) continue;
+        }
+      } else {
+        // Standard non-multi-day habit evaluation (daily, interval, standard weekly/monthly)
+        // Skip entirely if this specific day is frozen
+        if (isFrozen) {
+          continue;
+        }
 
-          // Was it completed in the log?
-          const logEntry = dayLog?.habits?.[habit.id];
-          if (!logEntry && habit.type === "limiter") {
-            continue;
-          }
-          if (logEntry && logEntry.completed) {
-            continue;
-          }
+        // BUG 3: Standard weekly habits without daysOfWeek should only be evaluated on the week's end date
+        const isStandardWeeklyAnyday =
+          habit.period === "weekly" &&
+          habit.type === "standard" &&
+          (!habit.daysOfWeek || habit.daysOfWeek.length === 0);
 
-          // For daily metric/limiter: check if value meets target
-          if (logEntry && habit.metric) {
-            if (habit.type === "limiter") {
-              // Limiter: strike only if EXCEEDED the limit
-              if (logEntry.value <= logEntry.target) continue;
-            } else {
-              // Metric: strike only if value didn't reach target
-              if (logEntry.value >= logEntry.target) continue;
-            }
+        if (isStandardWeeklyAnyday) {
+          const isPeriodEnd = currentDate.getDay() === (weeklyResetDay === 0 ? 6 : weeklyResetDay - 1);
+          if (!isPeriodEnd) {
+            continue; // Skip evaluation until the end of the week
           }
         }
 
-        // Interval strike guard: one strike per due date per habit
-        if (habit.period === "interval") {
-          const key = `${habit.id}:${dateStr}`;
-          if (intervalStrikeTracker.has(key)) continue;
-          intervalStrikeTracker.add(key);
+        // Was this habit scheduled on this day?
+        if (!isHabitScheduledToday(habit, dateStr, weeklyResetDay)) {
+          continue;
         }
 
-        // ── MISSED: add a strike ──
-        result.missedCount++;
-        try {
-          await addStrike(habit.id, habit.title, "missed");
-          result.strikesAdded++;
-        } catch {
-          // If strikes are already at max (locked out), addStrike is a no-op
+        // Was it completed in the log?
+        const logEntry = dayLog?.habits?.[habit.id];
+        if (!logEntry && habit.type === "limiter") {
+          continue;
         }
+        if (logEntry && logEntry.completed) {
+          continue;
+        }
+
+        // For daily metric/limiter: check if value meets target
+        if (logEntry && habit.metric) {
+          if (habit.type === "limiter") {
+            // Limiter: strike only if EXCEEDED the limit
+            if (logEntry.value <= logEntry.target) continue;
+          } else {
+            // Metric: strike only if value didn't reach target
+            if (logEntry.value >= logEntry.target) continue;
+          }
+        }
+      }
+
+      // Interval strike guard: one strike per due date per habit
+      if (habit.period === "interval") {
+        const key = `${habit.id}:${dateStr}`;
+        if (intervalStrikeTracker.has(key)) continue;
+        intervalStrikeTracker.add(key);
+      }
+
+      // ── MISSED / LIMITER EXCEEDED: add a strike ──
+      result.missedCount++;
+      try {
+        // BUG 7: Pass "limiter_exceeded" reason for limiter habits so they can be undone
+        const strikeReason = habit.type === "limiter" ? "limiter_exceeded" : "missed";
+        await addStrike(habit.id, habit.title, strikeReason);
+        result.strikesAdded++;
+      } catch {
+        // If strikes are already at max (locked out), addStrike is a no-op
       }
     }
 
@@ -259,7 +295,7 @@ export async function processGap(
     // We only process deadlines if auto-freeze wasn't triggered and we aren't completely frozen now
     // Actually, checkDeadlines doesn't explicitly skip frozen days currently, but we can run it.
     const activeTodos = await getTodos();
-    const todoStrikes = await checkDeadlines(activeTodos, today);
+    const todoStrikes = await checkDeadlines(activeTodos, dailyResetTime, today);
     result.strikesAdded += todoStrikes;
   } catch (err) {
     console.error("Failed to process todo deadlines in gapProcessor:", err);

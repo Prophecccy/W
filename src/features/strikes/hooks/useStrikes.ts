@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
-import { db, auth } from "../../../shared/config/firebase";
+import { db } from "../../../shared/config/firebase";
 import { StrikeState, MAX_STRIKES } from "../types";
 import { addStrike, resetStrikes } from "../services/strikeService";
+import { useAuthContext } from "../../auth/context";
 
 interface UseStrikesReturn {
   strikes: StrikeState;
@@ -20,16 +21,18 @@ const DEFAULT_STATE: StrikeState = {
 };
 
 export function useStrikes(): UseStrikesReturn {
+  const { user } = useAuthContext();
   const [strikes, setStrikes] = useState<StrikeState>(DEFAULT_STATE);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const user = auth.currentUser;
     if (!user) {
+      setStrikes(DEFAULT_STATE);
       setLoading(false);
       return;
     }
 
+    setLoading(true);
     const unsub = onSnapshot(doc(db, "users", user.uid), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
@@ -39,7 +42,7 @@ export function useStrikes(): UseStrikesReturn {
     });
 
     return unsub;
-  }, []);
+  }, [user]);
 
   const handleAddStrike = async (
     habitId: string,

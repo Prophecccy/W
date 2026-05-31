@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   setDoc,
+  getDoc,
   getDocs,
   query,
   where,
@@ -12,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "../../../shared/config/firebase";
 import { Todo } from "../types";
+import { isTauri } from "../../../shared/utils/tauri";
 
 function uid(): string {
   const u = auth.currentUser;
@@ -25,6 +27,17 @@ function todosRef() {
 
 function todoDoc(todoId: string) {
   return doc(db, "users", uid(), "todos", todoId);
+}
+
+async function notifyTodoUpdated() {
+  if (isTauri()) {
+    try {
+      const { emit } = await import("@tauri-apps/api/event");
+      await emit("widget-todo-updated");
+    } catch (e) {
+      console.warn("Failed to emit widget-todo-updated:", e);
+    }
+  }
 }
 
 // ─── CRUD ────────────────────────────────────────────────────────
@@ -43,7 +56,22 @@ export async function createTodo(
     order: todoData.order || Date.now(),
   };
   await setDoc(newRef, todo);
+
+  // Log to undo history
+  try {
+    const { logAction } = await import("../../settings/services/undoService");
+    await logAction("todo_create", `[ TODO CREATED ] - ${todo.title}`, { todoId: todo.id });
+  } catch (err) {
+    console.error("Failed to log todo_create:", err);
+  }
+
+  await notifyTodoUpdated();
   return todo.id;
+}
+
+export async function restoreTodo(todo: Todo): Promise<void> {
+  await setDoc(todoDoc(todo.id), todo);
+  await notifyTodoUpdated();
 }
 
 /** 
@@ -79,17 +107,78 @@ export async function updateTodo(todoId: string, updates: Partial<Todo>): Promis
   delete safeUpdates.type; // Type is locked per rules
 
   await updateDoc(todoDoc(todoId), safeUpdates);
+  await notifyTodoUpdated();
 }
 
-export async function deleteTodo(todoId: string): Promise<void> {
+export async function deleteTodo(todoId: string, skipLog = false): Promise<void> {
+  if (!skipLog) {
+    let finalTodo: Todo | null = null;
+    try {
+      const snap = await getDoc(todoDoc(todoId));
+      if (snap.exists()) {
+        finalTodo = snap.data() as Todo;
+      }
+    } catch (err) {
+      console.warn("Failed to fetch todo before deletion:", err);
+    }
+
+    if (finalTodo) {
+      try {
+        const { logAction } = await import("../../settings/services/undoService");
+        await logAction("todo_delete", `[ TODO DELETED ] - ${finalTodo.title}`, {
+          todoId: finalTodo.id,
+          todoData: finalTodo,
+        });
+      } catch (err) {
+        console.error("Failed to log todo_delete:", err);
+      }
+    }
+  }
+
   await deleteDoc(todoDoc(todoId));
+  await notifyTodoUpdated();
 }
 
 export async function completeTodo(todoId: string): Promise<void> {
-  await updateDoc(todoDoc(todoId), {
+  let title = "Todo";
+  let numbered: any = null;
+  try {
+    const snap = await getDoc(todoDoc(todoId));
+    if (snap.exists()) {
+      const data = snap.data() as Todo;
+      title = data.title;
+      numbered = data.numbered || null;
+    }
+  } catch (err) {
+    console.warn("Failed to fetch todo before completion:", err);
+  }
+
+  const updates: any = {
     status: "done",
     completedAt: Date.now(),
-  });
+  };
+
+  if (numbered) {
+    updates.numbered = {
+      ...numbered,
+      current: numbered.target,
+    };
+  }
+
+  await updateDoc(todoDoc(todoId), updates);
+
+  // Log to undo history
+  try {
+    const { logAction } = await import("../../settings/services/undoService");
+    await logAction("todo_complete", `[ TODO COMPLETED ] - ${title}`, {
+      todoId,
+      prevNumbered: numbered,
+    });
+  } catch (err) {
+    console.error("Failed to log todo_complete:", err);
+  }
+
+  await notifyTodoUpdated();
 }
 
 // ─── Numbered logic ──────────────────────────────────────────────
@@ -115,12 +204,25 @@ export async function incrementNumberedTodo(todoId: string, currentTodo: Todo): 
       status: "done",
       completedAt: Date.now(),
     });
+
+    // Log to undo history
+    try {
+      const { logAction } = await import("../../settings/services/undoService");
+      await logAction("todo_complete", `[ TODO COMPLETED ] - ${currentTodo.title}`, {
+        todoId,
+        prevNumbered: currentTodo.numbered,
+      });
+    } catch (err) {
+      console.error("Failed to log todo_complete:", err);
+    }
   } else {
     // Just increment
     await updateDoc(todoDoc(todoId), {
       "numbered.current": nextCount,
     });
   }
+
+  await notifyTodoUpdated();
 }
 
 export async function completeNumberedTodoFull(todoId: string, currentTodo: Todo): Promise<void> {
@@ -128,9 +230,24 @@ export async function completeNumberedTodoFull(todoId: string, currentTodo: Todo
     throw new Error("Target todo is not a numbered todo");
   }
 
+  const prevNumbered = { ...currentTodo.numbered };
+
   await updateDoc(todoDoc(todoId), {
     "numbered.current": currentTodo.numbered.target,
     status: "done",
     completedAt: Date.now(),
   });
+
+  // Log to undo history
+  try {
+    const { logAction } = await import("../../settings/services/undoService");
+    await logAction("todo_complete", `[ TODO COMPLETED ] - ${currentTodo.title}`, {
+      todoId,
+      prevNumbered,
+    });
+  } catch (err) {
+    console.error("Failed to log todo_complete:", err);
+  }
+
+  await notifyTodoUpdated();
 }

@@ -6,7 +6,7 @@
 // OS notifications when a habit crosses the 85% threshold.
 // ─────────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Habit, HabitLog } from "../types";
 import { calculateRisk, RiskResult } from "../utils/heuristicEngine";
 import { getLogRange } from "../services/logService";
@@ -57,6 +57,8 @@ export function useRiskEngine(
 ): RiskScoreMap {
   const { userDoc } = useUserStore();
   const [riskScores, setRiskScores] = useState<RiskScoreMap>({});
+  const historicalLogsRef = useRef<HabitLog[]>([]);
+  const lastQueryTimeRef = useRef<number>(0);
 
   // ─── Core calculation cycle ─────────────────────────────────────
   const runCycle = useCallback(async () => {
@@ -80,14 +82,20 @@ export function useRiskEngine(
       return;
     }
 
-    // 2. Fetch historical logs (cached per cycle — one Firestore read)
-    let historicalLogs: HabitLog[] = [];
-    try {
-      const startDate = subtractDays(today, LOOKBACK_DAYS);
-      historicalLogs = await getLogRange(startDate, today);
-    } catch (err) {
-      console.warn("[RiskEngine] Failed to fetch historical logs:", err);
-      return;
+    // 2. Fetch historical logs (throttled duplicate reads: only allow a database read once every 15 seconds)
+    const nowTime = Date.now();
+    const needsFetch = nowTime - lastQueryTimeRef.current >= 15000 || historicalLogsRef.current.length === 0;
+    
+    let historicalLogs = historicalLogsRef.current;
+    if (needsFetch) {
+      try {
+        lastQueryTimeRef.current = nowTime;
+        const startDate = subtractDays(today, LOOKBACK_DAYS);
+        historicalLogs = await getLogRange(startDate, today);
+        historicalLogsRef.current = historicalLogs;
+      } catch (err) {
+        console.warn("[RiskEngine] Failed to fetch historical logs:", err);
+      }
     }
 
     // 3. Calculate scores

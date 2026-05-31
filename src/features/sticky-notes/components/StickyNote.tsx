@@ -40,6 +40,8 @@ export function StickyNote({
 
   const completionStateRef = useRef<CompletionState>('idle');
   const undoTimerRef = useRef<number | null>(null);
+  const fillTimerRef = useRef<number | null>(null);
+  const exitTimerRef = useRef<number | null>(null);
 
   const setCompState = (state: CompletionState) => {
     completionStateRef.current = state;
@@ -304,15 +306,19 @@ export function StickyNote({
     cancelHold();
     setCompState('completing');
 
-    setTimeout(() => {
+    if (fillTimerRef.current) clearTimeout(fillTimerRef.current);
+    fillTimerRef.current = window.setTimeout(() => {
       if (completionStateRef.current !== 'completing') return;
       
       setCompState('undoable');
       
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
       undoTimerRef.current = window.setTimeout(() => {
         if (completionStateRef.current === 'undoable') {
           setIsExiting(true);
-          setTimeout(() => {
+          
+          if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+          exitTimerRef.current = window.setTimeout(() => {
             callback();
           }, 300); // wait for exit animation
         }
@@ -321,9 +327,17 @@ export function StickyNote({
   };
 
   const handleUndo = () => {
+    if (fillTimerRef.current) {
+      clearTimeout(fillTimerRef.current);
+      fillTimerRef.current = null;
+    }
     if (undoTimerRef.current) {
       clearTimeout(undoTimerRef.current);
       undoTimerRef.current = null;
+    }
+    if (exitTimerRef.current) {
+      clearTimeout(exitTimerRef.current);
+      exitTimerRef.current = null;
     }
     setCompState('idle');
   };
@@ -332,7 +346,9 @@ export function StickyNote({
     return () => {
       cancelHold();
       if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+      if (fillTimerRef.current) clearTimeout(fillTimerRef.current);
       if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+      if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
     };
   }, []);
 

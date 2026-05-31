@@ -1,6 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Snowflake, Play, Calendar, ArrowRight, X, Minus } from "lucide-react";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { isTauri } from "../../../shared/utils/tauri";
 import { deactivateFreeze } from "../services/freezeService";
 import "./WelcomeBack.css";
@@ -13,7 +12,15 @@ interface WelcomeBackProps {
 
 export function WelcomeBack({ frozenSince, today, onResume }: WelcomeBackProps) {
   const [resuming, setResuming] = useState(false);
-  const appWindow = isTauri() ? getCurrentWebviewWindow() : null;
+  const [appWindow, setAppWindow] = useState<any>(null);
+
+  useEffect(() => {
+    if (isTauri()) {
+      import("@tauri-apps/api/webviewWindow").then(({ getCurrentWebviewWindow }) => {
+        setAppWindow(getCurrentWebviewWindow());
+      }).catch(console.error);
+    }
+  }, []);
 
   const frozenDays = calculateFrozenDays(frozenSince, today);
 

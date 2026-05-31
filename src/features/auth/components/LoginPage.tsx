@@ -1,12 +1,20 @@
+import { useState, useEffect } from "react";
 import { useAuthContext } from "../context";
 import { Navigate } from "react-router-dom";
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import "./LoginPage.css";
 
 export function LoginPage() {
   const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__;
-  const appWindow = isTauri ? getCurrentWindow() : null;
+  const [appWindow, setAppWindow] = useState<any>(null);
   const { user, loading, error, signingIn, signIn, clearError, devSkip } = useAuthContext();
+
+  useEffect(() => {
+    if (isTauri) {
+      import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+        setAppWindow(getCurrentWindow());
+      }).catch(console.error);
+    }
+  }, [isTauri]);
 
   if (loading) {
     return (
@@ -27,7 +35,12 @@ export function LoginPage() {
       e.target.closest('a') ||
       e.target.closest('input')
     )) return;
-    getCurrentWindow().startDragging();
+    
+    if (isTauri) {
+      import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+        getCurrentWindow().startDragging();
+      }).catch(console.error);
+    }
   };
 
   return (

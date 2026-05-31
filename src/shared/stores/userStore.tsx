@@ -65,25 +65,51 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const updateSettings = useCallback(async (patch: Partial<Settings>) => {
     if (!user) return;
 
-    if (typeof window !== "undefined" && patch.dailyResetTime) {
-      localStorage.setItem("w_daily_reset_time", patch.dailyResetTime);
-    }
-
-    // Optimistic local update
+    // Keep track of the original settings for reversion
+    let originalSettings: Settings | undefined;
     setUserDoc((prev) => {
       if (!prev) return prev;
+      originalSettings = prev.settings;
       return {
         ...prev,
         settings: { ...prev.settings, ...patch },
       };
     });
 
-    // Persist to Firestore using dot notation for partial settings update
-    const updates: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(patch)) {
-      updates[`settings.${key}`] = value;
+    const oldDailyReset = typeof window !== "undefined" ? localStorage.getItem("w_daily_reset_time") : null;
+    if (typeof window !== "undefined" && patch.dailyResetTime) {
+      localStorage.setItem("w_daily_reset_time", patch.dailyResetTime);
     }
-    await updateUserDoc(user.uid, updates as any);
+
+    try {
+      // Persist to Firestore using dot notation for partial settings update
+      const updates: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(patch)) {
+        updates[`settings.${key}`] = value;
+      }
+      await updateUserDoc(user.uid, updates as any);
+    } catch (err) {
+      console.error("[UserStore] Failed to persist settings to Firestore. Reverting optimistic update.", err);
+      // Revert dailyResetTime in localStorage
+      if (typeof window !== "undefined") {
+        if (oldDailyReset) {
+          localStorage.setItem("w_daily_reset_time", oldDailyReset);
+        } else {
+          localStorage.removeItem("w_daily_reset_time");
+        }
+      }
+      // Revert local state
+      if (originalSettings) {
+        setUserDoc((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            settings: originalSettings!,
+          };
+        });
+      }
+      throw err;
+    }
   }, [user]);
 
 

@@ -43,11 +43,9 @@ export async function applyPunishment(
     }
 
     case "add_habit":
-      // Do not reset strikes here immediately; let user submit the inline HabitForm first.
       return "redirect_habit";
 
     case "add_todo":
-      // Do not reset strikes here immediately; let user submit the inline TodoForm first.
       return "redirect_todo";
 
     default:

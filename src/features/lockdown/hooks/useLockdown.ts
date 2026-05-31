@@ -57,8 +57,8 @@ export function useLockdown(): UseLockdownReturn {
   // ── Listen for block/unblock events from Rust ─────────────────
   useEffect(() => {
     let active = true;
-    let unlistenBlock: (() => void) | undefined;
-    let unlistenUnblock: (() => void) | undefined;
+    let unlistenBlockPromise: Promise<() => void> | null = null;
+    let unlistenUnblockPromise: Promise<() => void> | null = null;
 
     async function setupListeners() {
       try {
@@ -74,7 +74,7 @@ export function useLockdown(): UseLockdownReturn {
         }
 
         // ── BLOCK: position overlay over the banned window ───────
-        const unsubBlock = await listen<{
+        unlistenBlockPromise = listen<{
           app_title: string;
           matched_rule: string;
           pid: number;
@@ -111,7 +111,7 @@ export function useLockdown(): UseLockdownReturn {
         });
 
         // ── UNBLOCK: hide the overlay ───────────────────────────
-        const unsubUnblock = await listen("lockdown-unblock", async () => {
+        unlistenUnblockPromise = listen("lockdown-unblock", async () => {
           if (!active) return;
           try {
             const overlay = await WebviewWindow.getByLabel("block-overlay");
@@ -123,12 +123,13 @@ export function useLockdown(): UseLockdownReturn {
           }
         });
 
+        const unsubBlock = await unlistenBlockPromise;
+        const unsubUnblock = await unlistenUnblockPromise;
+
         if (!active) {
           unsubBlock();
           unsubUnblock();
         } else {
-          unlistenBlock = unsubBlock;
-          unlistenUnblock = unsubUnblock;
           console.log("[lockdown] Block/unblock listeners registered");
         }
       } catch (err) {
@@ -139,8 +140,12 @@ export function useLockdown(): UseLockdownReturn {
     setupListeners();
     return () => {
       active = false;
-      if (unlistenBlock) unlistenBlock();
-      if (unlistenUnblock) unlistenUnblock();
+      if (unlistenBlockPromise) {
+        unlistenBlockPromise.then(unsub => unsub()).catch(() => {});
+      }
+      if (unlistenUnblockPromise) {
+        unlistenUnblockPromise.then(unsub => unsub()).catch(() => {});
+      }
     };
   }, []);
 
@@ -172,33 +177,94 @@ export function useLockdown(): UseLockdownReturn {
   }, [reload]);
 
   // ── Countdown timer ────────────────────────────────────────────
+  const remainingSecondsRef = useRef<number | null | undefined>(undefined);
+  const currentRemainingRef = useRef<number | null>(null);
+  const lastTickRef = useRef<number>(Date.now());
+  const lastSaveRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    remainingSecondsRef.current = state.remainingSeconds;
+  }, [state.remainingSeconds]);
+
+  // ── Countdown timer ────────────────────────────────────────────
   useEffect(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
 
-    if (!state.active || !state.duration || !state.startedAt) {
+    if (!state.active || !state.duration) {
       setTimeRemaining(null);
       return;
     }
 
-    const endTime = state.startedAt + state.duration * 60 * 1000;
+    // Initialize once on mount/lockdown-activation
+    const initialSecs = remainingSecondsRef.current ?? state.remainingSeconds ?? (state.duration * 60);
+    setTimeRemaining(initialSecs);
+    currentRemainingRef.current = initialSecs;
+    
+    lastTickRef.current = Date.now();
+    lastSaveRef.current = Date.now();
 
-    const tick = () => {
-      const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
-      setTimeRemaining(remaining);
+    const tick = async () => {
+      const now = Date.now();
+      const diff = now - lastTickRef.current;
+      lastTickRef.current = now;
 
-      if (remaining <= 0) {
+      if (currentRemainingRef.current === null) return;
+
+      // Clock tampering detection (jump backward or positive jump > 10s while tab is visible)
+      const isNegativeJump = diff < -10000;
+      const isPositiveJump = diff > 10000;
+      const isTampering = isNegativeJump || (isPositiveJump && !document.hidden);
+
+      if (isTampering) {
+        console.warn("[lockdown] System clock tampering detected!", diff);
+        const penaltySecs = 15 * 60;
+        const newSecs = currentRemainingRef.current + penaltySecs;
+        currentRemainingRef.current = newSecs;
+        setTimeRemaining(newSecs);
+        
+        window.dispatchEvent(
+          new CustomEvent("w:toast", {
+            detail: "⚠️ CLOCK TAMPERING DETECTED: +15 MIN PENANCE APPLIED."
+          })
+        );
+        
+        if (user) {
+          const { doc, updateDoc } = await import("firebase/firestore");
+          const { db } = await import("../../../shared/config/firebase");
+          await updateDoc(doc(db, "users", user.uid), {
+            "lockdown.remainingSeconds": newSecs,
+            "lockdown.startedAt": now,
+          }).catch(console.error);
+        }
+        return;
+      }
+
+      const newSecs = Math.max(0, currentRemainingRef.current - 1);
+      currentRemainingRef.current = newSecs;
+      setTimeRemaining(newSecs);
+
+      if (newSecs <= 0) {
         if (timerRef.current) {
           clearInterval(timerRef.current);
           timerRef.current = null;
         }
         deactivateLockdownHandler();
+        return;
+      }
+
+      if (now - lastSaveRef.current >= 10000 && user) {
+        lastSaveRef.current = now;
+        const { doc, updateDoc } = await import("firebase/firestore");
+        const { db } = await import("../../../shared/config/firebase");
+        updateDoc(doc(db, "users", user.uid), {
+          "lockdown.remainingSeconds": newSecs,
+        }).catch(console.error);
       }
     };
 
-    tick();
     timerRef.current = setInterval(tick, 1000);
 
     return () => {
@@ -207,7 +273,7 @@ export function useLockdown(): UseLockdownReturn {
         timerRef.current = null;
       }
     };
-  }, [state.active, state.duration, state.startedAt, deactivateLockdownHandler]);
+  }, [state.active, state.duration, user, deactivateLockdownHandler]);
 
   return {
     state,

@@ -80,6 +80,12 @@ export function DataSection() {
     try {
       await resetUserData(user.uid);
       localStorage.clear();
+      try {
+        const { clear } = await import("idb-keyval");
+        await clear();
+      } catch (idbErr) {
+        console.warn("Failed to clear IndexedDB wallpapers:", idbErr);
+      }
       showToast("[ DATA WIPED - RELOADING ]");
       setTimeout(() => window.location.reload(), 1500); // Reload to trigger onboarding
     } catch (err) {
@@ -100,6 +106,12 @@ export function DataSection() {
     try {
       await deleteUserAccountAndData();
       localStorage.clear();
+      try {
+        const { clear } = await import("idb-keyval");
+        await clear();
+      } catch (idbErr) {
+        console.warn("Failed to clear IndexedDB wallpapers:", idbErr);
+      }
       await signOut();
       showToast("[ ACCOUNT DELETED ]");
       setTimeout(() => window.location.reload(), 1500);

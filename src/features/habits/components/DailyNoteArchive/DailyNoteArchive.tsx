@@ -80,12 +80,15 @@ export function DailyNoteArchive({ isOpen, onClose }: DailyNoteArchiveProps) {
               ) : (
                 <div className="daily-note-archive__list">
                   {notes.map((log) => {
-                    const dateObj = new Date(log.date + "T00:00:00");
-                    const dateStr = dateObj.toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "2-digit",
-                      year: "numeric"
-                    }).toUpperCase();
+                    const [year, monthVal, dayVal] = log.date.split("-").map(Number);
+                    const dateObj = new Date(year, monthVal - 1, dayVal);
+                    const dateStr = isNaN(dateObj.getTime())
+                      ? log.date
+                      : dateObj.toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "2-digit",
+                          year: "numeric"
+                        }).toUpperCase();
 
                     return (
                       <div key={log.date} className="daily-note-archive__card">

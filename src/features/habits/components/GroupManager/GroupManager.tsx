@@ -36,9 +36,15 @@ export function GroupManager({ onClose }: GroupManagerProps) {
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
-    if (!newName.trim()) return;
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    const lower = trimmed.toLowerCase();
+    if (groups.some((g) => g.name.trim().toLowerCase() === lower)) {
+      showToast("[ GROUP ALREADY EXISTS ]");
+      return;
+    }
     try {
-      const g = await createGroup(newName.trim(), groups.length);
+      const g = await createGroup(trimmed, groups.length);
       setGroups([...groups, g]);
       setNewName("");
       showToast("[ GROUP CREATED ]");
@@ -65,9 +71,16 @@ export function GroupManager({ onClose }: GroupManagerProps) {
       setEditingId(null);
       return;
     }
+    const trimmed = editName.trim();
+    const lower = trimmed.toLowerCase();
+    if (groups.some((g) => g.id !== editingId && g.name.trim().toLowerCase() === lower)) {
+      showToast("[ GROUP NAME ALREADY EXISTS ]");
+      setEditingId(null);
+      return;
+    }
     try {
-      await updateGroup(editingId, editName.trim());
-      setGroups(groups.map((g) => (g.id === editingId ? { ...g, name: editName.trim() } : g)));
+      await updateGroup(editingId, trimmed);
+      setGroups(groups.map((g) => (g.id === editingId ? { ...g, name: trimmed } : g)));
       setEditingId(null);
       showToast("[ GROUP RENAMED ]");
     } catch (err) {

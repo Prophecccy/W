@@ -83,7 +83,9 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
         }
         return true; // Type
       case 3: // Duration
-        if (data.duration.type === "endpoint") return !!data.duration.endDate || !!data.duration.completionCount;
+        if (data.duration.type === "endpoint") {
+          return !!data.duration.endDate && data.duration.endDate >= data.startDate;
+        }
         return true;
       case 4: return !!data.startDate; // Start Date
       case 5: return !!data.icon; // Appearance

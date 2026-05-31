@@ -9,6 +9,7 @@ export interface LockdownState {
   violations: LockdownViolation[];
   totalSessions: number;
   totalViolations: number;
+  remainingSeconds?: number | null; // Monotonic countdown track
 }
 
 export interface LockdownViolation {

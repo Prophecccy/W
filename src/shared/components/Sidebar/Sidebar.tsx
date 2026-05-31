@@ -53,10 +53,15 @@ export function Sidebar({ strikeCount = 0, globalStreak = 0, isLockdownActive = 
         {activeNavItems.map((item) => (
           <NavLink
             key={item.to}
-            to={item.to}
+            to={isLocked ? "#" : item.to}
+            onClick={(e) => {
+              if (isLocked) {
+                e.preventDefault();
+              }
+            }}
             end={item.to === "/"}
             className={({ isActive }) =>
-              `sidebar__link t-body${isActive ? " sidebar__link--active" : ""}`
+              `sidebar__link t-body${isActive && !isLocked ? " sidebar__link--active" : ""}${isLocked ? " sidebar__link--disabled" : ""}`
             }
           >
             <item.icon size={16} strokeWidth={1.5} />
