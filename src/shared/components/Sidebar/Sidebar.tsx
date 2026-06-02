@@ -117,6 +117,10 @@ export function Sidebar({ strikeCount = 0, globalStreak = 0, isLockdownActive = 
           </a>
         </div>
       )}
+
+      <div className="sidebar__version">
+        Alpha.v.1.4
+      </div>
     </aside>
   );
 }

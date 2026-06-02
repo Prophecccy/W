@@ -165,3 +165,13 @@
   pointer-events: none;
 }
 
+.sidebar__version {
+  font-family: "Departure Mono", monospace;
+  font-size: 8px;
+  color: var(--text-muted);
+  padding: 0 20px 16px;
+  opacity: 0.5;
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+
