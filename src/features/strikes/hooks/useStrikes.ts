@@ -9,7 +9,11 @@ interface UseStrikesReturn {
   strikes: StrikeState;
   isLocked: boolean;
   loading: boolean;
-  addStrike: (habitId: string, habitTitle: string, reason?: "missed" | "manual") => Promise<void>;
+  addStrike: (
+    habitId: string,
+    habitTitle: string,
+    reason?: "missed" | "manual" | "lockdown_violation" | "snoozed_high_stakes" | "limiter_exceeded"
+  ) => Promise<void>;
   resolve: () => Promise<void>;
 }
 
@@ -47,9 +51,9 @@ export function useStrikes(): UseStrikesReturn {
   const handleAddStrike = async (
     habitId: string,
     habitTitle: string,
-    reason: "missed" | "manual" = "missed"
+    reason?: "missed" | "manual" | "lockdown_violation" | "snoozed_high_stakes" | "limiter_exceeded"
   ) => {
-    await addStrike(habitId, habitTitle, reason);
+    await addStrike(habitId, habitTitle, reason || "missed");
     // State updates via onSnapshot listener automatically
   };
 

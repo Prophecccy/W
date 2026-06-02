@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { isTauri } from '../../../shared/utils/tauri';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { HabitCard } from './HabitCard/HabitCard';
 import { HabitForm } from './HabitForm/HabitForm';
@@ -30,6 +31,7 @@ export function HabitsPage() {
   const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
   const [deleteSubId, setDeleteSubId] = useState<string | null>(null);
   const [focusedIndex, _setFocusedIndex] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const today = useMemo(() => {
     return getToday(undefined, userDoc?.settings?.dailyResetTime);
@@ -56,7 +58,41 @@ export function HabitsPage() {
       }
     }
     loadData();
-  }, [today]);
+  }, [today, refreshKey]);
+
+  // ── Cross-window sync: listen for habit updates from Dashboard/Widget ──
+  useEffect(() => {
+    if (!isTauri()) return;
+
+    let active = true;
+    let unsub: (() => void) | null = null;
+
+    async function setupListener() {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        if (!active) return;
+        const unlisten = await listen('widget-habit-updated', () => {
+          if (!active) return;
+          console.log('HabitsPage: Received widget-habit-updated, refreshing...');
+          setRefreshKey(prev => prev + 1);
+        });
+        if (!active) {
+          unlisten();
+        } else {
+          unsub = unlisten;
+        }
+      } catch (e) {
+        console.error('HabitsPage: Failed to setup widget-habit-updated listener', e);
+      }
+    }
+
+    setupListener();
+
+    return () => {
+      active = false;
+      if (unsub) unsub();
+    };
+  }, []);
 
   // ── Custom event listeners (from Layout keyboard shortcuts / CommandPalette) ──
   useEffect(() => {
@@ -154,6 +190,12 @@ export function HabitsPage() {
         };
       });
       await completeHabit(habitId, 1, target, "", userDoc?.settings?.dailyResetTime);
+      // Notify other windows (Dashboard, Widget) about the change
+      if (isTauri()) {
+        import('@tauri-apps/api/event').then(({ emit }) => {
+          emit('widget-habit-updated', { habitId, action: 'complete', source: 'habits' }).catch(() => {});
+        });
+      }
     } catch (e) {
       console.error(e);
       if (originalLog) {
@@ -188,6 +230,12 @@ export function HabitsPage() {
         return { ...prev, habits: newHabits };
       });
       await uncompleteHabit(habitId, userDoc?.settings?.dailyResetTime);
+      // Notify other windows (Dashboard, Widget) about the change
+      if (isTauri()) {
+        import('@tauri-apps/api/event').then(({ emit }) => {
+          emit('widget-habit-updated', { habitId, action: 'undo', source: 'habits' }).catch(() => {});
+        });
+      }
     } catch (e) {
       console.error(e);
       if (originalLog) {
@@ -318,7 +366,13 @@ export function HabitsPage() {
                     key={h.id} 
                     habit={h} 
                     isCompletedToday={false} 
-                    doneToday={h.type === "metric" && (h.period === "weekly" || h.period === "monthly" || h.period === "interval") && ((log?.habits?.[h.id]?.completions?.length ?? 0) > 0)}
+                    doneToday={(() => {
+                      const entry = log?.habits?.[h.id];
+                      const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
+                      if (h.type === 'limiter') return interactedToday;
+                      const isMulti = h.period === "weekly" || h.period === "monthly" || h.period === "interval";
+                      return h.type === "metric" && isMulti && interactedToday;
+                    })()}
                     onComplete={() => handleComplete(h.id)} 
                     onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
                     currentValue={log?.habits?.[h.id]?.value || 0}
@@ -337,7 +391,23 @@ export function HabitsPage() {
                     <HabitGroupHeader key={g.id} title={g.name} count={groupHabits.length}>
                       <div className="habits-grid">
                          {groupHabits.map(h => (
-                          <HabitCard key={h.id} habit={h} isCompletedToday={false} doneToday={h.type === "metric" && (h.period === "weekly" || h.period === "monthly" || h.period === "interval") && ((log?.habits?.[h.id]?.completions?.length ?? 0) > 0)} onComplete={() => handleComplete(h.id)} onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)} currentValue={log?.habits?.[h.id]?.value || 0} riskScore={riskScores[h.id]} />
+                           <HabitCard
+                             key={h.id}
+                             habit={h}
+                             isCompletedToday={false}
+                             doneToday={(() => {
+                               const entry = log?.habits?.[h.id];
+                               const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
+                               if (h.type === 'limiter') return interactedToday;
+                               const isMulti = h.period === "weekly" || h.period === "monthly" || h.period === "interval";
+                               return h.type === "metric" && isMulti && interactedToday;
+                             })()}
+                             onComplete={() => handleComplete(h.id)}
+                             onUndo={() => handleUndo(h.id)}
+                             onClick={() => setSelectedHabitId(h.id)}
+                             currentValue={log?.habits?.[h.id]?.value || 0}
+                             riskScore={riskScores[h.id]}
+                           />
                         ))}
                       </div>
                     </HabitGroupHeader>
@@ -351,7 +421,23 @@ export function HabitsPage() {
                       <HabitGroupHeader title="UNGROUPED" count={ungrouped.length}>
                         <div className="habits-grid">
                            {ungrouped.map(h => (
-                            <HabitCard key={h.id} habit={h} isCompletedToday={false} doneToday={h.type === "metric" && (h.period === "weekly" || h.period === "monthly" || h.period === "interval") && ((log?.habits?.[h.id]?.completions?.length ?? 0) > 0)} onComplete={() => handleComplete(h.id)} onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)} currentValue={log?.habits?.[h.id]?.value || 0} riskScore={riskScores[h.id]} />
+                            <HabitCard
+                             key={h.id}
+                             habit={h}
+                             isCompletedToday={false}
+                             doneToday={(() => {
+                               const entry = log?.habits?.[h.id];
+                               const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
+                               if (h.type === 'limiter') return interactedToday;
+                               const isMulti = h.period === "weekly" || h.period === "monthly" || h.period === "interval";
+                               return h.type === "metric" && isMulti && interactedToday;
+                             })()}
+                             onComplete={() => handleComplete(h.id)}
+                             onUndo={() => handleUndo(h.id)}
+                             onClick={() => setSelectedHabitId(h.id)}
+                             currentValue={log?.habits?.[h.id]?.value || 0}
+                             riskScore={riskScores[h.id]}
+                           />
                           ))}
                         </div>
                       </HabitGroupHeader>
@@ -407,9 +493,15 @@ export function HabitsPage() {
                       key={h.id} 
                       habit={h} 
                       isCompletedToday={false} 
-                      doneToday={h.type === "metric" && (h.period === "weekly" || h.period === "monthly" || h.period === "interval") && ((log?.habits?.[h.id]?.completions?.length ?? 0) > 0)}
-                      onComplete={() => handleComplete(h.id)} 
-                      onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
+                    doneToday={(() => {
+                      const entry = log?.habits?.[h.id];
+                      const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
+                      if (h.type === 'limiter') return interactedToday;
+                      const isMulti = h.period === "weekly" || h.period === "monthly" || h.period === "interval";
+                      return h.type === "metric" && isMulti && interactedToday;
+                    })()}
+                    onComplete={() => handleComplete(h.id)} 
+                    onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
                       currentValue={log?.habits?.[h.id]?.value || 0}
                     />
                   ))}

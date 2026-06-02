@@ -8,17 +8,20 @@ import { LockdownLogo } from "./LockdownLogo";
 import "./LockdownPage.css";
 
 export function LockdownPage() {
-  const { state, isActive, timeRemaining, activate, deactivate } = useLockdown();
+  const { state, isActive, timeRemaining, activate, deactivate, loading } = useLockdown();
 
   // ── Local UI state (before activation) ─────────────────────────
   const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
   const [enabledPresets, setEnabledPresets] = useState<Set<string>>(new Set());
   const [customEntries, setCustomEntries] = useState<string[]>([]);
   const [customInput, setCustomInput] = useState("");
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Sync blocklist from Firestore on first load
   useEffect(() => {
-    if (state.blocklist.length > 0 && enabledPresets.size === 0 && customEntries.length === 0) {
+    if (loading || isInitialized) return;
+
+    if (state.blocklist.length > 0) {
       // Reverse-map existing blocklist to presets
       const presetIds = new Set<string>();
       const customs: string[] = [];
@@ -43,7 +46,8 @@ export function LockdownPage() {
       setEnabledPresets(presetIds);
       setCustomEntries(customs);
     }
-  }, [state.blocklist]);
+    setIsInitialized(true);
+  }, [loading, state.blocklist, isInitialized]);
 
   // ── Compute full blocklist ─────────────────────────────────────
   const computeBlocklist = (): string[] => {

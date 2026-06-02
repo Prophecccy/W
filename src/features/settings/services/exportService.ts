@@ -79,16 +79,53 @@ export async function exportCSV(): Promise<boolean> {
 
   // ── Logs CSV ───────────────────────────────────────────────────
   if (logs.length > 0) {
-    const logHeaders = ["date", "notes", "habitsCompleted"];
-    const logRows = logs.map((l) => {
-      const habitsMap = (l.habits as Record<string, any>) ?? {};
-      const completedCount = Object.values(habitsMap).filter((h: any) => h.completed).length;
-      return [
-        escapeCSV(String(l.date ?? "")),
-        escapeCSV(String(l.notes ?? "")),
-        String(completedCount),
-      ].join(",");
+    const logHeaders = ["date", "notes", "habitId", "habitTitle", "value", "target", "completed"];
+    const logRows: string[] = [];
+
+    const habitIdToTitle: Record<string, string> = {};
+    habits.forEach((h) => {
+      if (h.id && h.title) {
+        habitIdToTitle[String(h.id)] = String(h.title);
+      }
     });
+
+    logs.forEach((l) => {
+      const date = String(l.date ?? "");
+      const notes = String(l.notes ?? "");
+      const habitsMap = (l.habits as Record<string, any>) ?? {};
+      const habitKeys = Object.keys(habitsMap);
+
+      if (habitKeys.length === 0) {
+        logRows.push([
+          escapeCSV(date),
+          escapeCSV(notes),
+          "",
+          "",
+          "",
+          "",
+          ""
+        ].join(","));
+      } else {
+        habitKeys.forEach((habitId) => {
+          const entry = habitsMap[habitId] ?? {};
+          const title = habitIdToTitle[habitId] ?? "Unknown Habit";
+          const val = entry.value !== undefined ? String(entry.value) : "";
+          const target = entry.target !== undefined ? String(entry.target) : "";
+          const completed = entry.completed !== undefined ? String(entry.completed) : "false";
+
+          logRows.push([
+            escapeCSV(date),
+            escapeCSV(notes),
+            escapeCSV(habitId),
+            escapeCSV(title),
+            escapeCSV(val),
+            escapeCSV(target),
+            escapeCSV(completed),
+          ].join(","));
+        });
+      }
+    });
+
     sections.push("=== DAILY LOGS ===");
     sections.push(logHeaders.join(","));
     sections.push(...logRows);

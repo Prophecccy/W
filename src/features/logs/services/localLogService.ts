@@ -149,19 +149,19 @@ export async function migrateNotesFromFirestore(userId: string): Promise<void> {
     
     if (history && history.length > 0) {
       console.info(`[localLogService] Found ${history.length} historical notes to migrate.`);
-      
-      for (const log of history) {
-        if (log.notes && log.notes.trim() !== "") {
+      const migrationPromises = history
+        .filter(log => log.notes && log.notes.trim() !== "")
+        .map(async (log) => {
           const key = `${NOTE_KEY_PREFIX}${log.date}`;
           const record: LocalNoteRecord = {
             date: log.date,
             notes: log.notes,
-            sync_pending: false, // Already backed up in Firestore (historical)
+            sync_pending: false,
             updatedAt: Date.now(),
           };
-          await set(key, record);
-        }
-      }
+          return set(key, record);
+        });
+      await Promise.all(migrationPromises);
     }
 
     localStorage.setItem(userMigratedKey, "true");

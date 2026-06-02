@@ -31,12 +31,13 @@ export async function createHabit(
   habitData: Omit<Habit, "id" | "uid">
 ): Promise<Habit> {
   const userId = uid();
+  const createdAt = Date.now();
   const ref = await addDoc(habitsRef(userId), {
     ...habitData,
     uid: userId,
-    createdAt: Date.now(),
+    createdAt,
   });
-  return { ...habitData, id: ref.id, uid: userId };
+  return { ...habitData, id: ref.id, uid: userId, createdAt } as Habit;
 }
 
 // ─── Read ────────────────────────────────────────────────────────

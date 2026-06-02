@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "W",
-  "version": "1.2.0-alpha",
+  "version": "1.4.0-alpha",
   "identifier": "com.redre.w-app",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -71,12 +71,7 @@
         "closable": false
       }
     ],
-    "trayIcon": {
-      "iconPath": "icons/icon.ico",
-      "iconAsTemplate": false,
-      "title": "W",
-      "tooltip": "W"
-    },
+
     "security": {
       "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.firebaseapp.com https://*.googleapis.com https://*.google.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.firebaseapp.com https://*.googleapis.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.firebasestorage.app https://*.google.com https://*.gstatic.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://github.com; img-src 'self' data: blob: asset: http://asset.localhost https://*.googleusercontent.com https://*.firebasestorage.app; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; media-src 'self' asset: http://asset.localhost; frame-src https://*.firebaseapp.com https://accounts.google.com",
       "assetProtocol": {

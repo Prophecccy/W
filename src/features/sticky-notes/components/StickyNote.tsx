@@ -208,15 +208,6 @@ export function StickyNote({
       // ── Z-Order Enforcer: Active Defense on Click ──
       try {
         invoke("pin_widget_bottom").catch(() => {});
-        import("@tauri-apps/api/webviewWindow").then(({ WebviewWindow }) => {
-          WebviewWindow.getByLabel("main").then(main => {
-            if (main) {
-              main.isMinimized().then(isMin => {
-                if (!isMin) main.setFocus();
-              });
-            }
-          }).catch(() => {});
-        }).catch(() => {});
       } catch {}
 
       // Disable interaction if in purgatory or completing

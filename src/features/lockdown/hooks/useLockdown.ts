@@ -20,12 +20,14 @@ interface UseLockdownReturn {
   activate: (blocklist: string[], duration: number | null) => Promise<void>;
   deactivate: () => Promise<void>;
   reload: () => Promise<void>;
+  loading: boolean;
 }
 
 export function useLockdown(): UseLockdownReturn {
   const { user } = useAuthContext();
   const [state, setState] = useState<LockdownState>({ ...DEFAULT_LOCKDOWN_STATE });
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Load state on mount ────────────────────────────────────────
@@ -34,8 +36,10 @@ export function useLockdown(): UseLockdownReturn {
     try {
       const lockdownState = await getLockdownState(user.uid);
       setState(lockdownState);
+      setLoading(false);
     } catch {
       // User doc may not exist yet
+      setLoading(false);
     }
   }, [user]);
 
@@ -59,6 +63,7 @@ export function useLockdown(): UseLockdownReturn {
     let active = true;
     let unlistenBlockPromise: Promise<() => void> | null = null;
     let unlistenUnblockPromise: Promise<() => void> | null = null;
+    let unlistenExpiredPromise: Promise<() => void> | null = null;
 
     async function setupListeners() {
       try {
@@ -66,7 +71,7 @@ export function useLockdown(): UseLockdownReturn {
         const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
 
         if (!active) return;
-        console.log("[lockdown] Setting up block/unblock listeners...");
+        console.log("[lockdown] Setting up block/unblock/expired listeners...");
 
         // Helper: get the statically defined block-overlay window
         async function getOrCreateOverlay(): Promise<InstanceType<typeof WebviewWindow> | null> {
@@ -123,14 +128,23 @@ export function useLockdown(): UseLockdownReturn {
           }
         });
 
-        const unsubBlock = await unlistenBlockPromise;
-        const unsubUnblock = await unlistenUnblockPromise;
+        // ── EXPIRED: handle lockdown timer expiration in Rust ───
+        unlistenExpiredPromise = listen("lockdown-expired", async () => {
+          if (!active) return;
+          console.log("[lockdown] Received expired event from Rust. Deactivating.");
+          await deactivateLockdownHandler();
+        });
+
+        const unsubBlock = unlistenBlockPromise ? await unlistenBlockPromise : null;
+        const unsubUnblock = unlistenUnblockPromise ? await unlistenUnblockPromise : null;
+        const unsubExpired = unlistenExpiredPromise ? await unlistenExpiredPromise : null;
 
         if (!active) {
-          unsubBlock();
-          unsubUnblock();
+          if (unsubBlock) unsubBlock();
+          if (unsubUnblock) unsubUnblock();
+          if (unsubExpired) unsubExpired();
         } else {
-          console.log("[lockdown] Block/unblock listeners registered");
+          console.log("[lockdown] Block/unblock/expired listeners registered");
         }
       } catch (err) {
         console.error("[lockdown] Failed to setup listeners:", err);
@@ -141,10 +155,13 @@ export function useLockdown(): UseLockdownReturn {
     return () => {
       active = false;
       if (unlistenBlockPromise) {
-        unlistenBlockPromise.then(unsub => unsub()).catch(() => {});
+        unlistenBlockPromise.then((unsub: () => void) => unsub()).catch(() => {});
       }
       if (unlistenUnblockPromise) {
-        unlistenUnblockPromise.then(unsub => unsub()).catch(() => {});
+        unlistenUnblockPromise.then((unsub: () => void) => unsub()).catch(() => {});
+      }
+      if (unlistenExpiredPromise) {
+        unlistenExpiredPromise.then((unsub: () => void) => unsub()).catch(() => {});
       }
     };
   }, []);
@@ -216,7 +233,10 @@ export function useLockdown(): UseLockdownReturn {
       // Clock tampering detection (jump backward or positive jump > 10s while tab is visible)
       const isNegativeJump = diff < -10000;
       const isPositiveJump = diff > 10000;
-      const isTampering = isNegativeJump || (isPositiveJump && !document.hidden);
+      // Jumps greater than 12s are treated as system sleep/suspension
+      const isSleepOrSuspension = diff > 12000;
+      
+      const isTampering = isNegativeJump || (isPositiveJump && !isSleepOrSuspension && !document.hidden);
 
       if (isTampering) {
         console.warn("[lockdown] System clock tampering detected!", diff);
@@ -238,6 +258,26 @@ export function useLockdown(): UseLockdownReturn {
             "lockdown.remainingSeconds": newSecs,
             "lockdown.startedAt": now,
           }).catch(console.error);
+        }
+
+        try {
+          const { invoke } = await import("@tauri-apps/api/core");
+          invoke("update_lockdown_remaining", { remainingSecs: newSecs }).catch(console.error);
+        } catch {}
+
+        return;
+      } else if (isSleepOrSuspension || document.hidden) {
+        const elapsedSecs = Math.round(diff / 1000);
+        const newSecs = Math.max(0, currentRemainingRef.current - elapsedSecs);
+        currentRemainingRef.current = newSecs;
+        setTimeRemaining(newSecs);
+        
+        if (newSecs <= 0) {
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
+          deactivateLockdownHandler();
         }
         return;
       }
@@ -282,5 +322,6 @@ export function useLockdown(): UseLockdownReturn {
     activate: activateHandler,
     deactivate: deactivateLockdownHandler,
     reload,
+    loading,
   };
 }

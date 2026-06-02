@@ -22,6 +22,7 @@ export function WidgetApp() {
     scheduledHabits,
     completedCount,
     totalScheduled,
+    scheduledLimiters,
     completeHabit,
     undoHabit,
   } = useWidgetData();
@@ -329,6 +330,13 @@ export function WidgetApp() {
       habitAreaHeight += EMPTY_H;
     }
 
+    if (scheduledLimiters && scheduledLimiters.length > 0) {
+      habitAreaHeight += 24; // Section Title "[ LIMITERS ]" + margin
+      scheduledLimiters.forEach(habit => {
+        habitAreaHeight += getHabitCardHeight(habit) + CARD_GAP;
+      });
+    }
+
     // Calculate Right Panel: 4 components with 3 vertical gaps
     const targetLogicalRightPanel = HEADER_H + habitAreaHeight + STATS_DECK_H + CLOCK_H + (3 * PANEL_GAP);
     
@@ -542,6 +550,7 @@ export function WidgetApp() {
             <WidgetHabitList
               today={today}
               scheduledHabits={scheduledHabits}
+              scheduledLimiters={scheduledLimiters}
               todayLog={todayLog}
               periodLogs={periodLogs}
               weeklyResetDay={userDoc?.settings?.weeklyResetDay ?? 1}
@@ -636,5 +645,5 @@ function getPeriodStart(habit: any, todayStr: string, weekStartDay: number): str
 }
 
 function isMultiDayMetric(habit: any): boolean {
-  return habit.type === "metric" && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
+  return (habit.type === "metric" || habit.type === "limiter") && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
 }

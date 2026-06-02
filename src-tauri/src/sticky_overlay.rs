@@ -93,6 +93,30 @@ fn point_in_any_region(x: i32, y: i32, regions: &[StickyRect]) -> bool {
     false
 }
 
+fn point_near_any_region(x: i32, y: i32, regions: &[StickyRect]) -> bool {
+    const NEAR_THRESHOLD: i32 = 150;
+    for r in regions {
+        let dx = if x < r.left {
+            r.left - x
+        } else if x > r.right {
+            x - r.right
+        } else {
+            0
+        };
+        let dy = if y < r.top {
+            r.top - y
+        } else if y > r.bottom {
+            y - r.bottom
+        } else {
+            0
+        };
+        if dx <= NEAR_THRESHOLD && dy <= NEAR_THRESHOLD {
+            return true;
+        }
+    }
+    false
+}
+
 /// The flags that MUST always be present on the overlay window.
 /// - WS_EX_NOACTIVATE: never become the foreground/active window
 /// - WS_EX_TOOLWINDOW: no Alt-Tab entry, no taskbar button
@@ -155,16 +179,20 @@ fn start_polling(app_handle: tauri::AppHandle) {
             let mut pt = POINT::default();
             let got_pos = unsafe { GetCursorPos(&mut pt).is_ok() };
 
+            let mut near_region = false;
+            let mut in_drag = false;
+
             if got_pos {
                 let over_note = {
                     if let Ok(guard) = REGIONS.lock() {
+                        near_region = point_near_any_region(pt.x, pt.y, &guard);
                         point_in_any_region(pt.x, pt.y, &guard)
                     } else {
                         false
                     }
                 };
 
-                let in_drag = DRAG_MODE.load(Ordering::Relaxed);
+                in_drag = DRAG_MODE.load(Ordering::Relaxed);
                 let should_ignore = !over_note && !in_drag;
                 let currently_ignoring = IS_IGNORING.load(Ordering::Relaxed);
 
@@ -175,7 +203,13 @@ fn start_polling(app_handle: tauri::AppHandle) {
                 }
             }
 
-            thread::sleep(Duration::from_millis(16));
+            // Dynamic sleep throttling based on distance
+            let sleep_dur = if near_region || in_drag {
+                16
+            } else {
+                100
+            };
+            thread::sleep(Duration::from_millis(sleep_dur));
         }
     });
 }

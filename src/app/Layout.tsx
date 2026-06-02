@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Sidebar } from "../shared/components/Sidebar/Sidebar";
@@ -17,11 +17,13 @@ import { useKeyboardShortcuts } from "../shared/hooks/useKeyboardShortcuts";
 import { useAuthContext } from "../features/auth/context";
 import { OnboardingFlow } from "../features/auth/components/OnboardingFlow";
 import { UserProvider, useUserStore } from "../shared/stores/userStore";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { db } from "../shared/config/firebase";
 import { User } from "../shared/types";
 import { Habit } from "../features/habits/types";
 import { Todo } from "../features/todos/types";
 import { getHabits } from "../features/habits/services/habitService";
-import { getTodos } from "../features/todos/services/todoService";
+
 import { completeHabit } from "../features/habits/services/logService";
 import { getToday, getMsUntilBackup } from "../shared/utils/dateUtils";
 import { useNotifications } from "../shared/hooks/useNotifications";
@@ -309,6 +311,16 @@ function LayoutInner() {
 
       if (isUnmounted) return;
 
+      // 1.2. Flush pending offline strikes (non-blocking)
+      try {
+        const { flushOfflineStrikes } = await import("../features/strikes/services/strikeService");
+        await flushOfflineStrikes();
+      } catch (err) {
+        console.error("[Sync Engine] Offline strikes flush failed:", err);
+      }
+
+      if (isUnmounted) return;
+
       // 1.5. Run weekly auto-backup check (non-blocking, only inside Tauri native environments)
       try {
         const { checkAutoBackup } = await import("../features/settings/services/backupService");
@@ -331,7 +343,13 @@ function LayoutInner() {
 
       // 3. Register standard browser online event listener for instant reconnection triggers
       const handleOnline = async () => {
-        console.info("[Sync Engine] Connection restored. Firing background sync worker...");
+        console.info("[Sync Engine] Connection restored. Firing background sync worker and flushing strikes...");
+        try {
+          const { flushOfflineStrikes } = await import("../features/strikes/services/strikeService");
+          await flushOfflineStrikes();
+        } catch (err) {
+          console.error("[Sync Engine] Offline strikes flush failed on reconnect:", err);
+        }
         try {
           const { runBackgroundSync } = await import("../shared/services/googleDriveService");
           await runBackgroundSync();
@@ -408,24 +426,42 @@ function LayoutInner() {
     };
   }, [phase, user, userDoc?.settings?.dailyResetTime]);
 
-  // ── Phase 4: Load palette data (habits + todos for CommandPalette) ─
-  const paletteDataLoaded = useRef(false);
+  // ── Phase 4: Load palette data (habits + todos for CommandPalette) reactively ──
   useEffect(() => {
-    if (phase !== "ready" || paletteDataLoaded.current) return;
-    paletteDataLoaded.current = true;
-
-    async function loadPaletteData() {
-      try {
-        const [habits, todos] = await Promise.all([getHabits(), getTodos()]);
-        const activeHabits = habits.filter(h => !h.startDate || h.startDate <= getToday());
-        setPaletteHabits(activeHabits);
-        setPaletteTodos(todos);
-      } catch {
-        // Non-critical — palette will just show pages/actions
-      }
+    if (phase !== "ready" || !user) {
+      setPaletteHabits([]);
+      setPaletteTodos([]);
+      return;
     }
-    loadPaletteData();
-  }, [phase]);
+
+    const habitsRef = collection(db, "users", user.uid, "habits");
+    const habitsQuery = query(habitsRef, where("isActive", "==", true));
+    const unsubHabits = onSnapshot(habitsQuery, (snap) => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Habit));
+      data.sort((a, b) => a.order - b.order);
+      const activeHabits = data.filter(h => !h.startDate || h.startDate <= getToday(undefined, userDoc?.settings?.dailyResetTime));
+      setPaletteHabits(activeHabits);
+    }, (err) => {
+      console.warn("[Layout] Habits listener failed:", err);
+    });
+
+    const todosRef = collection(db, "users", user.uid, "todos");
+    const unsubTodos = onSnapshot(todosRef, (snap) => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Todo));
+      setPaletteTodos(data);
+    }, (err) => {
+      console.warn("[Layout] Todos listener failed:", err);
+    });
+
+    return () => {
+      unsubHabits();
+      unsubTodos();
+    };
+  }, [phase, user, userDoc?.settings?.dailyResetTime]);
+
+  const globalStreak = useMemo(() => {
+    return paletteHabits.reduce((max, h) => Math.max(max, h.currentStreak || 0), 0);
+  }, [paletteHabits]);
 
   const toggleCommandPalette = useCallback(() => {
     setCommandPaletteOpen((prev) => !prev);
@@ -556,7 +592,7 @@ function LayoutInner() {
 
   return (
     <div className="layout">
-      <Sidebar strikeCount={strikes.current} isLockdownActive={isLockdownActive} />
+      <Sidebar strikeCount={strikes.current} globalStreak={globalStreak} isLockdownActive={isLockdownActive} />
       <Topbar onCommandPaletteOpen={toggleCommandPalette} />
       <main className="layout__content">
         <AnimatePresence mode="wait">

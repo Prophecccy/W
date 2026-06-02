@@ -142,28 +142,46 @@ export function StickyCanvas() {
   }, []);
 
   // Update sticky note bounding boxes whenever notes or positions change
-  useEffect(() => {
-    // Debounce: wait for layout to settle after a React render
+  const triggerUpdateRegions = useCallback(() => {
     if (regionsTimerRef.current) clearTimeout(regionsTimerRef.current);
-    regionsTimerRef.current = window.setTimeout(() => {
+    regionsTimerRef.current = window.setTimeout(async () => {
+      let offsetX = 0;
+      let offsetY = 0;
+      try {
+        if (isTauri()) {
+          const { getCurrentWindow } = await import("@tauri-apps/api/window");
+          const pos = await getCurrentWindow().outerPosition();
+          offsetX = pos.x;
+          offsetY = pos.y;
+        }
+      } catch (err) {
+        console.error("Failed to get window position for hit test:", err);
+      }
+
       const noteElements = document.querySelectorAll(".sticky-note");
       const regions: StickyRect[] = [];
       noteElements.forEach((el) => {
         const rect = el.getBoundingClientRect();
         regions.push({
-          left: Math.round(rect.left * window.devicePixelRatio),
-          top: Math.round(rect.top * window.devicePixelRatio),
-          right: Math.round(rect.right * window.devicePixelRatio),
-          bottom: Math.round(rect.bottom * window.devicePixelRatio),
+          left: Math.round(rect.left * window.devicePixelRatio) + offsetX,
+          top: Math.round(rect.top * window.devicePixelRatio) + offsetY,
+          right: Math.round(rect.right * window.devicePixelRatio) + offsetX,
+          bottom: Math.round(rect.bottom * window.devicePixelRatio) + offsetY,
         });
       });
       sendStickyRegions(regions);
     }, 50);
+  }, [todos, positions]);
 
+  useEffect(() => {
+    triggerUpdateRegions();
+
+    window.addEventListener("resize", triggerUpdateRegions);
     return () => {
       if (regionsTimerRef.current) clearTimeout(regionsTimerRef.current);
+      window.removeEventListener("resize", triggerUpdateRegions);
     };
-  }, [todos, positions]);
+  }, [triggerUpdateRegions]);
 
   // ─── Handlers ───────────────────────────────────────────────────
 

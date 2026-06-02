@@ -39,45 +39,44 @@ export function DashboardPage() {
     if (!isTauri()) return;
 
     let active = true;
-    let unlistenHabitPromise: Promise<() => void> | null = null;
-    let unlistenTodoPromise: Promise<() => void> | null = null;
+    let unsubHabit: (() => void) | null = null;
+    let unsubTodo: (() => void) | null = null;
 
-    async function setupListener() {
+    async function setupListeners() {
       try {
         const { listen } = await import('@tauri-apps/api/event');
         if (!active) return;
         
-        unlistenHabitPromise = listen('widget-habit-updated', (event) => {
+        const unHabit = await listen('widget-habit-updated', (event) => {
           console.log('Dashboard: Received widget-habit-updated event', event);
           setRefreshTrigger(prev => prev + 1);
         });
+        if (!active) {
+          unHabit();
+        } else {
+          unsubHabit = unHabit;
+        }
 
-        unlistenTodoPromise = listen('widget-todo-updated', (event) => {
+        const unTodo = await listen('widget-todo-updated', (event) => {
           console.log('Dashboard: Received widget-todo-updated event', event);
           setRefreshTrigger(prev => prev + 1);
         });
-
-        const unsubHabit = await unlistenHabitPromise;
-        const unsubTodo = await unlistenTodoPromise;
         if (!active) {
-          unsubHabit();
-          unsubTodo();
+          unTodo();
+        } else {
+          unsubTodo = unTodo;
         }
       } catch (e) {
         console.error('Failed to setup listeners', e);
       }
     }
 
-    setupListener();
+    setupListeners();
 
     return () => {
       active = false;
-      if (unlistenHabitPromise) {
-        unlistenHabitPromise.then(unsub => unsub()).catch(() => {});
-      }
-      if (unlistenTodoPromise) {
-        unlistenTodoPromise.then(unsub => unsub()).catch(() => {});
-      }
+      if (unsubHabit) unsubHabit();
+      if (unsubTodo) unsubTodo();
     };
   }, []);
 
@@ -159,6 +158,22 @@ export function DashboardPage() {
     });
   }, [habits, log, today, periodLogs, userDoc?.settings?.weeklyResetDay]);
 
+  // Derived state for Limiters
+  const scheduledLimiters = useMemo(() => {
+    const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
+    return habits.filter(h => {
+      if (h.type !== 'limiter') return false;
+      if (isHabitResting(h, userDoc?.settings?.dailyResetTime)) return false;
+      return isHabitScheduledToday(h, today, weeklyResetDay);
+    }).sort((a, b) => {
+      const aEntry = log?.habits?.[a.id];
+      const bEntry = log?.habits?.[b.id];
+      const aDoneToday = (aEntry?.completions?.length ?? 0) > 0 || (aEntry?.value ?? 0) > 0;
+      const bDoneToday = (bEntry?.completions?.length ?? 0) > 0 || (bEntry?.value ?? 0) > 0;
+      return Number(aDoneToday) - Number(bDoneToday);
+    });
+  }, [habits, log, today, userDoc?.settings?.weeklyResetDay]);
+
   // Derived state for Todos (Current Active Todos)
   const currentTodos = useMemo(() => {
     return todos.filter(t => !t.future || t.future <= today);
@@ -195,6 +210,12 @@ export function DashboardPage() {
         };
       });
       await completeHabit(habitId, 1, target, "", userDoc?.settings?.dailyResetTime);
+      // Notify other windows (HabitsPage, widget) about the change
+      if (isTauri()) {
+        import('@tauri-apps/api/event').then(({ emit }) => {
+          emit('widget-habit-updated', { habitId, action: 'complete', source: 'dashboard' }).catch(() => {});
+        });
+      }
     } catch (e) {
       console.error(e);
       if (originalLog) {
@@ -219,7 +240,13 @@ export function DashboardPage() {
         const newCompletions = existing.completions.slice(0, -1);
         const lastValue = existing.completions[existing.completions.length - 1].value;
         const newValue = Math.max(0, (existing.value ?? 0) - lastValue);
-        const isCompleted = newValue >= (existing.target ?? 1);
+        
+        const habit = habits.find(h => h.id === habitId);
+        const isCompleted = habit?.type === "metric"
+          ? newValue >= (existing.target ?? 1)
+          : habit?.type === "limiter"
+            ? false
+            : true;
 
         if (newCompletions.length === 0) {
           delete newHabits[habitId];
@@ -229,6 +256,12 @@ export function DashboardPage() {
         return { ...prev, habits: newHabits };
       });
       await uncompleteHabit(habitId, userDoc?.settings?.dailyResetTime);
+      // Notify other windows (HabitsPage, widget) about the change
+      if (isTauri()) {
+        import('@tauri-apps/api/event').then(({ emit }) => {
+          emit('widget-habit-updated', { habitId, action: 'undo', source: 'dashboard' }).catch(() => {});
+        });
+      }
     } catch (e) {
       console.error(e);
       if (originalLog) {
@@ -337,14 +370,58 @@ export function DashboardPage() {
                     habit={h} 
                     isCompletedToday={false} 
                     doneToday={(() => {
-                      if (!isMultiDayMetric(h) || !h.metric) return false;
                       const entry = log?.habits?.[h.id];
                       const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
+                      if (h.type === 'limiter') {
+                        return interactedToday;
+                      }
+                      if (!isMultiDayMetric(h) || !h.metric) return false;
                       const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
                       const start = getPeriodStart(h, today, weeklyResetDay);
                       const total = getTotalInRange(periodLogs, h.id, start);
                       const periodCompleted = h.metric.targetValue > 0 ? total >= h.metric.targetValue : false;
                       return interactedToday && !periodCompleted;
+                    })()}
+                    onComplete={() => handleHabitComplete(h.id)} 
+                    onUndo={() => handleHabitUndo(h.id)}
+                    onClick={() => {}}
+                    currentValue={log?.habits?.[h.id]?.value || 0}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* COLUMN 2.5: LIMITERS */}
+          <div className="dashboard-column">
+            <div className="dashboard-column__header">
+              <h2 className="t-label" title="[ LIMITERS ]" style={{ color: "var(--strike-red)" }}>[ LIMITERS ]</h2>
+              <button 
+                className="t-meta" 
+                style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", textShadow: "var(--text-shadow-glow)" }}
+                onClick={() => {
+                  navigate("/habits");
+                  setTimeout(() => window.dispatchEvent(new CustomEvent("w:open-habit-form")), 50);
+                }}
+              >
+                + ADD
+              </button>
+            </div>
+
+            {scheduledLimiters.length === 0 ? (
+              <div className="dashboard-empty--tactical t-meta">
+                [ NO ACTIVE LIMITERS ]
+              </div>
+            ) : (
+              <div className="dashboard-list">
+                {scheduledLimiters.map(h => (
+                  <HabitCard 
+                    key={h.id} 
+                    habit={h} 
+                    isCompletedToday={false} 
+                    doneToday={(() => {
+                      const entry = log?.habits?.[h.id];
+                      return (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
                     })()}
                     onComplete={() => handleHabitComplete(h.id)} 
                     onUndo={() => handleHabitUndo(h.id)}
@@ -438,7 +515,7 @@ function getPeriodStart(habit: Habit, todayStr: string, weekStartDay: number): s
 }
 
 function isMultiDayMetric(habit: Habit): boolean {
-  return habit.type === "metric" && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
+  return (habit.type === "metric" || habit.type === "limiter") && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
 }
 
 function getTotalInRange(logs: HabitLog[], habitId: string, startDate: string): number {

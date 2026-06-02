@@ -52,7 +52,10 @@ export async function activateLockdown(
 
     const { invoke } = await import("@tauri-apps/api/core");
     console.log("[lockdown] Calling start_lockdown_monitor via invoke...");
-    await invoke("start_lockdown_monitor", { blocklist });
+    await invoke("start_lockdown_monitor", { 
+      blocklist,
+      remainingSecs: duration ? duration * 60 : null 
+    });
     console.log("[lockdown] Rust monitor started successfully");
   } catch (err) {
     console.error("[lockdown] FAILED to start Rust monitor:", err);
@@ -135,7 +138,18 @@ export async function resumeLockdownIfActive(userId?: string): Promise<boolean> 
 
     const { invoke } = await import("@tauri-apps/api/core");
     console.log("[lockdown] Resuming Rust monitor with blocklist:", state.blocklist);
-    await invoke("start_lockdown_monitor", { blocklist: state.blocklist });
+    
+    let remainingSecs: number | null = null;
+    if (state.duration && state.startedAt) {
+      const elapsedMs = Date.now() - state.startedAt;
+      const elapsedSecs = Math.floor(elapsedMs / 1000);
+      remainingSecs = Math.max(0, (state.duration * 60) - elapsedSecs);
+    }
+
+    await invoke("start_lockdown_monitor", { 
+      blocklist: state.blocklist,
+      remainingSecs
+    });
     console.log("[lockdown] Rust monitor resumed successfully");
     return true;
   } catch (err) {

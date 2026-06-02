@@ -17,6 +17,12 @@
 - [x] 7. Create CSS custom properties (design tokens) in `src/index.css`: `--bg-base`, `--bg-surface`, `--bg-elevated`, `--bg-overlay`, `--border-subtle`, `--border-default`, `--text-primary`, `--text-secondary`, `--text-muted`, `--accent`, `--strike-red`
 - [x] 8. Create 5-tier typography classes: `.t-display`, `.t-label`, `.t-body`, `.t-meta`, `.t-data`
 - [x] 9. Set global `* { box-sizing: border-box; margin: 0; padding: 0; }` and `body { font-family: 'Departure Mono'; background: var(--bg-base); color: var(--text-primary); }`
+- [x] 9.1 Native OS Layer (Tauri / Rust)
+  - [x] Add thread generation ID and eliminate thread leaks in `lockdown.rs`
+  - [x] Exclude drop shadows via `DwmGetWindowAttribute` in `lockdown.rs`
+  - [x] Non-blocking process title retrieval via `SendMessageTimeoutW` in `lockdown.rs`
+  - [x] Add `"Win32_Graphics_Dwm"` feature to target Windows dependencies in `Cargo.toml`
+  - [x] Optimize polling loop in `sticky_overlay.rs` with dynamic sleep throttling
 - [x] 10. Create feature-based folder structure: `src/features/{auth,habits,todos,strikes,analytics,settings,wallpaper,clock,widget,sticky-notes,freeze}/` — each with `components/`, `hooks/`, `services/`, `types.ts`, `index.ts`
 - [x] 11. Create `src/shared/{components,hooks,utils,types,config}/` folder structure
 - [x] 12. Create `src/app/App.tsx`, `src/app/routes.tsx`, `src/app/providers.tsx` shell files
@@ -553,3 +559,30 @@
 - [x] 379. Fix Unidirectional Google Drive Sync (Sync-Down Note History Pull on Link) in `googleDriveService.ts` and `useAuth.ts`
 - [x] 380. Fix Real-time Todo Desynchronization between Main Window and Widget/Command Palette in `todoService.ts`, `DashboardPage.tsx`, and `TodosPage.tsx`
 - [x] 381. Fix Hardcoded Daily Streak Logic Resets Streak for Non-Daily Habits in `logService.ts`
+
+---
+
+## Phase 8 — Auto-Unhide Overlays on Startup and Tray Toggles (Batch 31)
+
+- [x] 382. Add system tray menu item: `[ Toggle Widget ]` in `lib.rs`
+- [x] 383. Add system tray menu item: `[ Toggle Sticky Notes ]` in `lib.rs`
+- [x] 384. Implement `toggle_widget` event handler in `lib.rs`
+- [x] 385. Implement `toggle_sticky` event handler in `lib.rs`
+- [x] 386. Verify windows auto-unhide on fresh startup
+
+---
+
+## Phase 9 — 12 Critical Technical Bugs (Batch 32)
+
+- [x] 387. Fix Metric Habits stats and streaks increment on partial daily progress instead of full completion in `logService.ts`
+- [x] 388. Fix Limiter strikes cannot be undone/removed via uncompleteHabit in `logService.ts`
+- [x] 389. Fix Strike/Lockout system bypass via offline transaction failures in `strikeService.ts` and `logService.ts`
+- [x] 390. Fix Lockdown Mode blocks W's own sub-windows (like Sticky Notes) if they contain blocked keywords in `lockdown.rs`
+- [x] 391. Fix Sticky Notes click-through hit-testing mismatch on multi-monitor setups in `sticky_overlay.rs`
+- [x] 392. Fix Stale click-through bounding boxes sent to Rust during window resizing in `StickyCanvas.tsx`
+- [x] 393. Fix Predictive Risk Score is permanently locked to 0 for all habits under 14 days old in `heuristicEngine.ts`
+- [x] 394. Fix Interacting with desktop Sticky Notes aggressively pulls the main W window to the foreground in `StickyNote.tsx`
+- [x] 395. Fix Late completion of overdue todos bypasses strikes in the gap processor in `gapProcessor.ts`
+- [x] 396. Fix `createHabit` returns a Habit object missing the `createdAt` property in `habitService.ts`
+- [x] 397. Fix Lockdown countdown timer freezes or runs extremely slowly when W's main window is minimized in `useLockdown.ts`
+- [x] 398. Fix Unchecking all presets in the Lockdown page is impossible because an active state sync loop immediately re-checks them in `LockdownPage.tsx`

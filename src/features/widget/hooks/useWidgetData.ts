@@ -21,6 +21,7 @@ export interface WidgetData {
   totalScheduled: number;
   globalStreak: number;
   weeklyCompletions: number;
+  scheduledLimiters: Habit[];
   completeHabit: (habitId: string) => Promise<void>;
   undoHabit: (habitId: string) => Promise<void>;
 }
@@ -143,6 +144,13 @@ export function useWidgetData(): WidgetData {
       h.type !== 'limiter';
   });
 
+  const scheduledLimiters = habits.filter(h => {
+    const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
+    return isHabitScheduledToday(h, today, weeklyResetDay) && 
+      !isHabitResting(h, userDoc?.settings?.dailyResetTime) &&
+      h.type === 'limiter';
+  });
+
   const completedCount = scheduledHabits.filter(h => {
     const entry = todayLog?.habits?.[h.id];
     if (isMultiDayMetric(h)) {
@@ -202,6 +210,7 @@ export function useWidgetData(): WidgetData {
     totalScheduled,
     globalStreak,
     weeklyCompletions,
+    scheduledLimiters,
     completeHabit,
     undoHabit,
   };
@@ -227,7 +236,7 @@ function getMonthStart(dateStr: string): string {
 }
 
 function isMultiDayMetric(habit: Habit): boolean {
-  return habit.type === "metric" && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
+  return (habit.type === "metric" || habit.type === "limiter") && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
 }
 
 function getIntervalStart(habit: Habit, todayStr: string): string {

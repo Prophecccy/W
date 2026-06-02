@@ -114,7 +114,7 @@ export async function completeHabit(
   let habitTitle = "Limiter";
   let limitExceeded = false;
 
-  if (habit) {
+  if (habit && isCompleted && !existing.completed) {
     habitTitle = habit.title || "Limiter";
     limitExceeded = habit.type === "limiter" && newValue > resolvedTarget;
 
@@ -188,6 +188,10 @@ export async function completeHabit(
       currentStreak,
       longestStreak,
     });
+  } else if (habit && habit.type === "limiter") {
+    // For limiter habits, we still want to evaluate limitExceeded even if isCompleted is false
+    habitTitle = habit.title || "Limiter";
+    limitExceeded = newValue > resolvedTarget;
   }
 
   // Log to undo history
@@ -260,40 +264,54 @@ export async function uncompleteHabit(
   // ── Sync habit document stats (Rollback) ────────────────────────
   try {
     if (habit) {
-      let statsUpdate: Record<string, any> = {
-        totalCompletions: Math.max(0, (habit.totalCompletions || 0) - 1),
-        levelProgress: Math.max(0, (habit.levelProgress || 0) - 1),
-      };
+      let statsUpdate: Record<string, any> = {};
 
-      // If it transitioned from completed to uncompleted
-      if (existing.completed && !isCompleted) {
-        statsUpdate.currentStreak = Math.max(0, (habit.currentStreak || 0) - 1);
-        
-        // BUG 10: Query historical logs to restore the actual previous completion date
-        let prevCompletedDate: string | null = null;
-        try {
-          const { collection, query, where, orderBy, getDocs } = await import("firebase/firestore");
-          const logsRef = collection(db, "users", userId, "logs");
-          const prevLogsQuery = query(
-            logsRef,
-            where("date", "<", today),
-            orderBy("date", "desc")
-          );
-          const prevLogsSnap = await getDocs(prevLogsQuery);
-          for (const d of prevLogsSnap.docs) {
-            const l = d.data();
-            if (l.habits?.[habitId]?.completed) {
-              prevCompletedDate = l.date;
-              break;
-            }
+      if (habit.type === "limiter") {
+        if (existing.value > existing.target && newValue <= existing.target) {
+          try {
+            await removeLimiterStrike(habitId);
+          } catch (err) {
+            console.error("Failed to remove limiter strike on uncomplete:", err);
           }
-        } catch (err) {
-          console.warn("[uncompleteHabit] Failed to restore previous completion date:", err);
         }
-        statsUpdate.lastCompletedDate = prevCompletedDate;
+      } else {
+        statsUpdate = {
+          totalCompletions: Math.max(0, (habit.totalCompletions || 0) - 1),
+          levelProgress: Math.max(0, (habit.levelProgress || 0) - 1),
+        };
+
+        // If it transitioned from completed to uncompleted
+        if (existing.completed && !isCompleted) {
+          statsUpdate.currentStreak = Math.max(0, (habit.currentStreak || 0) - 1);
+          
+          // Query historical logs to restore the actual previous completion date
+          let prevCompletedDate: string | null = null;
+          try {
+            const { collection, query, where, orderBy, getDocs } = await import("firebase/firestore");
+            const logsRef = collection(db, "users", userId, "logs");
+            const prevLogsQuery = query(
+              logsRef,
+              where("date", "<", today),
+              orderBy("date", "desc")
+            );
+            const prevLogsSnap = await getDocs(prevLogsQuery);
+            for (const d of prevLogsSnap.docs) {
+              const l = d.data();
+              if (l.habits?.[habitId]?.completed) {
+                prevCompletedDate = l.date;
+                break;
+              }
+            }
+          } catch (err) {
+            console.warn("[uncompleteHabit] Failed to restore previous completion date:", err);
+          }
+          statsUpdate.lastCompletedDate = prevCompletedDate;
+        }
       }
 
-      await updateDoc(habitRef, statsUpdate);
+      if (Object.keys(statsUpdate).length > 0) {
+        await updateDoc(habitRef, statsUpdate);
+      }
     }
   } catch (e) {
     console.error("Failed to sync habit stats on undo:", e);

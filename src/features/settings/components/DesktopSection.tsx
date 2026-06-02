@@ -10,7 +10,7 @@ export function DesktopSection() {
   const { showToast } = useToast();
   const { phase, startUpdate, reboot } = useUpdateManager();
   const [isChecking, setIsChecking] = useState(false);
-  const [appVersion, setAppVersion] = useState("Alpha.v.1.3");
+  const [appVersion, setAppVersion] = useState("Alpha.v.1.4");
   const [autostartEnabled, setAutostartEnabled] = useState(true);
   const inTauri = isTauri();
 

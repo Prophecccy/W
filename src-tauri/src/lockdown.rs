@@ -18,12 +18,14 @@ use std::thread;
 use std::time::Duration;
 
 use serde::Serialize;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 // ─── Shared State ────────────────────────────────────────────────
 
 static LOCKDOWN_RUNNING: AtomicBool = AtomicBool::new(false);
+static POLLING_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static BLOCKLIST: Mutex<Vec<String>> = Mutex::new(Vec::new());
+static END_TIME: Mutex<Option<std::time::Instant>> = Mutex::new(None);
 
 // ─── Event payloads ──────────────────────────────────────────────
 
@@ -45,10 +47,12 @@ pub struct UnblockPayload {}
 
 #[cfg(target_os = "windows")]
 mod platform {
-    use windows::Win32::Foundation::{CloseHandle, HWND, MAX_PATH, RECT};
+    use windows::Win32::Foundation::{CloseHandle, HWND, MAX_PATH, RECT, WPARAM, LPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{
         GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId, GetWindowRect,
+        SendMessageTimeoutW, WM_GETTEXT, SMTO_ABORTIFHUNG, SMTO_NORMAL,
     };
+    use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS};
     use windows::Win32::System::Threading::{
         OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
         PROCESS_NAME_WIN32,
@@ -72,13 +76,30 @@ mod platform {
                 return None;
             }
 
-            // Get window title
+            // Safe title fetch with 50ms timeout
             let mut title_buf = [0u16; 512];
-            let len = GetWindowTextW(hwnd, &mut title_buf);
-            let title = if len == 0 {
-                String::new()
+            let mut result_len: usize = 0;
+            let res = SendMessageTimeoutW(
+                hwnd,
+                WM_GETTEXT,
+                WPARAM(title_buf.len()),
+                LPARAM(title_buf.as_mut_ptr() as isize),
+                SMTO_ABORTIFHUNG | SMTO_NORMAL,
+                50,
+                Some(&mut result_len),
+            );
+            let title = if res.0 != 0 && result_len > 0 {
+                let len = std::cmp::min(result_len, title_buf.len() - 1);
+                String::from_utf16_lossy(&title_buf[..len])
             } else {
-                String::from_utf16_lossy(&title_buf[..len as usize])
+                // Fallback to GetWindowTextW
+                let mut fallback_buf = [0u16; 512];
+                let len = GetWindowTextW(hwnd, &mut fallback_buf);
+                if len == 0 {
+                    String::new()
+                } else {
+                    String::from_utf16_lossy(&fallback_buf[..len as usize])
+                }
             };
 
             // Get PID
@@ -113,9 +134,21 @@ mod platform {
                 }
             }
 
-            // Get window bounding box via GetWindowRect
+            // Get window bounding box via DWM extended bounds to ignore drop shadows, fall back to GetWindowRect
             let mut rect = RECT::default();
-            let (x, y, width, height) = if GetWindowRect(hwnd, &mut rect).is_ok() {
+            let (x, y, width, height) = if DwmGetWindowAttribute(
+                hwnd,
+                DWMWA_EXTENDED_FRAME_BOUNDS,
+                &mut rect as *mut _ as *mut std::ffi::c_void,
+                std::mem::size_of::<RECT>() as u32,
+            ).is_ok() {
+                (
+                    rect.left,
+                    rect.top,
+                    rect.right - rect.left,
+                    rect.bottom - rect.top,
+                )
+            } else if GetWindowRect(hwnd, &mut rect).is_ok() {
                 (
                     rect.left,
                     rect.top,
@@ -176,8 +209,19 @@ fn is_own_window(info: &platform::ForegroundInfo) -> bool {
         return true;
     }
 
+    // Dynamic self-exclusion check: check if foreground matches W's currently running executable name
+    if let Ok(current_path) = std::env::current_exe() {
+        if let Some(file_name) = current_path.file_name() {
+            if let Some(file_name_str) = file_name.to_str() {
+                if file_name_str.to_lowercase() == exe_lower {
+                    return true;
+                }
+            }
+        }
+    }
+
     let title_lower = info.title.to_lowercase();
-    if title_lower == "w" || title_lower == "w widget" {
+    if title_lower == "w" || title_lower == "w widget" || title_lower.contains("sticky canvas") {
         return true;
     }
     if title_lower.contains("command center") {
@@ -191,10 +235,12 @@ fn is_own_window(info: &platform::ForegroundInfo) -> bool {
 
 fn start_polling(app_handle: tauri::AppHandle) {
     LOCKDOWN_RUNNING.store(true, Ordering::SeqCst);
+    let my_generation = POLLING_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
 
     if let Ok(guard) = BLOCKLIST.lock() {
         eprintln!(
-            "[lockdown] Polling started with {} rules: {:?}",
+            "[lockdown] Polling started (gen={}) with {} rules: {:?}",
+            my_generation,
             guard.len(),
             *guard
         );
@@ -204,8 +250,31 @@ fn start_polling(app_handle: tauri::AppHandle) {
         let mut currently_blocking: Option<String> = None;
         let mut tick_count: u64 = 0;
 
-        while LOCKDOWN_RUNNING.load(Ordering::SeqCst) {
+        while LOCKDOWN_RUNNING.load(Ordering::SeqCst) && POLLING_GENERATION.load(Ordering::SeqCst) == my_generation {
             tick_count += 1;
+
+            // Check if timer expired
+            let expired = {
+                if let Ok(guard) = END_TIME.lock() {
+                    if let Some(end) = *guard {
+                        std::time::Instant::now() >= end
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            };
+
+            if expired {
+                eprintln!("[lockdown] Timer expired in Rust thread. Hiding overlay and stopping monitor.");
+                if let Some(overlay) = app_handle.get_webview_window("block-overlay") {
+                    let _ = overlay.hide();
+                }
+                let _ = app_handle.emit("lockdown-expired", ());
+                LOCKDOWN_RUNNING.store(false, Ordering::SeqCst);
+                break;
+            }
 
             if let Some(info) = platform::get_foreground_info() {
                 // Diagnostic logging every ~10 seconds
@@ -288,12 +357,13 @@ fn start_polling(app_handle: tauri::AppHandle) {
         if currently_blocking.is_some() {
             let _ = app_handle.emit("lockdown-unblock", UnblockPayload {});
         }
-        eprintln!("[lockdown] Polling thread stopped");
+        eprintln!("[lockdown] Polling thread stopped for gen {}", my_generation);
     });
 }
 
 fn stop_polling() {
     LOCKDOWN_RUNNING.store(false, Ordering::SeqCst);
+    POLLING_GENERATION.fetch_add(1, Ordering::SeqCst);
     thread::sleep(Duration::from_millis(100));
     eprintln!("[lockdown] Monitor stopped");
 }
@@ -304,11 +374,12 @@ fn stop_polling() {
 pub fn start_lockdown_monitor(
     app: tauri::AppHandle,
     blocklist: Vec<String>,
+    remaining_secs: Option<u64>,
 ) -> Result<(), String> {
     eprintln!(
-        "[lockdown] start_lockdown_monitor called with {} items: {:?}",
+        "[lockdown] start_lockdown_monitor called with {} items (remaining: {:?}s)",
         blocklist.len(),
-        blocklist
+        remaining_secs
     );
 
     if LOCKDOWN_RUNNING.load(Ordering::SeqCst) {
@@ -319,6 +390,14 @@ pub fn start_lockdown_monitor(
         *guard = blocklist.into_iter().map(|s| s.to_lowercase()).collect();
     }
 
+    if let Ok(mut guard) = END_TIME.lock() {
+        if let Some(secs) = remaining_secs {
+            *guard = Some(std::time::Instant::now() + std::time::Duration::from_secs(secs));
+        } else {
+            *guard = None;
+        }
+    }
+
     start_polling(app);
     Ok(())
 }
@@ -326,6 +405,9 @@ pub fn start_lockdown_monitor(
 #[tauri::command]
 pub fn stop_lockdown_monitor() -> Result<(), String> {
     eprintln!("[lockdown] stop_lockdown_monitor called");
+    if let Ok(mut guard) = END_TIME.lock() {
+        *guard = None;
+    }
     stop_polling();
     Ok(())
 }
@@ -338,6 +420,19 @@ pub fn update_lockdown_blocklist(blocklist: Vec<String>) -> Result<(), String> {
     );
     if let Ok(mut guard) = BLOCKLIST.lock() {
         *guard = blocklist.into_iter().map(|s| s.to_lowercase()).collect();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn update_lockdown_remaining(remaining_secs: Option<u64>) -> Result<(), String> {
+    eprintln!("[lockdown] update_lockdown_remaining called: {:?}", remaining_secs);
+    if let Ok(mut guard) = END_TIME.lock() {
+        if let Some(secs) = remaining_secs {
+            *guard = Some(std::time::Instant::now() + std::time::Duration::from_secs(secs));
+        } else {
+            *guard = None;
+        }
     }
     Ok(())
 }

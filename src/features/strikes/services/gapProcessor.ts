@@ -133,6 +133,19 @@ export async function processGap(
   // 6. Track interval habit strike dates to enforce single-strike-per-due-date
   const intervalStrikeTracker = new Set<string>(); // "habitId:date"
 
+  // 6.5 Fetch active and recently completed todos once before the day-by-day loop
+  let activeTodos: any[] = [];
+  try {
+    const { getTodos, getCompletedTodos } = await import("../../todos/services/todoService");
+    const [activeList, completedList] = await Promise.all([
+      getTodos(),
+      getCompletedTodos()
+    ]);
+    activeTodos = [...activeList, ...completedList];
+  } catch (err) {
+    console.error("Failed to fetch todos for gap processor:", err);
+  }
+
   // 7. Day-by-day loop
   let currentDate = new Date(startDate + "T12:00:00");
   const endDate = new Date(yesterday + "T12:00:00");
@@ -179,8 +192,8 @@ export async function processGap(
         // Calculate cumulative progress over the period
         const periodStart =
           habit.period === "weekly"
-            ? getWeekStart(dateStr, weeklyResetDay)
-            : getMonthStart(dateStr);
+             ? getWeekStart(dateStr, weeklyResetDay)
+             : getMonthStart(dateStr);
 
         const habitStartStr = habit.startDate || formatDate(new Date(habit.createdAt));
         if (habitStartStr > periodStart) {
@@ -284,21 +297,18 @@ export async function processGap(
       }
     }
 
-    currentDate.setDate(currentDate.getDate() + 1);
-  }
+    // Process todo deadlines chronologically for this day
+    if (activeTodos.length > 0) {
+      try {
+        const { checkDeadlines } = await import("../../todos/services/deadlineChecker");
+        const todoStrikes = await checkDeadlines(activeTodos, dailyResetTime, dateStr);
+        result.strikesAdded += todoStrikes;
+      } catch (err) {
+        console.error(`Failed to process todo deadlines for ${dateStr} in gapProcessor:`, err);
+      }
+    }
 
-  // 8. Todo Deadlines Checker
-  try {
-    const { getTodos } = await import("../../todos/services/todoService");
-    const { checkDeadlines } = await import("../../todos/services/deadlineChecker");
-    
-    // We only process deadlines if auto-freeze wasn't triggered and we aren't completely frozen now
-    // Actually, checkDeadlines doesn't explicitly skip frozen days currently, but we can run it.
-    const activeTodos = await getTodos();
-    const todoStrikes = await checkDeadlines(activeTodos, dailyResetTime, today);
-    result.strikesAdded += todoStrikes;
-  } catch (err) {
-    console.error("Failed to process todo deadlines in gapProcessor:", err);
+    currentDate.setDate(currentDate.getDate() + 1);
   }
 
   // 9. Update lastActiveDate

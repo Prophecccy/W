@@ -4,6 +4,7 @@ import { WidgetHabitCard } from './WidgetHabitCard';
 interface WidgetHabitListProps {
   today: string;
   scheduledHabits: Habit[];
+  scheduledLimiters: Habit[];
   todayLog: HabitLog | null;
   periodLogs: HabitLog[];
   weeklyResetDay: number;
@@ -11,7 +12,7 @@ interface WidgetHabitListProps {
   onUndo: (habitId: string) => void;
 }
 
-export function WidgetHabitList({ today, scheduledHabits, todayLog, periodLogs, weeklyResetDay, onComplete, onUndo }: WidgetHabitListProps) {
+export function WidgetHabitList({ today, scheduledHabits, scheduledLimiters, todayLog, periodLogs, weeklyResetDay, onComplete, onUndo }: WidgetHabitListProps) {
   const getTotalInRange = (habitId: string, startDate: string) => {
     let total = 0;
     for (const log of periodLogs) {
@@ -80,6 +81,38 @@ export function WidgetHabitList({ today, scheduledHabits, todayLog, periodLogs, 
           NO HABITS SCHEDULED TODAY
         </div>
       )}
+
+      {/* Limiters Section */}
+      {scheduledLimiters && scheduledLimiters.length > 0 && (
+        <div className="widget-habit-list__limiters-section" style={{ marginTop: "16px" }}>
+          <div className="widget-habit-list__section-title t-label" style={{ color: "var(--strike-red)", marginBottom: "8px", textShadow: "var(--text-shadow-sharp)" }}>
+            [ LIMITERS ]
+          </div>
+          {scheduledLimiters.map((habit: Habit) => {
+            const entry = todayLog?.habits?.[habit.id];
+            const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
+            const isMulti = habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval";
+            const start = getPeriodStart(habit, today, weeklyResetDay);
+            const currentValue = isMulti
+              ? getTotalInRange(habit.id, start)
+              : (todayLog?.habits?.[habit.id]?.value || 0);
+            const completions = todayLog?.habits?.[habit.id]?.completions || [];
+            
+            return (
+              <WidgetHabitCard
+                key={habit.id}
+                habit={habit}
+                isCompletedToday={false}
+                doneToday={interactedToday}
+                currentValue={currentValue}
+                completions={completions}
+                onComplete={onComplete}
+                onUndo={onUndo}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -122,5 +155,5 @@ function getPeriodStart(habit: Habit, todayStr: string, weekStartDay: number): s
 }
 
 function isMultiDayMetric(habit: Habit): boolean {
-  return habit.type === "metric" && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
+  return (habit.type === "metric" || habit.type === "limiter") && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
 }

@@ -385,7 +385,7 @@ export async function pullNotesFromDrive(accessToken: string): Promise<void> {
       // 3. List all markdown files inside this Year folder
       const listNotesUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(
         `'${yearFolderId}' in parents and mimeType = 'text/markdown' and trashed = false`
-      )}&fields=files(id,name)`;
+      )}&fields=files(id,name,modifiedTime)`;
 
       const notesRes = await fetch(listNotesUrl, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -409,12 +409,17 @@ export async function pullNotesFromDrive(accessToken: string): Promise<void> {
         
         // Check if note exists locally
         const existing = await getLocalNoteRecord(dateStr);
+        const remoteTime = file.modifiedTime ? new Date(file.modifiedTime).getTime() : 0;
+        const localTime = existing ? (existing.updatedAt || 0) : 0;
+
         if (existing) {
-          // Already have it locally, skip downloading
-          continue;
+          // Skip downloading only if local is newer and not blank
+          if (localTime >= remoteTime && existing.notes.trim() !== "") {
+            continue;
+          }
         }
 
-        console.info(`[GDrive Service] Downloading missing note for date ${dateStr}...`);
+        console.info(`[GDrive Service] Downloading missing or updated note for date ${dateStr}...`);
         
         // 4. Download content
         const downloadUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
@@ -487,17 +492,16 @@ export async function runBackgroundSync(): Promise<void> {
     return;
   }
 
-  const accessToken = await getValidAccessToken();
-  if (!accessToken) {
-    console.info("[GDrive Service] Skipping sync: User not authenticated with Google Drive.");
-    releaseSyncLock();
-    return;
-  }
-
-  isSyncRunning = true;
-  console.info("[GDrive Service] Background sync worker started.");
-
   try {
+    const accessToken = await getValidAccessToken();
+    if (!accessToken) {
+      console.info("[GDrive Service] Skipping sync: User not authenticated with Google Drive.");
+      return;
+    }
+
+    isSyncRunning = true;
+    console.info("[GDrive Service] Background sync worker started.");
+
     const pendingNotes = await getPendingSyncNotes();
     if (pendingNotes.length === 0) {
       console.info("[GDrive Service] No pending sync items found.");

@@ -32,7 +32,6 @@ const W_LOAD = 0.20;
 
 const MIN_DATA_POINTS = 3;      // need at least 3 completions for stats
 const EXPONENTIAL_STEEPNESS = 4; // controls how sharply time pressure ramps
-const BASELINE_DAYS = 14;
 const EARLY_WARNING_WINDOW_HOURS = 6;
 const EARLY_SUPPRESSION_CAP = 70;
 const OVERWHELMING_FAIL_RATE = 0.9;
@@ -59,7 +58,7 @@ export function calculateRisk(
   const ageMs = now.getTime() - habit.createdAt;
   const historyCount = historicalLogs.filter((log) => log.habits[habit.id]).length;
 
-  if (ageMs < BASELINE_DAYS * 24 * 3600 * 1000 || historyCount < BASELINE_DAYS) {
+  if (ageMs < 3 * 24 * 3600 * 1000 || historyCount < MIN_DATA_POINTS) {
     return {
       habitId: habit.id,
       score: 0,

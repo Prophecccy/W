@@ -34,7 +34,7 @@
 .dashboard-grid {
   flex-grow: 1;
   display: grid;
-  grid-template-columns: max-content 1fr 1fr;
+  grid-template-columns: max-content 1fr 1fr 1fr;
   gap: 32px;
   min-height: 0;
   margin-bottom: 16px; /* Reduced margin */

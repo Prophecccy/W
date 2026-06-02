@@ -1,7 +1,7 @@
 import { Todo } from "../types";
 import { addStrike } from "../../strikes/services/strikeService";
 import { updateTodo } from "./todoService";
-import { getToday } from "../../../shared/utils/dateUtils";
+import { getToday, formatDate } from "../../../shared/utils/dateUtils";
 import { getFreezeState, isDateInFreezeRange } from "../../freeze/services/freezeService";
 
 /**
@@ -25,7 +25,8 @@ export async function checkDeadlines(
   }
   
   for (const todo of todos) {
-    if (todo.status !== "active") continue;
+    const wasActiveOnDay = todo.status === "active" || (todo.status === "done" && todo.completedAt && formatDate(new Date(todo.completedAt)) > today);
+    if (!wasActiveOnDay) continue;
     if (todo.future && todo.future > today) continue; // Skip future (hidden) todos
     if (!todo.deadline) continue;
 
@@ -35,7 +36,6 @@ export async function checkDeadlines(
       if (freezeState && isDateInFreezeRange(freezeState, todo.deadline)) {
         continue;
       }
-
       try {
         await addStrike(todo.id, todo.title, "missed");
         strikesAdded++;
@@ -43,6 +43,7 @@ export async function checkDeadlines(
         // Remove deadline so it doesn't trigger again, turning it into a normal active todo
         // (Alternatively, we could mark it as failed/done, but specs don't state that).
         await updateTodo(todo.id, { deadline: null });
+        todo.deadline = null; // Clear locally in-place to prevent duplicates in chronological loops
       } catch (e) {
         console.error("Failed to add strike for missed todo:", todo.title, e);
       }

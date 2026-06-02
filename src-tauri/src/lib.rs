@@ -54,6 +54,22 @@ pub fn run() {
                 None::<&str>,
             )?;
 
+            let toggle_widget_item = MenuItem::with_id(
+                app,
+                "toggle_widget",
+                "[ Toggle Widget ]",
+                true,
+                None::<&str>,
+            )?;
+
+            let toggle_sticky_item = MenuItem::with_id(
+                app,
+                "toggle_sticky",
+                "[ Toggle Sticky Notes ]",
+                true,
+                None::<&str>,
+            )?;
+
             let separator = PredefinedMenuItem::separator(app)?;
 
             let quit_item = MenuItem::with_id(
@@ -64,7 +80,16 @@ pub fn run() {
                 None::<&str>,
             )?;
 
-            let tray_menu = Menu::with_items(app, &[&show_item, &separator, &quit_item])?;
+            let tray_menu = Menu::with_items(
+                app,
+                &[
+                    &show_item,
+                    &toggle_widget_item,
+                    &toggle_sticky_item,
+                    &separator,
+                    &quit_item,
+                ],
+            )?;
 
             let _tray = TrayIconBuilder::new()
                 .menu(&tray_menu)
@@ -76,6 +101,24 @@ pub fn run() {
                         if let Some(win) = app.get_webview_window("main") {
                             let _ = win.show();
                             let _ = win.set_focus();
+                        }
+                    }
+                    "toggle_widget" => {
+                        if let Some(win) = app.get_webview_window("widget") {
+                            if win.is_visible().unwrap_or(false) {
+                                let _ = win.hide();
+                            } else {
+                                let _ = win.show();
+                            }
+                        }
+                    }
+                    "toggle_sticky" => {
+                        if let Some(win) = app.get_webview_window("sticky-overlay") {
+                            if win.is_visible().unwrap_or(false) {
+                                let _ = win.hide();
+                            } else {
+                                let _ = win.show();
+                            }
                         }
                     }
                     "quit" => {
@@ -116,7 +159,8 @@ pub fn run() {
             lockdown::stop_lockdown_monitor,
             lockdown::update_lockdown_blocklist,
             lockdown::test_lockdown_block,
-            lockdown::kill_blocked_process
+            lockdown::kill_blocked_process,
+            lockdown::update_lockdown_remaining
         ])
         .on_window_event(|window, event| {
             // Closing the main window hides it (sends to tray) instead of exiting
