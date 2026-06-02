@@ -53,12 +53,12 @@ function makeLog(date: string, habitId: string, completed: boolean, completionTi
 }
 
 describe("calculateRisk guardrails", () => {
-  it("returns 0 for habits younger than 14 days", () => {
+  it("returns 0 for habits younger than 3 days", () => {
     const now = new Date("2026-05-19T12:00:00Z");
-    const habit = makeHabit({ createdAt: now.getTime() - 13 * 24 * 3600 * 1000 });
+    const habit = makeHabit({ createdAt: now.getTime() - 2 * 24 * 3600 * 1000 });
     const logs: HabitLog[] = [
-      makeLog("2026-05-10", habit.id, false),
-      makeLog("2026-05-11", habit.id, true, new Date("2026-05-11T07:00:00Z").getTime()),
+      makeLog("2026-05-17", habit.id, true, new Date("2026-05-17T07:00:00Z").getTime()),
+      makeLog("2026-05-18", habit.id, true, new Date("2026-05-18T07:00:00Z").getTime()),
     ];
 
     const result = calculateRisk(habit, logs, "04:00", 5, now);
@@ -68,11 +68,11 @@ describe("calculateRisk guardrails", () => {
     expect(result.loadFactor).toBe(0);
   });
 
-  it("returns 0 for habits with less than 14 days of history", () => {
+  it("returns 0 for habits with less than 3 completions of history", () => {
     const now = new Date("2026-05-19T12:00:00Z");
     const habit = makeHabit({ createdAt: now.getTime() - 20 * 24 * 3600 * 1000 });
     const logs: HabitLog[] = [];
-    for (let i = 0; i < 13; i++) {
+    for (let i = 0; i < 2; i++) {
       logs.push(makeLog(`2026-05-${1 + i}`, habit.id, true));
     }
 
