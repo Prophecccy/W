@@ -361,7 +361,7 @@ function extractCode(url: string, expectedState: string): string | null {
 
 // ─── Sign Out ──────────────────────────────────────────────────
 export async function signOut(): Promise<void> {
-  clearOAuthTokens();
+  await clearOAuthTokens();
   try {
     const { clear: idbClear } = await import("idb-keyval");
     await idbClear();

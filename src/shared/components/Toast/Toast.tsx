@@ -17,31 +17,53 @@ interface ToastContextType {
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const timeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const [activeToast, setActiveToast] = useState<Toast | null>(null);
+  const [queue, setQueue] = useState<Toast[]>([]);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const hideToast = useCallback((id: string) => {
-    if (timeoutsRef.current[id]) {
-      clearTimeout(timeoutsRef.current[id]);
-      delete timeoutsRef.current[id];
-    }
-    setToasts((prev) => prev.filter((t) => t.id !== id));
+    setActiveToast((current) => {
+      if (current && current.id === id) {
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+        return null;
+      }
+      return current;
+    });
+    setQueue((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
   const showToast = useCallback((message: string, options?: { actionLabel?: string; onAction?: () => void; duration?: number }) => {
     const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, message, ...options }]);
+    const newToast: Toast = { id, message, ...options };
+    setQueue((prev) => [...prev, newToast]);
+  }, []);
 
-    const timeoutId = setTimeout(() => {
-      hideToast(id);
-    }, options?.duration ?? 8000);
-    timeoutsRef.current[id] = timeoutId;
-  }, [hideToast]);
+  // Process queue whenever activeToast is null and queue has items
+  useEffect(() => {
+    if (!activeToast && queue.length > 0) {
+      const next = queue[0];
+      const remaining = queue.slice(1);
+      setActiveToast(next);
+      setQueue(remaining);
 
-  // Clean up all active timeouts on provider unmount
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      timeoutRef.current = setTimeout(() => {
+        setActiveToast(null);
+      }, next.duration ?? 8000);
+    }
+  }, [activeToast, queue]);
+
+  // Clean up timeout on provider unmount
   useEffect(() => {
     return () => {
-      Object.values(timeoutsRef.current).forEach(clearTimeout);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
     };
   }, []);
 
@@ -49,25 +71,25 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={{ showToast, hideToast }}>
       {children}
       <div className="toast-container">
-        {toasts.map((toast) => (
-          <div key={toast.id} className="toast">
-            <span className="toast__message t-body">{toast.message}</span>
-            {toast.actionLabel && toast.onAction && (
+        {activeToast && (
+          <div key={activeToast.id} className="toast">
+            <span className="toast__message t-body">{activeToast.message}</span>
+            {activeToast.actionLabel && activeToast.onAction && (
               <button 
                 className="toast__action t-label"
                 onClick={() => {
-                  toast.onAction!();
-                  hideToast(toast.id);
+                  activeToast.onAction!();
+                  hideToast(activeToast.id);
                 }}
               >
-                [ {toast.actionLabel} ]
+                [ {activeToast.actionLabel} ]
               </button>
             )}
-            <button className="toast__close" onClick={() => hideToast(toast.id)}>
+            <button className="toast__close" onClick={() => hideToast(activeToast.id)}>
               ×
             </button>
           </div>
-        ))}
+        )}
       </div>
     </ToastContext.Provider>
   );

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { HabitGroup } from "../../types";
-import { getGroups, createGroup, updateGroup, deleteGroup, reorderGroups } from "../../services/groupService";
+import { getGroups, createGroup, updateGroup, deleteGroup, reorderGroups, sanitizeGroupName } from "../../services/groupService";
 import { LucideIcon } from "../../../../shared/components/IconPicker/LucideIcon";
 import { useToast } from "../../../../shared/components/Toast/Toast";
 import "./GroupManager.css";
@@ -36,21 +36,25 @@ export function GroupManager({ onClose }: GroupManagerProps) {
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
-    const trimmed = newName.trim();
-    if (!trimmed) return;
-    const lower = trimmed.toLowerCase();
-    if (groups.some((g) => g.name.trim().toLowerCase() === lower)) {
+    const sanitized = sanitizeGroupName(newName);
+    if (!sanitized) return;
+    const lower = sanitized.toLowerCase();
+    if (groups.some((g) => sanitizeGroupName(g.name).toLowerCase() === lower)) {
       showToast("[ GROUP ALREADY EXISTS ]");
       return;
     }
     try {
-      const g = await createGroup(trimmed, groups.length);
+      const g = await createGroup(sanitized, groups.length);
       setGroups([...groups, g]);
       setNewName("");
       showToast("[ GROUP CREATED ]");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showToast("[ FAILED TO CREATE GROUP ]");
+      if (err?.message === "Group name already exists") {
+        showToast("[ GROUP ALREADY EXISTS ]");
+      } else {
+        showToast("[ FAILED TO CREATE GROUP ]");
+      }
     }
   }
 
@@ -67,25 +71,34 @@ export function GroupManager({ onClose }: GroupManagerProps) {
   }
 
   async function saveEdit() {
-    if (!editingId || !editName.trim()) {
+    if (!editingId) {
       setEditingId(null);
       return;
     }
-    const trimmed = editName.trim();
-    const lower = trimmed.toLowerCase();
-    if (groups.some((g) => g.id !== editingId && g.name.trim().toLowerCase() === lower)) {
+    const sanitized = sanitizeGroupName(editName);
+    if (!sanitized) {
+      setEditingId(null);
+      return;
+    }
+    const lower = sanitized.toLowerCase();
+    if (groups.some((g) => g.id !== editingId && sanitizeGroupName(g.name).toLowerCase() === lower)) {
       showToast("[ GROUP NAME ALREADY EXISTS ]");
       setEditingId(null);
       return;
     }
     try {
-      await updateGroup(editingId, trimmed);
-      setGroups(groups.map((g) => (g.id === editingId ? { ...g, name: trimmed } : g)));
+      await updateGroup(editingId, sanitized);
+      setGroups(groups.map((g) => (g.id === editingId ? { ...g, name: sanitized } : g)));
       setEditingId(null);
       showToast("[ GROUP RENAMED ]");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showToast("[ FAILED TO RENAME GROUP ]");
+      if (err?.message === "Group name already exists") {
+        showToast("[ GROUP NAME ALREADY EXISTS ]");
+      } else {
+        showToast("[ FAILED TO RENAME GROUP ]");
+      }
+      setEditingId(null);
     }
   }
 

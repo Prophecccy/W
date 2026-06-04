@@ -73,6 +73,17 @@ describe("isHabitScheduledToday", () => {
     expect(isHabitScheduledToday(habit, "2026-04-16")).toBe(false);
   });
 
+  it("monthly habit is scheduled on month-end if creationDay exceeds month length", () => {
+    const habit = makeHabit({
+      period: "monthly",
+      startDate: "2026-01-31",
+    });
+    expect(isHabitScheduledToday(habit, "2026-02-28")).toBe(true);
+    expect(isHabitScheduledToday(habit, "2026-02-27")).toBe(false);
+    expect(isHabitScheduledToday(habit, "2026-04-30")).toBe(true);
+    expect(isHabitScheduledToday(habit, "2026-04-29")).toBe(false);
+  });
+
   it("interval habit remains scheduled until completed, then enters cooldown", () => {
     const habit = makeHabit({
       period: "interval",

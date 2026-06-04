@@ -19,7 +19,7 @@ export function SleepTube({ settings: propsSettings, isWidget }: SleepTubeProps)
   const userStoreDoc = store?.userDoc ?? null;
 
   const settings = propsSettings || userStoreDoc?.settings || { wakeUpTime: '07:00', bedTime: '23:00' };
-  const { percent, phase, minutesPassed, totalMinutes } = useTimeLeft(
+  const { percent, phase } = useTimeLeft(
     settings?.wakeUpTime, 
     settings?.bedTime
   );
@@ -32,7 +32,7 @@ export function SleepTube({ settings: propsSettings, isWidget }: SleepTubeProps)
   return (
     <div 
       className={`sleep-tube ${isWidget ? 'sleep-tube--widget' : ''}`}
-      title={`Waking Fuel: ${Math.round(percent)}% (${Math.round(minutesPassed)}/${totalMinutes}m)`}
+      title={`${Math.round(percent)}%`}
       style={isDesktop && !isWidget ? { height: '100%', maxHeight: 'none', minHeight: '400px' } : undefined}
     >
       <div className="sleep-tube__label t-meta">{isWidget ? '[ FUEL ]' : '[ WAKING FUEL ]'}</div>

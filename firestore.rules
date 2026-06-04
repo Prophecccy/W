@@ -14,8 +14,14 @@ service cloud.firestore {
                     && request.auth.uid == uid
                     && request.resource.data.uid == uid;
 
-      // UPDATE / DELETE: owner only
-      allow update, delete: if request.auth != null && request.auth.uid == uid;
+      // UPDATE: owner only, and read-only fields (uid, createdAt) cannot be modified
+      allow update: if request.auth != null
+                    && request.auth.uid == uid
+                    && request.resource.data.uid == resource.data.uid
+                    && request.resource.data.createdAt == resource.data.createdAt;
+
+      // DELETE: owner only
+      allow delete: if request.auth != null && request.auth.uid == uid;
 
       // ── All subcollections (habits, todos, logs, groups, etc.) ───
       match /{subcollection}/{docId} {

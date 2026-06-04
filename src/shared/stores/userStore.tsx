@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { useAuthContext } from "../../features/auth/context";
 import { getUserDoc, updateUserDoc } from "../../features/auth/services/userService";
 import { User, Settings } from "../types";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "../config/firebase";
 
 
 // ─── Context shape ───────────────────────────────────────────────
@@ -27,8 +29,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [userDoc, setUserDoc] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ── Load user doc on auth change ─────────────────────────────
-  const loadUser = useCallback(async () => {
+  // ── Listen to user doc on auth change (onSnapshot) ───────────
+  useEffect(() => {
     if (!user) {
       setUserDoc(null);
       if (typeof window !== "undefined") {
@@ -39,27 +41,30 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
 
     setLoading(true);
-    try {
-      const doc = await getUserDoc(user.uid);
-      if (doc) {
-        if (typeof window !== "undefined" && doc.settings?.dailyResetTime) {
-          localStorage.setItem("w_daily_reset_time", doc.settings.dailyResetTime);
+    const userRef = doc(db, "users", user.uid);
+    const unsubscribe = onSnapshot(
+      userRef,
+      (snap) => {
+        if (snap.exists()) {
+          const docData = snap.data() as User;
+          if (typeof window !== "undefined" && docData.settings?.dailyResetTime) {
+            localStorage.setItem("w_daily_reset_time", docData.settings.dailyResetTime);
+          }
+          setUserDoc(docData);
+        } else {
+          setUserDoc(null);
         }
-        setUserDoc(doc);
-      } else {
+        setLoading(false);
+      },
+      (err) => {
+        console.error("[UserStore] onSnapshot failed:", err);
         setUserDoc(null);
+        setLoading(false);
       }
-    } catch (err) {
-      console.error("[UserStore] Failed to load user doc:", err);
-      setUserDoc(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+    );
 
-  useEffect(() => {
-    loadUser();
-  }, [loadUser]);
+    return () => unsubscribe();
+  }, [user]);
 
   // ── Actions ──────────────────────────────────────────────────
   const updateSettings = useCallback(async (patch: Partial<Settings>) => {
@@ -114,8 +119,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
 
   const reload = useCallback(async () => {
-    await loadUser();
-  }, [loadUser]);
+    if (!user) return;
+    try {
+      const docData = await getUserDoc(user.uid);
+      if (docData) setUserDoc(docData);
+    } catch (err) {
+      console.error("[UserStore] reload failed:", err);
+    }
+  }, [user]);
 
 
   return (

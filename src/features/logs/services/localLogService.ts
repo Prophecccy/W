@@ -89,10 +89,14 @@ export async function getPendingSyncNotes(): Promise<LocalNoteRecord[]> {
 /**
  * Clears the sync_pending flag for a successfully back-up note.
  */
-export async function clearSyncPending(date: string): Promise<void> {
+export async function clearSyncPending(date: string, syncedUpdatedAt?: number): Promise<void> {
   const key = `${NOTE_KEY_PREFIX}${date}`;
   const record = await get<LocalNoteRecord>(key);
   if (record) {
+    if (syncedUpdatedAt !== undefined && record.updatedAt > syncedUpdatedAt) {
+      console.info(`[localLogService] Skipping clearSyncPending for ${date}: record was modified during sync.`);
+      return;
+    }
     record.sync_pending = false;
     await set(key, record);
     
@@ -106,8 +110,23 @@ export async function clearSyncPending(date: string): Promise<void> {
 }
 
 /**
+ * System-generated placeholder patterns that should never appear as user notes.
+ * These were written by earlier versions of auto-freeze logic.
+ */
+const SYSTEM_NOTE_PATTERNS = [
+  /^\[\s*AUTO-FREEZE\s*\]$/i,
+  /^\[\s*FROZEN\s*\]$/i,
+  /^\[\s*SYSTEM\s*\]$/i,
+];
+
+function isSystemPlaceholder(notes: string): boolean {
+  return SYSTEM_NOTE_PATTERNS.some((p) => p.test(notes.trim()));
+}
+
+/**
  * Assembles and returns all local Daily Notes as standard HabitLog structures,
  * sorted chronologically with the newest note first.
+ * Excludes system-generated placeholder entries (e.g. retroactive auto-freeze logs).
  */
 export async function getLocalNoteHistory(): Promise<HabitLog[]> {
   const allKeys = await keys();
@@ -115,7 +134,9 @@ export async function getLocalNoteHistory(): Promise<HabitLog[]> {
   if (noteKeys.length === 0) return [];
 
   const records = await getMany<LocalNoteRecord>(noteKeys);
-  const validRecords = records.filter((r): r is LocalNoteRecord => !!r);
+  const validRecords = records.filter(
+    (r): r is LocalNoteRecord => !!r && !!r.notes && r.notes.trim() !== "" && !isSystemPlaceholder(r.notes)
+  );
 
   const userId = auth.currentUser?.uid || "local_user";
 
@@ -150,7 +171,7 @@ export async function migrateNotesFromFirestore(userId: string): Promise<void> {
     if (history && history.length > 0) {
       console.info(`[localLogService] Found ${history.length} historical notes to migrate.`);
       const migrationPromises = history
-        .filter(log => log.notes && log.notes.trim() !== "")
+        .filter(log => log.notes && log.notes.trim() !== "" && !isSystemPlaceholder(log.notes))
         .map(async (log) => {
           const key = `${NOTE_KEY_PREFIX}${log.date}`;
           const record: LocalNoteRecord = {

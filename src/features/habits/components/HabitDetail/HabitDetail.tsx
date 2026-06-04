@@ -45,7 +45,7 @@ export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest, userRes
     for (let i = 27; i >= 0; i--) {
       const d = subtractDays(today, i);
       const dayLog = logs.find((l) => l.date === d);
-      const isCompleted = dayLog?.habits[habit.id]?.completed || false;
+      const isCompleted = dayLog?.habits?.[habit.id]?.completed || false;
       cells.push({ date: d, isCompleted });
     }
     return cells;
@@ -58,7 +58,7 @@ export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest, userRes
     for (let i = 13; i >= 0; i--) {
       const d = subtractDays(today, i);
       const dayLog = logs.find((l) => l.date === d);
-      const val = dayLog?.habits[habit.id]?.value || 0;
+      const val = dayLog?.habits?.[habit.id]?.value || 0;
       points.push(val);
     }
     

@@ -17,6 +17,10 @@ export function IconPicker({ selectedIcon, onSelect }: IconPickerProps) {
     "FINANCE",
     "HOME & LIFE",
     "MINDFULNESS",
+    "CREATIVE & ART",
+    "SOCIAL & COMMUNITY",
+    "ACADEMIC & LEARNING",
+    "NATURE & TRAVEL",
   ];
 
   const filteredIcons = useMemo(() => {

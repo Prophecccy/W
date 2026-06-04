@@ -84,7 +84,7 @@ export function isHabitScheduledToday(
       }
       const d = new Date(today + "T12:00:00");
       const dayOfMonth = d.getDate();
-      const targetDate = habit.startDate ? new Date(habit.startDate + "T12:00:00") : new Date(habit.createdAt);
+      const targetDate = new Date(activationDate + "T12:00:00");
       const creationDay = targetDate.getDate();
 
       if (dayOfMonth === creationDay) return true;

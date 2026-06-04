@@ -51,7 +51,7 @@ export function WidgetApp() {
   // ── Z-Order Enforcer: Active Defense ───────────────────────
   useEffect(() => {
     let active = true;
-    let unlisten: (() => void) | undefined;
+    let unsubPromise: Promise<() => void> | null = null;
     async function setupZOrderDefense() {
       try {
         const { getCurrentWebviewWindow, WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
@@ -72,17 +72,16 @@ export function WidgetApp() {
             try { await invoke("pin_widget_bottom"); } catch {}
           }
         });
-        if (!active) {
-          unsub();
-        } else {
-          unlisten = unsub;
-        }
+        return unsub;
       } catch { /* Not in Tauri */ }
+      return () => {};
     }
-    setupZOrderDefense();
+    unsubPromise = setupZOrderDefense();
     return () => {
       active = false;
-      if (unlisten) unlisten();
+      if (unsubPromise) {
+        unsubPromise.then((unsub) => unsub()).catch(() => {});
+      }
     };
   }, []);
 
@@ -212,27 +211,28 @@ export function WidgetApp() {
   // Listen for live preview from main settings window on mount (single listener to avoid leaks)
   useEffect(() => {
     let active = true;
-    let unsub: (() => void) | undefined;
+    let unsubPromise: Promise<() => void> | null = null;
 
     const setupListener = async () => {
       try {
         const { listen } = await import('@tauri-apps/api/event');
+        if (!active) return () => {};
         const unlisten = await listen<string>('color-preview', (event) => {
           if (!active) return;
           document.documentElement.style.setProperty('--accent', event.payload);
         });
-        if (!active) {
-          unlisten();
-        } else {
-          unsub = unlisten;
-        }
-      } catch {}
+        return unlisten;
+      } catch {
+        return () => {};
+      }
     };
-    setupListener();
+    unsubPromise = setupListener();
 
     return () => {
       active = false;
-      if (unsub) unsub();
+      if (unsubPromise) {
+        unsubPromise.then((unsub) => unsub()).catch(() => {});
+      }
     };
   }, []);
 
@@ -385,8 +385,7 @@ export function WidgetApp() {
   // ─── Restore & persist widget position ───────────────────
   useEffect(() => {
     let cleanup = false;
-    let unlistenMove: (() => void) | undefined;
-    let unlistenResize: (() => void) | undefined;
+    let unsubsPromise: Promise<(() => void)[]> | null = null;
 
     async function initPosition() {
       try {
@@ -432,7 +431,7 @@ export function WidgetApp() {
 
         setIsPositionInitialized(true);
 
-        unlistenMove = await win.onMoved(async (pos: any) => {
+        const unlistenM = await win.onMoved(async (pos: any) => {
           if (cleanup) return;
           const size = await win.innerSize();
           saveWidgetPosition({
@@ -443,7 +442,7 @@ export function WidgetApp() {
           });
         });
 
-        unlistenResize = await win.onResized(async (size: any) => {
+        const unlistenR = await win.onResized(async (size: any) => {
           if (cleanup) return;
           const pos = await win.outerPosition();
           saveWidgetPosition({
@@ -453,17 +452,21 @@ export function WidgetApp() {
             height: size.payload.height,
           });
         });
+
+        return [unlistenM, unlistenR];
       } catch {
         setIsPositionInitialized(true);
+        return [];
       }
     }
 
-    initPosition();
+    unsubsPromise = initPosition();
 
     return () => {
       cleanup = true;
-      if (unlistenMove) unlistenMove();
-      if (unlistenResize) unlistenResize();
+      if (unsubsPromise) {
+        unsubsPromise.then((unsubs) => unsubs.forEach((unsub) => unsub())).catch(() => {});
+      }
     };
   }, []);
 
@@ -518,7 +521,7 @@ export function WidgetApp() {
         />
       )}
 
-      <div className="widget-app__content">
+      <div className="widget-app__content" inert={isLocked ? true : undefined}>
         <div className="widget-app__left-panel">
           <div className="widget-app__left-progress">
             <ProgressCircle 

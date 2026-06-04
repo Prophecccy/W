@@ -84,13 +84,13 @@ export function LockdownPage() {
   };
 
   const removeCustomEntry = (entry: string) => {
-    setCustomEntries((prev) => prev.filter((e) => e !== entry));
+    setCustomEntries((prev) => prev.filter((e) => e.toLowerCase() !== entry.toLowerCase()));
   };
 
   const removeBlocklistItem = (item: string) => {
-    // Check if it belongs to a preset — if so, remove the whole preset
+    const itemLower = item.toLowerCase();
     for (const preset of LOCKDOWN_PRESETS) {
-      if (preset.items.includes(item) && enabledPresets.has(preset.id)) {
+      if (enabledPresets.has(preset.id) && preset.items.some((p) => p.toLowerCase() === itemLower)) {
         return;
       }
     }

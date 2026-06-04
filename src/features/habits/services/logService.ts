@@ -282,10 +282,9 @@ export async function uncompleteHabit(
 
         // If it transitioned from completed to uncompleted
         if (existing.completed && !isCompleted) {
-          statsUpdate.currentStreak = Math.max(0, (habit.currentStreak || 0) - 1);
-          
-          // Query historical logs to restore the actual previous completion date
+          // Query historical logs to restore the actual previous completion date and recalculate the streak
           let prevCompletedDate: string | null = null;
+          let calculatedStreak = 0;
           try {
             const { collection, query, where, orderBy, getDocs } = await import("firebase/firestore");
             const logsRef = collection(db, "users", userId, "logs");
@@ -295,17 +294,51 @@ export async function uncompleteHabit(
               orderBy("date", "desc")
             );
             const prevLogsSnap = await getDocs(prevLogsQuery);
+            
+            const completedDates: string[] = [];
             for (const d of prevLogsSnap.docs) {
               const l = d.data();
               if (l.habits?.[habitId]?.completed) {
-                prevCompletedDate = l.date;
-                break;
+                completedDates.push(l.date);
+              }
+            }
+
+            if (completedDates.length > 0) {
+              prevCompletedDate = completedDates[0];
+              calculatedStreak = 1;
+
+              const userDocRef = doc(db, "users", userId);
+              const userSnap = await getDoc(userDocRef);
+              const userData = userSnap.exists() ? userSnap.data() : null;
+              const weeklyResetDay = userData?.settings?.weeklyResetDay ?? 1;
+
+              const period = habit.period || "daily";
+              const intervalDays = habit.intervalDays || 2;
+
+              let currentRefDate = prevCompletedDate;
+
+              for (let i = 1; i < completedDates.length; i++) {
+                const date2 = completedDates[i];
+                
+                // Skip same period completion
+                if (isSamePeriodDates(currentRefDate, date2, period, weeklyResetDay)) {
+                  continue;
+                }
+
+                // Check if consecutive
+                if (isConsecutiveDates(currentRefDate, date2, period, weeklyResetDay, intervalDays)) {
+                  calculatedStreak++;
+                  currentRefDate = date2;
+                } else {
+                  break;
+                }
               }
             }
           } catch (err) {
-            console.warn("[uncompleteHabit] Failed to restore previous completion date:", err);
+            console.warn("[uncompleteHabit] Failed to restore previous completion date/streak:", err);
           }
           statsUpdate.lastCompletedDate = prevCompletedDate;
+          statsUpdate.currentStreak = calculatedStreak;
         }
       }
 
@@ -390,4 +423,69 @@ function getWeekStartLocal(dateStr: string, weekStartDay: number): string {
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function isSamePeriodDates(date1: string, date2: string, period: string, weeklyResetDay: number): boolean {
+  const d1 = new Date(date1 + "T00:00:00");
+  const d2 = new Date(date2 + "T00:00:00");
+  const diffDays = Math.round((d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return true;
+
+  if (period === "daily") {
+    return false;
+  } else if (period === "weekly") {
+    const w1 = getWeekStartLocal(date1, weeklyResetDay);
+    const w2 = getWeekStartLocal(date2, weeklyResetDay);
+    return w1 === w2;
+  } else if (period === "monthly") {
+    const y1 = Number(date1.substring(0, 4));
+    const m1 = Number(date1.substring(5, 7));
+    const y2 = Number(date2.substring(0, 4));
+    const m2 = Number(date2.substring(5, 7));
+    return y1 === y2 && m1 === m2;
+  } else if (period === "interval") {
+    return false;
+  }
+  return false;
+}
+
+function isConsecutiveDates(
+  date1: string,
+  date2: string,
+  period: string,
+  weeklyResetDay: number,
+  intervalDays: number = 2
+): boolean {
+  const d1 = new Date(date1 + "T00:00:00");
+  const d2 = new Date(date2 + "T00:00:00");
+  const diffDays = Math.round((d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return false;
+
+  if (period === "daily") {
+    return diffDays === 1;
+  } else if (period === "weekly") {
+    const w1 = getWeekStartLocal(date1, weeklyResetDay);
+    const w2 = getWeekStartLocal(date2, weeklyResetDay);
+    if (w1 === w2) return false;
+
+    const prevWeekDate = new Date(w1 + "T12:00:00");
+    prevWeekDate.setDate(prevWeekDate.getDate() - 7);
+    const prevWeekStartStr = `${prevWeekDate.getFullYear()}-${String(
+      prevWeekDate.getMonth() + 1
+    ).padStart(2, "0")}-${String(prevWeekDate.getDate()).padStart(2, "0")}`;
+    return w2 === prevWeekStartStr;
+  } else if (period === "monthly") {
+    const y1 = Number(date1.substring(0, 4));
+    const m1 = Number(date1.substring(5, 7));
+    const y2 = Number(date2.substring(0, 4));
+    const m2 = Number(date2.substring(5, 7));
+
+    if (y1 === y2 && m1 === m2) return false;
+    return (y1 === y2 && m1 === m2 + 1) || (y1 === y2 + 1 && m2 === 12 && m1 === 1);
+  } else if (period === "interval") {
+    return diffDays <= intervalDays;
+  }
+  return false;
 }

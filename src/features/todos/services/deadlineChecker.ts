@@ -25,7 +25,7 @@ export async function checkDeadlines(
   }
   
   for (const todo of todos) {
-    const wasActiveOnDay = todo.status === "active" || (todo.status === "done" && todo.completedAt && formatDate(new Date(todo.completedAt)) > today);
+    const wasActiveOnDay = todo.status === "active" || (todo.status === "done" && todo.completedAt && formatDate(new Date(todo.completedAt)) >= today);
     if (!wasActiveOnDay) continue;
     if (todo.future && todo.future > today) continue; // Skip future (hidden) todos
     if (!todo.deadline) continue;

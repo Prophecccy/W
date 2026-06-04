@@ -1,14 +1,13 @@
 import React from "react";
-import { useAuth } from "../../auth/hooks/useAuth";
-import { User } from "../../../shared/types";
+import { useUserStore } from "../../../shared/stores/userStore";
 import "./TimelineReview.css";
 
 export const TimelineReview: React.FC = () => {
-  const { user } = useAuth();
+  const { userDoc } = useUserStore();
   
-  if (!user) return null;
+  if (!userDoc) return null;
 
-  const strikes = (user as unknown as User)?.strikes?.history || [];
+  const strikes = userDoc.strikes?.history || [];
 
   return (
     <div className="timeline-review analytics-card">

@@ -50,3 +50,10 @@ out
 *.njsproj
 *.sln
 *.sw?
+
+# Tauri Signing Keys
+tauri.key
+tauri.key.pub
+src-tauri/tauri.key
+src-tauri/tauri.key.pub
+

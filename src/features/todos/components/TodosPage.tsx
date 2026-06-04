@@ -70,43 +70,35 @@ export function TodosPage() {
 
   useEffect(() => {
     let active = true;
-    let unlistenHabitPromise: Promise<() => void> | null = null;
-    let unlistenTodoPromise: Promise<() => void> | null = null;
+    let unsubPromise: Promise<(() => void)[]> | null = null;
 
     async function setupListeners() {
       try {
         const { isTauri } = await import("../../../shared/utils/tauri");
-        if (!isTauri()) return;
+        if (!isTauri() || !active) return [];
 
         const { listen } = await import("@tauri-apps/api/event");
-        if (!active) return;
+        if (!active) return [];
 
-        unlistenHabitPromise = listen("widget-habit-updated", () => {
+        const unsubHabit = await listen("widget-habit-updated", () => {
           if (active) loadData();
         });
-        unlistenTodoPromise = listen("widget-todo-updated", () => {
+        const unsubTodo = await listen("widget-todo-updated", () => {
           if (active) loadData();
         });
 
-        const unsubHabit = await unlistenHabitPromise;
-        const unsubTodo = await unlistenTodoPromise;
-        if (!active) {
-          unsubHabit();
-          unsubTodo();
-        }
+        return [unsubHabit, unsubTodo];
       } catch (err) {
         console.error("Failed to setup Tauri listeners in TodosPage:", err);
+        return [];
       }
     }
 
-    setupListeners();
+    unsubPromise = setupListeners();
     return () => {
       active = false;
-      if (unlistenHabitPromise) {
-        unlistenHabitPromise.then(unsub => unsub()).catch(() => {});
-      }
-      if (unlistenTodoPromise) {
-        unlistenTodoPromise.then(unsub => unsub()).catch(() => {});
+      if (unsubPromise) {
+        unsubPromise.then((unsubs) => unsubs.forEach((unsub) => unsub())).catch(() => {});
       }
     };
   }, []);

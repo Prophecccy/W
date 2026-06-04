@@ -8,7 +8,7 @@ import {
 } from "../types";
 import { isHabitScheduledToday } from "../../habits/utils/scheduleEngine";
 
-import { getToday, formatDate } from "../../../shared/utils/dateUtils";
+import { getToday, formatDate, addDays } from "../../../shared/utils/dateUtils";
 
 export function getCompletionRate(
   logs: HabitLog[],
@@ -68,7 +68,11 @@ const getDayOfWeek = (dateString: string) => {
   return new Date(dateString + "T12:00:00").getDay();
 };
 
-export function getBestWorstDays(logs: HabitLog[]): {
+export function getBestWorstDays(
+  logs: HabitLog[],
+  habits: Habit[],
+  weeklyResetDay?: number,
+): {
   best: number | null;
   worst: number | null;
   averages: Record<number, number>;
@@ -78,11 +82,13 @@ export function getBestWorstDays(logs: HabitLog[]): {
 
   for (const log of logs) {
     const day = getDayOfWeek(log.date);
-    const habitIds = Object.keys(log.habits);
-    dayStats[day].scheduled += habitIds.length;
+    const scheduledHabits = habits.filter((h) =>
+      isHabitScheduledToday(h, log.date, weeklyResetDay),
+    );
+    dayStats[day].scheduled += scheduledHabits.length;
 
-    for (const id of habitIds) {
-      if (log.habits[id].completed) dayStats[day].completed += 1;
+    for (const h of scheduledHabits) {
+      if (log.habits[h.id]?.completed) dayStats[day].completed += 1;
     }
   }
 
@@ -161,7 +167,7 @@ export function getMostImproved(
   const midMs = start.getTime() + (end.getTime() - start.getTime()) / 2;
   const midDateStr = formatDate(new Date(midMs));
 
-  let highestImprovement = -1;
+  let highestImprovement = 0;
   let mostImproved: Habit | null = null;
 
   for (const habit of habits) {
@@ -173,10 +179,11 @@ export function getMostImproved(
       habit.id,
       weeklyResetDay,
     );
+    const nextOfMidDateStr = addDays(midDateStr, 1);
     const rate2 = getCompletionRate(
       logs,
       habits,
-      midDateStr,
+      nextOfMidDateStr,
       endDateStr,
       habit.id,
       weeklyResetDay,
@@ -393,7 +400,7 @@ export function generateHabitAnalytics(
       weeklyResetDay,
     ),
     streakProximity: getStreakProximity(habit),
-    bestDayOfWeek: getBestWorstDays(logs).best || 0,
+    bestDayOfWeek: getBestWorstDays(logs, [habit], weeklyResetDay).best || 0,
     timeOfDayDistribution,
   };
 }

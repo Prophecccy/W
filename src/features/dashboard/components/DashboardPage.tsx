@@ -39,44 +39,36 @@ export function DashboardPage() {
     if (!isTauri()) return;
 
     let active = true;
-    let unsubHabit: (() => void) | null = null;
-    let unsubTodo: (() => void) | null = null;
+    let unsubPromise: Promise<(() => void)[]> | null = null;
 
     async function setupListeners() {
       try {
         const { listen } = await import('@tauri-apps/api/event');
-        if (!active) return;
+        if (!active) return [];
         
         const unHabit = await listen('widget-habit-updated', (event) => {
           console.log('Dashboard: Received widget-habit-updated event', event);
           setRefreshTrigger(prev => prev + 1);
         });
-        if (!active) {
-          unHabit();
-        } else {
-          unsubHabit = unHabit;
-        }
-
         const unTodo = await listen('widget-todo-updated', (event) => {
           console.log('Dashboard: Received widget-todo-updated event', event);
           setRefreshTrigger(prev => prev + 1);
         });
-        if (!active) {
-          unTodo();
-        } else {
-          unsubTodo = unTodo;
-        }
+
+        return [unHabit, unTodo];
       } catch (e) {
         console.error('Failed to setup listeners', e);
+        return [];
       }
     }
 
-    setupListeners();
+    unsubPromise = setupListeners();
 
     return () => {
       active = false;
-      if (unsubHabit) unsubHabit();
-      if (unsubTodo) unsubTodo();
+      if (unsubPromise) {
+        unsubPromise.then((unsubs) => unsubs.forEach((unsub) => unsub())).catch(() => {});
+      }
     };
   }, []);
 

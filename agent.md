@@ -71,6 +71,7 @@ graph TD
 * **Interactive Difficulty Escalation**: Selecting difficulty increase dynamically prompts the user to select an active metric or limiter habit to calibrate:
   * **Metric Habits**: Raise target value by $+33\%$ (min $+1$).
   * **Limiter Habits**: Restrict/decrease target limit by $-33\%$ (min $-1$, clamped to a minimum target value of `1`).
+* **Wide Form Sizing on Icon Selection**: During Step 6 (Appearance / Icon Picker) of `HabitForm`, the modal and form width automatically expand to `1200px` (via `:has(.habit-form--wide)`) to utilize side screen space, increasing visible columns for 850 icons and minimizing vertical scrolling.
 
 ---
 
@@ -247,3 +248,40 @@ A series of 12 critical structural, transaction, coordinates, multi-monitor, and
 10. **Habit Creation Schema Safety (Bug 396)**: Fixed schema initialization in `habitService.ts`'s `createHabit` to return the complete `createdAt` local timestamp in-place, eliminating downstream `NaN` calculations and potential frontend crashes.
 11. **Native Monotonic Countdown Timer (Bug 397)**: Completely bypassed Chromium's background webview timer throttling by migrating the countdown tracking inside Rust's polling thread in `lockdown.rs` using monotonic clock `std::time::Instant`. Added the `update_lockdown_remaining` command to apply clock tampering penalties. The background thread hides the block overlay directly and emits `"lockdown-expired"` to synchronize Firestore once finished, keeping lockdown 100% active even if W is minimized.
 12. **Lockdown Selection State Loop (Bug 398)**: Introduced a `loading` flag in `useLockdown.ts` and an `isInitialized` configuration gate in `LockdownPage.tsx`. The page reverse-maps Firestore blocklist presets exactly once after initial page hydration, allowing users to clear selections without state loop fightbacks.
+
+---
+
+## Batch 33 — Habit Creation Icon Selection Layout Optimization
+
+A layout refinement was implemented to optimize Step 6 (Appearance / Icon Selection) of the habit creation flow:
+
+1. **Conditional Class Name**: Updated the root container of `HabitForm.tsx` to conditionally apply the class name `habit-form--wide` when the current step is 5 (the Appearance step).
+2. **Width & Height Scaling**: Configured `HabitForm.css` to expand the form to `1160px` max-width and increase the appearance step scroll viewport to `550px` height (up from `380px`). Added CSS transitions to make the scaling animation smooth.
+3. **Modal Expansion**: Wired `:has(.habit-form--wide)` selector rules in both `HabitsPage.css` and `PunishmentModal.css` to expand the parent modal overlays to `1200px` width (95vw).
+4. **Scrolling Reduction**: Utilized the auto-filling columns grid of the icon picker (`minmax(44px, 1fr)`) to double the number of icons rendered per row, drastically reducing the height and need for vertical scrolling.
+5. **Icon Expansion**: Expanded the icon definitions inside `iconData.ts` to include 10 distinct categories (Productivity, Health & Fitness, Tech & Dev, Finance, Home & Life, Mindfulness, Creative & Art, Social & Community, Academic & Learning, Nature & Travel), mapping exactly 85 high-quality Lucide icons to each category (850 total icons). Updated `IconPicker.tsx` to handle all 10 categories.
+
+---
+
+## Batch 34 — Logbook Data Integrity & Sync Restoration
+
+A series of data filtering and synchronization restoration fixes were implemented to resolve empty Logbook issues and prevent system-generated auto-freeze text from cluttering the user interface:
+
+1. **System Placeholder Filtering in Logbook UI**: Added a `SYSTEM_NOTE_PATTERNS` regex filter in `LogbookPage.tsx` (`groupNotesByMonthAndDate`) to skip display of system-generated logs (e.g. `[ AUTO-FREEZE ]`, `[ FROZEN ]`, `[ SYSTEM ]`).
+2. **System Placeholder Filtering at Data Layers**: Applied the same system-generated log exclusion inside `getLocalNoteHistory` and `migrateNotesFromFirestore` in `localLogService.ts` to clean IndexedDB data lookups and Firestore migrations.
+3. **Google Drive Download Filtering**: Added regex skip checks in `pullNotesFromDrive` (`googleDriveService.ts`) to avoid downloading files containing only system-generated placeholder notes.
+4. **Google Drive Startup Pull-down Sync**: Added a post-initialization synchronization step in `Layout.tsx` (`initializeSync` after the startup phase becomes ready) to call `pullNotesFromDrive` using cached Google Drive credentials. This guarantees historical notes are pulled and restored to local IndexedDB on app startup, rather than waiting exclusively for the initial account linkage event.
+
+---
+
+## Batch 35 — Security Hardening & Audit Remediation
+
+A series of security auditing and hardening remediation fixes were implemented to secure W from credentials leakage, arbitrary process termination, unauthorized write manipulation, and dynamic code execution exploits:
+
+1. **Updater Signing Keys Protection**: Untracked all private updater signing keys (`tauri.key`, `tauri.key.pub`, `src-tauri/tauri.key`, `src-tauri/tauri.key.pub`) from version control using Git, and added permanent ignore paths in both root and `src-tauri` `.gitignore` files to safeguard key privacy.
+2. **Credential Leaks Remediation**: Removed hardcoded client secret environment variables (`VITE_GOOGLE_CLIENT_SECRET`) from `.env` and `.env.production`. Configured Google OAuth endpoints to make `client_secret` fully optional, implementing a pure public client PKCE authentication model for desktop clients.
+3. **Secure Local Token Storage**: Relocated Google Drive refresh and access tokens from plaintext browser `localStorage` to a secure JSON file (`gdrive_session.json`) stored in the OS-level `$APPDATA` directory under Tauri, implementing memory caching to support synchronous authentication checks, and falling back to `localStorage` solely on non-Tauri web builds.
+4. **Arbitrary Process Termination Restriction**: Restricted process killing in `lockdown.rs` by tracking blocked process PIDs in a thread-safe static `BLOCKED_PIDS: Mutex<Vec<u32>>` registry. Checked all incoming target PIDs in `kill_blocked_process` against this registry, rejecting any arbitrary process termination (e.g. system files or dev processes) requested from a potentially compromised frontend.
+5. **Content Security Policy Strengthening**: Strengthened the Content Security Policy in `tauri.conf.json` by removing the dangerous `'unsafe-eval'` directive from the `default-src` and `script-src` blocks, preventing run-time dynamic code evaluation execution.
+6. **Firestore Write Controls Hardening**: Hardened Firestore rules in `firestore.rules` under match `/users/{uid}` to block client-side modification of read-only metadata fields like `uid` and `createdAt` during user document updates.
+7. **Async Token Operations Synchronization**: Synchronized token management in React handlers (`useAuth.ts`, `authService.ts`, and `AccountSection.tsx`) to properly await asynchronous token clearing and secure credentials deletion on logout/unlink.

@@ -12,6 +12,7 @@ import {
   resumeLockdownIfActive,
 } from "../services/lockdownService";
 import { LockdownState, DEFAULT_LOCKDOWN_STATE } from "../types";
+import { isTauri } from "../../../shared/utils/tauri";
 
 interface UseLockdownReturn {
   state: LockdownState;
@@ -277,7 +278,11 @@ export function useLockdown(): UseLockdownReturn {
             clearInterval(timerRef.current);
             timerRef.current = null;
           }
-          deactivateLockdownHandler();
+          if (isTauri()) {
+            console.log("[lockdown] Timer reached 0 on sleep/suspension, but deferring deactivation to Rust.");
+          } else {
+            deactivateLockdownHandler();
+          }
         }
         return;
       }
@@ -291,7 +296,11 @@ export function useLockdown(): UseLockdownReturn {
           clearInterval(timerRef.current);
           timerRef.current = null;
         }
-        deactivateLockdownHandler();
+        if (isTauri()) {
+          console.log("[lockdown] Timer reached 0 on standard tick, but deferring deactivation to Rust.");
+        } else {
+          deactivateLockdownHandler();
+        }
         return;
       }
 

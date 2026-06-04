@@ -349,16 +349,16 @@ export function StickyNote({
   let isOverdue = false;
 
   if (todo.deadline) {
+    const [y, m, d] = todo.deadline.split("-");
+    const formattedDeadline = `${y.slice(2)}.${m}.${d}`;
+
     if (todo.deadline < today) {
-      deadlineText = "OVERDUE";
+      deadlineText = `DUE: ${formattedDeadline}`;
       isOverdue = true;
     } else if (todo.deadline === today) {
-      deadlineText = "TODAY";
+      deadlineText = "DUE: TODAY";
     } else {
-      const deadlineDate = new Date(todo.deadline + "T12:00:00");
-      const todayDate = new Date(today + "T12:00:00");
-      const diffDays = Math.ceil((deadlineDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
-      deadlineText = `${diffDays}D`;
+      deadlineText = `DUE: ${formattedDeadline}`;
     }
   }
 
@@ -448,7 +448,7 @@ export function StickyNote({
           </div>
           <div className="sticky-note__footer-divider" />
           <div className={`sticky-note__footer-half ${isOverdue ? 'sticky-note__footer-half--overdue' : ''}`}>
-            {deadlineText ? `T-MINUS: ${deadlineText}` : "NO DEADLINE"}
+            {deadlineText ? deadlineText : "NO DEADLINE"}
           </div>
         </div>
       </div>

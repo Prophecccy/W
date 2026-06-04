@@ -119,16 +119,16 @@ export async function resumeLockdownIfActive(userId?: string): Promise<boolean> 
       const elapsedMs = Date.now() - state.startedAt;
       const elapsed = elapsedMs / 1000 / 60;
       
-      // Clock tampering detection on resume (jump backwards or massive jump forwards)
-      if (elapsedMs < 0 || elapsed > state.duration + 5) {
-        console.warn("[lockdown] Clock tampering detected on resume! Locking down.");
-        return true;
-      }
-      
       if (elapsed >= state.duration) {
         console.log("[lockdown] Duration expired — deactivating");
         await deactivateLockdown(activeUid);
         return false;
+      }
+
+      // Clock tampering detection on resume (jump backwards or massive jump forwards)
+      if (elapsedMs < 0 || elapsed > state.duration + 5) {
+        console.warn("[lockdown] Clock tampering detected on resume! Locking down.");
+        return true;
       }
     }
 

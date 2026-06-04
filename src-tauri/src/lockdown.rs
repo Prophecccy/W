@@ -26,6 +26,7 @@ static LOCKDOWN_RUNNING: AtomicBool = AtomicBool::new(false);
 static POLLING_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static BLOCKLIST: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static END_TIME: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+static BLOCKED_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 
 // ─── Event payloads ──────────────────────────────────────────────
 
@@ -338,6 +339,15 @@ fn start_polling(app_handle: tauri::AppHandle) {
                         height: info.height,
                     };
 
+                    if let Ok(mut pids) = BLOCKED_PIDS.lock() {
+                        if !pids.contains(&info.pid) {
+                            pids.push(info.pid);
+                            if pids.len() > 50 {
+                                pids.remove(0);
+                            }
+                        }
+                    }
+
                     let _ = app_handle.emit("lockdown-block", payload);
                 } else {
                     // Non-blocked, non-self window has focus
@@ -390,6 +400,10 @@ pub fn start_lockdown_monitor(
         *guard = blocklist.into_iter().map(|s| s.to_lowercase()).collect();
     }
 
+    if let Ok(mut pids) = BLOCKED_PIDS.lock() {
+        pids.clear();
+    }
+
     if let Ok(mut guard) = END_TIME.lock() {
         if let Some(secs) = remaining_secs {
             *guard = Some(std::time::Instant::now() + std::time::Duration::from_secs(secs));
@@ -407,6 +421,9 @@ pub fn stop_lockdown_monitor() -> Result<(), String> {
     eprintln!("[lockdown] stop_lockdown_monitor called");
     if let Ok(mut guard) = END_TIME.lock() {
         *guard = None;
+    }
+    if let Ok(mut pids) = BLOCKED_PIDS.lock() {
+        pids.clear();
     }
     stop_polling();
     Ok(())
@@ -465,6 +482,19 @@ pub fn kill_blocked_process(pid: u32) -> Result<(), String> {
     let own_pid = std::process::id();
     if pid == own_pid || pid == 0 {
         return Err("Cannot kill own process or PID 0".to_string());
+    }
+
+    // Validate against BLOCKED_PIDS
+    let is_blocked = {
+        if let Ok(pids) = BLOCKED_PIDS.lock() {
+            pids.contains(&pid)
+        } else {
+            false
+        }
+    };
+
+    if !is_blocked {
+        return Err("PID is not in the blocked list".to_string());
     }
 
     #[cfg(target_os = "windows")]

@@ -23,14 +23,33 @@ function groupsRef(userId: string) {
   return collection(db, "users", userId, "groups");
 }
 
+export function sanitizeGroupName(name: string): string {
+  let cleaned = name.trim();
+  while (cleaned.startsWith("[") && cleaned.endsWith("]")) {
+    cleaned = cleaned.substring(1, cleaned.length - 1).trim();
+  }
+  return cleaned;
+}
+
 export async function createGroup(name: string, order: number): Promise<HabitGroup> {
   const userId = uid();
+  const sanitized = sanitizeGroupName(name);
+  if (!sanitized) {
+    throw new Error("Group name cannot be empty");
+  }
+
+  const existing = await getGroups();
+  const lower = sanitized.toLowerCase();
+  if (existing.some((g) => sanitizeGroupName(g.name).toLowerCase() === lower)) {
+    throw new Error("Group name already exists");
+  }
+
   const ref = await addDoc(groupsRef(userId), {
-    name,
+    name: sanitized,
     order,
     createdAt: Date.now(),
   });
-  return { id: ref.id, name, order };
+  return { id: ref.id, name: sanitized, order };
 }
 
 export async function getGroups(): Promise<HabitGroup[]> {
@@ -49,7 +68,18 @@ export async function getGroups(): Promise<HabitGroup[]> {
 
 export async function updateGroup(id: string, name: string): Promise<void> {
   const userId = uid();
-  await updateDoc(doc(db, "users", userId, "groups", id), { name });
+  const sanitized = sanitizeGroupName(name);
+  if (!sanitized) {
+    throw new Error("Group name cannot be empty");
+  }
+
+  const existing = await getGroups();
+  const lower = sanitized.toLowerCase();
+  if (existing.some((g) => g.id !== id && sanitizeGroupName(g.name).toLowerCase() === lower)) {
+    throw new Error("Group name already exists");
+  }
+
+  await updateDoc(doc(db, "users", userId, "groups", id), { name: sanitized });
 }
 
 export async function deleteGroup(id: string): Promise<void> {

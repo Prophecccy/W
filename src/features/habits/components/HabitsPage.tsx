@@ -8,7 +8,7 @@ import { HabitGroupHeader } from './HabitGroupHeader/HabitGroupHeader';
 import { Habit, HabitLog, HabitGroup } from '../types';
 import { HabitDetail } from './HabitDetail/HabitDetail';
 import { getHabits, createHabit, deleteHabit } from '../services/habitService';
-import { getGroups, createGroup } from '../services/groupService';
+import { getGroups, createGroup, sanitizeGroupName } from '../services/groupService';
 import { getTodayLog, completeHabit, uncompleteHabit } from '../services/logService';
 import { isHabitScheduledToday, isHabitResting } from '../utils/scheduleEngine';
 import { getToday } from '../../../shared/utils/dateUtils';
@@ -65,32 +65,31 @@ export function HabitsPage() {
     if (!isTauri()) return;
 
     let active = true;
-    let unsub: (() => void) | null = null;
+    let unsubPromise: Promise<() => void> | null = null;
 
     async function setupListener() {
       try {
         const { listen } = await import('@tauri-apps/api/event');
-        if (!active) return;
+        if (!active) return () => {};
         const unlisten = await listen('widget-habit-updated', () => {
           if (!active) return;
           console.log('HabitsPage: Received widget-habit-updated, refreshing...');
           setRefreshKey(prev => prev + 1);
         });
-        if (!active) {
-          unlisten();
-        } else {
-          unsub = unlisten;
-        }
+        return unlisten;
       } catch (e) {
         console.error('HabitsPage: Failed to setup widget-habit-updated listener', e);
+        return () => {};
       }
     }
 
-    setupListener();
+    unsubPromise = setupListener();
 
     return () => {
       active = false;
-      if (unsub) unsub();
+      if (unsubPromise) {
+        unsubPromise.then((unsub) => unsub()).catch(() => {});
+      }
     };
   }, []);
 
@@ -249,15 +248,18 @@ export function HabitsPage() {
     try {
       let finalGroup = data.group;
       if (data.group && data.group.startsWith('new_') && data.newGroupName) {
-        const trimmedNewName = data.newGroupName.trim().toLowerCase();
-        const existingGroup = groups.find(g => g.name.trim().toLowerCase() === trimmedNewName);
-        if (existingGroup) {
-          finalGroup = existingGroup.id;
-        } else {
-          const created = await createGroup(data.newGroupName, groups.length);
-          finalGroup = created.id;
-          const fetchedGroups = await getGroups();
-          setGroups(fetchedGroups);
+        const sanitized = sanitizeGroupName(data.newGroupName);
+        if (sanitized) {
+          const lower = sanitized.toLowerCase();
+          const existingGroup = groups.find(g => sanitizeGroupName(g.name).toLowerCase() === lower);
+          if (existingGroup) {
+            finalGroup = existingGroup.id;
+          } else {
+            const created = await createGroup(sanitized, groups.length);
+            finalGroup = created.id;
+            const fetchedGroups = await getGroups();
+            setGroups(fetchedGroups);
+          }
         }
       }
 

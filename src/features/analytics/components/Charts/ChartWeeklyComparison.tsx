@@ -23,7 +23,7 @@ export const ChartWeeklyComparison: React.FC<Props> = ({ currentWeek }) => {
     <div className="chart-weekly" style={{ position: 'relative' }}>
       <div className="chart-bars" style={{ opacity: hasAnyData ? 1 : 0.3, pointerEvents: hasAnyData ? 'auto' : 'none' }}>
         {currentWeek.days.map((day, idx) => {
-          const dayName = days[new Date(day.date + "T00:00:00").getDay()];
+          const dayName = days[new Date(day.date + "T12:00:00").getDay()];
           // Show at least a tiny sliver for days with scheduled habits (even if 0% completed)
           const height = day.totalScheduled > 0 
             ? `${Math.max(day.completionRate, 3)}%` 

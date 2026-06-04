@@ -71,7 +71,7 @@ export const AnalyticsPage: React.FC = () => {
       setLoading(false);
     }
     load();
-  }, [user, userDoc]);
+  }, [user, userDoc?.settings?.weeklyResetDay, userDoc?.settings?.dailyResetTime]);
 
   const insights: InsightCard[] = useMemo(() => {
     if (!monthSummary || !weekSummary) return [];
@@ -126,6 +126,28 @@ export const AnalyticsPage: React.FC = () => {
     ? Array(4).fill({ id: 'skel', title: '', value: '', subValue: '', icon: '', color: '' }) as InsightCard[]
     : insights;
 
+  const masterScore = useMemo(() => {
+    const rate = monthSummary?.completionRate || 0;
+    const strikesCount = userDoc?.strikes?.current || 0;
+    
+    // Base score is completion rate
+    let score = rate;
+
+    // Strike penalties
+    const strikePenalties = [0, 5, 12, 20, 30, 50];
+    const penalty = strikePenalties[Math.min(strikesCount, 5)] || 0;
+    score -= penalty;
+
+    // Streak bonus
+    if (habits.length > 0) {
+      const maxStreak = Math.max(...habits.map(h => h.currentStreak || 0), 0);
+      const streakBonus = Math.min(15, Math.floor(maxStreak / 2));
+      score += streakBonus;
+    }
+
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }, [monthSummary?.completionRate, userDoc?.strikes?.current, habits]);
+
   return (
     <div className="analytics-page">
       <header className="analytics-header">
@@ -173,7 +195,7 @@ export const AnalyticsPage: React.FC = () => {
           
           <div className="analytics-card rate-card">
             <h2 className="t-label">[ MASTER SCORE ]</h2>
-            <ConsistencyScore rate={monthSummary?.completionRate || 0} size={100} />
+            <ConsistencyScore rate={masterScore} size={100} />
           </div>
         </div>
       )}

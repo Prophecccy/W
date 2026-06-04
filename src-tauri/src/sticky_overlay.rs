@@ -28,7 +28,7 @@
 // Low-level mouse hooks require a message pump on the installer thread.
 // Tauri command handlers run on a tokio thread pool with no message pump.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering, AtomicU64};
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
@@ -68,6 +68,7 @@ static REGIONS: Mutex<Vec<StickyRect>> = Mutex::new(Vec::new());
 
 /// Controls the polling thread lifecycle
 static RUNNING: AtomicBool = AtomicBool::new(false);
+static POLLING_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 /// Current click-through state (true = ignoring cursor events = click-through)
 static IS_IGNORING: AtomicBool = AtomicBool::new(true);
@@ -161,6 +162,7 @@ fn get_hwnd(window: &tauri::WebviewWindow) -> Option<HWND> {
 
 #[cfg(target_os = "windows")]
 fn start_polling(app_handle: tauri::AppHandle) {
+    let gen = POLLING_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     RUNNING.store(true, Ordering::SeqCst);
 
     // Cache the HWND once — avoids string lookups + Arc clones every 16ms.
@@ -175,7 +177,7 @@ fn start_polling(app_handle: tauri::AppHandle) {
             return;
         };
 
-        while RUNNING.load(Ordering::SeqCst) {
+        while RUNNING.load(Ordering::SeqCst) && POLLING_GENERATION.load(Ordering::SeqCst) == gen {
             let mut pt = POINT::default();
             let got_pos = unsafe { GetCursorPos(&mut pt).is_ok() };
 
@@ -216,6 +218,7 @@ fn start_polling(app_handle: tauri::AppHandle) {
 
 fn stop_polling() {
     RUNNING.store(false, Ordering::SeqCst);
+    POLLING_GENERATION.fetch_add(1, Ordering::SeqCst);
     thread::sleep(Duration::from_millis(50));
 }
 

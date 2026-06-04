@@ -54,3 +54,7 @@
 .event-title {
   font-weight: bold;
 }
+
+.timeline-event:last-child::before {
+  display: none;
+}

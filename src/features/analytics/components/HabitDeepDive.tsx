@@ -5,7 +5,7 @@ import { HabitAnalytics } from "../types";
 import { generateHabitAnalytics } from "../services/analyticsService";
 import { ActivityHeatmap } from "./ActivityHeatmap";
 import { getLogRange } from "../../habits/services/logService";
-import { getToday } from "../../../shared/utils/dateUtils";
+import { getToday, formatDate } from "../../../shared/utils/dateUtils";
 import { motion } from "framer-motion";
 import "./HabitDeepDive.css";
 
@@ -19,14 +19,16 @@ export const HabitDeepDive: React.FC<Props> = ({ habit, onClose }) => {
 
   useEffect(() => {
     async function load() {
-      // Load last 90 days
       const endDate = getToday();
-      const endD = new Date(endDate + "T00:00:00");
-      const startD = new Date(endD);
-      startD.setDate(startD.getDate() - 89);
+      
+      // Load logs from the habit's creation date, or at least the last 90 days
+      const creationDate = new Date(habit.createdAt);
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      const startD = creationDate < ninetyDaysAgo ? creationDate : ninetyDaysAgo;
       
       const logs = await getLogRange(
-        startD.toISOString().split("T")[0], 
+        formatDate(startD),
         endDate
       );
 

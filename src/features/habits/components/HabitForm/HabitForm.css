@@ -5,6 +5,7 @@
   max-width: 480px;
   margin: 0 auto;
   padding: 24px;
+  transition: max-width 0.3s ease;
 }
 
 .habit-form__header {
@@ -254,6 +255,90 @@
 
 .habit-form__date-input::-webkit-calendar-picker-indicator:hover {
   opacity: 0.8;
+}
+
+/* Wide layout rules for step 6 (Appearance / Icon Selection) */
+.habit-form--wide {
+  max-width: 1160px;
+  transition: max-width 0.3s ease;
+}
+
+.habit-form--wide .habit-form__step--appearance {
+  height: 550px;
+}
+
+/* 3-Column Layout for Configuration Step */
+.habit-form__cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+  width: 100%;
+}
+
+.habit-form__col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Compact Radio group for columns */
+.habit-form__radio-group-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.habit-form__radio-btn-compact {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  padding: 10px 12px;
+  border-radius: 4px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.habit-form__radio-btn-compact:hover {
+  border-color: var(--border-subtle);
+  background: rgba(24, 26, 30, 0.85);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.habit-form__radio-btn-compact--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg-elevated);
+}
+
+/* Metric side-by-side fields */
+.habit-form__metric-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Grouping Selection grid */
+.habit-form__group-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+/* Step specific height for configuration */
+.habit-form__step--config {
+  flex: 1;
+}
+
+/* Make it wrap nicely on smaller widths (responsive media query) */
+@media (max-width: 900px) {
+  .habit-form__cols {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
 }
 
 

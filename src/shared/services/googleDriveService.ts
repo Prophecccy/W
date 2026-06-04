@@ -6,11 +6,13 @@ import {
 } from "../../features/logs/services/localLogService";
 import { getToday } from "../utils/dateUtils";
 import { get as idbGet, set as idbSet } from "idb-keyval";
+import { isTauri } from "../utils/tauri";
 
 const REFRESH_TOKEN_KEY = "w_gdrive_refresh_token";
 const ACCESS_TOKEN_KEY = "w_gdrive_access_token";
 const EXPIRES_AT_KEY = "w_gdrive_expires_at";
 const FOLDER_CACHE_KEY = "w_gdrive_folder_cache";
+const TOKENS_FILE = "gdrive_session.json";
 
 export interface GDriveTokens {
   accessToken: string;
@@ -21,6 +23,56 @@ export interface GDriveTokens {
 interface GDriveFolderCache {
   rootFolderId: string | null;
   yearFolderIds: Record<string, string>;
+}
+
+interface OAuthSession {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+}
+
+let cachedSession: OAuthSession | null = null;
+let isSessionInitialized = false;
+
+// Helper to asynchronously initialize the session cache from file or localStorage
+async function ensureSessionInitialized(): Promise<void> {
+  if (isSessionInitialized) return;
+
+  if (isTauri()) {
+    try {
+      const { exists, readTextFile, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+      if (await exists(TOKENS_FILE, { baseDir: BaseDirectory.AppData })) {
+        const contents = await readTextFile(TOKENS_FILE, { baseDir: BaseDirectory.AppData });
+        cachedSession = JSON.parse(contents) as OAuthSession;
+        console.info("[GDrive Service] OAuth session loaded from AppData secure storage.");
+      }
+    } catch (e) {
+      console.error("[GDrive Service] Failed to load OAuth session from AppData:", e);
+    }
+  } else {
+    try {
+      const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+      const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+      const expiresAtStr = localStorage.getItem(EXPIRES_AT_KEY);
+      if (accessToken && refreshToken && expiresAtStr) {
+        cachedSession = {
+          accessToken,
+          refreshToken,
+          expiresAt: parseInt(expiresAtStr, 10),
+        };
+        console.info("[GDrive Service] OAuth session loaded from localStorage fallback.");
+      }
+    } catch (e) {
+      console.error("[GDrive Service] Failed to load OAuth session from localStorage:", e);
+    }
+  }
+
+  isSessionInitialized = true;
+}
+
+async function getOAuthSession(): Promise<OAuthSession | null> {
+  await ensureSessionInitialized();
+  return cachedSession;
 }
 
 async function getFolderCache(): Promise<GDriveFolderCache> {
@@ -49,15 +101,42 @@ async function clearFolderCache(): Promise<void> {
 }
 
 /**
- * Saves the OAuth tokens to local storage.
+ * Saves the OAuth tokens securely.
  */
-export function saveOAuthTokens(accessToken: string, refreshToken: string, expiresIn: number): void {
+export async function saveOAuthTokens(accessToken: string, refreshToken: string, expiresIn: number): Promise<void> {
   const expiresAt = Date.now() + expiresIn * 1000;
-  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-  localStorage.setItem(EXPIRES_AT_KEY, expiresAt.toString());
+  
+  const existingSession = await getOAuthSession();
+  const finalRefreshToken = refreshToken || existingSession?.refreshToken || "";
+
+  cachedSession = {
+    accessToken,
+    refreshToken: finalRefreshToken,
+    expiresAt,
+  };
+  isSessionInitialized = true;
+
   localStorage.setItem("driveLinked", "true");
-  console.info("[GDrive Service] OAuth tokens securely cached locally.");
+
+  if (isTauri()) {
+    try {
+      const { writeTextFile, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+      await writeTextFile(TOKENS_FILE, JSON.stringify(cachedSession), { baseDir: BaseDirectory.AppData });
+      console.info("[GDrive Service] OAuth session saved to AppData.");
+    } catch (e) {
+      console.error("[GDrive Service] Failed to save OAuth session to AppData:", e);
+    }
+  } else {
+    try {
+      localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+      localStorage.setItem(REFRESH_TOKEN_KEY, finalRefreshToken);
+      localStorage.setItem(EXPIRES_AT_KEY, expiresAt.toString());
+      console.info("[GDrive Service] OAuth session saved to localStorage fallback.");
+    } catch (e) {
+      console.error("[GDrive Service] Failed to save OAuth session to localStorage:", e);
+    }
+  }
+
   window.dispatchEvent(new CustomEvent("w:gdrive-linked"));
 }
 
@@ -65,19 +144,35 @@ export function saveOAuthTokens(accessToken: string, refreshToken: string, expir
  * Checks if the user is authenticated with Google Drive.
  */
 export function isDriveAuthenticated(): boolean {
-  return localStorage.getItem("driveLinked") === "true" || !!localStorage.getItem(REFRESH_TOKEN_KEY);
+  return localStorage.getItem("driveLinked") === "true";
 }
 
 /**
  * Clear cached Google Drive credentials (e.g. on logout).
  */
-export function clearOAuthTokens(): void {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
-  localStorage.removeItem(EXPIRES_AT_KEY);
+export async function clearOAuthTokens(): Promise<void> {
+  cachedSession = null;
+  isSessionInitialized = true;
   localStorage.setItem("driveLinked", "false");
-  clearFolderCache();
-  console.info("[GDrive Service] Cached tokens and folder caches cleared.");
+
+  if (isTauri()) {
+    try {
+      const { exists, remove, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+      if (await exists(TOKENS_FILE, { baseDir: BaseDirectory.AppData })) {
+        await remove(TOKENS_FILE, { baseDir: BaseDirectory.AppData });
+      }
+      console.info("[GDrive Service] OAuth session file deleted from AppData.");
+    } catch (e) {
+      console.error("[GDrive Service] Failed to delete OAuth session file:", e);
+    }
+  } else {
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(EXPIRES_AT_KEY);
+    console.info("[GDrive Service] OAuth session removed from localStorage fallback.");
+  }
+
+  await clearFolderCache();
   window.dispatchEvent(new CustomEvent("w:gdrive-unlinked"));
 }
 
@@ -85,15 +180,19 @@ export function clearOAuthTokens(): void {
  * Retrieves a valid, unexpired access token. Automatically refreshes it if needed.
  */
 export async function getValidAccessToken(): Promise<string | null> {
-  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+  const session = await getOAuthSession();
+  const refreshToken = session?.refreshToken;
   if (!refreshToken) {
     console.warn("[GDrive Service] No refresh token found. User is not authenticated for backup.");
+    if (isDriveAuthenticated()) {
+      console.warn("[GDrive Service] Session is marked as authenticated but session file/token is missing. Clearing OAuth state.");
+      await clearOAuthTokens();
+    }
     return null;
   }
 
-  const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-  const expiresAtStr = localStorage.getItem(EXPIRES_AT_KEY);
-  const expiresAt = expiresAtStr ? parseInt(expiresAtStr, 10) : 0;
+  const accessToken = session?.accessToken;
+  const expiresAt = session?.expiresAt || 0;
 
   // If token is valid for at least 60 seconds, return it
   if (accessToken && expiresAt > Date.now() + 60000) {
@@ -108,17 +207,21 @@ export async function getValidAccessToken(): Promise<string | null> {
     return null;
   }
 
+  // Pure public client PKCE refresh — client secret is optional and not checked/required
   const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET;
   if (!clientSecret) {
-    console.error("[GDrive Service] VITE_GOOGLE_CLIENT_SECRET environment variable is missing.");
-    return null;
+    console.info("[GDrive Service] VITE_GOOGLE_CLIENT_SECRET is missing. Running public client token refresh.");
   }
+
   const refreshParams: Record<string, string> = {
     client_id: clientId,
-    client_secret: clientSecret,
     refresh_token: refreshToken,
     grant_type: "refresh_token",
   };
+
+  if (clientSecret) {
+    refreshParams.client_secret = clientSecret;
+  }
 
   try {
     const response = await fetch("https://oauth2.googleapis.com/token", {
@@ -135,7 +238,7 @@ export async function getValidAccessToken(): Promise<string | null> {
       
       // If the refresh token is revoked/invalid, clear it to prompt re-login
       if (response.status === 400 || response.status === 401) {
-        clearOAuthTokens();
+        await clearOAuthTokens();
       }
       return null;
     }
@@ -143,14 +246,8 @@ export async function getValidAccessToken(): Promise<string | null> {
     const data = await response.json();
     const newAccessToken = data.access_token;
     const newExpiresIn = data.expires_in || 3600;
-    const newExpiresAt = Date.now() + newExpiresIn * 1000;
 
-    localStorage.setItem(ACCESS_TOKEN_KEY, newAccessToken);
-    localStorage.setItem(EXPIRES_AT_KEY, newExpiresAt.toString());
-    
-    if (data.refresh_token) {
-      localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh_token);
-    }
+    await saveOAuthTokens(newAccessToken, data.refresh_token || refreshToken, newExpiresIn);
 
     console.info("[GDrive Service] Access token refreshed successfully.");
     return newAccessToken;
@@ -159,6 +256,7 @@ export async function getValidAccessToken(): Promise<string | null> {
     return null;
   }
 }
+
 
 /**
  * Searches for a folder by name inside a parent directory.
@@ -434,6 +532,12 @@ export async function pullNotesFromDrive(accessToken: string): Promise<void> {
 
         const noteContent = await fileRes.text();
         
+        // Skip system-generated placeholder notes (e.g. old auto-freeze entries)
+        const trimmed = noteContent.trim();
+        if (!trimmed || /^\[\s*AUTO-FREEZE\s*\]$/i.test(trimmed) || /^\[\s*FROZEN\s*\]$/i.test(trimmed) || /^\[\s*SYSTEM\s*\]$/i.test(trimmed)) {
+          continue;
+        }
+
         // 5. Save to local IndexedDB
         await saveDownloadedNote(dateStr, noteContent);
       }
@@ -525,8 +629,9 @@ export async function runBackgroundSync(): Promise<void> {
       }
 
       try {
+        const syncTimestamp = note.updatedAt;
         await syncNoteToDrive(accessToken, note.date, note.notes);
-        await clearSyncPending(note.date);
+        await clearSyncPending(note.date, syncTimestamp);
         
         // Dispatch global notification for UI indicators
         window.dispatchEvent(new CustomEvent("w:note-synced", { detail: note.date }));

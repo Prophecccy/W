@@ -2,7 +2,7 @@ import { useState } from "react";
 import { TodoType } from "../../types";
 import { createTodo } from "../../services/todoService";
 import { HabitGroup } from "../../../habits/types";
-import { createGroup } from "../../../habits/services/groupService";
+import { createGroup, sanitizeGroupName } from "../../../habits/services/groupService";
 import "./TodoForm.css";
 
 interface TodoFormProps {
@@ -38,13 +38,18 @@ export function TodoForm({ onClose, onSuccess, groups = [] }: TodoFormProps) {
     try {
       let finalGroup = group;
       if (group && group.startsWith("new_") && newGroupName.trim()) {
-        const trimmed = newGroupName.trim();
-        const existingGroup = groups.find(g => g.name.toLowerCase() === trimmed.toLowerCase());
-        if (existingGroup) {
-          finalGroup = existingGroup.id;
+        const sanitized = sanitizeGroupName(newGroupName);
+        if (sanitized) {
+          const lower = sanitized.toLowerCase();
+          const existingGroup = groups.find(g => sanitizeGroupName(g.name).toLowerCase() === lower);
+          if (existingGroup) {
+            finalGroup = existingGroup.id;
+          } else {
+            const created = await createGroup(sanitized, groups.length);
+            finalGroup = created.id;
+          }
         } else {
-          const created = await createGroup(trimmed, groups.length);
-          finalGroup = created.id;
+          finalGroup = null;
         }
       }
 

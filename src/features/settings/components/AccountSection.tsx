@@ -32,7 +32,7 @@ export function AccountSection() {
 
   const handleUnlinkDrive = async () => {
     if (confirm("Are you sure you want to unlink Google Drive? Your local logs and notes remain fully secure, but cloud backup will be disabled and access to notes/logbook will be locked until reconnected.")) {
-      clearOAuthTokens();
+      await clearOAuthTokens();
       setIsDriveLinked(false);
     }
   };

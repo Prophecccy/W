@@ -121,13 +121,17 @@ export function WelcomeBack({ frozenSince, today, onResume }: WelcomeBackProps) 
 // ─── Helpers ────────────────────────────────────────────────────
 
 function calculateFrozenDays(startDate: string, endDate: string): number {
+  if (!startDate || !endDate) return 0;
   const s = new Date(startDate + "T12:00:00");
   const e = new Date(endDate + "T12:00:00");
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return 0;
   return Math.max(0, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
 function formatDisplayDate(dateStr: string): string {
+  if (!dateStr) return "N/A";
   const d = new Date(dateStr + "T12:00:00");
+  if (isNaN(d.getTime())) return "N/A";
   const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
   return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }

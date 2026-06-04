@@ -125,7 +125,7 @@ function LayoutInner() {
   // ── Z-Order Enforcer: Main Window Pull-Up ───────────────────────
   useEffect(() => {
     let active = true;
-    let unlisten: (() => void) | undefined;
+    let unsubPromise: Promise<() => void> | null = null;
     async function setupZOrderEnforcer() {
       try {
         const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
@@ -137,18 +137,17 @@ function LayoutInner() {
               await mainWin.setFocus();
             }
           });
-          if (!active) {
-            unsub();
-          } else {
-            unlisten = unsub;
-          }
+          return unsub;
         }
       } catch { /* Not in Tauri */ }
+      return () => {};
     }
-    setupZOrderEnforcer();
+    unsubPromise = setupZOrderEnforcer();
     return () => {
       active = false;
-      if (unlisten) unlisten();
+      if (unsubPromise) {
+        unsubPromise.then((unsub) => unsub()).catch(() => {});
+      }
     };
   }, []);
 
@@ -337,6 +336,19 @@ function LayoutInner() {
         await runBackgroundSync();
       } catch (err) {
         console.error("[Sync Engine] Initial background sync execution failed:", err);
+      }
+
+      if (isUnmounted) return;
+
+      // 2.5. Pull down any notes from Google Drive that are missing locally
+      try {
+        const { getValidAccessToken, pullNotesFromDrive } = await import("../shared/services/googleDriveService");
+        const accessToken = await getValidAccessToken();
+        if (accessToken) {
+          await pullNotesFromDrive(accessToken);
+        }
+      } catch (err) {
+        console.error("[Sync Engine] Drive notes pull-down failed:", err);
       }
 
       if (isUnmounted) return;
@@ -592,22 +604,24 @@ function LayoutInner() {
 
   return (
     <div className="layout">
-      <Sidebar strikeCount={strikes.current} globalStreak={globalStreak} isLockdownActive={isLockdownActive} />
-      <Topbar onCommandPaletteOpen={toggleCommandPalette} />
-      <main className="layout__content">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15, ease: "easeInOut" }}
-            style={{ width: "100%", flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}
-          >
-            <Outlet context={{ userDoc, gapResult }} />
-          </motion.div>
-        </AnimatePresence>
-      </main>
+      <div inert={isLocked ? true : undefined} style={{ display: "contents" }}>
+        <Sidebar strikeCount={strikes.current} globalStreak={globalStreak} isLockdownActive={isLockdownActive} />
+        <Topbar onCommandPaletteOpen={toggleCommandPalette} />
+        <main className="layout__content">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15, ease: "easeInOut" }}
+              style={{ width: "100%", flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}
+            >
+              <Outlet context={{ userDoc, gapResult }} />
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      </div>
       {commandPaletteOpen && (
         <CommandPalette
           onClose={() => setCommandPaletteOpen(false)}

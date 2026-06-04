@@ -9,7 +9,7 @@ export function useAuth() {
   const [error, setError] = useState<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
   const [isDriveLinked, setIsDriveLinked] = useState<boolean>(() => {
-    return localStorage.getItem("driveLinked") === "true" || !!localStorage.getItem("w_gdrive_refresh_token");
+    return localStorage.getItem("driveLinked") === "true";
   });
   const restoringRef = useRef(false);
 
@@ -55,7 +55,7 @@ export function useAuth() {
     setSigningIn(true);
     try {
       await signInWithGoogle();
-      setIsDriveLinked(localStorage.getItem("driveLinked") === "true" || !!localStorage.getItem("w_gdrive_refresh_token"));
+      setIsDriveLinked(localStorage.getItem("driveLinked") === "true");
     } catch (err: unknown) {
       let message: string;
       if (err instanceof Error) {

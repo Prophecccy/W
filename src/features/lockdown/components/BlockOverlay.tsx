@@ -20,12 +20,12 @@ export function BlockOverlay() {
 
   useEffect(() => {
     let active = true;
-    let unlisten: (() => void) | undefined;
+    let unsubPromise: Promise<() => void> | null = null;
 
     async function setup() {
       try {
         const { listen } = await import("@tauri-apps/api/event");
-        if (!active) return;
+        if (!active) return () => {};
 
         const unsub = await listen<BlockInfo>("lockdown-block", (event) => {
           if (!active) return;
@@ -36,21 +36,18 @@ export function BlockOverlay() {
           });
           setClosing(false);
         });
-
-        if (!active) {
-          unsub();
-        } else {
-          unlisten = unsub;
-        }
+        return unsub;
       } catch {
-        // Not in Tauri
+        return () => {};
       }
     }
 
-    setup();
+    unsubPromise = setup();
     return () => {
       active = false;
-      if (unlisten) unlisten();
+      if (unsubPromise) {
+        unsubPromise.then((unsub) => unsub()).catch(() => {});
+      }
     };
   }, []);
 

@@ -24,6 +24,18 @@ interface GroupedMonthEntry {
  * Groups and formats the sorted logs by Month/Year and specific dates.
  * Ensures local timezone parsing to prevent off-by-one calendar dates.
  */
+// System-generated placeholder patterns that should never appear as user notes
+const SYSTEM_NOTE_PATTERNS = [
+  /^\[\s*AUTO-FREEZE\s*\]$/i,
+  /^\[\s*FROZEN\s*\]$/i,
+  /^\[\s*SYSTEM\s*\]$/i,
+];
+
+function isSystemPlaceholder(notes: string): boolean {
+  const trimmed = notes.trim();
+  return SYSTEM_NOTE_PATTERNS.some((pattern) => pattern.test(trimmed));
+}
+
 function groupNotesByMonthAndDate(logs: HabitLog[]): GroupedMonthEntry[] {
   // Sort logs in descending order of dates (newest first)
   const sortedLogs = [...logs].sort((a, b) => b.date.localeCompare(a.date));
@@ -31,6 +43,8 @@ function groupNotesByMonthAndDate(logs: HabitLog[]): GroupedMonthEntry[] {
 
   for (const log of sortedLogs) {
     if (!log.notes || log.notes.trim() === "") continue;
+    // Skip system-generated placeholder entries (e.g. retroactive auto-freeze logs)
+    if (isSystemPlaceholder(log.notes)) continue;
 
     // Parse YYYY-MM-DD safely in user's local timezone
     const [year, monthVal, dayVal] = log.date.split("-").map(Number);

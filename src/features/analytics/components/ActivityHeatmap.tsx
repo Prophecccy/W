@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { HabitLog } from "../../habits/types";
 import { getLogRange } from "../../habits/services/logService";
 import { getHabits } from "../../habits/services/habitService";
@@ -17,6 +17,8 @@ interface Props {
 interface Cell {
   date: string;
   rate: number;
+  completedCount: number;
+  scheduledCount: number;
   isGhost: boolean;
   isEmpty: boolean;
 }
@@ -38,6 +40,21 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [oldestDate, setOldestDate] = useState<string>(getToday());
+
+  const maxCompletions = useMemo(() => {
+    if (habitId) return 1;
+    let maxVal = 1;
+    for (const mData of monthsData) {
+      for (const cell of mData.cells) {
+        if (!cell.isGhost && !cell.isEmpty) {
+          if (cell.completedCount > maxVal) {
+            maxVal = cell.completedCount;
+          }
+        }
+      }
+    }
+    return maxVal;
+  }, [monthsData, habitId]);
 
   useEffect(() => {
     async function load() {
@@ -99,6 +116,8 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
           cells.push({
             date: `empty-start-${mMonth}-${i}`,
             rate: -1,
+            completedCount: 0,
+            scheduledCount: 0,
             isGhost: true,
             isEmpty: true,
           });
@@ -125,11 +144,11 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
           const log = logMap[dateStr];
           if (log) {
             if (habitId) {
-              const entry = log.habits[habitId];
+              const entry = log.habits?.[habitId];
               if (entry && entry.completed) completed = 1;
             } else {
-              completed = scheduledHabits.filter(
-                (h) => log.habits[h.id]?.completed,
+              completed = Object.values(log.habits || {}).filter(
+                (h) => h.completed,
               ).length;
             }
           }
@@ -151,6 +170,8 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
           cells.push({
             date: dateStr,
             rate,
+            completedCount: completed,
+            scheduledCount: scheduled,
             isGhost: dateStr < oldestHabitDateStr || dateStr > todayStr,
             isEmpty: false,
           });
@@ -164,6 +185,8 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
             cells.push({
               date: `empty-end-${mMonth}-${i}`,
               rate: -1,
+              completedCount: 0,
+              scheduledCount: 0,
               isGhost: true,
               isEmpty: true,
             });
@@ -325,25 +348,42 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
 
                     <div className="activity-heatmap">
                       {mData.cells.map((c) => {
-                        let level = 0;
-                        if (c.rate > 0) level = 1;
-                        if (c.rate >= 33) level = 2;
-                        if (c.rate >= 66) level = 3;
-                        if (c.rate >= 100) level = 4;
-
                         if (c.isEmpty) {
                           return (
                             <div key={c.date} className="heatmap-cell empty" />
                           );
                         }
 
+                        let level = 0;
+                        if (habitId) {
+                          // Single habit heatmap: based on completion percentage
+                          if (c.rate > 0) level = 1;
+                          if (c.rate >= 33) level = 2;
+                          if (c.rate >= 66) level = 3;
+                          if (c.rate >= 100) level = 4;
+                        } else {
+                          // Global heatmap: based on absolute completed count relative to maxCompletions
+                          if (c.completedCount > 0) {
+                            level = Math.max(
+                              1,
+                              Math.min(
+                                4,
+                                Math.ceil((c.completedCount / maxCompletions) * 4)
+                              )
+                            );
+                          }
+                        }
+
                         const dayNum = parseInt(c.date.split("-")[2], 10);
+                        const tooltipText = habitId
+                          ? `${c.date}: ${c.rate}% completed`
+                          : `${c.date}: ${c.completedCount} habit(s) completed`;
 
                         return (
                           <div
                             key={c.date}
                             className={`heatmap-cell level-${level} ${c.isGhost ? "ghost" : ""}`}
-                            title={`${c.date}: ${c.rate}% completed`}
+                            title={tooltipText}
                           >
                             <span className="cell-date">{dayNum}</span>
                           </div>
