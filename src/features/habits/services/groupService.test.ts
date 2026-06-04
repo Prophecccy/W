@@ -1,4 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+vi.mock("../../../shared/config/firebase", () => ({
+  db: {},
+  auth: {
+    currentUser: { uid: "test-uid" },
+  },
+}));
+
 import { sanitizeGroupName } from "./groupService";
 
 describe("sanitizeGroupName", () => {
