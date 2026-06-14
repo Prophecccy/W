@@ -4,10 +4,19 @@ use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
 };
+use std::sync::atomic::{AtomicBool, Ordering};
 
 mod workerw;
 mod sticky_overlay;
 mod lockdown;
+
+static ALLOW_CLOSE: AtomicBool = AtomicBool::new(false);
+
+#[tauri::command]
+fn allow_app_close() {
+    ALLOW_CLOSE.store(true, Ordering::SeqCst);
+}
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -160,14 +169,18 @@ pub fn run() {
             lockdown::update_lockdown_blocklist,
             lockdown::test_lockdown_block,
             lockdown::kill_blocked_process,
-            lockdown::update_lockdown_remaining
+            lockdown::update_lockdown_remaining,
+            allow_app_close
         ])
         .on_window_event(|window, event| {
-            // Closing the main window hides it (sends to tray) instead of exiting
+            // Closing the main or widget window hides it (sends to tray) instead of exiting
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
-                    let _ = window.hide();
-                    api.prevent_close();
+                let label = window.label();
+                if label == "main" || label == "widget" {
+                    if !ALLOW_CLOSE.load(Ordering::SeqCst) {
+                        let _ = window.hide();
+                        api.prevent_close();
+                    }
                 }
             }
         })

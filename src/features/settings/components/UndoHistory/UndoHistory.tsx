@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { getHistory, undoAction, purgeOldEntries } from "../../services/undoService";
 import { UndoAction } from "../../services/undoTypes";
 import { useToast } from "../../../../shared/components/Toast/Toast";
+import { useAuthContext } from "../../../auth/context";
 import {
   CheckCircle,
   XCircle,
@@ -27,15 +28,18 @@ const NON_UNDOABLE = new Set(["strike_added"]);
 
 export function UndoHistory() {
   const { showToast } = useToast();
+  const { user } = useAuthContext();
   const [actions, setActions] = useState<UndoAction[]>([]);
   const [loading, setLoading] = useState(true);
   const [undoing, setUndoing] = useState<string | null>(null);
 
   useEffect(() => {
-    loadHistory();
-    // Purge old entries on mount
-    purgeOldEntries().catch(() => {});
-  }, []);
+    if (user) {
+      loadHistory();
+      // Purge old entries on mount
+      purgeOldEntries().catch(() => {});
+    }
+  }, [user]);
 
   async function loadHistory() {
     setLoading(true);
@@ -123,18 +127,20 @@ export function UndoHistory() {
 function groupByDay(actions: UndoAction[]): Record<string, UndoAction[]> {
   const groups: Record<string, UndoAction[]> = {};
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today);
+  const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
+
+  const todayStr = today.toDateString();
+  const yesterdayStr = yesterday.toDateString();
 
   for (const action of actions) {
     const actionDate = new Date(action.timestamp);
-    actionDate.setHours(0, 0, 0, 0);
+    const actionDateStr = actionDate.toDateString();
 
     let label: string;
-    if (actionDate.getTime() === today.getTime()) {
+    if (actionDateStr === todayStr) {
       label = "[ TODAY ]";
-    } else if (actionDate.getTime() === yesterday.getTime()) {
+    } else if (actionDateStr === yesterdayStr) {
       label = "[ YESTERDAY ]";
     } else {
       const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];

@@ -29,6 +29,7 @@ export async function checkDeadlines(
     if (!wasActiveOnDay) continue;
     if (todo.future && todo.future > today) continue; // Skip future (hidden) todos
     if (!todo.deadline) continue;
+    if (todo.strikeIssued) continue; // Skip if a strike has already been issued for this todo
 
     // String comparison works for YYYY-MM-DD
     if (todo.deadline < today) {
@@ -40,10 +41,18 @@ export async function checkDeadlines(
         await addStrike(todo.id, todo.title, "missed");
         strikesAdded++;
         
-        // Remove deadline so it doesn't trigger again, turning it into a normal active todo
-        // (Alternatively, we could mark it as failed/done, but specs don't state that).
-        await updateTodo(todo.id, { deadline: null });
-        todo.deadline = null; // Clear locally in-place to prevent duplicates in chronological loops
+        // Handle post-deadline action
+        if (todo.postDeadlineAction === "disappear") {
+          // Vanish: mark as done and record strikeIssued to prevent future checks
+          await updateTodo(todo.id, { status: "done", completedAt: Date.now(), strikeIssued: true });
+          todo.status = "done";
+          todo.completedAt = Date.now();
+          todo.strikeIssued = true;
+        } else {
+          // Keep: keep on board (active + keeps deadline), but mark strikeIssued to prevent duplicate strikes
+          await updateTodo(todo.id, { strikeIssued: true });
+          todo.strikeIssued = true;
+        }
       } catch (e) {
         console.error("Failed to add strike for missed todo:", todo.title, e);
       }

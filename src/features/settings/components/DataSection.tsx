@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { createBackup, getLastBackupDate } from "../services/backupService";
+import { createBackup, getLastBackupDate, restoreBackup } from "../services/backupService";
 import { exportJSON, exportCSV } from "../services/exportService";
 import { useToast } from "../../../shared/components/Toast/Toast";
-import { Download, Database, FileJson, FileSpreadsheet, Trash2, RefreshCcw } from "lucide-react";
+import { Download, Database, FileJson, FileSpreadsheet, Trash2, RefreshCcw, Upload } from "lucide-react";
 import { resetUserData, deleteUserAccountAndData } from "../../auth/services/userService";
 import { useAuthContext } from "../../auth/context";
 import { signOut } from "../../auth/services/authService";
@@ -33,6 +33,40 @@ export function DataSection() {
       console.error(err);
     } finally {
       setLoading(null);
+    }
+  };
+
+  const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading("import");
+    try {
+      const reader = new FileReader();
+      const filePromise = new Promise<string>((resolve, reject) => {
+        reader.onload = (event) => resolve(event.target?.result as string);
+        reader.onerror = (err) => reject(err);
+      });
+      reader.readAsText(file);
+      
+      const content = await filePromise;
+      const parsed = JSON.parse(content);
+      
+      if (!parsed || typeof parsed !== "object" || (!parsed.habits && !parsed.todos && !parsed.user)) {
+        throw new Error("Invalid backup schema");
+      }
+
+      if (window.confirm("[ PROCEED TO RESTORE BACKUP? THIS WILL OVERWRITE CURRENT SETTINGS & DATA ]")) {
+        await restoreBackup(parsed);
+        showToast("[ BACKUP RESTORED SUCCESSFULLY ]");
+        setTimeout(() => window.location.reload(), 1500);
+      }
+    } catch (err) {
+      showToast("[ IMPORT FAILED: INVALID BACKUP FILE ]");
+      console.error("Backup import failed:", err);
+    } finally {
+      setLoading(null);
+      e.target.value = "";
     }
   };
 
@@ -127,13 +161,13 @@ export function DataSection() {
       <h2 className="settings-section__header t-label">[ DATA ]</h2>
 
       <div className="settings-section__content">
-        {/* Backup */}
+        {/* Backup & Restore */}
         <div className="settings-data__group">
           <div className="settings-row">
             <div className="settings-row__label">
               <Database size={14} strokeWidth={1.5} />
               <div>
-                <span className="t-body">Backup</span>
+                <span className="t-body">Backup & Restore</span>
                 <p className="t-meta" style={{ marginTop: 2 }}>
                   {lastBackup
                     ? `LAST: ${formatBackupDate(lastBackup)}`
@@ -141,14 +175,31 @@ export function DataSection() {
                 </p>
               </div>
             </div>
-            <button
-              className="settings-btn"
-              onClick={handleBackup}
-              disabled={loading === "backup"}
-            >
-              <Download size={12} strokeWidth={2} />
-              <span>{loading === "backup" ? "..." : "[ CREATE BACKUP NOW ]"}</span>
-            </button>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                className="settings-btn"
+                onClick={handleBackup}
+                disabled={loading === "backup" || loading === "import"}
+              >
+                <Download size={12} strokeWidth={2} />
+                <span>{loading === "backup" ? "..." : "[ BACKUP ]"}</span>
+              </button>
+
+              <label 
+                className="settings-btn" 
+                style={{ cursor: (loading === "backup" || loading === "import") ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
+              >
+                <Upload size={12} strokeWidth={2} />
+                <span>{loading === "import" ? "..." : "[ RESTORE ]"}</span>
+                <input 
+                  type="file" 
+                  accept=".json" 
+                  onChange={handleImportBackup} 
+                  style={{ display: "none" }} 
+                  disabled={loading === "backup" || loading === "import"}
+                />
+              </label>
+            </div>
           </div>
         </div>
 

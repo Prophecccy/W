@@ -17,15 +17,17 @@ export function DailyNoteArchive({ isOpen, onClose }: DailyNoteArchiveProps) {
   useEffect(() => {
     if (!isOpen) return;
 
+    let isMounted = true;
+
     const fetchNotes = async () => {
       setIsLoading(true);
       try {
         const history = await getLocalNoteHistory();
-        setNotes(history);
+        if (isMounted) setNotes(history);
       } catch (e) {
-        console.error("Failed to fetch note history", e);
+        if (isMounted) console.error("Failed to fetch note history", e);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
 
@@ -33,14 +35,19 @@ export function DailyNoteArchive({ isOpen, onClose }: DailyNoteArchiveProps) {
 
     const handleSyncUpdate = () => {
       getLocalNoteHistory()
-        .then((history) => setNotes(history))
-        .catch((err) => console.error("Failed to reload archive on sync event:", err));
+        .then((history) => {
+          if (isMounted) setNotes(history);
+        })
+        .catch((err) => {
+          if (isMounted) console.error("Failed to reload archive on sync event:", err);
+        });
     };
 
     window.addEventListener("w:note-saved", handleSyncUpdate);
     window.addEventListener("w:note-synced", handleSyncUpdate);
 
     return () => {
+      isMounted = false;
       window.removeEventListener("w:note-saved", handleSyncUpdate);
       window.removeEventListener("w:note-synced", handleSyncUpdate);
     };
@@ -94,8 +101,8 @@ export function DailyNoteArchive({ isOpen, onClose }: DailyNoteArchiveProps) {
                       <div key={log.date} className="daily-note-archive__card">
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                           <div className="t-meta daily-note-archive__card-date">[ {dateStr} ]</div>
-                          <div className="t-meta" style={{ color: (log as any).sync_pending ? "#e2b13c" : "var(--text-muted)", fontSize: "10px", fontFamily: "var(--font-mono)" }}>
-                            {(log as any).sync_pending ? "[ OFFLINE ]" : "[ BACKED UP ]"}
+                          <div className="t-meta" style={{ color: log.sync_pending ? "#e2b13c" : "var(--text-muted)", fontSize: "10px", fontFamily: "var(--font-mono)" }}>
+                            {log.sync_pending ? "[ SAVED LOCALLY ]" : "[ BACKED UP ]"}
                           </div>
                         </div>
                         <div className="t-body daily-note-archive__card-text">

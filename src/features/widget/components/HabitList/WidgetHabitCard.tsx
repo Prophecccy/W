@@ -118,6 +118,22 @@ export function WidgetHabitCard({
     pointerStartCoordsRef.current = null;
   }, []);
 
+  const handlePointerUp = useCallback(() => {
+    const isMetricLike = habit.type === 'metric' || habit.type === 'limiter';
+    if (isHolding && holdTimeoutRef.current) {
+      // Short click/tap detection
+      if (isMetricLike) {
+        onComplete(habit.id);
+        setJustCompleted(true);
+        if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+        undoTimeoutRef.current = window.setTimeout(() => {
+          setJustCompleted(false);
+        }, UNDO_DURATION);
+      }
+    }
+    cancelHold();
+  }, [isHolding, habit.id, habit.type, onComplete, cancelHold]);
+
   const handlePointerMove = useCallback((e: PointerEvent<HTMLDivElement>) => {
     if (!isHolding || !pointerStartCoordsRef.current) return;
     const deltaX = Math.abs(e.clientX - pointerStartCoordsRef.current.x);
@@ -132,13 +148,14 @@ export function WidgetHabitCard({
   const isCommitted = isCompletedToday && !justCompleted;
   const isPendingUndo = justCompleted;
   const isDoneToday = doneToday && !isCompleted;
+  const isExceeded = isLimiter && habit.metric && currentValue > habit.metric.targetValue;
 
   return (
     <div
-      className={`widget-habit-card ${isCommitted ? 'committed' : ''} ${isPendingUndo ? 'pending-undo' : ''} ${isDoneToday ? 'done-today' : ''} ${isLimiter ? 'limiter' : ''}`}
+      className={`widget-habit-card ${isCommitted ? 'committed' : ''} ${isPendingUndo ? 'pending-undo' : ''} ${isDoneToday ? 'done-today' : ''} ${isLimiter ? 'limiter' : ''} ${isExceeded ? 'exceeded' : ''}`}
       style={{ '--card-accent': isLimiter ? 'var(--strike-red)' : habit.color } as React.CSSProperties}
       onPointerDown={startHold}
-      onPointerUp={cancelHold}
+      onPointerUp={handlePointerUp}
       onPointerMove={handlePointerMove}
       onPointerLeave={cancelHold}
       onPointerCancel={cancelHold}

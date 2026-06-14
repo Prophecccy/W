@@ -62,12 +62,8 @@ export function BlockOverlay() {
 
       // 1. Kill the banned process
       if (targetPid > 0) {
-        try {
-          await invoke("kill_blocked_process", { pid: targetPid });
-          console.log("[lockdown] Killed process:", targetPid);
-        } catch (err) {
-          console.error("[lockdown] Failed to kill process:", err);
-        }
+        await invoke("kill_blocked_process", { pid: targetPid });
+        console.log("[lockdown] Killed process:", targetPid);
       }
 
       // 2. Hide this overlay window

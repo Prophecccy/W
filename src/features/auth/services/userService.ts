@@ -2,7 +2,7 @@ import { doc, getDoc, setDoc, updateDoc, collection, getDocs, writeBatch, delete
 import { deleteUser } from "firebase/auth";
 import { db, auth } from "../../../shared/config/firebase";
 import { User, Settings, Aesthetics, Wallpapers } from "../../../shared/types";
-import { getToday } from "../../../shared/utils/dateUtils";
+import { getToday, subtractDays } from "../../../shared/utils/dateUtils";
 
 const DEFAULT_SETTINGS: Settings = {
   theme: "system",
@@ -57,7 +57,7 @@ export async function createUserDoc(
     displayName,
     photoURL,
     createdAt: Date.now(),
-    lastActiveDate: getToday(),
+    lastActiveDate: subtractDays(getToday(undefined, initialSettings?.dailyResetTime), 1),
     hasOnboarded: true,
     settings: { ...DEFAULT_SETTINGS, ...initialSettings },
     aesthetics: DEFAULT_AESTHETICS,

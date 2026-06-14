@@ -209,23 +209,63 @@ function LayoutInner() {
     async function launchStickyOverlay() {
       try {
         const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+        const { availableMonitors } = await import("@tauri-apps/api/window");
+        const { PhysicalPosition, PhysicalSize } = await import("@tauri-apps/api/dpi");
+
+        let minX = 0;
+        let minY = 0;
+        let maxX = 800;
+        let maxY = 600;
+
+        try {
+          const monitors = await availableMonitors();
+          if (monitors && monitors.length > 0) {
+            minX = Math.min(...monitors.map((m) => m.position.x));
+            minY = Math.min(...monitors.map((m) => m.position.y));
+            maxX = Math.max(...monitors.map((m) => m.position.x + m.size.width));
+            maxY = Math.max(...monitors.map((m) => m.position.y + m.size.height));
+          }
+        } catch (err) {
+          console.error("Failed to query available monitors:", err);
+        }
+
+        const width = maxX - minX;
+        const height = maxY - minY;
+
         const existing = await WebviewWindow.getByLabel("sticky-overlay");
         if (existing) {
+          try {
+            await existing.setPosition(new PhysicalPosition(minX, minY));
+            await existing.setSize(new PhysicalSize(width, height));
+          } catch (e) {
+            console.error("Failed to resize existing overlay:", e);
+          }
           await existing.show();
           return;
         }
+
         const overlay = new WebviewWindow("sticky-overlay", {
           url: "/sticky-canvas",
           decorations: false,
           transparent: true,
-          maximized: true,
+          maximized: false,
           skipTaskbar: true,
-          visible: true,
+          visible: false,
           parent: null as any,
           focusable: false,
           focus: false,
           alwaysOnTop: false,
         });
+
+        try {
+          await overlay.setPosition(new PhysicalPosition(minX, minY));
+          await overlay.setSize(new PhysicalSize(width, height));
+        } catch (e) {
+          console.error("Failed to size/position new overlay:", e);
+        }
+
+        await overlay.show();
+
         overlay.once("tauri://error", (_e: unknown) => {
           console.error("Failed to create sticky overlay");
         });
@@ -291,22 +331,15 @@ function LayoutInner() {
     };
   }, [phase]);
 
-  // ── Sync Engine: Past Notes Migration & GDrive Background Heartbeat ──
   useEffect(() => {
     if (phase !== "ready" || !user) return;
 
-    const currentUserId = user.uid;
     let isUnmounted = false;
     let heartbeatInterval: any;
 
     async function initializeSync() {
-      // 1. One-time legacy Firestore daily notes migration (non-blocking)
-      try {
-        const { migrateNotesFromFirestore } = await import("../features/logs/services/localLogService");
-        await migrateNotesFromFirestore(currentUserId);
-      } catch (err) {
-        console.error("[Sync Engine] Firestore notes migration failed:", err);
-      }
+      // SECURITY: Legacy Firestore notes migration removed (Batch 36)
+      // Daily notes are local-only — they NEVER touch Firestore.
 
       if (isUnmounted) return;
 

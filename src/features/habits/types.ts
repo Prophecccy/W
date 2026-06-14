@@ -78,7 +78,7 @@ export interface HabitLogEntry {
 export interface HabitLog {
   date: string; // "YYYY-MM-DD"
   uid: string;
-  notes: string; // daily note text
+  notes?: string; // DEPRECATED in Firestore — notes are local-only (IndexedDB + Google Drive)
   habits: Record<string, HabitLogEntry>; // habitId → entry
   sync_pending?: boolean;
 }

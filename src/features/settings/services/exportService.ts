@@ -1,6 +1,7 @@
 import { collection, getDocs } from "firebase/firestore";
 import { db, auth } from "../../../shared/config/firebase";
 import { getUserDoc } from "../../auth/services/userService";
+import { getLocalNoteHistory } from "../../logs/services/localLogService";
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ export async function exportJSON(): Promise<boolean> {
   const logs = await getAllCollectionData("logs");
   const groups = await getAllCollectionData("groups");
   const stickyNotes = await getAllCollectionData("sticky-notes");
+  const dailyNotes = await getLocalNoteHistory();
 
   const data = {
     exportedAt: new Date().toISOString(),
@@ -35,6 +37,7 @@ export async function exportJSON(): Promise<boolean> {
     logs,
     groups,
     "sticky-notes": stickyNotes,
+    dailyNotes,
   };
 
   const json = JSON.stringify(data, null, 2);
@@ -78,7 +81,15 @@ export async function exportCSV(): Promise<boolean> {
   }
 
   // ── Logs CSV ───────────────────────────────────────────────────
-  if (logs.length > 0) {
+  const dailyNotes = await getLocalNoteHistory();
+  const dateToNotes: Record<string, string> = {};
+  dailyNotes.forEach(n => {
+    if (n.date && n.notes) {
+      dateToNotes[n.date] = n.notes;
+    }
+  });
+
+  if (logs.length > 0 || dailyNotes.length > 0) {
     const logHeaders = ["date", "notes", "habitId", "habitTitle", "value", "target", "completed"];
     const logRows: string[] = [];
 
@@ -89,10 +100,18 @@ export async function exportCSV(): Promise<boolean> {
       }
     });
 
-    logs.forEach((l) => {
-      const date = String(l.date ?? "");
-      const notes = String(l.notes ?? "");
-      const habitsMap = (l.habits as Record<string, any>) ?? {};
+    const allDates = new Set<string>();
+    logs.forEach(l => {
+      if (l.date) allDates.add(String(l.date));
+    });
+    Object.keys(dateToNotes).forEach(d => allDates.add(d));
+
+    const sortedDates = Array.from(allDates).sort((a, b) => b.localeCompare(a));
+
+    sortedDates.forEach((date) => {
+      const notes = dateToNotes[date] || "";
+      const matchedLog = logs.find(l => String(l.date) === date);
+      const habitsMap = (matchedLog?.habits as Record<string, any>) ?? {};
       const habitKeys = Object.keys(habitsMap);
 
       if (habitKeys.length === 0) {
@@ -141,7 +160,7 @@ export async function exportCSV(): Promise<boolean> {
 // ─── Utilities ──────────────────────────────────────────────────
 
 function escapeCSV(value: string): string {
-  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
+  if (value.includes(",") || value.includes('"') || value.includes("\n") || value.includes("\r")) {
     return `"${value.replace(/"/g, '""')}"`;
   }
   return value;

@@ -25,6 +25,7 @@ export function WidgetApp() {
     scheduledLimiters,
     completeHabit,
     undoHabit,
+    habits,
   } = useWidgetData();
 
   const strikeCount = userDoc?.strikes?.current ?? 0;
@@ -93,6 +94,7 @@ export function WidgetApp() {
   const isDragging = useRef(false);
   const dragMoved = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
+  const lastMonitorNameRef = useRef<string | null>(null);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     // Skip interactive children — but NOT the scroll container itself
@@ -206,6 +208,14 @@ export function WidgetApp() {
   // Apply accent color to widget
   useEffect(() => {
     document.documentElement.style.setProperty('--accent', accentColor);
+    if (accentColor.startsWith('#')) {
+      const r = parseInt(accentColor.slice(1, 3), 16);
+      const g = parseInt(accentColor.slice(3, 5), 16);
+      const b = parseInt(accentColor.slice(5, 7), 16);
+      if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+        document.documentElement.style.setProperty('--accent-rgb', `${r}, ${g}, ${b}`);
+      }
+    }
   }, [accentColor]);
 
   // Listen for live preview from main settings window on mount (single listener to avoid leaks)
@@ -219,7 +229,16 @@ export function WidgetApp() {
         if (!active) return () => {};
         const unlisten = await listen<string>('color-preview', (event) => {
           if (!active) return;
-          document.documentElement.style.setProperty('--accent', event.payload);
+          const color = event.payload;
+          document.documentElement.style.setProperty('--accent', color);
+          if (color.startsWith('#')) {
+            const r = parseInt(color.slice(1, 3), 16);
+            const g = parseInt(color.slice(3, 5), 16);
+            const b = parseInt(color.slice(5, 7), 16);
+            if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+              document.documentElement.style.setProperty('--accent-rgb', `${r}, ${g}, ${b}`);
+            }
+          }
         });
         return unlisten;
       } catch {
@@ -242,7 +261,8 @@ export function WidgetApp() {
     let active = true;
     let minRemaining = Infinity;
 
-    scheduledHabits.forEach(habit => {
+    const allHabits = [...scheduledHabits, ...scheduledLimiters];
+    allHabits.forEach(habit => {
       const entry = todayLog?.habits?.[habit.id];
       const completions = entry?.completions || [];
       if (completions.length > 0) {
@@ -261,7 +281,7 @@ export function WidgetApp() {
       }, minRemaining);
       return () => clearTimeout(timer);
     }
-  }, [scheduledHabits, todayLog, heightTrigger]);
+  }, [scheduledHabits, scheduledLimiters, todayLog, heightTrigger]);
 
   // ─── Precise height memoization for auto-scaling ──────────
   const targetLogicalHeight = useMemo(() => {
@@ -350,7 +370,7 @@ export function WidgetApp() {
     const targetLogicalWithBuffer = targetLogical + 24;
 
     return Math.max(300, Math.min(800, targetLogicalWithBuffer));
-  }, [scheduledHabits, todayLog, periodLogs, today, userDoc?.settings?.weeklyResetDay, heightTrigger]);
+  }, [scheduledHabits, scheduledLimiters, habits, todayLog, periodLogs, today, userDoc?.settings?.weeklyResetDay, heightTrigger]);
 
   // ─── Auto-resize window height to fit habit count ─────────
   useEffect(() => {
@@ -404,26 +424,37 @@ export function WidgetApp() {
 
         // Monitor Boundaries Guard (clamping offscreen windows)
         try {
-          const monitor = await win.currentMonitor();
-          if (monitor) {
-            const monitorWidth = monitor.size.width;
-            const monitorHeight = monitor.size.height;
-            const monitorX = monitor.position.x;
-            const monitorY = monitor.position.y;
+          const { availableMonitors } = await import("@tauri-apps/api/window");
+          const monitors = await availableMonitors();
+          let isOnAnyScreen = false;
 
-            // Clamping check
-            const isOffScreenX = saved.x < monitorX || saved.x > (monitorX + monitorWidth - 100);
-            const isOffScreenY = saved.y < monitorY || saved.y > (monitorY + monitorHeight - 100);
+          for (const m of monitors) {
+            const mX = m.position.x;
+            const mY = m.position.y;
+            const mW = m.size.width;
+            const mH = m.size.height;
 
-            if (isOffScreenX || isOffScreenY) {
-              console.warn("[Widget Monitor Guard] Off-screen detected! Resetting position to center-right safe bounds.");
-              saved.x = Math.max(100, monitorX + monitorWidth - saved.width - 100);
-              saved.y = Math.max(100, monitorY + 100);
-              saveWidgetPosition(saved);
+            if (saved.x >= mX && saved.x < (mX + mW - 100) &&
+                saved.y >= mY && saved.y < (mY + mH - 100)) {
+              isOnAnyScreen = true;
+              break;
             }
+          }
+
+          if (!isOnAnyScreen && monitors.length > 0) {
+            console.warn("[Widget Monitor Guard] Off-screen detected! Resetting position to center-right safe bounds.");
+            const primary = monitors[0];
+            saved.x = Math.max(100, primary.position.x + primary.size.width - saved.width - 100);
+            saved.y = Math.max(100, primary.position.y + 100);
+            saveWidgetPosition(saved);
           }
         } catch (e) {
           console.warn("[Widget Monitor Guard] Monitor fetch failed:", e);
+        }
+
+        const currentMon = await win.currentMonitor();
+        if (currentMon) {
+          lastMonitorNameRef.current = currentMon.name;
         }
 
         await win.setPosition(new PhysicalPosition(saved.x, saved.y));
@@ -440,6 +471,20 @@ export function WidgetApp() {
             width: size.width,
             height: size.height,
           });
+
+          try {
+            const monitor = await win.currentMonitor();
+            if (monitor && lastMonitorNameRef.current && monitor.name !== lastMonitorNameRef.current) {
+              console.log(`[WidgetApp] Monitor changed from ${lastMonitorNameRef.current} to ${monitor.name}. Reloading...`);
+              lastMonitorNameRef.current = monitor.name;
+              window.location.reload();
+              return;
+            } else if (monitor && !lastMonitorNameRef.current) {
+              lastMonitorNameRef.current = monitor.name;
+            }
+          } catch (err) {
+            console.warn("[WidgetApp] Failed to check monitor onMoved:", err);
+          }
         });
 
         const unlistenR = await win.onResized(async (size: any) => {
@@ -453,7 +498,13 @@ export function WidgetApp() {
           });
         });
 
-        return [unlistenM, unlistenR];
+        const unlistenS = await win.onScaleChanged(async () => {
+          if (cleanup) return;
+          console.log("[WidgetApp] Scale factor changed. Reloading...");
+          window.location.reload();
+        });
+
+        return [unlistenM, unlistenR, unlistenS];
       } catch {
         setIsPositionInitialized(true);
         return [];
@@ -587,7 +638,8 @@ export function WidgetApp() {
             } else {
               // Recreate the main window if it has been closed
               const newMain = new WebviewWindow('main', {
-                url: 'index.html',
+                url: '/',
+                decorations: false,
                 title: 'W Command Center',
                 width: 1024,
                 height: 768,
@@ -632,6 +684,7 @@ function getMonthStart(dateStr: string): string {
 function getIntervalStart(habit: any, todayStr: string): string {
   if (habit.period !== "interval" || habit.intervalDays <= 0) return todayStr;
   const created = new Date(habit.createdAt);
+  created.setHours(12, 0, 0, 0);
   const today = new Date(todayStr + "T12:00:00");
   const diffDays = Math.floor((today.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
   if (diffDays <= 0) return formatDate(created);

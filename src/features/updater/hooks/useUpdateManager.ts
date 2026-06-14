@@ -84,6 +84,14 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     if (!updateRef || phase !== 'available') return;
 
     try {
+      // Tell Rust to allow window closing so the installer can close W
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('allow_app_close');
+      } catch (err) {
+        console.warn('[Evolution Protocol] Failed to call allow_app_close:', err);
+      }
+
       set({ phase: 'downloading', error: null });
 
       let downloadedBytes = 0;

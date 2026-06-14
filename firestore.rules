@@ -23,9 +23,23 @@ service cloud.firestore {
       // DELETE: owner only
       allow delete: if request.auth != null && request.auth.uid == uid;
 
-      // ── All subcollections (habits, todos, logs, groups, etc.) ───
+      // ── Logs subcollection — NOTES CONTENT BLOCKED ──────────────────
+      // Daily notes are local-only (IndexedDB + Google Drive).
+      // Firestore REJECTS any write containing actual note text.
+      // This is the server-side "rock" — you can't hack what won't store it.
+      match /logs/{logId} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow write: if request.auth != null
+                     && request.auth.uid == uid
+                     && (!request.resource.data.keys().hasAny(['notes'])
+                         || request.resource.data.notes == ""
+                         || request.resource.data.notes == null);
+      }
+
+      // ── All other subcollections (habits, todos, groups, etc.) ───
       match /{subcollection}/{docId} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+        allow read, write: if request.auth != null && request.auth.uid == uid
+                           && subcollection != 'logs';
       }
     }
   }

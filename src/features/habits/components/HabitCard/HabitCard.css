@@ -38,7 +38,6 @@
 
 .habit-card--completed {
   opacity: 0.5 !important; /* Forces fade even if Lv1 container tries to override */
-  pointer-events: none; /* Can't hold a completed habit */
 }
 
 .habit-card--resting {

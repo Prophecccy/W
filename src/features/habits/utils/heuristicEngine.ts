@@ -1,5 +1,4 @@
-// ─────────────────────────────────────────────────────────────────
-// Predictive Strike Risk Engine — Heuristic Math Core
+// ─── Predictive Strike Risk Engine ─── Heuristic Math Core
 //
 // Calculates a 0–100 risk score for a single habit based on:
 //   T (Time Pressure)   — exponential ramp toward reset deadline
@@ -14,7 +13,7 @@
 
 import type { Habit, HabitLog, CompletionEntry } from "../types";
 import { getMsUntilReset } from "../../../shared/utils/dateUtils";
-
+import { isHabitScheduledToday } from "./scheduleEngine";
 
 /** Final risk result for a single habit */
 export interface RiskResult {
@@ -37,6 +36,19 @@ const EARLY_SUPPRESSION_CAP = 70;
 const OVERWHELMING_FAIL_RATE = 0.9;
 const OVERWHELMING_MIN_AT_RISK_DAYS = 7;
 
+// ─── Helper for Reset Boundary ───────────────────────────────────
+function getMinutesSinceReset(d: Date, resetTime: string): number {
+  const [rh, rm] = resetTime.split(":").map(Number);
+  const resetMinutes = rh * 60 + rm;
+  const timeMinutes = d.getHours() * 60 + d.getMinutes();
+  
+  let diff = timeMinutes - resetMinutes;
+  if (diff < 0) {
+    diff += 24 * 60;
+  }
+  return diff;
+}
+
 // ─── Public API ───────────────────────────────────────────────────
 
 /**
@@ -46,6 +58,7 @@ const OVERWHELMING_MIN_AT_RISK_DAYS = 7;
  * @param historicalLogs  Array of HabitLog documents (last 30 days)
  * @param dailyResetTime  User's daily reset time, e.g. "04:00"
  * @param uncompletedToday  Number of remaining uncompleted tasks today
+ * @param weeklyResetDay  User's weekly reset day index (0-6)
  * @param now             Current time (injectable for testing)
  */
 export function calculateRisk(
@@ -53,6 +66,7 @@ export function calculateRisk(
   historicalLogs: HabitLog[],
   dailyResetTime: string,
   uncompletedToday: number,
+  weeklyResetDay: number = 1,
   now: Date = new Date()
 ): RiskResult {
   const ageMs = now.getTime() - habit.createdAt;
@@ -78,7 +92,7 @@ export function calculateRisk(
   const raw = W_TIME * timePressure + W_VARIANCE * variance + W_LOAD * loadFactor;
   const shouldSuppressEarly =
     hoursToReset > EARLY_WARNING_WINDOW_HOURS &&
-    !hasOverwhelmingEarlyFailureEvidence(habit.id, historicalLogs, now);
+    !hasOverwhelmingEarlyFailureEvidence(habit, historicalLogs, dailyResetTime, weeklyResetDay, now);
 
   const earlyAdjusted = shouldSuppressEarly ? Math.min(raw, EARLY_SUPPRESSION_CAP) : raw;
   const score = Math.round(Math.max(0, Math.min(100, earlyAdjusted)));
@@ -107,16 +121,22 @@ function calcTimePressure(dailyResetTime: string, now: Date): number {
   return Math.pow(elapsed, EXPONENTIAL_STEEPNESS) * 100;
 }
 
-function hasOverwhelmingEarlyFailureEvidence(habitId: string, logs: HabitLog[], now: Date): boolean {
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+function hasOverwhelmingEarlyFailureEvidence(
+  habit: Habit,
+  logs: HabitLog[],
+  dailyResetTime: string,
+  weeklyResetDay: number,
+  now: Date
+): boolean {
+  const nowMinutes = getMinutesSinceReset(now, dailyResetTime);
   let missed = 0;
   let atRisk = 0;
 
   for (const log of logs) {
-    const entry = log.habits[habitId];
-    if (!entry) continue;
+    if (!isHabitScheduledToday(habit, log.date, weeklyResetDay)) continue;
 
-    if (!entry.completed) {
+    const entry = log.habits[habit.id];
+    if (!entry || !entry.completed) {
       missed++;
       atRisk++;
       continue;
@@ -132,7 +152,7 @@ function hasOverwhelmingEarlyFailureEvidence(habitId: string, logs: HabitLog[], 
     if (!earliest) continue;
 
     const d = new Date(earliest.timestamp);
-    const completionMinutes = d.getHours() * 60 + d.getMinutes();
+    const completionMinutes = getMinutesSinceReset(d, dailyResetTime);
 
     if (completionMinutes > nowMinutes) atRisk++;
   }
@@ -142,14 +162,14 @@ function hasOverwhelmingEarlyFailureEvidence(habitId: string, logs: HabitLog[], 
 }
 
 // ─── V: Variance Signal ──────────────────────────────────────────
-// 1. Compute the Mean Time of Completion (MTC) in minutes-from-midnight
+// 1. Compute the Mean Time of Completion (MTC) in minutes-from-reset
 // 2. Compute Standard Deviation (σ) of completion times
 // 3. If now > MTC + 1σ → spike proportionally
 
 function calcVariance(
   habitId: string,
   logs: HabitLog[],
-  _dailyResetTime: string,
+  dailyResetTime: string,
   now: Date
 ): number {
   // Extract completion timestamps for this habit from historical logs
@@ -167,22 +187,22 @@ function calcVariance(
 
     if (earliest) {
       const d = new Date(earliest.timestamp);
-      completionMinutes.push(d.getHours() * 60 + d.getMinutes());
+      completionMinutes.push(getMinutesSinceReset(d, dailyResetTime));
     }
   }
 
   // Not enough data → return 0 (no signal)
   if (completionMinutes.length < MIN_DATA_POINTS) return 0;
 
-  // Mean Time of Completion (minutes from midnight)
+  // Mean Time of Completion (minutes from reset)
   const mtc = completionMinutes.reduce((a, b) => a + b, 0) / completionMinutes.length;
 
   // Standard Deviation
   const squaredDiffs = completionMinutes.map((m) => Math.pow(m - mtc, 2));
   const sigma = Math.sqrt(squaredDiffs.reduce((a, b) => a + b, 0) / completionMinutes.length);
 
-  // Current time in minutes from midnight
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  // Current time in minutes from reset
+  const nowMinutes = getMinutesSinceReset(now, dailyResetTime);
 
   // If we're past MTC + 1σ, risk increases proportionally
   const threshold = mtc + sigma;

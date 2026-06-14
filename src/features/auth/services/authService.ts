@@ -133,6 +133,14 @@ export async function signInWithGoogle(): Promise<FirebaseUser> {
   }
   // Browser — standard popup
   const result = await signInWithPopup(auth, googleProvider);
+  
+  // Extract OAuth credential
+  const credential = GoogleAuthProvider.credentialFromResult(result);
+  if (credential && credential.accessToken) {
+    console.info("[W Auth] Google OAuth credential found on web. Saving access token...");
+    await saveOAuthTokens(credential.accessToken, "", 3600);
+  }
+  
   return result.user;
 }
 

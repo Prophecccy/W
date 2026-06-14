@@ -30,6 +30,7 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
   const navigate = useNavigate();
 
   const today = getToday();
+  const activeDateRef = useRef(today);
 
   // Sync initial prop if it changes externally (e.g. initial load)
   useEffect(() => {
@@ -106,6 +107,42 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
     };
   }, [today]);
 
+  // Handle timezone date rollover dynamically in the UI
+  useEffect(() => {
+    if (activeDateRef.current === today) return;
+
+    const oldDate = activeDateRef.current;
+    activeDateRef.current = today;
+
+    async function processRollover() {
+      if (hasUnsavedChangesRef.current) {
+        if (debounceTimer.current) {
+          clearTimeout(debounceTimer.current);
+          debounceTimer.current = null;
+        }
+        try {
+          await saveLocalNote(oldDate, latestNoteRef.current);
+          hasUnsavedChangesRef.current = false;
+        } catch (err) {
+          console.error(`Failed to save note for old date ${oldDate} during rollover:`, err);
+        }
+      }
+
+      try {
+        const record = await getLocalNoteRecord(today);
+        const newContent = record ? record.notes : "";
+        setNote(newContent);
+        latestNoteRef.current = newContent;
+        hasUnsavedChangesRef.current = false;
+        setIsSaving(false);
+      } catch (err) {
+        console.error("Failed to load note for new date during rollover:", err);
+      }
+    }
+
+    processRollover();
+  }, [today]);
+
   // Flush unsaved notes on component unmount to prevent data loss on page navigation
   useEffect(() => {
     return () => {
@@ -113,16 +150,34 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
         clearTimeout(debounceTimer.current);
       }
       if (hasUnsavedChangesRef.current) {
-        saveLocalNote(today, latestNoteRef.current).catch(err => {
+        saveLocalNote(activeDateRef.current, latestNoteRef.current).catch(err => {
           console.error("Failed to flush daily note on unmount:", err);
         });
       }
     };
-  }, [today]);
+  }, []);
+
+  // Register beforeunload listener to flush unsaved changes before page/window closes
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (hasUnsavedChangesRef.current) {
+        saveLocalNote(activeDateRef.current, latestNoteRef.current).catch(err => {
+          console.error("Failed to save note on beforeunload:", err);
+        });
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
 
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    const newVal = e.target.value;
-    if (newVal.length > MAX_CHARS) return;
+    let newVal = e.target.value;
+    if (newVal.length > MAX_CHARS) {
+      newVal = newVal.slice(0, MAX_CHARS);
+      showToast("[ TEXT TRUNCATED TO 5000 CHARS ]");
+    }
     
     setNote(newVal);
     latestNoteRef.current = newVal;
@@ -135,12 +190,13 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
 
     debounceTimer.current = setTimeout(() => {
       saveNote(newVal);
+      debounceTimer.current = null;
     }, DEBOUNCE_MS);
   };
 
   const saveNote = async (content: string) => {
     try {
-      await saveLocalNote(today, content);
+      await saveLocalNote(activeDateRef.current, content);
       hasUnsavedChangesRef.current = false;
     } catch (err) {
       console.error("Failed to save daily note locally:", err);
@@ -202,6 +258,7 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
         onBlur={() => {
           if (debounceTimer.current) {
             clearTimeout(debounceTimer.current);
+            debounceTimer.current = null;
             saveNote(latestNoteRef.current);
           }
         }}

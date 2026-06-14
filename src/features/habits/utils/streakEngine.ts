@@ -1,5 +1,6 @@
 import { Habit, HabitLog } from "../types";
 import { formatDate } from "../../../shared/utils/dateUtils";
+import { isHabitScheduledToday } from "./scheduleEngine";
 
 /**
  * Parses a YYYY-MM-DD date string using the local timezone to avoid
@@ -97,11 +98,33 @@ export function calculateStreak(habit: Habit, logs: HabitLog[]): number {
     case "daily": {
       // Each calendar day must have a completion
       let expectedDate = today;
+      let isFirst = true;
       for (const log of sorted) {
-        if (log.date !== expectedDate) break;
+        if (log.date !== expectedDate) {
+          if (isFirst && expectedDate === today) {
+            // Move expectedDate to yesterday and check again
+            const d = parseLocalDate(today);
+            d.setDate(d.getDate() - 1);
+            expectedDate = formatDate(d);
+            isFirst = false;
+            if (log.date !== expectedDate) break;
+          } else {
+            break;
+          }
+        }
         const entry = log.habits[habit.id];
-        if (!entry?.completed) break;
+        if (!entry?.completed) {
+          if (isFirst && expectedDate === today) {
+            const d = parseLocalDate(today);
+            d.setDate(d.getDate() - 1);
+            expectedDate = formatDate(d);
+            isFirst = false;
+            continue;
+          }
+          break;
+        }
         streak++;
+        isFirst = false;
         // Move to previous day
         const d = parseLocalDate(expectedDate);
         d.setDate(d.getDate() - 1);
@@ -114,13 +137,21 @@ export function calculateStreak(habit: Habit, logs: HabitLog[]): number {
       // Count consecutive ISO weeks where the habit was completed >= frequency times
       const byWeek = groupLogsByISOWeek(sorted);
       const weeks = getRecentWeeks(today, byWeek.size + 2);
+      let isFirst = true;
       for (const week of weeks) {
         const weekLogs = byWeek.get(week) ?? [];
         const completions = weekLogs.filter(
           (l) => l.habits[habit.id]?.completed
         ).length;
-        if (completions < habit.frequency) break;
+        if (completions < habit.frequency) {
+          if (isFirst) {
+            isFirst = false;
+            continue;
+          }
+          break;
+        }
         streak++;
+        isFirst = false;
       }
       break;
     }
@@ -129,13 +160,21 @@ export function calculateStreak(habit: Habit, logs: HabitLog[]): number {
       // Count consecutive calendar months with ≥ frequency completions
       const byMonth = groupLogsByMonth(sorted);
       const months = getRecentMonths(today, byMonth.size + 2);
+      let isFirst = true;
       for (const month of months) {
         const monthLogs = byMonth.get(month) ?? [];
         const completions = monthLogs.filter(
           (l) => l.habits[habit.id]?.completed
         ).length;
-        if (completions < habit.frequency) break;
+        if (completions < habit.frequency) {
+          if (isFirst) {
+            isFirst = false;
+            continue;
+          }
+          break;
+        }
         streak++;
+        isFirst = false;
       }
       break;
     }
@@ -143,11 +182,19 @@ export function calculateStreak(habit: Habit, logs: HabitLog[]): number {
     case "interval": {
       // Count consecutive "due dates" that were completed
       if (!habit.lastCompletedDate) return 0;
-      const dueDates = buildDueDates(habit, sorted[0].date, today);
+      const dueDates = buildDueDates(habit, sorted[sorted.length - 1].date, today);
+      let isFirst = true;
       for (const dueDate of dueDates) {
         const matchLog = sorted.find((l) => l.date === dueDate);
-        if (!matchLog?.habits[habit.id]?.completed) break;
+        if (!matchLog?.habits[habit.id]?.completed) {
+          if (isFirst && dueDate === today) {
+            isFirst = false;
+            continue;
+          }
+          break;
+        }
         streak++;
+        isFirst = false;
       }
       break;
     }
@@ -164,7 +211,8 @@ export function calculateStreak(habit: Habit, logs: HabitLog[]): number {
  */
 export function calculateGlobalStreak(
   habits: Habit[],
-  logs: HabitLog[]
+  logs: HabitLog[],
+  weeklyResetDay: number = 1
 ): number {
   if (habits.length === 0 || logs.length === 0) return 0;
 
@@ -173,53 +221,52 @@ export function calculateGlobalStreak(
 
   let streak = 0;
   let expectedDate = today;
+  let isFirst = true;
 
   for (const log of sorted) {
-    if (log.date !== expectedDate) break;
+    if (log.date !== expectedDate) {
+      if (isFirst && expectedDate === today) {
+        const d = parseLocalDate(today);
+        d.setDate(d.getDate() - 1);
+        expectedDate = formatDate(d);
+        isFirst = false;
+        if (log.date !== expectedDate) break;
+      } else {
+        break;
+      }
+    }
 
     // Check all scheduled habits are completed for this day
     const scheduledHabits = habits.filter((h) =>
-      isScheduledOnDate(h, log.date)
+      isHabitScheduledToday(h, log.date, weeklyResetDay)
     );
-    const allCompleted = scheduledHabits.every(
-      (h) => log.habits[h.id]?.completed
-    );
-    if (!allCompleted) break;
+    const allCompleted = scheduledHabits.every((h) => {
+      if (h.type === "limiter") {
+        const entry = log.habits[h.id];
+        return !entry || entry.value <= entry.target;
+      }
+      return log.habits[h.id]?.completed;
+    });
+
+    if (!allCompleted) {
+      if (isFirst && expectedDate === today) {
+        const d = parseLocalDate(today);
+        d.setDate(d.getDate() - 1);
+        expectedDate = formatDate(d);
+        isFirst = false;
+        continue;
+      }
+      break;
+    }
 
     streak++;
+    isFirst = false;
     const d = parseLocalDate(expectedDate);
     d.setDate(d.getDate() - 1);
     expectedDate = formatDate(d);
   }
 
   return streak;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────
-
-function isScheduledOnDate(habit: Habit, date: string): boolean {
-  if (!habit.isActive) return false;
-  if (habit.period === "daily") return true;
-  if (habit.period === "weekly") {
-    const dayOfWeek = parseLocalDate(date).getDay();
-    return habit.daysOfWeek.includes(dayOfWeek);
-  }
-  if (habit.period === "monthly") {
-    // Simple: scheduled on the same day-of-month as creation
-    const dayOfMonth = parseLocalDate(date).getDate();
-    const creationDay = new Date(habit.createdAt).getDate();
-    return dayOfMonth === creationDay;
-  }
-  if (habit.period === "interval") {
-    const startStr = habit.startDate || formatDate(new Date(habit.createdAt));
-    const creation = parseLocalDate(startStr);
-    const target = parseLocalDate(date);
-    const diff = Math.round(
-      (target.getTime() - creation.getTime()) / (1000 * 60 * 60 * 24)
-    );
-    return diff >= 0 && diff % habit.intervalDays === 0;
-  }
-  return false;
 }
 
 function getISOWeek(dateStr: string): string {

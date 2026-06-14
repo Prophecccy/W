@@ -49,7 +49,7 @@ graph TD
   - **Timezone-Aware Reset Logic**: Daily cycle queries must compute shifted dates dynamically when local clocks fall behind user-customized daily reset hours (e.g., 04:00 AM shifts `today` to `YYYY-MM-DD - 1`).
   - **Webview Syncing**: Listen and reactively sync state between isolated Tauri windows using lightweight IPC events (`widget-habit-updated`). Maintain seamless data re-fetching.
   - **Firebase Optimization**: Bind/unbind listeners dynamically; never allow active Firestore subscriptions to drift or leak memory on unmount.
-  - **Local-First Caching & Google Drive Sync**: All plain-text Daily Notes save instantly to local IndexedDB (under keys `note_record_YYYY-MM-DD`). The background sync worker manages seamless mirroring to the user's personal Google Drive folder (`W_Logbook/[Year]/[Date].md`) using a 5-minute heartbeat, cross-process `localStorage` sync locking, and eager synchronization when typing inactivity (>15s) is detected, preventing multi-device desynchronization and directory duplication in multi-process/Tauri contexts.
+  - **Local-First Caching & Google Drive Sync**: All plain-text Daily Notes save instantly to local IndexedDB (under keys `note_record_YYYY-MM-DD`). The background sync worker manages seamless mirroring to the user's personal Google Drive folder (`W_Logbook/[Year]/[Date].md`) using a 5-minute heartbeat, cross-process `localStorage` sync locking, and eager synchronization when typing inactivity (>15s) is detected. Sync is hardened with: (1) recursive file/folder listing using Google Drive's `nextPageToken` pagination, (2) automatic consolidation of duplicate `W_Logbook` folders by merging contents and deleting duplicates, (3) database-level timestamp alignment with the Google Drive server's `modifiedTime` to prevent timestamp skew and redundant sync-down cycles, and (4) token refresh unlinking limited exclusively to explicit Google `invalid_grant` errors. Daily notes are fully isolated from Google Firestore; they never leave the user's local environment except to sync directly to their personal Google Drive.
   - **Event-Driven UI Reactivity**: Broadcast note saving/sync states globally using CustomEvents (`w:note-saved` and `w:note-synced`). Active UI elements (Dashboard, Logbook feed, slide-out Archive) must subscribe to these events to dynamically update their visual panels and sync badges instantly without hard-reloads.
   - **Google Drive Integration Lockout**: The `isDriveLinked` reactive status in `AuthContext` governs feature lockdowns. If `isDriveLinked` is false, access to the `Daily Note` input editor and the historical `Logbook Archive` timeline page is strictly blocked and replaced by a pulsing, high-fidelity `<GDriveLockout>` interceptor card/page, urging the user to securely activate cloud sync inside settings to prevent local data loss.
   - **Event-Driven OAuth Reactivity**: Synchronize the `isDriveLinked` state between the non-react background Google Drive token caching service (`googleDriveService.ts`) and the React hook (`useAuth.ts`) via standard window events `w:gdrive-linked` and `w:gdrive-unlinked`. The hook reactively captures these events to toggle `isDriveLinked` in sub-milliseconds and updates the persistent `driveLinked` state in `localStorage` synchronously.
@@ -285,3 +285,39 @@ A series of security auditing and hardening remediation fixes were implemented t
 5. **Content Security Policy Strengthening**: Strengthened the Content Security Policy in `tauri.conf.json` by removing the dangerous `'unsafe-eval'` directive from the `default-src` and `script-src` blocks, preventing run-time dynamic code evaluation execution.
 6. **Firestore Write Controls Hardening**: Hardened Firestore rules in `firestore.rules` under match `/users/{uid}` to block client-side modification of read-only metadata fields like `uid` and `createdAt` during user document updates.
 7. **Async Token Operations Synchronization**: Synchronized token management in React handlers (`useAuth.ts`, `authService.ts`, and `AccountSection.tsx`) to properly await asynchronous token clearing and secure credentials deletion on logout/unlink.
+
+---
+
+## Batch 36 — Daily Notes Data Isolation
+
+A series of strict data-isolation hardening measures were implemented to ensure that user daily notes are technically and practically impossible to leak or read via cloud APIs:
+
+1. **Purged Notes from Firestore Operations**: Modified `getTodayLog` in `logService.ts` and retroactive gap-fill writes in `freezeService.ts` to stop writing a `notes` field to Firestore documents. Deleted `updateNote()` and the legacy `getNoteHistory()` query from `logService.ts` entirely.
+2. **Severed Cloud-to-Local Migration Pathways**: Deleted `migrateNotesFromFirestore()` from `localLogService.ts` and removed the call in `Layout.tsx` startup initialization, completely severing the read path from Firestore back to local storage.
+3. **Optional TypeScript Backward Compatibility**: Changed `notes` to optional (`notes?: string`) in the `HabitLog` interface in `types.ts` to allow local backward compatibility with existing log records without breaking Firestore type checks.
+4. **Server-Side Firestore Rule Hardening**: Hardened `firestore.rules` for the `logs` subcollection to strictly reject any write containing `notes` content (except null or empty string, for backward compatibility).
+5. **Narrowed Tauri Asset Protocol**: Restricted the `assetProtocol` scope in `tauri.conf.json` from wildcard `["**"]` to only local application and resource folders (`["$APPDATA/**", "$RESOURCE/**"]`), protecting system files.
+
+---
+
+## Batch 37 — Multi-Monitor Sticky Notes Support
+
+A series of updates to support dragging sticky notes across multi-monitor setups without increasing the application's performance footprint:
+
+1. **Capabilities Authorization**: Added the `"core:window:allow-available-monitors"` permission to `default.json` capabilities to authorize the React frontend to query connected monitor geometry configurations.
+2. **Overlay Configuration**: Set `"maximized": false` for the `sticky-overlay` window in `tauri.conf.json` to allow manual sizing and positioning.
+3. **Multi-Monitor Bounding Box**: Programmed `launchStickyOverlay()` in `Layout.tsx` to dynamically query active monitors via `availableMonitors()`, calculate the combined bounding box of all displays, and size/position the overlay window to span this entire virtual desktop using physical coordinates.
+
+---
+
+## Batch 38 — Software Versioning and Habit Leveling
+
+This batch documents where the application version is maintained and how the dynamic leveling calculations were wired into Firestore operations:
+
+1. **Software Versioning Locations**:
+   - `src/features/settings/components/DesktopSection.tsx`: Houses the local state `appVersion` (initial state and `useEffect` hooks) displaying the version under settings updates.
+   - `src/shared/components/Sidebar/Sidebar.tsx`: Renders the app version text at the bottom left of the navigation sidebar.
+2. **Habit Leveling Persistence**:
+   - `src/features/habits/services/logService.ts`: Re-routed completion and uncompletion/undo updates to import `calculateLevel` from `../utils/levelEngine` and update the `level` and `levelProgress` fields dynamically on the habit document in Firestore, resolving the Level 0 freeze bug.
+
+

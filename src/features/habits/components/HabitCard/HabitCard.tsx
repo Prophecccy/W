@@ -86,8 +86,9 @@ export function HabitCard({
 
   // ─── Interaction Handlers ───────────────────────────────────────
   const startHold = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (isResting || upcomingStatus) return;
-    if (isCompletedToday) return; // Cannot hold to verify if already verified. Undo is separate.
+    // Keep track of the initial touch coordinate to prevent scroll/drag completion collisions
+    pointerStartCoordsRef.current = { x: e.clientX, y: e.clientY };
+    hasHeldRef.current = false;
 
     // Cancel any existing running hold first to ensure double-tap safety
     if (holdTimeoutRef.current) {
@@ -95,12 +96,10 @@ export function HabitCard({
       holdTimeoutRef.current = null;
     }
 
-    // Keep track of the initial touch coordinate to prevent scroll/drag completion collisions
-    pointerStartCoordsRef.current = { x: e.clientX, y: e.clientY };
+    if (isResting || upcomingStatus || isCompletedToday) return;
     
     setIsHolding(true);
     setCompleteTriggered(false);
-    hasHeldRef.current = false;
     
     holdTimeoutRef.current = window.setTimeout(() => {
       setCompleteTriggered(true);

@@ -1,20 +1,12 @@
-import { useState, useEffect } from "react";
 import { useAuthContext } from "../../auth/context";
-import { getUserDoc } from "../../auth/services/userService";
-import { User } from "../../../shared/types";
 import { LogOut, User as UserIcon } from "lucide-react";
 import { clearOAuthTokens } from "../../../shared/services/googleDriveService";
 import { GoogleDriveIcon } from "../../../shared/components/GoogleDriveIcon/GoogleDriveIcon";
+import { useUserStore } from "../../../shared/stores/userStore";
 
 export function AccountSection() {
   const { user, isDriveLinked, setIsDriveLinked, signIn, signOut, error, signingIn, clearError } = useAuthContext();
-  const [userDoc, setUserDoc] = useState<User | null>(null);
-
-  useEffect(() => {
-    if (user) {
-      getUserDoc(user.uid).then(setUserDoc);
-    }
-  }, [user]);
+  const { userDoc } = useUserStore();
 
   const handleSignOut = async () => {
     if (confirm("Are you sure you want to sign out?")) {
@@ -34,6 +26,10 @@ export function AccountSection() {
     if (confirm("Are you sure you want to unlink Google Drive? Your local logs and notes remain fully secure, but cloud backup will be disabled and access to notes/logbook will be locked until reconnected.")) {
       await clearOAuthTokens();
       setIsDriveLinked(false);
+      if (user) {
+        const { updateUserDoc } = await import("../../auth/services/userService");
+        await updateUserDoc(user.uid, { driveLinked: false } as any);
+      }
     }
   };
 

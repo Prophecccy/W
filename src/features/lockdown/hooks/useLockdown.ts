@@ -30,19 +30,58 @@ export function useLockdown(): UseLockdownReturn {
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // ── Load state on mount ────────────────────────────────────────
   const reload = useCallback(async () => {
     if (!user) return;
     try {
       const lockdownState = await getLockdownState(user.uid);
-      setState(lockdownState);
-      setLoading(false);
+      if (isMountedRef.current) {
+        setState(lockdownState);
+        setLoading(false);
+      }
     } catch {
       // User doc may not exist yet
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [user]);
+
+  // ── Actions ────────────────────────────────────────────────────
+  const activateHandler = useCallback(
+    async (blocklist: string[], duration: number | null) => {
+      await activateLockdown(blocklist, duration);
+      await reload();
+    },
+    [reload]
+  );
+
+  const deactivateLockdownHandler = useCallback(async () => {
+    await deactivateLockdown();
+    setTimeRemaining(null);
+
+    // Hide the block overlay when lockdown is deactivated
+    try {
+      const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+      const overlay = await WebviewWindow.getByLabel("block-overlay");
+      if (overlay) {
+        await overlay.hide();
+      }
+    } catch {
+      // Not in Tauri
+    }
+
+    await reload();
+  }, [reload]);
 
   useEffect(() => {
     if (user) {
@@ -54,7 +93,7 @@ export function useLockdown(): UseLockdownReturn {
   useEffect(() => {
     if (user) {
       resumeLockdownIfActive(user.uid).then((resumed) => {
-        if (resumed) reload();
+        if (resumed && isMountedRef.current) reload();
       });
     }
   }, [user, reload]);
@@ -62,9 +101,7 @@ export function useLockdown(): UseLockdownReturn {
   // ── Listen for block/unblock events from Rust ─────────────────
   useEffect(() => {
     let active = true;
-    let unlistenBlockPromise: Promise<() => void> | null = null;
-    let unlistenUnblockPromise: Promise<() => void> | null = null;
-    let unlistenExpiredPromise: Promise<() => void> | null = null;
+    const cleanups: (() => void)[] = [];
 
     async function setupListeners() {
       try {
@@ -80,7 +117,7 @@ export function useLockdown(): UseLockdownReturn {
         }
 
         // ── BLOCK: position overlay over the banned window ───────
-        unlistenBlockPromise = listen<{
+        const unsubBlock = await listen<{
           app_title: string;
           matched_rule: string;
           pid: number;
@@ -115,9 +152,10 @@ export function useLockdown(): UseLockdownReturn {
             console.error("[lockdown] Failed to position block overlay:", err);
           }
         });
+        cleanups.push(unsubBlock);
 
         // ── UNBLOCK: hide the overlay ───────────────────────────
-        unlistenUnblockPromise = listen("lockdown-unblock", async () => {
+        const unsubUnblock = await listen("lockdown-unblock", async () => {
           if (!active) return;
           try {
             const overlay = await WebviewWindow.getByLabel("block-overlay");
@@ -128,22 +166,18 @@ export function useLockdown(): UseLockdownReturn {
             console.error("[lockdown] Failed to hide block overlay:", err);
           }
         });
+        cleanups.push(unsubUnblock);
 
         // ── EXPIRED: handle lockdown timer expiration in Rust ───
-        unlistenExpiredPromise = listen("lockdown-expired", async () => {
+        const unsubExpired = await listen("lockdown-expired", async () => {
           if (!active) return;
           console.log("[lockdown] Received expired event from Rust. Deactivating.");
           await deactivateLockdownHandler();
         });
-
-        const unsubBlock = unlistenBlockPromise ? await unlistenBlockPromise : null;
-        const unsubUnblock = unlistenUnblockPromise ? await unlistenUnblockPromise : null;
-        const unsubExpired = unlistenExpiredPromise ? await unlistenExpiredPromise : null;
+        cleanups.push(unsubExpired);
 
         if (!active) {
-          if (unsubBlock) unsubBlock();
-          if (unsubUnblock) unsubUnblock();
-          if (unsubExpired) unsubExpired();
+          cleanups.forEach((unsub) => unsub());
         } else {
           console.log("[lockdown] Block/unblock/expired listeners registered");
         }
@@ -155,45 +189,9 @@ export function useLockdown(): UseLockdownReturn {
     setupListeners();
     return () => {
       active = false;
-      if (unlistenBlockPromise) {
-        unlistenBlockPromise.then((unsub: () => void) => unsub()).catch(() => {});
-      }
-      if (unlistenUnblockPromise) {
-        unlistenUnblockPromise.then((unsub: () => void) => unsub()).catch(() => {});
-      }
-      if (unlistenExpiredPromise) {
-        unlistenExpiredPromise.then((unsub: () => void) => unsub()).catch(() => {});
-      }
+      cleanups.forEach((unsub) => unsub());
     };
-  }, []);
-
-  // ── Actions ────────────────────────────────────────────────────
-  const activateHandler = useCallback(
-    async (blocklist: string[], duration: number | null) => {
-      await activateLockdown(blocklist, duration);
-      await reload();
-    },
-    [reload]
-  );
-
-  const deactivateLockdownHandler = useCallback(async () => {
-    await deactivateLockdown();
-    setTimeRemaining(null);
-
-    // Hide the block overlay when lockdown is deactivated
-    try {
-      const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
-      const overlay = await WebviewWindow.getByLabel("block-overlay");
-      if (overlay) {
-        await overlay.hide();
-      }
-    } catch {
-      // Not in Tauri
-    }
-
-    await reload();
-  }, [reload]);
-
+  }, [deactivateLockdownHandler]);
   // ── Countdown timer ────────────────────────────────────────────
   const remainingSecondsRef = useRef<number | null | undefined>(undefined);
   const currentRemainingRef = useRef<number | null>(null);
@@ -231,11 +229,12 @@ export function useLockdown(): UseLockdownReturn {
 
       if (currentRemainingRef.current === null) return;
 
-      // Clock tampering detection (jump backward or positive jump > 10s while tab is visible)
-      const isNegativeJump = diff < -10000;
-      const isPositiveJump = diff > 10000;
-      // Jumps greater than 12s are treated as system sleep/suspension
-      const isSleepOrSuspension = diff > 12000;
+      // Clock tampering detection (jump backward or positive jump > 30s while tab is visible)
+      // We increase the threshold from 10s to 30s to allow for browser/system stutters without false penalties.
+      const isNegativeJump = diff < -30000;
+      const isPositiveJump = diff > 30000;
+      // Jumps greater than 32s are treated as system sleep/suspension
+      const isSleepOrSuspension = diff > 32000;
       
       const isTampering = isNegativeJump || (isPositiveJump && !isSleepOrSuspension && !document.hidden);
 
@@ -267,27 +266,15 @@ export function useLockdown(): UseLockdownReturn {
         } catch {}
 
         return;
-      } else if (isSleepOrSuspension || document.hidden) {
-        const elapsedSecs = Math.round(diff / 1000);
-        const newSecs = Math.max(0, currentRemainingRef.current - elapsedSecs);
-        currentRemainingRef.current = newSecs;
-        setTimeRemaining(newSecs);
-        
-        if (newSecs <= 0) {
-          if (timerRef.current) {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
-          }
-          if (isTauri()) {
-            console.log("[lockdown] Timer reached 0 on sleep/suspension, but deferring deactivation to Rust.");
-          } else {
-            deactivateLockdownHandler();
-          }
-        }
-        return;
       }
 
-      const newSecs = Math.max(0, currentRemainingRef.current - 1);
+      // Calculate elapsed seconds based on diff
+      let elapsedSecs = 1;
+      if (isSleepOrSuspension || document.hidden) {
+        elapsedSecs = Math.round(diff / 1000);
+      }
+
+      const newSecs = Math.max(0, currentRemainingRef.current - elapsedSecs);
       currentRemainingRef.current = newSecs;
       setTimeRemaining(newSecs);
 
@@ -297,13 +284,14 @@ export function useLockdown(): UseLockdownReturn {
           timerRef.current = null;
         }
         if (isTauri()) {
-          console.log("[lockdown] Timer reached 0 on standard tick, but deferring deactivation to Rust.");
+          console.log("[lockdown] Timer reached 0, but deferring deactivation to Rust.");
         } else {
           deactivateLockdownHandler();
         }
         return;
       }
 
+      // Autosave check - runs every 10 seconds (including when hidden)
       if (now - lastSaveRef.current >= 10000 && user) {
         lastSaveRef.current = now;
         const { doc, updateDoc } = await import("firebase/firestore");

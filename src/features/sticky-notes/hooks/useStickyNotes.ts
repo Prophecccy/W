@@ -4,6 +4,7 @@ import { db } from "../../../shared/config/firebase";
 import { Todo } from "../../todos/types";
 import { useAuthContext } from "../../auth/context";
 import { loadPositions, savePositionLocal } from "../services/positionStore";
+import { getToday } from "../../../shared/utils/dateUtils";
 
 interface StickyNotesReturn {
   todos: Todo[];
@@ -80,8 +81,13 @@ export function useStickyNotes(): StickyNotesReturn {
         const todo = doc.data() as Todo;
         const localPos = cachedPositions[todo.id];
 
+        // Hide todo if it has expired and is configured to disappear
+        const dailyResetTime = localStorage.getItem("w_daily_reset_time") || undefined;
+        const todayStr = getToday(undefined, dailyResetTime);
+        const isExpiredAndDisappeared = todo.postDeadlineAction === "disappear" && todo.deadline && todo.deadline < todayStr;
+
         // Include todo if it has a Firestore position OR if we have a cached local position
-        if (todo.stickyPosition || localPos) {
+        if (!isExpiredAndDisappeared && (todo.stickyPosition || localPos)) {
           const finalPos = todo.stickyPosition || localPos || { x: 100, y: 100 };
           activeTodos.push({
             ...todo,
@@ -99,21 +105,23 @@ export function useStickyNotes(): StickyNotesReturn {
       });
 
       // Prune old completed/deleted positions from localStorage cache to prevent leaks
-      const activeIds = new Set(activeTodos.map(t => t.id));
-      try {
-        const cached = loadPositions();
-        let changed = false;
-        Object.keys(cached).forEach(id => {
-          if (!activeIds.has(id)) {
-            delete cached[id];
-            changed = true;
+      if (!snapshot.metadata.fromCache) {
+        const activeIds = new Set(activeTodos.map(t => t.id));
+        try {
+          const cached = loadPositions();
+          let changed = false;
+          Object.keys(cached).forEach(id => {
+            if (!activeIds.has(id)) {
+              delete cached[id];
+              changed = true;
+            }
+          });
+          if (changed) {
+            localStorage.setItem("w_sticky_positions", JSON.stringify(cached));
           }
-        });
-        if (changed) {
-          localStorage.setItem("w_sticky_positions", JSON.stringify(cached));
+        } catch (e) {
+          console.error("Failed to prune cached sticky positions:", e);
         }
-      } catch (e) {
-        console.error("Failed to prune cached sticky positions:", e);
       }
 
       setTodos(activeTodos);

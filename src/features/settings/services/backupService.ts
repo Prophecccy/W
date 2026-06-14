@@ -1,6 +1,7 @@
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, writeBatch } from "firebase/firestore";
 import { db, auth } from "../../../shared/config/firebase";
 import { getUserDoc } from "../../auth/services/userService";
+import { getLocalNoteHistory, saveDownloadedNote } from "../../logs/services/localLogService";
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ async function gatherAllData(): Promise<Record<string, unknown>> {
   const logs = await getAllCollectionData("logs");
   const groups = await getAllCollectionData("groups");
   const stickyNotes = await getAllCollectionData("sticky-notes");
+  const dailyNotes = await getLocalNoteHistory();
 
   return {
     exportedAt: new Date().toISOString(),
@@ -35,6 +37,7 @@ async function gatherAllData(): Promise<Record<string, unknown>> {
     logs,
     groups,
     "sticky-notes": stickyNotes,
+    dailyNotes,
   };
 }
 
@@ -167,4 +170,69 @@ function triggerDownload(content: string, filename: string, mimeType: string) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// ─── Restore Backup ──────────────────────────────────────────────
+
+export async function restoreBackup(data: any): Promise<void> {
+  const userId = uid();
+  
+  if (!data || typeof data !== "object") {
+    throw new Error("Invalid backup data format");
+  }
+
+  // 1. Restore User Settings Document
+  if (data.user) {
+    const userRef = doc(db, "users", userId);
+    const restoredUser = { ...data.user, uid: userId };
+    await setDoc(userRef, restoredUser);
+  }
+
+  // Helper to batch restore a collection
+  async function restoreCollection(collectionName: string, items: any[]) {
+    if (!items || !Array.isArray(items)) return;
+    let batch = writeBatch(db);
+    let count = 0;
+    
+    for (const item of items) {
+      if (!item.id) continue;
+      const docRef = doc(db, "users", userId, collectionName, item.id);
+      
+      const { id, ...docData } = item;
+      
+      // SECURITY: Ensure notes are NEVER written to Firestore logs collection
+      if (collectionName === "logs" && docData.notes) {
+        delete docData.notes;
+      }
+      
+      batch.set(docRef, docData, { merge: true });
+      count++;
+      
+      if (count >= 400) {
+        await batch.commit();
+        batch = writeBatch(db);
+        count = 0;
+      }
+    }
+    
+    if (count > 0) {
+      await batch.commit();
+    }
+  }
+
+  // 2. Restore Firestore collections
+  await restoreCollection("habits", data.habits);
+  await restoreCollection("todos", data.todos);
+  await restoreCollection("logs", data.logs);
+  await restoreCollection("groups", data.groups);
+  await restoreCollection("sticky-notes", data["sticky-notes"]);
+
+  // 3. Restore Local Daily Notes to IndexedDB
+  if (data.dailyNotes && Array.isArray(data.dailyNotes)) {
+    for (const note of data.dailyNotes) {
+      if (note.date && note.notes) {
+        await saveDownloadedNote(note.date, note.notes);
+      }
+    }
+  }
 }

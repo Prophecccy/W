@@ -17,6 +17,14 @@ export function useAuth() {
     const handleLinked = async () => {
       console.info("[W Auth Hook] Google Drive linked event captured. Synchronizing state to true.");
       setIsDriveLinked(true);
+      if (auth.currentUser) {
+        try {
+          const { updateUserDoc } = await import("../services/userService");
+          await updateUserDoc(auth.currentUser.uid, { driveLinked: true } as any);
+        } catch (err) {
+          console.error("[W Auth Hook] Failed to update user doc with driveLinked: true:", err);
+        }
+      }
       try {
         const { getValidAccessToken, pullNotesFromDrive } = await import("../../../shared/services/googleDriveService");
         const accessToken = await getValidAccessToken();

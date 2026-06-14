@@ -78,7 +78,7 @@ export async function undoAction(actionId: string): Promise<void> {
       // Reverse: re-complete the habit
       const habitId = action.reverseData.habitId as string;
       const value = (action.reverseData.value as number) ?? 1;
-      const target = (action.reverseData.target as number) ?? 1;
+      const target = action.reverseData.target as number | undefined;
       await completeHabit(habitId, value, target, "", undefined, true);
       break;
     }

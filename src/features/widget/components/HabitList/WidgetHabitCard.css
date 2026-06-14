@@ -81,14 +81,20 @@
   box-shadow: 0 8px 24px rgba(0,0,0,0.9), 0 0 20px rgba(232, 115, 108, 0.2);
 }
 
+.widget-habit-card.exceeded {
+  border: 1px solid var(--strike-red) !important;
+  background: rgba(232, 115, 108, 0.05) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.8), 0 0 20px rgba(232, 115, 108, 0.2) !important;
+}
+
 /* ─── Hold Fill Animation ────────────────────────────────── */
 .widget-habit-card__hold-fill {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     90deg,
-    rgba(91, 141, 239, 0.15) 0%,
-    rgba(91, 141, 239, 0.15) 100%
+    rgba(var(--accent-rgb, 91, 141, 239), 0.15) 0%,
+    rgba(var(--accent-rgb, 91, 141, 239), 0.15) 100%
   );
   animation: widgetHoldSweep 500ms linear forwards;
   pointer-events: none;

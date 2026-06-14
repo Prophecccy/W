@@ -12,8 +12,8 @@ import {
 import { db, auth } from "../../../shared/config/firebase";
 import { HabitLog, HabitLogEntry, CompletionEntry } from "../types";
 import { getToday } from "../../../shared/utils/dateUtils";
-import { saveLocalNote } from "../../logs/services/localLogService";
 import { addStrike, removeLimiterStrike } from "../../strikes/services/strikeService";
+import { calculateLevel } from "../utils/levelEngine";
 
 function uid(): string {
   const u = auth.currentUser;
@@ -37,11 +37,10 @@ export async function getTodayLog(resetTimeOverride?: string): Promise<HabitLog>
     return snap.data() as HabitLog;
   }
 
-  // Create an empty log for today
+  // Create an empty log for today — notes are NEVER stored in Firestore (local-only)
   const emptyLog: HabitLog = {
     date: today,
     uid: userId,
-    notes: "",
     habits: {},
   };
   await setDoc(ref, emptyLog);
@@ -85,12 +84,45 @@ export async function completeHabit(
   };
 
   const newValue = existing.value + value;
-  const isCompleted =
-    habit?.type === "metric"
-      ? newValue >= resolvedTarget
-      : habit?.type === "limiter"
-        ? false
-        : true;
+
+  let isCompleted = false;
+  let weeklyResetDay = 1;
+  let periodStart = today;
+  let prevCumulativeValue = 0;
+
+  if (habit) {
+    const period = habit.period || "daily";
+    const isPeriodHabit = period === "weekly" || period === "monthly";
+    if (isPeriodHabit) {
+      if (period === "weekly") {
+        const userDocRef = doc(db, "users", userId);
+        const userSnap = await getDoc(userDocRef);
+        const userData = userSnap.exists() ? userSnap.data() : null;
+        weeklyResetDay = userData?.settings?.weeklyResetDay ?? 1;
+        periodStart = getWeekStartLocal(today, weeklyResetDay);
+      } else {
+        periodStart = `${today.substring(0, 7)}-01`;
+      }
+
+      const periodLogs = await getLogRange(periodStart, today);
+      for (const pl of periodLogs) {
+        if (pl.date !== today) {
+          prevCumulativeValue += pl.habits?.[habitId]?.value ?? 0;
+        }
+      }
+      const targetVal = habit.type === "standard" ? 1 : resolvedTarget;
+      isCompleted = habit.type !== "limiter" && (prevCumulativeValue + newValue) >= targetVal;
+    } else {
+      isCompleted =
+        habit.type === "metric"
+          ? newValue >= resolvedTarget
+          : habit.type === "limiter"
+            ? false
+            : true;
+    }
+  } else {
+    isCompleted = newValue >= target;
+  }
 
   const newEntry: HabitLogEntry = {
     completed: isCompleted,
@@ -114,84 +146,141 @@ export async function completeHabit(
   let habitTitle = "Limiter";
   let limitExceeded = false;
 
-  if (habit && isCompleted && !existing.completed) {
+  if (habit) {
     habitTitle = habit.title || "Limiter";
-    limitExceeded = habit.type === "limiter" && newValue > resolvedTarget;
+    const period = habit.period || "daily";
+    const isPeriodHabit = period === "weekly" || period === "monthly";
 
-    const lastDate = (habit.lastCompletedDate as string | null) ?? null;
-    let currentStreak = habit.currentStreak || 0;
-    let longestStreak = habit.longestStreak || 0;
+    if (isPeriodHabit) {
+      const valBefore = prevCumulativeValue + existing.value;
+      const valAfter = prevCumulativeValue + newValue;
+      const targetVal = habit.type === "standard" ? (habit.frequency || 1) : resolvedTarget;
 
-    if (lastDate) {
-      const last = new Date(lastDate + "T00:00:00");
-      const now = new Date(today + "T00:00:00");
-      const diffDays = Math.round((now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
+      const justCompleted = habit.type !== "limiter" && valBefore < targetVal && valAfter >= targetVal;
+      const justExceeded = habit.type === "limiter" && valBefore <= targetVal && valAfter > targetVal;
 
-      if (diffDays > 0) {
-        let isConsecutive = false;
-        let isSamePeriod = false;
+      if (justExceeded) {
+        limitExceeded = true;
+        await updateDoc(habitRef, {
+          currentStreak: 0,
+        });
+      } else {
+        const newTotal = (habit.totalCompletions || 0) + 1;
+        const lvlInfo = calculateLevel(newTotal);
+        let updates: Record<string, any> = {
+          totalCompletions: newTotal,
+          level: lvlInfo.level,
+          levelProgress: lvlInfo.progress,
+        };
 
-        const period = habit.period || "daily";
+        if (justCompleted) {
+          const lastDate = (habit.lastCompletedDate as string | null) ?? null;
+          let currentStreak = habit.currentStreak || 0;
+          let longestStreak = habit.longestStreak || 0;
 
-        if (period === "daily") {
-          isConsecutive = diffDays === 1;
-          isSamePeriod = diffDays === 0;
-        } else if (period === "weekly") {
-          const userDocRef = doc(db, "users", userId);
-          const userSnap = await getDoc(userDocRef);
-          const userData = userSnap.exists() ? userSnap.data() : null;
-          const weeklyResetDay = userData?.settings?.weeklyResetDay ?? 1;
+          if (lastDate) {
+            let isConsecutive = false;
+            let isSamePeriod = false;
 
-          const lastWeekStart = getWeekStartLocal(lastDate, weeklyResetDay);
-          const todayWeekStart = getWeekStartLocal(today, weeklyResetDay);
-          
-          isSamePeriod = lastWeekStart === todayWeekStart;
-          
-          const prevWeekDate = new Date(todayWeekStart + "T12:00:00");
-          prevWeekDate.setDate(prevWeekDate.getDate() - 7);
-          const prevWeekStartStr = `${prevWeekDate.getFullYear()}-${String(prevWeekDate.getMonth() + 1).padStart(2, '0')}-${String(prevWeekDate.getDate()).padStart(2, '0')}`;
-          
-          isConsecutive = lastWeekStart === prevWeekStartStr;
-        } else if (period === "monthly") {
-          const lastY = Number(lastDate.substring(0, 4));
-          const lastM = Number(lastDate.substring(5, 7));
-          const todayY = Number(today.substring(0, 4));
-          const todayM = Number(today.substring(5, 7));
-          
-          isSamePeriod = lastY === todayY && lastM === todayM;
-          isConsecutive = (todayY === lastY && todayM === lastM + 1) || 
-                          (todayY === lastY + 1 && lastM === 12 && todayM === 1);
-        } else if (period === "interval") {
-          const intervalDays = habit.intervalDays || 2;
-          isSamePeriod = diffDays === 0;
-          isConsecutive = diffDays <= intervalDays;
-        }
+            if (period === "weekly") {
+              const lastWeekStart = getWeekStartLocal(lastDate, weeklyResetDay);
+              const todayWeekStart = getWeekStartLocal(today, weeklyResetDay);
+              isSamePeriod = lastWeekStart === todayWeekStart;
 
-        if (isConsecutive) {
-          currentStreak += 1;
-          if (currentStreak > longestStreak) {
-            longestStreak = currentStreak;
+              const prevWeekDate = new Date(todayWeekStart + "T12:00:00");
+              prevWeekDate.setDate(prevWeekDate.getDate() - 7);
+              const prevWeekStartStr = `${prevWeekDate.getFullYear()}-${String(
+                prevWeekDate.getMonth() + 1
+              ).padStart(2, "0")}-${String(prevWeekDate.getDate()).padStart(2, "0")}`;
+              isConsecutive = lastWeekStart === prevWeekStartStr;
+            } else {
+              // monthly
+              const lastY = Number(lastDate.substring(0, 4));
+              const lastM = Number(lastDate.substring(5, 7));
+              const todayY = Number(today.substring(0, 4));
+              const todayM = Number(today.substring(5, 7));
+
+              isSamePeriod = lastY === todayY && lastM === todayM;
+              isConsecutive =
+                (todayY === lastY && todayM === lastM + 1) ||
+                (todayY === lastY + 1 && lastM === 12 && todayM === 1);
+            }
+
+            if (isConsecutive) {
+              currentStreak += 1;
+              if (currentStreak > longestStreak) {
+                longestStreak = currentStreak;
+              }
+            } else if (!isSamePeriod) {
+              currentStreak = 1;
+            }
+          } else {
+            currentStreak = 1;
+            longestStreak = 1;
           }
-        } else if (!isSamePeriod) {
-          currentStreak = 1;
+
+          updates.currentStreak = currentStreak;
+          updates.longestStreak = longestStreak;
+          updates.lastCompletedDate = today;
         }
+
+        await updateDoc(habitRef, updates);
       }
     } else {
-      currentStreak = 1;
-      longestStreak = 1;
-    }
+      // Existing daily/interval logic
+      if (isCompleted && !existing.completed) {
+        limitExceeded = habit.type === "limiter" && newValue > resolvedTarget;
 
-    await updateDoc(habitRef, {
-      totalCompletions: (habit.totalCompletions || 0) + 1,
-      lastCompletedDate: today,
-      levelProgress: (habit.levelProgress || 0) + 1,
-      currentStreak,
-      longestStreak,
-    });
-  } else if (habit && habit.type === "limiter") {
-    // For limiter habits, we still want to evaluate limitExceeded even if isCompleted is false
-    habitTitle = habit.title || "Limiter";
-    limitExceeded = newValue > resolvedTarget;
+        const lastDate = (habit.lastCompletedDate as string | null) ?? null;
+        let currentStreak = habit.currentStreak || 0;
+        let longestStreak = habit.longestStreak || 0;
+
+        if (lastDate) {
+          const last = new Date(lastDate + "T00:00:00");
+          const now = new Date(today + "T00:00:00");
+          const diffDays = Math.round((now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
+
+          if (diffDays > 0) {
+            let isConsecutive = false;
+            let isSamePeriod = false;
+
+            if (period === "daily") {
+              isConsecutive = diffDays === 1;
+              isSamePeriod = diffDays === 0;
+            } else if (period === "interval") {
+              const intervalDays = habit.intervalDays || 2;
+              isSamePeriod = diffDays === 0;
+              isConsecutive = diffDays <= intervalDays;
+            }
+
+            if (isConsecutive) {
+              currentStreak += 1;
+              if (currentStreak > longestStreak) {
+                longestStreak = currentStreak;
+              }
+            } else if (!isSamePeriod) {
+              currentStreak = 1;
+            }
+          }
+        } else {
+          currentStreak = 1;
+          longestStreak = 1;
+        }
+
+        const newTotal = (habit.totalCompletions || 0) + 1;
+        const lvlInfo = calculateLevel(newTotal);
+        await updateDoc(habitRef, {
+          totalCompletions: newTotal,
+          lastCompletedDate: today,
+          level: lvlInfo.level,
+          levelProgress: lvlInfo.progress,
+          currentStreak,
+          longestStreak,
+        });
+      } else if (habit.type === "limiter") {
+        limitExceeded = newValue > resolvedTarget;
+      }
+    }
   }
 
   // Log to undo history
@@ -275,70 +364,123 @@ export async function uncompleteHabit(
           }
         }
       } else {
+        const newTotal = Math.max(0, (habit.totalCompletions || 0) - 1);
+        const lvlInfo = calculateLevel(newTotal);
         statsUpdate = {
-          totalCompletions: Math.max(0, (habit.totalCompletions || 0) - 1),
-          levelProgress: Math.max(0, (habit.levelProgress || 0) - 1),
+          totalCompletions: newTotal,
+          level: lvlInfo.level,
+          levelProgress: lvlInfo.progress,
         };
 
-        // If it transitioned from completed to uncompleted
-        if (existing.completed && !isCompleted) {
-          // Query historical logs to restore the actual previous completion date and recalculate the streak
-          let prevCompletedDate: string | null = null;
-          let calculatedStreak = 0;
-          try {
-            const { collection, query, where, orderBy, getDocs } = await import("firebase/firestore");
-            const logsRef = collection(db, "users", userId, "logs");
-            const prevLogsQuery = query(
-              logsRef,
-              where("date", "<", today),
-              orderBy("date", "desc")
-            );
-            const prevLogsSnap = await getDocs(prevLogsQuery);
-            
-            const completedDates: string[] = [];
-            for (const d of prevLogsSnap.docs) {
-              const l = d.data();
-              if (l.habits?.[habitId]?.completed) {
-                completedDates.push(l.date);
-              }
-            }
+        const period = habit.period || "daily";
+        const isPeriodHabit = period === "weekly" || period === "monthly";
 
-            if (completedDates.length > 0) {
-              prevCompletedDate = completedDates[0];
-              calculatedStreak = 1;
+        if (isPeriodHabit) {
+          let periodStart = today;
+          let weeklyResetDay = 1;
+          if (period === "weekly") {
+            const userDocRef = doc(db, "users", userId);
+            const userSnap = await getDoc(userDocRef);
+            const userData = userSnap.exists() ? userSnap.data() : null;
+            weeklyResetDay = userData?.settings?.weeklyResetDay ?? 1;
+            periodStart = getWeekStartLocal(today, weeklyResetDay);
+          } else {
+            periodStart = `${today.substring(0, 7)}-01`;
+          }
 
-              const userDocRef = doc(db, "users", userId);
-              const userSnap = await getDoc(userDocRef);
-              const userData = userSnap.exists() ? userSnap.data() : null;
-              const weeklyResetDay = userData?.settings?.weeklyResetDay ?? 1;
+          const periodLogs = await getLogRange(periodStart, today);
+          let valAfter = 0;
+          for (const pl of periodLogs) {
+            valAfter += pl.habits?.[habitId]?.value ?? 0;
+          }
+          const valBefore = valAfter + lastValue;
+          const targetVal = habit.type === "standard" ? (habit.frequency || 1) : existing.target;
+          const justDropped = valBefore >= targetVal && valAfter < targetVal;
 
-              const period = habit.period || "daily";
-              const intervalDays = habit.intervalDays || 2;
-
-              let currentRefDate = prevCompletedDate;
-
-              for (let i = 1; i < completedDates.length; i++) {
-                const date2 = completedDates[i];
-                
-                // Skip same period completion
-                if (isSamePeriodDates(currentRefDate, date2, period, weeklyResetDay)) {
-                  continue;
-                }
-
-                // Check if consecutive
-                if (isConsecutiveDates(currentRefDate, date2, period, weeklyResetDay, intervalDays)) {
-                  calculatedStreak++;
-                  currentRefDate = date2;
-                } else {
+          if (justDropped) {
+            statsUpdate.currentStreak = Math.max(0, (habit.currentStreak || 0) - 1);
+            let prevCompletedDate: string | null = null;
+            try {
+              const logsRef = collection(db, "users", userId, "logs");
+              const prevLogsQuery = query(
+                logsRef,
+                where("date", "<", today),
+                orderBy("date", "desc")
+              );
+              const prevLogsSnap = await getDocs(prevLogsQuery);
+              for (const d of prevLogsSnap.docs) {
+                const l = d.data();
+                if (l.habits?.[habitId]?.completed) {
+                  prevCompletedDate = l.date;
                   break;
                 }
               }
+            } catch (err) {
+              console.warn("Failed to find previous completion date:", err);
             }
-          } catch (err) {
-            console.warn("[uncompleteHabit] Failed to restore previous completion date/streak:", err);
+            statsUpdate.lastCompletedDate = prevCompletedDate;
           }
-          statsUpdate.lastCompletedDate = prevCompletedDate;
-          statsUpdate.currentStreak = calculatedStreak;
+        } else {
+          // If it transitioned from completed to uncompleted
+          if (existing.completed && !isCompleted) {
+            // Query historical logs to restore the actual previous completion date and recalculate the streak
+            let prevCompletedDate: string | null = null;
+            let calculatedStreak = 0;
+            try {
+              const { collection, query, where, orderBy, getDocs } = await import("firebase/firestore");
+              const logsRef = collection(db, "users", userId, "logs");
+              const prevLogsQuery = query(
+                logsRef,
+                where("date", "<", today),
+                orderBy("date", "desc")
+              );
+              const prevLogsSnap = await getDocs(prevLogsQuery);
+              
+              const completedDates: string[] = [];
+              for (const d of prevLogsSnap.docs) {
+                const l = d.data();
+                if (l.habits?.[habitId]?.completed) {
+                  completedDates.push(l.date);
+                }
+              }
+
+              if (completedDates.length > 0) {
+                prevCompletedDate = completedDates[0];
+                calculatedStreak = 1;
+
+                const userDocRef = doc(db, "users", userId);
+                const userSnap = await getDoc(userDocRef);
+                const userData = userSnap.exists() ? userSnap.data() : null;
+                const weeklyResetDay = userData?.settings?.weeklyResetDay ?? 1;
+
+                const period = habit.period || "daily";
+                const intervalDays = habit.intervalDays || 2;
+
+                let currentRefDate = prevCompletedDate;
+
+                for (let i = 1; i < completedDates.length; i++) {
+                  const date2 = completedDates[i];
+                  
+                  // Skip same period completion
+                  if (isSamePeriodDates(currentRefDate, date2, period, weeklyResetDay)) {
+                    continue;
+                  }
+
+                  // Check if consecutive
+                  if (isConsecutiveDates(currentRefDate, date2, period, weeklyResetDay, intervalDays)) {
+                    calculatedStreak++;
+                    currentRefDate = date2;
+                  } else {
+                    break;
+                  }
+                }
+              }
+            } catch (err) {
+              console.warn("[uncompleteHabit] Failed to restore previous completion date/streak:", err);
+            }
+            statsUpdate.lastCompletedDate = prevCompletedDate;
+            statsUpdate.currentStreak = calculatedStreak;
+          }
         }
       }
 
@@ -392,26 +534,11 @@ export async function getLogRange(
   return snap.docs.map((d) => d.data() as HabitLog);
 }
 
-// ─── Update Daily Note ───────────────────────────────────────────
-
-export async function updateNote(notes: string): Promise<void> {
-  const today = getToday();
-  await saveLocalNote(today, notes);
-}
-
-// ─── Get Note History ────────────────────────────────────────────
-
-export async function getNoteHistory(userId: string): Promise<HabitLog[]> {
-  const logsRef = collection(db, "users", userId, "logs");
-  const q = query(
-    logsRef,
-    where("notes", "!=", "")
-  );
-  const snap = await getDocs(q);
-  return snap.docs
-    .map((d) => d.data() as HabitLog)
-    .sort((a, b) => b.date.localeCompare(a.date));
-}
+// ─── SECURITY: updateNote() and getNoteHistory() DELETED ─────────
+// Daily notes are stored EXCLUSIVELY in local IndexedDB and synced
+// to the user's personal Google Drive. They NEVER touch Firestore.
+// See: localLogService.ts → saveLocalNote()
+// See: googleDriveService.ts → syncNoteToDrive()
 
 // ─── Helpers ────────────────────────────────────────────────────
 function getWeekStartLocal(dateStr: string, weekStartDay: number): string {

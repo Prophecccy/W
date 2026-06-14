@@ -3,7 +3,6 @@ import { auth } from "../../../shared/config/firebase";
 import { HabitLog } from "../../habits/types";
 
 const NOTE_KEY_PREFIX = "note_record_";
-const MIGRATED_FLAG_KEY = "w_gdrive_migrated_notes";
 
 export interface LocalNoteRecord {
   date: string;          // YYYY-MM-DD
@@ -89,15 +88,20 @@ export async function getPendingSyncNotes(): Promise<LocalNoteRecord[]> {
 /**
  * Clears the sync_pending flag for a successfully back-up note.
  */
-export async function clearSyncPending(date: string, syncedUpdatedAt?: number): Promise<void> {
+export async function clearSyncPending(
+  date: string,
+  localStartTimestamp: number,
+  serverModifiedTimeMs: number
+): Promise<void> {
   const key = `${NOTE_KEY_PREFIX}${date}`;
   const record = await get<LocalNoteRecord>(key);
   if (record) {
-    if (syncedUpdatedAt !== undefined && record.updatedAt > syncedUpdatedAt) {
+    if (record.updatedAt > localStartTimestamp) {
       console.info(`[localLogService] Skipping clearSyncPending for ${date}: record was modified during sync.`);
       return;
     }
     record.sync_pending = false;
+    record.updatedAt = serverModifiedTimeMs;
     await set(key, record);
     
     // Broadcast status change
@@ -153,41 +157,10 @@ export async function getLocalNoteHistory(): Promise<HabitLog[]> {
   return logs.sort((a, b) => b.date.localeCompare(a.date));
 }
 
-/**
- * Imports historical notes from Firebase Firestore once to initialize the local-first cache.
- */
-export async function migrateNotesFromFirestore(userId: string): Promise<void> {
-  const userMigratedKey = `${MIGRATED_FLAG_KEY}_${userId}`;
-  if (localStorage.getItem(userMigratedKey) === "true") {
-    return;
-  }
+// ─── SECURITY: migrateNotesFromFirestore() DELETED ──────────────
+// The legacy Firestore → IndexedDB notes migration has been permanently
+// removed. Daily notes NEVER leave the user's local machine (IndexedDB)
+// and personal Google Drive. There is no cloud-to-local read path.
+// Migration was gated by localStorage flag 'w_gdrive_migrated_notes'
+// and has already completed for all existing users.
 
-  console.info("[localLogService] First launch: Commencing one-time Firestore daily notes migration...");
-
-  try {
-    const { getNoteHistory } = await import("../../habits/services/logService");
-    const history = await getNoteHistory(userId);
-    
-    if (history && history.length > 0) {
-      console.info(`[localLogService] Found ${history.length} historical notes to migrate.`);
-      const migrationPromises = history
-        .filter(log => log.notes && log.notes.trim() !== "" && !isSystemPlaceholder(log.notes))
-        .map(async (log) => {
-          const key = `${NOTE_KEY_PREFIX}${log.date}`;
-          const record: LocalNoteRecord = {
-            date: log.date,
-            notes: log.notes,
-            sync_pending: false,
-            updatedAt: Date.now(),
-          };
-          return set(key, record);
-        });
-      await Promise.all(migrationPromises);
-    }
-
-    localStorage.setItem(userMigratedKey, "true");
-    console.info("[localLogService] Firestore daily notes migration completed successfully.");
-  } catch (err) {
-    console.error("[localLogService] Failed to complete Firestore daily notes migration:", err);
-  }
-}

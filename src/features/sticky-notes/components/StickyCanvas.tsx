@@ -183,17 +183,77 @@ export function StickyCanvas() {
     };
   }, [triggerUpdateRegions]);
 
+  // Scale change listener for DPI changes
+  useEffect(() => {
+    let active = true;
+    let unsubPromise: Promise<() => void> | null = null;
+
+    if (isTauri()) {
+      const setupScaleListener = async () => {
+        try {
+          const { getCurrentWindow } = await import("@tauri-apps/api/window");
+          const win = getCurrentWindow();
+          const unsub = await win.onScaleChanged(() => {
+            if (active) {
+              console.log("[StickyCanvas] Scale factor changed. Reloading window...");
+              window.location.reload();
+            }
+          });
+          return unsub;
+        } catch (err) {
+          console.error("Failed to setup scale changed listener:", err);
+          return () => {};
+        }
+      };
+      unsubPromise = setupScaleListener();
+    }
+
+    return () => {
+      active = false;
+      if (unsubPromise) {
+        unsubPromise.then(unsub => unsub()).catch(() => {});
+      }
+    };
+  }, []);
+
   // ─── Handlers ───────────────────────────────────────────────────
 
   const handleDragEnd = useCallback(
-    (todoId: string, pos: { x: number; y: number }) => {
+    async (todoId: string, pos: { x: number; y: number }) => {
+      // Find old position before overwrite
+      const oldPos = positions[todoId] || todos.find((t) => t.id === todoId)?.stickyPosition || { x: 100, y: 100 };
+
       // Block Firestore onSnapshot from overwriting this note's position
       // until the debounced write has committed + propagated back.
       suppressSnapshot(todoId);
       savePositionLocal(todoId, pos);
       syncPositionToFirestore(todoId, pos);
+
+      if (isTauri()) {
+        try {
+          const { getCurrentWindow, monitorFromPoint } = await import("@tauri-apps/api/window");
+          const win = getCurrentWindow();
+          const winPos = await win.outerPosition();
+          const dpr = window.devicePixelRatio || 1;
+
+          const oldPhysX = Math.round(oldPos.x * dpr) + winPos.x;
+          const oldPhysY = Math.round(oldPos.y * dpr) + winPos.y;
+          const newPhysX = Math.round(pos.x * dpr) + winPos.x;
+          const newPhysY = Math.round(pos.y * dpr) + winPos.y;
+
+          const oldMonitor = await monitorFromPoint(oldPhysX, oldPhysY);
+          const newMonitor = await monitorFromPoint(newPhysX, newPhysY);
+
+          if (oldMonitor && newMonitor && oldMonitor.name !== newMonitor.name) {
+            console.log(`[StickyCanvas] Note moved to new monitor: ${oldMonitor.name} -> ${newMonitor.name}. Reloading...`);
+            window.location.reload();
+          }
+        } catch (err) {
+          console.error("[StickyCanvas] Failed to check monitor onDragEnd:", err);
+        }
+      }
     },
-    [suppressSnapshot]
+    [suppressSnapshot, positions, todos]
   );
 
   const handleComplete = useCallback(async (todoId: string) => {

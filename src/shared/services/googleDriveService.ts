@@ -181,22 +181,26 @@ export async function clearOAuthTokens(): Promise<void> {
  */
 export async function getValidAccessToken(): Promise<string | null> {
   const session = await getOAuthSession();
+  const accessToken = session?.accessToken;
+  const expiresAt = session?.expiresAt || 0;
+
+  // If token is valid for at least 60 seconds, return it immediately
+  if (accessToken && expiresAt > Date.now() + 60000) {
+    return accessToken;
+  }
+
+  // Otherwise, we need a refresh token to request a new access token
   const refreshToken = session?.refreshToken;
   if (!refreshToken) {
-    console.warn("[GDrive Service] No refresh token found. User is not authenticated for backup.");
-    if (isDriveAuthenticated()) {
+    console.warn("[GDrive Service] Access token is expired/missing and no refresh token found.");
+    // Only automatically clear the OAuth state if running on Tauri desktop app.
+    // On web, since client-side popup does not provide a refresh token, we allow 
+    // the user to remain linked so they are not blocked by the GDriveLockout page.
+    if (isDriveAuthenticated() && isTauri()) {
       console.warn("[GDrive Service] Session is marked as authenticated but session file/token is missing. Clearing OAuth state.");
       await clearOAuthTokens();
     }
     return null;
-  }
-
-  const accessToken = session?.accessToken;
-  const expiresAt = session?.expiresAt || 0;
-
-  // If token is valid for at least 60 seconds, return it
-  if (accessToken && expiresAt > Date.now() + 60000) {
-    return accessToken;
   }
 
   console.info("[GDrive Service] Access token expired or missing. Refreshing...");
@@ -233,11 +237,25 @@ export async function getValidAccessToken(): Promise<string | null> {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[GDrive Service] Token refresh failed: ${response.status}`, errorText);
-      
-      // If the refresh token is revoked/invalid, clear it to prompt re-login
-      if (response.status === 400 || response.status === 401) {
+      let isInvalidGrant = false;
+      try {
+        const errorText = await response.text();
+        console.error(`[GDrive Service] Token refresh failed: ${response.status}`, errorText);
+        try {
+          const parsed = JSON.parse(errorText);
+          if (parsed.error === "invalid_grant") {
+            isInvalidGrant = true;
+          }
+        } catch {
+          if (errorText.includes("invalid_grant")) {
+            isInvalidGrant = true;
+          }
+        }
+      } catch (e) {
+        console.error("[GDrive Service] Failed to read token refresh error response:", e);
+      }
+
+      if (isInvalidGrant) {
         await clearOAuthTokens();
       }
       return null;
@@ -257,6 +275,115 @@ export async function getValidAccessToken(): Promise<string | null> {
   }
 }
 
+interface GDriveFile {
+  id: string;
+  name: string;
+  modifiedTime?: string;
+  mimeType?: string;
+}
+
+/**
+ * Lists all files matching a query, recursively handling pagination using nextPageToken.
+ */
+async function listGoogleDriveFiles(
+  accessToken: string,
+  query: string,
+  fields: string = "id,name"
+): Promise<GDriveFile[]> {
+  let allFiles: GDriveFile[] = [];
+  let nextPageToken: string | null = null;
+
+  do {
+    let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=nextPageToken,files(${fields})`;
+    if (nextPageToken) {
+      url += `&pageToken=${encodeURIComponent(nextPageToken)}`;
+    }
+
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to list files: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    if (data.files) {
+      allFiles = allFiles.concat(data.files);
+    }
+    nextPageToken = data.nextPageToken || null;
+  } while (nextPageToken);
+
+  return allFiles;
+}
+
+/**
+ * Deletes a file or folder on Google Drive.
+ */
+async function deleteFileOrFolder(accessToken: string, fileId: string): Promise<void> {
+  const url = `https://www.googleapis.com/drive/v3/files/${fileId}`;
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    console.warn(`[GDrive Service] Failed to delete file/folder ${fileId}: ${res.statusText}`);
+  }
+}
+
+/**
+ * Merges files and folders from a duplicate source folder into a target folder.
+ */
+async function mergeFolders(accessToken: string, sourceFolderId: string, targetFolderId: string): Promise<void> {
+  const query = `'${sourceFolderId}' in parents and trashed = false`;
+  const items = await listGoogleDriveFiles(accessToken, query, "id,name,mimeType,modifiedTime");
+
+  for (const item of items) {
+    const targetQuery = `'${targetFolderId}' in parents and name = '${item.name}' and trashed = false`;
+    const targetUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(targetQuery)}&fields=files(id,name,mimeType,modifiedTime)`;
+    const targetRes = await fetch(targetUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    
+    let targetItem: GDriveFile | null = null;
+    if (targetRes.ok) {
+      const data = await targetRes.json();
+      if (data.files && data.files.length > 0) {
+        targetItem = data.files[0];
+      }
+    }
+
+    if (targetItem) {
+      if (item.mimeType === "application/vnd.google-apps.folder" && targetItem.mimeType === "application/vnd.google-apps.folder") {
+        await mergeFolders(accessToken, item.id, targetItem.id);
+      } else {
+        const sourceTime = item.modifiedTime ? new Date(item.modifiedTime).getTime() : 0;
+        const targetTime = targetItem.modifiedTime ? new Date(targetItem.modifiedTime).getTime() : 0;
+
+        if (sourceTime > targetTime) {
+          const moveUrl = `https://www.googleapis.com/drive/v3/files/${item.id}?addParents=${targetFolderId}&removeParents=${sourceFolderId}`;
+          const moveRes = await fetch(moveUrl, {
+            method: "PATCH",
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (moveRes.ok) {
+            await deleteFileOrFolder(accessToken, targetItem.id);
+          }
+        } else {
+          await deleteFileOrFolder(accessToken, item.id);
+        }
+      }
+    } else {
+      const moveUrl = `https://www.googleapis.com/drive/v3/files/${item.id}?addParents=${targetFolderId}&removeParents=${sourceFolderId}`;
+      await fetch(moveUrl, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+    }
+  }
+
+  await deleteFileOrFolder(accessToken, sourceFolderId);
+}
 
 /**
  * Searches for a folder by name inside a parent directory.
@@ -270,17 +397,41 @@ async function findFolder(accessToken: string, folderName: string, parentId?: st
     query += ` and 'root' in parents`;
   }
 
-  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)`;
+  const files = await listGoogleDriveFiles(accessToken, query, "id");
+  return files.length > 0 ? files[0].id : null;
+}
+
+/**
+ * Resolves duplicate W_Logbook folders in root and consolidates them into the oldest folder.
+ */
+async function resolveAndConsolidateRootFolder(accessToken: string): Promise<string> {
+  const query = `name = 'W_Logbook' and mimeType = 'application/vnd.google-apps.folder' and trashed = false and 'root' in parents`;
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&orderBy=createdTime&fields=files(id,name,createdTime)`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-
   if (!res.ok) {
-    throw new Error(`Failed to find folder: ${res.statusText}`);
+    throw new Error(`Failed to query W_Logbook folders: ${res.statusText}`);
   }
-
   const data = await res.json();
-  return data.files && data.files.length > 0 ? data.files[0].id : null;
+  const folders = data.files || [];
+  if (folders.length === 0) {
+    console.info("[GDrive Service] No W_Logbook folder found. Creating...");
+    return await createFolder(accessToken, "W_Logbook");
+  }
+  const oldestFolderId = folders[0].id;
+  if (folders.length > 1) {
+    console.warn(`[GDrive Service] Found ${folders.length} duplicate W_Logbook folders. Consolidating...`);
+    for (let i = 1; i < folders.length; i++) {
+      try {
+        await mergeFolders(accessToken, folders[i].id, oldestFolderId);
+      } catch (err) {
+        console.error(`[GDrive Service] Failed to merge duplicate folder ${folders[i].id}:`, err);
+      }
+    }
+    console.info("[GDrive Service] Consolidating complete.");
+  }
+  return oldestFolderId;
 }
 
 /**
@@ -319,18 +470,8 @@ async function createFolder(accessToken: string, folderName: string, parentId?: 
  */
 async function findFile(accessToken: string, fileName: string, parentId: string): Promise<string | null> {
   const query = `name = '${fileName}' and '${parentId}' in parents and trashed = false`;
-  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)`;
-  
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to find file: ${res.statusText}`);
-  }
-
-  const data = await res.json();
-  return data.files && data.files.length > 0 ? data.files[0].id : null;
+  const files = await listGoogleDriveFiles(accessToken, query, "id");
+  return files.length > 0 ? files[0].id : null;
 }
 
 /**
@@ -363,9 +504,10 @@ async function createEmptyFile(accessToken: string, fileName: string, parentId: 
 
 /**
  * Uploads/Overwrites the content of a file using standard media upload.
+ * Returns the server modifiedTime of the uploaded file.
  */
-async function uploadFileContent(accessToken: string, fileId: string, content: string): Promise<void> {
-  const url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`;
+async function uploadFileContent(accessToken: string, fileId: string, content: string): Promise<string> {
+  const url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=modifiedTime`;
   
   const res = await fetch(url, {
     method: "PATCH",
@@ -379,12 +521,16 @@ async function uploadFileContent(accessToken: string, fileId: string, content: s
   if (!res.ok) {
     throw new Error(`Failed to upload file content: ${res.statusText}`);
   }
+
+  const data = await res.json();
+  return data.modifiedTime;
 }
 
 /**
  * Syncs a single note to Google Drive under W_Logbook/[Year]/[Date].md structure.
+ * Returns the server modifiedTime string.
  */
-export async function syncNoteToDrive(accessToken: string, dateStr: string, content: string): Promise<void> {
+export async function syncNoteToDrive(accessToken: string, dateStr: string, content: string): Promise<string> {
   const year = dateStr.substring(0, 4);
   const fileName = `${dateStr}.md`;
 
@@ -396,11 +542,7 @@ export async function syncNoteToDrive(accessToken: string, dateStr: string, cont
     // 1. Locate or create root 'W_Logbook' folder
     let rootFolderId = cache.rootFolderId;
     if (!rootFolderId) {
-      rootFolderId = await findFolder(accessToken, "W_Logbook");
-      if (!rootFolderId) {
-        console.info("[GDrive Service] 'W_Logbook' folder not found. Creating...");
-        rootFolderId = await createFolder(accessToken, "W_Logbook");
-      }
+      rootFolderId = await resolveAndConsolidateRootFolder(accessToken);
       cache.rootFolderId = rootFolderId;
       await saveFolderCache(cache);
     }
@@ -427,9 +569,10 @@ export async function syncNoteToDrive(accessToken: string, dateStr: string, cont
       fileId = await createEmptyFile(accessToken, fileName, yearFolderId);
     }
 
-    // 4. Overwrite raw file media contents
-    await uploadFileContent(accessToken, fileId, content);
+    // 4. Overwrite raw file media contents and get server modified time
+    const modifiedTime = await uploadFileContent(accessToken, fileId, content);
     console.info(`[GDrive Service] Successfully sync'd ${fileName} to Drive.`);
+    return modifiedTime;
   } catch (err) {
     console.error("[GDrive Service] Note sync failed, clearing folder ID cache:", err);
     await clearFolderCache();
@@ -445,31 +588,15 @@ export async function pullNotesFromDrive(accessToken: string): Promise<void> {
     console.info("[GDrive Service] Starting historical daily notes sync-down from Google Drive...");
     
     // 1. Locate root folder
-    let rootFolderId = await findFolder(accessToken, "W_Logbook");
-    if (!rootFolderId) {
-      console.info("[GDrive Service] No 'W_Logbook' folder found on Drive. Nothing to sync down.");
-      return;
-    }
+    let rootFolderId = await resolveAndConsolidateRootFolder(accessToken);
 
     const cache = await getFolderCache();
     cache.rootFolderId = rootFolderId;
     await saveFolderCache(cache);
 
     // 2. List all subfolders (Years) under root folder
-    const listYearsUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(
-      `'${rootFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`
-    )}&fields=files(id,name)`;
-
-    const yearsRes = await fetch(listYearsUrl, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    if (!yearsRes.ok) {
-      throw new Error(`Failed to list Year folders: ${yearsRes.statusText}`);
-    }
-
-    const yearsData = await yearsRes.json();
-    const yearFiles = yearsData.files || [];
+    const query = `'${rootFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+    const yearFiles = await listGoogleDriveFiles(accessToken, query, "id,name");
     console.info(`[GDrive Service] Found ${yearFiles.length} Year folders on Drive.`);
 
     for (const yearFolder of yearFiles) {
@@ -481,21 +608,8 @@ export async function pullNotesFromDrive(accessToken: string): Promise<void> {
       await saveFolderCache(cache);
 
       // 3. List all markdown files inside this Year folder
-      const listNotesUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(
-        `'${yearFolderId}' in parents and mimeType = 'text/markdown' and trashed = false`
-      )}&fields=files(id,name,modifiedTime)`;
-
-      const notesRes = await fetch(listNotesUrl, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-
-      if (!notesRes.ok) {
-        console.error(`[GDrive Service] Failed to list files for year ${yearName}:`, notesRes.statusText);
-        continue;
-      }
-
-      const notesData = await notesRes.json();
-      const files = notesData.files || [];
+      const noteQuery = `'${yearFolderId}' in parents and mimeType = 'text/markdown' and trashed = false`;
+      const files = await listGoogleDriveFiles(accessToken, noteQuery, "id,name,modifiedTime");
       console.info(`[GDrive Service] Year ${yearName}: Found ${files.length} markdown notes.`);
 
       for (const file of files) {
@@ -629,9 +743,10 @@ export async function runBackgroundSync(): Promise<void> {
       }
 
       try {
-        const syncTimestamp = note.updatedAt;
-        await syncNoteToDrive(accessToken, note.date, note.notes);
-        await clearSyncPending(note.date, syncTimestamp);
+        const localStartTimestamp = note.updatedAt;
+        const modifiedTimeStr = await syncNoteToDrive(accessToken, note.date, note.notes);
+        const serverModifiedTimeMs = new Date(modifiedTimeStr).getTime();
+        await clearSyncPending(note.date, localStartTimestamp, serverModifiedTimeMs);
         
         // Dispatch global notification for UI indicators
         window.dispatchEvent(new CustomEvent("w:note-synced", { detail: note.date }));
@@ -639,6 +754,16 @@ export async function runBackgroundSync(): Promise<void> {
         console.error(`[GDrive Service] Failed to sync note for date ${note.date}:`, err);
         // Continue to next note in case one is corrupted, leaving this one flagged pending
       }
+    }
+
+    const remainingPending = await getPendingSyncNotes();
+    if (remainingPending.length > 0) {
+      console.info(`[GDrive Service] ${remainingPending.length} pending notes remaining. Scheduling follow-up sync in 5 seconds.`);
+      setTimeout(() => {
+        runBackgroundSync().catch((err) => {
+          console.error("[GDrive Service] Follow-up background sync failed:", err);
+        });
+      }, 5000);
     }
   } catch (err) {
     console.error("[GDrive Service] Error in background sync lifecycle:", err);

@@ -5,7 +5,8 @@ import { getLogRange } from "../../habits/services/logService";
 import { getHabits } from "../../habits/services/habitService";
 import { getFreezeState, isDateInFreezeRange, checkAutoFreeze } from "../../freeze/services/freezeService";
 import { updateUserDoc, getUserDoc } from "../../auth/services/userService";
-import { auth } from "../../../shared/config/firebase";
+import { db, auth } from "../../../shared/config/firebase";
+import { doc, updateDoc } from "firebase/firestore";
 import { getToday, formatDate } from "../../../shared/utils/dateUtils";
 
 // ─── Gap Processor ──────────────────────────────────────────────
@@ -96,7 +97,7 @@ export async function processGap(
   const yesterday = prevDay(today);
 
   if (startDate > yesterday) {
-    await updateLastActiveDate(today);
+    await updateLastActiveDate(yesterday);
     return result;
   }
 
@@ -168,12 +169,77 @@ export async function processGap(
         continue;
       }
 
-      // Special evaluation for multi-day metric/limiter habits
-      const isMultiDayMetric =
-        (habit.period === "weekly" || habit.period === "monthly") &&
-        (habit.type === "metric" || habit.type === "limiter");
+      // Period end streak updates for weekly and monthly habits
+      const isPeriodEndWeekly = habit.period === "weekly" && currentDate.getDay() === (weeklyResetDay === 0 ? 6 : weeklyResetDay - 1);
+      
+      const nextDayD = new Date(currentDate);
+      nextDayD.setDate(nextDayD.getDate() + 1);
+      const isPeriodEndMonthly = habit.period === "monthly" && nextDayD.getMonth() !== currentDate.getMonth();
 
-      if (isMultiDayMetric) {
+      const isPeriodEnd = isPeriodEndWeekly || isPeriodEndMonthly;
+
+      if (isPeriodEnd) {
+        const periodStart = habit.period === "weekly"
+          ? getWeekStart(dateStr, weeklyResetDay)
+          : getMonthStart(dateStr);
+
+        const habitStartStr = habit.startDate || formatDate(new Date(habit.createdAt));
+        
+        if (habitStartStr <= dateStr) {
+          // Calculate cumulative progress over the period
+          let cumulativeValue = 0;
+          let tempDate = new Date(periodStart + "T12:00:00");
+          const periodEndD = new Date(dateStr + "T12:00:00");
+          while (tempDate <= periodEndD) {
+            const log = logMap.get(formatDate(tempDate));
+            const entry = log?.habits?.[habit.id];
+            if (entry) {
+              cumulativeValue += entry.value || 0;
+            }
+            tempDate.setDate(tempDate.getDate() + 1);
+          }
+
+          const targetValue = habit.type === "standard" ? (habit.frequency || 1) : (habit.metric?.targetValue ?? 1);
+          const u = auth.currentUser;
+          if (u) {
+            const habitRef = doc(db, "users", u.uid, "habits", habit.id);
+
+            if (habit.type === "limiter") {
+              if (cumulativeValue <= targetValue) {
+                // Limiter Success: increment streak
+                const currentStreak = (habit.currentStreak || 0) + 1;
+                const longestStreak = Math.max(habit.longestStreak || 0, currentStreak);
+                await updateDoc(habitRef, {
+                  currentStreak,
+                  longestStreak,
+                  lastCompletedDate: dateStr,
+                });
+                habit.currentStreak = currentStreak;
+                habit.longestStreak = longestStreak;
+                habit.lastCompletedDate = dateStr;
+              } else {
+                // Limiter Exceeded: reset streak
+                await updateDoc(habitRef, { currentStreak: 0 });
+                habit.currentStreak = 0;
+              }
+            } else {
+              // Standard or Metric
+              if (cumulativeValue < targetValue) {
+                // Missed: reset streak
+                await updateDoc(habitRef, { currentStreak: 0 });
+                habit.currentStreak = 0;
+              }
+            }
+          }
+        }
+      }
+
+      // Special evaluation for multi-day metric/limiter and standard anyday habits
+      const isMultiDayPeriodEvaluation =
+        (habit.period === "weekly" || habit.period === "monthly") &&
+        (habit.type === "metric" || habit.type === "limiter" || (habit.type === "standard" && (!habit.daysOfWeek || habit.daysOfWeek.length === 0)));
+
+      if (isMultiDayPeriodEvaluation) {
         // BUG 9: Multi-Day Period End Penalty Bypassing via a Single Frozen Day
         // Evaluate multi-day habits on their period end date even if that specific day was frozen.
         let isPeriodEnd = false;
@@ -226,7 +292,7 @@ export async function processGap(
           tempDate.setDate(tempDate.getDate() + 1);
         }
 
-        const targetValue = habit.metric?.targetValue ?? 0;
+        const targetValue = habit.type === "standard" ? (habit.frequency || 1) : (habit.metric?.targetValue ?? 0);
         if (habit.type === "limiter") {
           if (cumulativeValue <= targetValue) continue;
         } else {
@@ -255,6 +321,31 @@ export async function processGap(
         // Was this habit scheduled on this day?
         if (!isHabitScheduledToday(habit, dateStr, weeklyResetDay)) {
           continue;
+        }
+
+        // For daily/interval limiters: update streak based on success/failure
+        if (habit.type === "limiter" && (habit.period === "daily" || habit.period === "interval")) {
+          const logEntry = dayLog?.habits?.[habit.id];
+          const hasExceeded = logEntry ? logEntry.value > logEntry.target : false;
+          const u = auth.currentUser;
+          if (u) {
+            const habitRef = doc(db, "users", u.uid, "habits", habit.id);
+            if (!hasExceeded) {
+              const currentStreak = (habit.currentStreak || 0) + 1;
+              const longestStreak = Math.max(habit.longestStreak || 0, currentStreak);
+              await updateDoc(habitRef, {
+                currentStreak,
+                longestStreak,
+                lastCompletedDate: dateStr,
+              });
+              habit.currentStreak = currentStreak;
+              habit.longestStreak = longestStreak;
+              habit.lastCompletedDate = dateStr;
+            } else {
+              await updateDoc(habitRef, { currentStreak: 0 });
+              habit.currentStreak = 0;
+            }
+          }
         }
 
         // Was it completed in the log?
@@ -295,6 +386,16 @@ export async function processGap(
       } catch {
         // If strikes are already at max (locked out), addStrike is a no-op
       }
+
+      // Reset streak for missed standard/metric habits (daily, weekly, monthly, interval)
+      if (habit.type !== "limiter") {
+        const u = auth.currentUser;
+        if (u) {
+          const habitRef = doc(db, "users", u.uid, "habits", habit.id);
+          await updateDoc(habitRef, { currentStreak: 0 });
+          habit.currentStreak = 0;
+        }
+      }
     }
 
     // Process todo deadlines chronologically for this day
@@ -312,7 +413,7 @@ export async function processGap(
   }
 
   // 9. Update lastActiveDate
-  await updateLastActiveDate(today);
+  await updateLastActiveDate(yesterday);
 
   return result;
 }

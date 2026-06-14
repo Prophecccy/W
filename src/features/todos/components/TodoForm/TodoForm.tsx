@@ -18,6 +18,7 @@ export function TodoForm({ onClose, onSuccess, groups = [] }: TodoFormProps) {
   const [type, setType] = useState<TodoType>("standard");
   const [target, setTarget] = useState(5);
   const [deadline, setDeadline] = useState("");
+  const [postDeadlineAction, setPostDeadlineAction] = useState<"keep" | "disappear">("keep");
   const [future, setFuture] = useState("");
   const [showOnDesktop, setShowOnDesktop] = useState(true);
   const [group, setGroup] = useState<string | null>(null);
@@ -62,6 +63,7 @@ export function TodoForm({ onClose, onSuccess, groups = [] }: TodoFormProps) {
         deadline: deadline || null,
         future: future || null,
         group: finalGroup,
+        postDeadlineAction: deadline ? postDeadlineAction : undefined,
       };
       if (type === "numbered") {
         const clampedTarget = Math.max(2, Math.min(999, target));
@@ -162,12 +164,42 @@ export function TodoForm({ onClose, onSuccess, groups = [] }: TodoFormProps) {
                 type="date"
                 className="todo-form__input t-data"
                 value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
+                onChange={(e) => {
+                  setDeadline(e.target.value);
+                  if (!e.target.value) {
+                    setPostDeadlineAction("keep");
+                  }
+                }}
               />
               <span className="t-meta" style={{color: "var(--text-muted)", marginTop: "4px"}}>
                 Missing this will issue a strike.
               </span>
             </div>
+
+            {deadline && (
+              <div className="todo-form__field mt-4">
+                <span className="t-meta">POST-DEADLINE ACTION</span>
+                <div className="todo-form__radio-group mt-2">
+                  <button
+                    type="button"
+                    className={`todo-form__radio-btn ${postDeadlineAction === "keep" ? "todo-form__radio-btn--active" : ""}`}
+                    onClick={() => setPostDeadlineAction("keep")}
+                  >
+                    <div className="t-label mb-1">KEEP ON BOARD</div>
+                    <span className="t-meta">Stays on your board until manually completed.</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`todo-form__radio-btn ${postDeadlineAction === "disappear" ? "todo-form__radio-btn--active" : ""}`}
+                    onClick={() => setPostDeadlineAction("disappear")}
+                  >
+                    <div className="t-label mb-1">VANISH FROM BOARD</div>
+                    <span className="t-meta">Disappears from all active lists once the deadline passes.</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="todo-form__field mt-4">
               <span className="t-meta">START DATE (FUTURE)</span>
               <input

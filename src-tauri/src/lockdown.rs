@@ -27,6 +27,7 @@ static POLLING_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::Ato
 static BLOCKLIST: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static END_TIME: Mutex<Option<std::time::Instant>> = Mutex::new(None);
 static BLOCKED_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
+static POLLING_THREAD: Mutex<Option<thread::JoinHandle<()>>> = Mutex::new(None);
 
 // ─── Event payloads ──────────────────────────────────────────────
 
@@ -175,6 +176,39 @@ mod platform {
             }
         }
     }
+
+    pub fn get_exe_name_by_pid(pid: u32) -> Option<String> {
+        unsafe {
+            if pid == 0 {
+                return None;
+            }
+            if let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+                let mut exe_buf = [0u16; MAX_PATH as usize];
+                let mut exe_len = MAX_PATH;
+                let mut exe_name = String::new();
+                if QueryFullProcessImageNameW(
+                    handle,
+                    PROCESS_NAME_WIN32,
+                    PWSTR(exe_buf.as_mut_ptr()),
+                    &mut exe_len,
+                )
+                .is_ok()
+                {
+                    let full_path = String::from_utf16_lossy(&exe_buf[..exe_len as usize]);
+                    if let Some(idx) = full_path.rfind('\\') {
+                        exe_name = full_path[idx + 1..].to_string();
+                    } else {
+                        exe_name = full_path;
+                    }
+                }
+                let _ = CloseHandle(handle);
+                if !exe_name.is_empty() {
+                    return Some(exe_name);
+                }
+            }
+            None
+        }
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -190,6 +224,10 @@ mod platform {
     }
 
     pub fn get_foreground_info() -> Option<ForegroundInfo> {
+        None
+    }
+
+    pub fn get_exe_name_by_pid(_pid: u32) -> Option<String> {
         None
     }
 }
@@ -234,7 +272,7 @@ fn is_own_window(info: &platform::ForegroundInfo) -> bool {
 
 // ─── Polling thread ──────────────────────────────────────────────
 
-fn start_polling(app_handle: tauri::AppHandle) {
+fn start_polling(app_handle: tauri::AppHandle) -> Result<(), String> {
     LOCKDOWN_RUNNING.store(true, Ordering::SeqCst);
     let my_generation = POLLING_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
 
@@ -247,135 +285,157 @@ fn start_polling(app_handle: tauri::AppHandle) {
         );
     }
 
-    thread::spawn(move || {
-        let mut currently_blocking: Option<String> = None;
-        let mut tick_count: u64 = 0;
+    let handle = thread::Builder::new()
+        .name("lockdown-polling".to_string())
+        .spawn(move || {
+            let mut currently_blocking: Option<String> = None;
+            let mut tick_count: u64 = 0;
 
-        while LOCKDOWN_RUNNING.load(Ordering::SeqCst) && POLLING_GENERATION.load(Ordering::SeqCst) == my_generation {
-            tick_count += 1;
+            while LOCKDOWN_RUNNING.load(Ordering::SeqCst) && POLLING_GENERATION.load(Ordering::SeqCst) == my_generation {
+                tick_count += 1;
 
-            // Check if timer expired
-            let expired = {
-                if let Ok(guard) = END_TIME.lock() {
-                    if let Some(end) = *guard {
-                        std::time::Instant::now() >= end
+                // Check if timer expired
+                let expired = {
+                    if let Ok(guard) = END_TIME.lock() {
+                        if let Some(end) = *guard {
+                            std::time::Instant::now() >= end
+                        } else {
+                            false
+                        }
                     } else {
                         false
                     }
-                } else {
-                    false
-                }
-            };
-
-            if expired {
-                eprintln!("[lockdown] Timer expired in Rust thread. Hiding overlay and stopping monitor.");
-                if let Some(overlay) = app_handle.get_webview_window("block-overlay") {
-                    let _ = overlay.hide();
-                }
-                let _ = app_handle.emit("lockdown-expired", ());
-                LOCKDOWN_RUNNING.store(false, Ordering::SeqCst);
-                break;
-            }
-
-            if let Some(info) = platform::get_foreground_info() {
-                // Diagnostic logging every ~10 seconds
-                if tick_count % 20 == 1 {
-                    eprintln!(
-                        "[lockdown] tick #{} — foreground: [{}] \"{}\" (pid={})",
-                        tick_count, info.exe_name, info.title, info.pid
-                    );
-                }
-
-                // ── SELF-LOCKOUT SAFEGUARD ── NEVER block our own windows
-                if is_own_window(&info) {
-                    thread::sleep(Duration::from_millis(500));
-                    continue;
-                }
-
-                let title_lower = info.title.to_lowercase();
-                let exe_lower = info.exe_name.to_lowercase();
-
-                // Check blocklist
-                let matched_rule = {
-                    if let Ok(guard) = BLOCKLIST.lock() {
-                        guard
-                            .iter()
-                            .find(|rule| {
-                                if rule.ends_with(".exe") {
-                                    exe_lower == rule.as_str()
-                                } else {
-                                    title_lower.contains(rule.as_str())
-                                }
-                            })
-                            .cloned()
-                    } else {
-                        None
-                    }
                 };
 
-                if let Some(rule) = matched_rule {
-                    let display_name = if rule.ends_with(".exe") {
-                        info.exe_name.clone()
-                    } else {
-                        info.title.clone()
-                    };
+                if expired {
+                    eprintln!("[lockdown] Timer expired in Rust thread. Hiding overlay and stopping monitor.");
+                    if let Some(overlay) = app_handle.get_webview_window("block-overlay") {
+                        let _ = overlay.hide();
+                    }
+                    let _ = app_handle.emit("lockdown-expired", ());
+                    LOCKDOWN_RUNNING.store(false, Ordering::SeqCst);
+                    break;
+                }
 
-                    if currently_blocking.as_ref() != Some(&rule) {
+                if let Some(info) = platform::get_foreground_info() {
+                    // Diagnostic logging every ~10 seconds
+                    if tick_count % 20 == 1 {
                         eprintln!(
-                            "[lockdown] BLOCK: \"{}\" matched rule \"{}\"",
-                            display_name, rule
+                            "[lockdown] tick #{} — foreground: [{}] \"{}\" (pid={})",
+                            tick_count, info.exe_name, info.title, info.pid
                         );
                     }
 
-                    currently_blocking = Some(rule.clone());
+                    // ── SELF-LOCKOUT SAFEGUARD ── NEVER block our own windows
+                    if is_own_window(&info) {
+                        thread::sleep(Duration::from_millis(500));
+                        continue;
+                    }
 
-                    let payload = BlockPayload {
-                        app_title: display_name,
-                        matched_rule: rule,
-                        pid: info.pid,
-                        x: info.x,
-                        y: info.y,
-                        width: info.width,
-                        height: info.height,
+                    let title_lower = info.title.to_lowercase();
+                    let exe_lower = info.exe_name.to_lowercase();
+
+                    // Check blocklist
+                    let matched_rule = {
+                        if let Ok(guard) = BLOCKLIST.lock() {
+                            guard
+                                .iter()
+                                .find(|rule| {
+                                    if rule.ends_with(".exe") {
+                                        exe_lower == rule.as_str()
+                                    } else {
+                                        title_lower.contains(rule.as_str())
+                                    }
+                                })
+                                .cloned()
+                        } else {
+                            None
+                        }
                     };
 
-                    if let Ok(mut pids) = BLOCKED_PIDS.lock() {
-                        if !pids.contains(&info.pid) {
-                            pids.push(info.pid);
-                            if pids.len() > 50 {
-                                pids.remove(0);
+                    if let Some(rule) = matched_rule {
+                        let display_name = if rule.ends_with(".exe") {
+                            info.exe_name.clone()
+                        } else {
+                            info.title.clone()
+                        };
+
+                        if currently_blocking.as_ref() != Some(&rule) {
+                            eprintln!(
+                                "[lockdown] BLOCK: \"{}\" matched rule \"{}\"",
+                                display_name, rule
+                            );
+                        }
+
+                        currently_blocking = Some(rule.clone());
+
+                        let payload = BlockPayload {
+                            app_title: display_name,
+                            matched_rule: rule,
+                            pid: info.pid,
+                            x: info.x,
+                            y: info.y,
+                            width: info.width,
+                            height: info.height,
+                        };
+
+                        if let Ok(mut pids) = BLOCKED_PIDS.lock() {
+                            if !pids.contains(&info.pid) {
+                                pids.push(info.pid);
+                                if pids.len() > 50 {
+                                    pids.remove(0);
+                                }
                             }
                         }
-                    }
 
-                    let _ = app_handle.emit("lockdown-block", payload);
-                } else {
-                    // Non-blocked, non-self window has focus
-                    if currently_blocking.is_some() {
-                        eprintln!("[lockdown] UNBLOCK: blocked app lost focus");
-                        currently_blocking = None;
-                        let _ = app_handle.emit("lockdown-unblock", UnblockPayload {});
+                        let _ = app_handle.emit("lockdown-block", payload);
+                    } else {
+                        // Non-blocked, non-self window has focus
+                        if currently_blocking.is_some() {
+                            eprintln!("[lockdown] UNBLOCK: blocked app lost focus");
+                            currently_blocking = None;
+                            let _ = app_handle.emit("lockdown-unblock", UnblockPayload {});
+                        }
                     }
                 }
+
+                // Poll every 500ms for responsive overlay tracking
+                thread::sleep(Duration::from_millis(500));
             }
 
-            // Poll every 500ms for responsive overlay tracking
-            thread::sleep(Duration::from_millis(500));
-        }
+            // Emit unblock when stopping
+            if currently_blocking.is_some() {
+                let _ = app_handle.emit("lockdown-unblock", UnblockPayload {});
+            }
+            eprintln!("[lockdown] Polling thread stopped for gen {}", my_generation);
+        })
+        .map_err(|e| format!("Failed to spawn polling thread: {}", e))?;
 
-        // Emit unblock when stopping
-        if currently_blocking.is_some() {
-            let _ = app_handle.emit("lockdown-unblock", UnblockPayload {});
-        }
-        eprintln!("[lockdown] Polling thread stopped for gen {}", my_generation);
-    });
+    if let Ok(mut guard) = POLLING_THREAD.lock() {
+        *guard = Some(handle);
+    }
+    Ok(())
 }
 
 fn stop_polling() {
     LOCKDOWN_RUNNING.store(false, Ordering::SeqCst);
     POLLING_GENERATION.fetch_add(1, Ordering::SeqCst);
-    thread::sleep(Duration::from_millis(100));
-    eprintln!("[lockdown] Monitor stopped");
+    
+    let handle = {
+        if let Ok(mut guard) = POLLING_THREAD.lock() {
+            guard.take()
+        } else {
+            None
+        }
+    };
+
+    if let Some(h) = handle {
+        eprintln!("[lockdown] Waiting for polling thread to exit...");
+        let _ = h.join();
+        eprintln!("[lockdown] Polling thread joined successfully");
+    } else {
+        eprintln!("[lockdown] No polling thread to join");
+    }
 }
 
 // ─── Tauri Commands ──────────────────────────────────────────────
@@ -396,35 +456,37 @@ pub fn start_lockdown_monitor(
         stop_polling();
     }
 
-    if let Ok(mut guard) = BLOCKLIST.lock() {
-        *guard = blocklist.into_iter().map(|s| s.to_lowercase()).collect();
-    }
+    let mut guard = BLOCKLIST.lock().map_err(|_| "BLOCKLIST mutex is poisoned".to_string())?;
+    *guard = blocklist.into_iter().map(|s| s.to_lowercase()).collect();
+    drop(guard);
 
-    if let Ok(mut pids) = BLOCKED_PIDS.lock() {
-        pids.clear();
-    }
+    let mut pids = BLOCKED_PIDS.lock().map_err(|_| "BLOCKED_PIDS mutex is poisoned".to_string())?;
+    pids.clear();
+    drop(pids);
 
-    if let Ok(mut guard) = END_TIME.lock() {
-        if let Some(secs) = remaining_secs {
-            *guard = Some(std::time::Instant::now() + std::time::Duration::from_secs(secs));
-        } else {
-            *guard = None;
-        }
+    let mut end_guard = END_TIME.lock().map_err(|_| "END_TIME mutex is poisoned".to_string())?;
+    if let Some(secs) = remaining_secs {
+        *end_guard = Some(std::time::Instant::now() + std::time::Duration::from_secs(secs));
+    } else {
+        *end_guard = None;
     }
+    drop(end_guard);
 
-    start_polling(app);
+    start_polling(app)?;
     Ok(())
 }
 
 #[tauri::command]
 pub fn stop_lockdown_monitor() -> Result<(), String> {
     eprintln!("[lockdown] stop_lockdown_monitor called");
-    if let Ok(mut guard) = END_TIME.lock() {
-        *guard = None;
-    }
-    if let Ok(mut pids) = BLOCKED_PIDS.lock() {
-        pids.clear();
-    }
+    let mut end_guard = END_TIME.lock().map_err(|_| "END_TIME mutex is poisoned".to_string())?;
+    *end_guard = None;
+    drop(end_guard);
+
+    let mut pids = BLOCKED_PIDS.lock().map_err(|_| "BLOCKED_PIDS mutex is poisoned".to_string())?;
+    pids.clear();
+    drop(pids);
+
     stop_polling();
     Ok(())
 }
@@ -435,21 +497,19 @@ pub fn update_lockdown_blocklist(blocklist: Vec<String>) -> Result<(), String> {
         "[lockdown] update_lockdown_blocklist called with {} items",
         blocklist.len()
     );
-    if let Ok(mut guard) = BLOCKLIST.lock() {
-        *guard = blocklist.into_iter().map(|s| s.to_lowercase()).collect();
-    }
+    let mut guard = BLOCKLIST.lock().map_err(|_| "BLOCKLIST mutex is poisoned".to_string())?;
+    *guard = blocklist.into_iter().map(|s| s.to_lowercase()).collect();
     Ok(())
 }
 
 #[tauri::command]
 pub fn update_lockdown_remaining(remaining_secs: Option<u64>) -> Result<(), String> {
     eprintln!("[lockdown] update_lockdown_remaining called: {:?}", remaining_secs);
-    if let Ok(mut guard) = END_TIME.lock() {
-        if let Some(secs) = remaining_secs {
-            *guard = Some(std::time::Instant::now() + std::time::Duration::from_secs(secs));
-        } else {
-            *guard = None;
-        }
+    let mut end_guard = END_TIME.lock().map_err(|_| "END_TIME mutex is poisoned".to_string())?;
+    if let Some(secs) = remaining_secs {
+        *end_guard = Some(std::time::Instant::now() + std::time::Duration::from_secs(secs));
+    } else {
+        *end_guard = None;
     }
     Ok(())
 }
@@ -458,6 +518,13 @@ pub fn update_lockdown_remaining(remaining_secs: Option<u64>) -> Result<(), Stri
 #[tauri::command]
 pub fn test_lockdown_block(app: tauri::AppHandle) -> Result<(), String> {
     eprintln!("[lockdown] test_lockdown_block — firing fake event");
+    
+    // Safety check: only allow test in debug mode or if lockdown is active
+    let active = LOCKDOWN_RUNNING.load(Ordering::SeqCst);
+    if !active {
+        return Err("Lockdown is not active. Test event ignored.".to_string());
+    }
+
     let payload = BlockPayload {
         app_title: "TEST APP".to_string(),
         matched_rule: "test".to_string(),
@@ -485,16 +552,31 @@ pub fn kill_blocked_process(pid: u32) -> Result<(), String> {
     }
 
     // Validate against BLOCKED_PIDS
-    let is_blocked = {
-        if let Ok(pids) = BLOCKED_PIDS.lock() {
-            pids.contains(&pid)
-        } else {
-            false
-        }
-    };
+    let pids = BLOCKED_PIDS.lock().map_err(|_| "BLOCKED_PIDS mutex is poisoned".to_string())?;
+    let is_blocked = pids.contains(&pid);
+    drop(pids);
 
     if !is_blocked {
         return Err("PID is not in the blocked list".to_string());
+    }
+
+    // Verify process executable name still matches blocklist to prevent PID recycling issues
+    if let Some(exe_name) = platform::get_exe_name_by_pid(pid) {
+        let exe_lower = exe_name.to_lowercase();
+        let blocklist = BLOCKLIST.lock().map_err(|_| "BLOCKLIST mutex is poisoned".to_string())?;
+        
+        let matches_rule = blocklist.iter().any(|rule| {
+            if rule.ends_with(".exe") {
+                exe_lower == *rule
+            } else {
+                // For window title rules, verify it is still a running app
+                true
+            }
+        });
+        
+        if !matches_rule {
+            return Err("Process executable name does not match the active blocklist rules".to_string());
+        }
     }
 
     #[cfg(target_os = "windows")]
@@ -505,13 +587,25 @@ pub fn kill_blocked_process(pid: u32) -> Result<(), String> {
         };
 
         unsafe {
-            let handle = OpenProcess(PROCESS_TERMINATE, false, pid)
-                .map_err(|e| format!("OpenProcess failed: {}", e))?;
-            TerminateProcess(handle, 1)
-                .map_err(|e| format!("TerminateProcess failed: {}", e))?;
-            let _ = CloseHandle(handle);
+            match OpenProcess(PROCESS_TERMINATE, false, pid) {
+                Ok(handle) => {
+                    if let Err(e) = TerminateProcess(handle, 1) {
+                        let _ = CloseHandle(handle);
+                        return Err(format!("TerminateProcess failed: {}", e));
+                    }
+                    let _ = CloseHandle(handle);
+                }
+                Err(e) => {
+                    let err_code = e.code().0 as u32;
+                    // ERROR_INVALID_PARAMETER (87) means process is not running / PID not found.
+                    // If the process is not running, we treat it as successfully closed.
+                    if err_code != 87 {
+                        return Err(format!("OpenProcess failed: {} (code {})", e, err_code));
+                    }
+                }
+            }
         }
-        eprintln!("[lockdown] Process {} terminated successfully", pid);
+        eprintln!("[lockdown] Process {} terminated successfully or already dead", pid);
     }
 
     #[cfg(not(target_os = "windows"))]

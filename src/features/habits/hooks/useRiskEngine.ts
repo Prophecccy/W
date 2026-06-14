@@ -26,16 +26,16 @@ export interface RiskScoreMap {
 }
 
 // ─── Persistence Helpers ──────────────────────────────────────────
-const getWarningKey = () => `w_risk_warnings_${getToday()}`;
+const getWarningKey = (resetTime?: string) => `w_risk_warnings_${getToday(undefined, resetTime)}`;
 
-const hasWarned = (habitId: string) => {
-  const key = getWarningKey();
+const hasWarned = (habitId: string, resetTime?: string) => {
+  const key = getWarningKey(resetTime);
   const warnedIds = JSON.parse(localStorage.getItem(key) || "[]");
   return warnedIds.includes(habitId);
 };
 
-const markWarned = (habitId: string) => {
-  const key = getWarningKey();
+const markWarned = (habitId: string, resetTime?: string) => {
+  const key = getWarningKey(resetTime);
   const warnedIds = JSON.parse(localStorage.getItem(key) || "[]");
   if (!warnedIds.includes(habitId)) {
     warnedIds.push(habitId);
@@ -64,8 +64,8 @@ export function useRiskEngine(
   const runCycle = useCallback(async () => {
     if (!userDoc || habits.length === 0) return;
 
-    const today = getToday();
     const resetTime = userDoc.settings.dailyResetTime || "04:00";
+    const today = getToday(undefined, resetTime);
     const weeklyResetDay = userDoc.settings.weeklyResetDay ?? 1;
 
     // 1. Filter to uncompleted, scheduled, active habits (exclude limiters)
@@ -108,6 +108,7 @@ export function useRiskEngine(
         historicalLogs,
         resetTime,
         uncompleted.length,
+        weeklyResetDay,
         now
       );
 
@@ -116,9 +117,9 @@ export function useRiskEngine(
       // 4. Fire notification if threshold crossed and not yet warned
       if (
         result.score >= NOTIFICATION_THRESHOLD &&
-        !hasWarned(habit.id)
+        !hasWarned(habit.id, resetTime)
       ) {
-        markWarned(habit.id);
+        markWarned(habit.id, resetTime);
 
         // Evaluate scenario
         const [rh, rm] = resetTime.split(":").map(Number);

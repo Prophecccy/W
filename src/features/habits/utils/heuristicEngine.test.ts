@@ -61,7 +61,7 @@ describe("calculateRisk guardrails", () => {
       makeLog("2026-05-18", habit.id, true, new Date("2026-05-18T07:00:00Z").getTime()),
     ];
 
-    const result = calculateRisk(habit, logs, "04:00", 5, now);
+    const result = calculateRisk(habit, logs, "04:00", 5, 1, now);
     expect(result.score).toBe(0);
     expect(result.timePressure).toBe(0);
     expect(result.variance).toBe(0);
@@ -76,14 +76,14 @@ describe("calculateRisk guardrails", () => {
       logs.push(makeLog(`2026-05-${1 + i}`, habit.id, true));
     }
 
-    const result = calculateRisk(habit, logs, "04:00", 5, now);
+    const result = calculateRisk(habit, logs, "04:00", 5, 1, now);
     expect(result.score).toBe(0);
   });
 
   it("does not treat reset time earlier in the day as an already-passed deadline", () => {
     const now = new Date("2026-05-19T09:00:00Z");
     const habit = makeHabit({ createdAt: now.getTime() - 20 * 24 * 3600 * 1000 });
-    const result = calculateRisk(habit, [], "04:00", 1, now);
+    const result = calculateRisk(habit, [], "04:00", 1, 1, now);
     expect(result.timePressure).toBeLessThan(5);
     expect(result.score).toBeLessThan(10);
   });

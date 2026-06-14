@@ -63,6 +63,14 @@ export function SettingsPage() {
       if (userDoc) {
         const savedColor = userDoc.aesthetics.desktop.accentColor;
         document.documentElement.style.setProperty("--accent", savedColor);
+        
+        const savedLowGraphics = userDoc.settings.lowGraphicsMode;
+        if (savedLowGraphics) {
+          document.body.classList.add("low-graphics");
+        } else {
+          document.body.classList.remove("low-graphics");
+        }
+
         try {
           import("@tauri-apps/api/event").then(({ emit }) => {
             emit("color-preview", savedColor).catch(() => {});
@@ -122,15 +130,10 @@ export function SettingsPage() {
       if (Object.keys(updates).length > 0) {
         const { updateUserDoc } = await import("../../auth/services/userService");
         await updateUserDoc(userDoc.uid, updates);
-        // Refresh local store to match DB
-        // We need to trigger a reload or manually update the store
       }
       
-      // For now, let's use the updateSettings from store if it's easier, 
-      // but it only handles Settings. I'll use direct updateUserDoc for both.
-      
-      // After save, we should ideally reload the user store
-      window.location.reload(); // Hard reload for now to ensure sync, or use store.reload()
+      setDraftSettings(null);
+      setDraftAesthetics(null);
     } catch (err) {
       console.error("Failed to save settings:", err);
     }
@@ -141,6 +144,14 @@ export function SettingsPage() {
       // Revert accent color previews instantly
       const savedColor = userDoc.aesthetics.desktop.accentColor;
       document.documentElement.style.setProperty("--accent", savedColor);
+
+      const savedLowGraphics = userDoc.settings.lowGraphicsMode;
+      if (savedLowGraphics) {
+        document.body.classList.add("low-graphics");
+      } else {
+        document.body.classList.remove("low-graphics");
+      }
+
       try {
         import("@tauri-apps/api/event").then(({ emit }) => {
           emit("color-preview", savedColor).catch(() => {});
@@ -215,7 +226,15 @@ export function SettingsPage() {
             <button
               key={id}
               className={`settings-tab ${activeTab === id ? "active" : ""}`}
-              onClick={() => setActiveTab(id)}
+              onClick={() => {
+                if (isDirty) {
+                  if (!confirm("You have unsaved changes. Change tabs anyway? Your unsaved changes will be discarded.")) {
+                    return;
+                  }
+                  handleDiscard();
+                }
+                setActiveTab(id);
+              }}
             >
               <Icon size={16} className="settings-tab__icon" />
               <span>{label}</span>
@@ -225,6 +244,11 @@ export function SettingsPage() {
           <button
             className="settings-tab settings-tab--logout t-label"
             onClick={async () => {
+              if (isDirty) {
+                if (!confirm("You have unsaved changes. Sign out anyway?")) {
+                  return;
+                }
+              }
               if (confirm("Are you sure you want to sign out?")) {
                 await signOut();
               }

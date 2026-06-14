@@ -36,6 +36,10 @@ export interface Todo {
   // Order
   order: number;
 
+  // Post-deadline configuration
+  postDeadlineAction?: "keep" | "disappear";
+  strikeIssued?: boolean;
+
   // Lifecycle
   createdAt: number; // epoch ms
   completedAt: number | null; // epoch ms

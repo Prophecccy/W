@@ -139,6 +139,7 @@ function getMonthStart(dateStr: string): string {
 function getIntervalStart(habit: Habit, todayStr: string): string {
   if (habit.period !== "interval" || habit.intervalDays <= 0) return todayStr;
   const created = new Date(habit.createdAt);
+  created.setHours(12, 0, 0, 0); // Normalize to noon to match today comparison
   const today = new Date(todayStr + "T12:00:00");
   const diffDays = Math.floor((today.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
   if (diffDays <= 0) return formatDate(created);

@@ -120,9 +120,11 @@ export function StickyNote({
 
       if (hasMoved) {
         // Clamp to viewport
-        const maxDx = window.innerWidth - 150 - dragStart.ox;
+        const width = el.offsetWidth || 220;
+        const height = el.offsetHeight || 120;
+        const maxDx = window.innerWidth - width - dragStart.ox;
         const minDx = -dragStart.ox;
-        const maxDy = window.innerHeight - 60 - dragStart.oy;
+        const maxDy = window.innerHeight - height - dragStart.oy;
         const minDy = -dragStart.oy;
         latestDx = Math.max(minDx, Math.min(maxDx, dx));
         latestDy = Math.max(minDy, Math.min(maxDy, dy));
@@ -172,18 +174,29 @@ export function StickyNote({
           });
         });
 
-        // Defer Rust hit-test regions update
-        setTimeout(() => {
+         // Defer Rust hit-test regions update
+        setTimeout(async () => {
+          let offsetX = 0;
+          let offsetY = 0;
+          try {
+            const { getCurrentWindow } = await import("@tauri-apps/api/window");
+            const winPos = await getCurrentWindow().outerPosition();
+            offsetX = winPos.x;
+            offsetY = winPos.y;
+          } catch (err) {
+            console.error("Failed to get window position for hit test:", err);
+          }
+
           const notes = document.querySelectorAll(".sticky-note");
           const regions: Array<{ left: number; top: number; right: number; bottom: number }> = [];
           notes.forEach((n) => {
             const r = n.getBoundingClientRect();
             const dpr = window.devicePixelRatio;
             regions.push({
-              left: Math.round(r.left * dpr),
-              top: Math.round(r.top * dpr),
-              right: Math.round(r.right * dpr),
-              bottom: Math.round(r.bottom * dpr),
+              left: Math.round(r.left * dpr) + offsetX,
+              top: Math.round(r.top * dpr) + offsetY,
+              right: Math.round(r.right * dpr) + offsetX,
+              bottom: Math.round(r.bottom * dpr) + offsetY,
             });
           });
           sendStickyRegions(regions);
@@ -350,7 +363,7 @@ export function StickyNote({
 
   if (todo.deadline) {
     const [y, m, d] = todo.deadline.split("-");
-    const formattedDeadline = `${y.slice(2)}.${m}.${d}`;
+    const formattedDeadline = `${d}-${m}-${y}`;
 
     if (todo.deadline < today) {
       deadlineText = `DUE: ${formattedDeadline}`;
@@ -384,7 +397,7 @@ export function StickyNote({
   const finalClassName = isNativeDragging ? `${baseClassName} sticky-note--dragging` : baseClassName;
 
   const initiatedDateObj = new Date(todo.createdAt);
-  const initiatedStr = `${initiatedDateObj.getFullYear().toString().slice(2)}.${(initiatedDateObj.getMonth() + 1).toString().padStart(2, '0')}.${initiatedDateObj.getDate().toString().padStart(2, '0')}`;
+  const initiatedStr = `${initiatedDateObj.getDate().toString().padStart(2, '0')}-${(initiatedDateObj.getMonth() + 1).toString().padStart(2, '0')}-${initiatedDateObj.getFullYear()}`;
 
   return (
     <div

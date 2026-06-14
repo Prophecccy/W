@@ -82,24 +82,17 @@ export function isHabitScheduledToday(
           return false; // Already completed standard monthly habit this month
         }
       }
-      const d = new Date(today + "T12:00:00");
-      const dayOfMonth = d.getDate();
-      const targetDate = new Date(activationDate + "T12:00:00");
-      const creationDay = targetDate.getDate();
-
-      if (dayOfMonth === creationDay) return true;
-
-      // Handle months shorter than creation day (e.g. Feb has 28 days but creationDay was 31)
-      if (creationDay > 28) {
-        const nextDay = new Date(d);
-        nextDay.setDate(nextDay.getDate() + 1);
-        const isLastDay = nextDay.getMonth() !== d.getMonth();
-        const lastDayVal = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-        if (isLastDay && creationDay > lastDayVal) {
-          return true;
-        }
-      }
-      return false;
+      const startStr = habit.startDate ? habit.startDate : formatDate(new Date(habit.createdAt));
+      const startDateObj = new Date(startStr + "T12:00:00");
+      const creationDay = startDateObj.getDate();
+      
+      const todayDateObj = new Date(today + "T12:00:00");
+      const currentDay = todayDateObj.getDate();
+      
+      const lastDayOfMonth = new Date(todayDateObj.getFullYear(), todayDateObj.getMonth() + 1, 0).getDate();
+      const targetDay = Math.min(creationDay, lastDayOfMonth);
+      
+      return currentDay === targetDay;
     }
 
     case "interval": {
@@ -124,10 +117,10 @@ export function isHabitScheduledToday(
  * For interval habits: returns the next date (YYYY-MM-DD) on which the
  * habit is due, starting from today (exclusive).
  */
-export function getNextDueDate(habit: Habit): string | null {
+export function getNextDueDate(habit: Habit, userResetTime?: string): string | null {
   if (habit.period !== "interval" || habit.intervalDays <= 0) return null;
 
-  const today = getToday();
+  const today = getToday(undefined, userResetTime);
   const activationDate = habit.startDate
     ? habit.startDate
     : formatDate(new Date(habit.createdAt));

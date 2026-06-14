@@ -31,8 +31,24 @@ export function DashboardPage() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   
-  const today = useMemo(() => {
-    return getToday(undefined, userDoc?.settings?.dailyResetTime);
+  const [today, setToday] = useState(() => getToday(undefined, userDoc?.settings?.dailyResetTime));
+
+  useEffect(() => {
+    const dailyResetTime = userDoc?.settings?.dailyResetTime;
+    setToday(getToday(undefined, dailyResetTime));
+
+    const interval = setInterval(() => {
+      const freshToday = getToday(undefined, dailyResetTime);
+      setToday(prev => {
+        if (prev !== freshToday) {
+          console.log(`[Dashboard Date Rollover] Rolled over from ${prev} to ${freshToday}`);
+          return freshToday;
+        }
+        return prev;
+      });
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [userDoc?.settings?.dailyResetTime]);
 
   useEffect(() => {
@@ -73,6 +89,7 @@ export function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    let active = true;
     async function loadData() {
       try {
         const [fetchedHabits, fetchedLog, fetchedTodos, localNote] = await Promise.all([
@@ -81,6 +98,7 @@ export function DashboardPage() {
           getTodos(),
           getLocalNote(today)
         ]);
+        if (!active) return;
         fetchedLog.notes = localNote;
         
         const activeHabits = fetchedHabits.filter(h => !h.startDate || h.startDate <= today);
@@ -99,17 +117,22 @@ export function DashboardPage() {
 
         if (scheduled.some(isMultiDayMetric)) {
           const logs = await getLogRange(minStart, today);
+          if (!active) return;
           setPeriodLogs(logs);
         } else {
+          if (!active) return;
           setPeriodLogs([]);
         }
       } catch (e) {
         console.error("Unified Dashboard Load Error", e);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     }
     loadData();
+    return () => {
+      active = false;
+    };
   }, [today, userDoc?.settings?.weeklyResetDay, refreshTrigger]);
 
   useEffect(() => {
@@ -144,8 +167,8 @@ export function DashboardPage() {
     return filtered.sort((a, b) => {
       const aEntry = log?.habits?.[a.id];
       const bEntry = log?.habits?.[b.id];
-      const aDoneToday = isMultiDayMetric(a) && (aEntry?.completions?.length ?? 0) > 0;
-      const bDoneToday = isMultiDayMetric(b) && (bEntry?.completions?.length ?? 0) > 0;
+      const aDoneToday = (aEntry?.completions?.length ?? 0) > 0 || (aEntry?.value ?? 0) > 0;
+      const bDoneToday = (bEntry?.completions?.length ?? 0) > 0 || (bEntry?.value ?? 0) > 0;
       return Number(aDoneToday) - Number(bDoneToday);
     });
   }, [habits, log, today, periodLogs, userDoc?.settings?.weeklyResetDay]);
@@ -168,18 +191,23 @@ export function DashboardPage() {
 
   // Derived state for Todos (Current Active Todos)
   const currentTodos = useMemo(() => {
-    return todos.filter(t => !t.future || t.future <= today);
+    return todos.filter(t => {
+      const isFuture = t.future && t.future > today;
+      const isExpiredAndDisappeared = t.postDeadlineAction === "disappear" && t.deadline && t.deadline < today;
+      return !isFuture && !isExpiredAndDisappeared;
+    });
   }, [todos, today]);
 
   // Actions for Habits
   const handleHabitComplete = async (habitId: string) => {
     const originalLog = log ? JSON.parse(JSON.stringify(log)) : null;
+    const originalPeriodLogs = periodLogs ? JSON.parse(JSON.stringify(periodLogs)) : [];
     try {
       const habit = habits.find(h => h.id === habitId);
       const target = habit?.metric?.targetValue ?? 1;
       setLog(prev => {
-        if (!prev) return prev;
-        const existing = prev.habits?.[habitId];
+        const currentLog = prev || { date: today, uid: userDoc?.uid || '', habits: {} };
+        const existing = currentLog.habits?.[habitId];
         const existingValue = existing?.value ?? 0;
         const newValue = existingValue + 1;
         const isCompleted =
@@ -188,16 +216,41 @@ export function DashboardPage() {
             : habit?.type === "limiter"
               ? false
               : true;
+              
+        const updatedHabitEntry = {
+          completed: isCompleted,
+          value: newValue,
+          target,
+          completions: [...(existing?.completions ?? []), { timestamp: Date.now(), value: 1 }]
+        };
+
+        setPeriodLogs(prevPeriod => {
+          const index = prevPeriod.findIndex(l => l.date === today);
+          if (index !== -1) {
+            const updated = [...prevPeriod];
+            updated[index] = {
+              ...updated[index],
+              habits: {
+                ...updated[index].habits,
+                [habitId]: updatedHabitEntry
+              }
+            };
+            return updated;
+          } else {
+            const newLogEntry: HabitLog = {
+              date: today,
+              uid: userDoc?.uid || '',
+              habits: { [habitId]: updatedHabitEntry }
+            };
+            return [...prevPeriod, newLogEntry];
+          }
+        });
+
         return {
-          ...prev,
+          ...currentLog,
           habits: {
-            ...prev.habits,
-            [habitId]: {
-              completed: isCompleted,
-              value: newValue,
-              target,
-              completions: [...(existing?.completions ?? []), { timestamp: Date.now(), value: 1 }]
-            }
+            ...currentLog.habits,
+            [habitId]: updatedHabitEntry
           }
         };
       });
@@ -213,12 +266,14 @@ export function DashboardPage() {
       if (originalLog) {
         setLog(originalLog);
       }
+      setPeriodLogs(originalPeriodLogs);
       window.dispatchEvent(new CustomEvent("w:toast", { detail: "[ LOG COMPILATION FAILED ]" }));
     }
   };
 
   const handleHabitUndo = async (habitId: string) => {
     const originalLog = log ? JSON.parse(JSON.stringify(log)) : null;
+    const originalPeriodLogs = periodLogs ? JSON.parse(JSON.stringify(periodLogs)) : [];
     try {
       setLog(prev => {
         if (!prev) return prev;
@@ -226,6 +281,19 @@ export function DashboardPage() {
         const existing = newHabits[habitId];
         if (!existing || !existing.completions?.length) {
           delete newHabits[habitId];
+
+          setPeriodLogs(prevPeriod => {
+            const index = prevPeriod.findIndex(l => l.date === today);
+            if (index !== -1) {
+              const updated = [...prevPeriod];
+              const logHabits = { ...updated[index].habits };
+              delete logHabits[habitId];
+              updated[index] = { ...updated[index], habits: logHabits };
+              return updated;
+            }
+            return prevPeriod;
+          });
+
           return { ...prev, habits: newHabits };
         }
 
@@ -240,11 +308,25 @@ export function DashboardPage() {
             ? false
             : true;
 
-        if (newCompletions.length === 0) {
-          delete newHabits[habitId];
-        } else {
-          newHabits[habitId] = { ...existing, completions: newCompletions, value: newValue, completed: isCompleted };
-        }
+        const updatedHabitEntry = { ...existing, completions: newCompletions, value: newValue, completed: isCompleted };
+
+        setPeriodLogs(prevPeriod => {
+          const index = prevPeriod.findIndex(l => l.date === today);
+          if (index !== -1) {
+            const updated = [...prevPeriod];
+            updated[index] = {
+              ...updated[index],
+              habits: {
+                ...updated[index].habits,
+                [habitId]: updatedHabitEntry
+              }
+            };
+            return updated;
+          }
+          return prevPeriod;
+        });
+
+        newHabits[habitId] = updatedHabitEntry;
         return { ...prev, habits: newHabits };
       });
       await uncompleteHabit(habitId, userDoc?.settings?.dailyResetTime);
@@ -259,6 +341,7 @@ export function DashboardPage() {
       if (originalLog) {
         setLog(originalLog);
       }
+      setPeriodLogs(originalPeriodLogs);
       window.dispatchEvent(new CustomEvent("w:toast", { detail: "[ LOG COMPILATION FAILED ]" }));
     }
   };
@@ -288,17 +371,17 @@ export function DashboardPage() {
     if (todo.type === "numbered" && todo.numbered) {
        try {
           const newCurrent = todo.numbered.current + 1;
+          const updatedTodo: Todo = {
+            ...todo,
+            numbered: { ...todo.numbered, current: newCurrent }
+          };
           if (newCurrent >= todo.numbered.target) {
-            const finishedTodo: Todo = {
-              ...todo,
-              numbered: { ...todo.numbered, current: newCurrent }
-            };
-            handleTodoComplete(todoId, finishedTodo);
+            handleTodoComplete(todoId, updatedTodo);
           } else {
             setTodos(prev => prev.map(t => 
-              t.id === todoId ? { ...t, numbered: { ...t.numbered!, current: newCurrent } } : t
+              t.id === todoId ? updatedTodo : t
             ));
-            await incrementNumberedTodo(todoId, todo);
+            await incrementNumberedTodo(todoId, updatedTodo);
           }
        } catch (e) {
           console.error(e);
@@ -315,7 +398,7 @@ export function DashboardPage() {
     );
   }
 
-  const isDefaultCycle = userDoc?.settings?.wakeUpTime === "07:00" && userDoc?.settings?.bedTime === "23:00";
+  const isDefaultCycle = !userDoc?.settings?.wakeUpTime || !userDoc?.settings?.bedTime || (userDoc?.settings?.wakeUpTime === "07:00" && userDoc?.settings?.bedTime === "23:00");
 
   return (
     <div className="dashboard-page">
@@ -332,7 +415,7 @@ export function DashboardPage() {
         <div className="dashboard-grid">
           
           {/* COLUMN 1: SLEEP TUBE */}
-          <SleepTube />
+          <SleepTube settings={userDoc?.settings} />
 
           {/* COLUMN 2: HABITS */}
           <div className="dashboard-column">
@@ -377,7 +460,7 @@ export function DashboardPage() {
                     onComplete={() => handleHabitComplete(h.id)} 
                     onUndo={() => handleHabitUndo(h.id)}
                     onClick={() => {}}
-                    currentValue={log?.habits?.[h.id]?.value || 0}
+                    currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
                   />
                 ))}
               </div>
@@ -418,7 +501,7 @@ export function DashboardPage() {
                     onComplete={() => handleHabitComplete(h.id)} 
                     onUndo={() => handleHabitUndo(h.id)}
                     onClick={() => {}}
-                    currentValue={log?.habits?.[h.id]?.value || 0}
+                    currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
                   />
                 ))}
               </div>
@@ -491,6 +574,7 @@ function getMonthStart(dateStr: string): string {
 function getIntervalStart(habit: Habit, todayStr: string): string {
   if (habit.period !== "interval" || habit.intervalDays <= 0) return todayStr;
   const created = new Date(habit.createdAt);
+  created.setHours(12, 0, 0, 0);
   const today = new Date(todayStr + "T12:00:00");
   const diffDays = Math.floor((today.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
   if (diffDays <= 0) return formatDate(created);

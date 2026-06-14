@@ -88,12 +88,14 @@ export function LogbookPage() {
   const resetTime = userDoc?.settings?.dailyResetTime || "04:00";
 
   useEffect(() => {
+    let isMounted = true;
     const getLogicalToday = () => getToday(undefined, resetTime);
 
     async function loadLogs() {
       setIsLoading(true);
       try {
         const history = await getLocalNoteHistory();
+        if (!isMounted) return;
         const currentToday = getLogicalToday();
         
         // Strictly exclude the current day's daily note
@@ -102,9 +104,9 @@ export function LogbookPage() {
         const grouped = groupNotesByMonthAndDate(pastLogs);
         setGroupedLogs(grouped);
       } catch (err) {
-        console.error("Failed to load logbook history:", err);
+        if (isMounted) console.error("Failed to load logbook history:", err);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     }
     
@@ -112,17 +114,21 @@ export function LogbookPage() {
 
     const handleSyncUpdate = () => {
       getLocalNoteHistory().then((history) => {
+        if (!isMounted) return;
         const currentToday = getLogicalToday();
         const pastLogs = history.filter((log) => log.date !== currentToday);
         const grouped = groupNotesByMonthAndDate(pastLogs);
         setGroupedLogs(grouped);
-      }).catch((err) => console.error("Failed to reload history on sync event:", err));
+      }).catch((err) => {
+        if (isMounted) console.error("Failed to reload history on sync event:", err);
+      });
     };
 
     window.addEventListener("w:note-saved", handleSyncUpdate);
     window.addEventListener("w:note-synced", handleSyncUpdate);
 
     return () => {
+      isMounted = false;
       window.removeEventListener("w:note-saved", handleSyncUpdate);
       window.removeEventListener("w:note-synced", handleSyncUpdate);
     };

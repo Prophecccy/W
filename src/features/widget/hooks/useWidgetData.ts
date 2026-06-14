@@ -92,11 +92,8 @@ export function useWidgetData(): WidgetData {
     if (!user) return;
 
     const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
-    const scheduled = habits.filter(h => isHabitScheduledToday(h, today, weeklyResetDay) && !isHabitResting(h, userDoc?.settings?.dailyResetTime));
-    const multiDayMetric = scheduled.filter(isMultiDayMetric);
-
-    let minStart = today;
-    for (const h of multiDayMetric) {
+    let minStart = getWeekStart(today, weeklyResetDay);
+    for (const h of habits) {
       const start = getPeriodStart(h, today, weeklyResetDay);
       if (start < minStart) minStart = start;
     }
@@ -164,10 +161,16 @@ export function useWidgetData(): WidgetData {
   // Global streak = longest current streak across all habits
   const globalStreak = habits.reduce((max, h) => Math.max(max, h.currentStreak), 0);
 
-  // Weekly completions: count completed entries across all period logs (excluding limiters)
   const weeklyCompletions = periodLogs.reduce((acc, log) => {
+    const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
+    const currentWeekStart = getWeekStart(today, weeklyResetDay);
+    if (log.date < currentWeekStart) return acc;
+
     const completionsInLog = Object.entries(log.habits || {})
-      .filter(([habitId, entry]) => entry.completed && habits.some(h => h.id === habitId))
+      .filter(([habitId, entry]) => {
+        const h = habits.find(x => x.id === habitId);
+        return entry.completed && h && h.type !== 'limiter';
+      })
       .length;
     return acc + completionsInLog;
   }, 0);
@@ -242,6 +245,7 @@ function isMultiDayMetric(habit: Habit): boolean {
 function getIntervalStart(habit: Habit, todayStr: string): string {
   if (habit.period !== "interval" || habit.intervalDays <= 0) return todayStr;
   const created = new Date(habit.createdAt);
+  created.setHours(12, 0, 0, 0); // Normalize to noon to match today comparison
   const today = new Date(todayStr + "T12:00:00");
   const diffDays = Math.floor((today.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
   if (diffDays <= 0) return formatDate(created);

@@ -172,10 +172,10 @@ export async function checkAutoFreeze(
     if (!existingDates.has(logDateStr)) {
       const logDocRef = doc(db, "users", userId, "logs", logDateStr);
       
+      // SECURITY: notes field is NEVER written to Firestore — local-only
       batch.set(logDocRef, {
         date: logDateStr,
         uid: userId,
-        notes: "",
         habits: {}
       }, { merge: true });
       

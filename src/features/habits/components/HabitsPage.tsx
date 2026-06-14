@@ -9,7 +9,7 @@ import { Habit, HabitLog, HabitGroup } from '../types';
 import { HabitDetail } from './HabitDetail/HabitDetail';
 import { getHabits, createHabit, deleteHabit } from '../services/habitService';
 import { getGroups, createGroup, sanitizeGroupName } from '../services/groupService';
-import { getTodayLog, completeHabit, uncompleteHabit } from '../services/logService';
+import { getTodayLog, completeHabit, uncompleteHabit, getLogRange } from '../services/logService';
 import { isHabitScheduledToday, isHabitResting } from '../utils/scheduleEngine';
 import { getToday } from '../../../shared/utils/dateUtils';
 import { LucideIcon } from '../../../shared/components/IconPicker/LucideIcon';
@@ -32,6 +32,7 @@ export function HabitsPage() {
   const [deleteSubId, setDeleteSubId] = useState<string | null>(null);
   const [focusedIndex, _setFocusedIndex] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [periodLogs, setPeriodLogs] = useState<HabitLog[]>([]);
 
   const today = useMemo(() => {
     return getToday(undefined, userDoc?.settings?.dailyResetTime);
@@ -51,6 +52,23 @@ export function HabitsPage() {
         setHabits(fetchedHabits);
         setGroups(fetchedGroups);
         setLog(fetchedLog);
+
+        const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
+        let minStart = today;
+        let hasMulti = false;
+        for (const h of fetchedHabits) {
+          if (!isMultiDayMetric(h)) continue;
+          hasMulti = true;
+          const start = getPeriodStart(h, today, weeklyResetDay);
+          if (start < minStart) minStart = start;
+        }
+
+        if (hasMulti) {
+          const logs = await getLogRange(minStart, today);
+          setPeriodLogs(logs);
+        } else {
+          setPeriodLogs([]);
+        }
       } catch (err) {
         console.error("HabitsPage Load Error:", err);
       } finally {
@@ -58,7 +76,7 @@ export function HabitsPage() {
       }
     }
     loadData();
-  }, [today, refreshKey]);
+  }, [today, refreshKey, userDoc?.settings?.weeklyResetDay]);
 
   // ── Cross-window sync: listen for habit updates from Dashboard/Widget ──
   useEffect(() => {
@@ -120,10 +138,11 @@ export function HabitsPage() {
     const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
 
     habits.forEach(h => {
-      const logEntry = log?.habits?.[h.id];
-      const isComplete = !!logEntry?.completed;
+      const isComplete = isHabitCompletedInPeriod(h, today, weeklyResetDay, log, periodLogs, userDoc?.settings?.dailyResetTime);
 
-      if (isComplete) {
+      if (h.type === 'limiter') {
+        l.push(h);
+      } else if (isComplete) {
         c.push(h);
       } else if (
         isHabitResting(h, userDoc?.settings?.dailyResetTime) ||
@@ -131,15 +150,13 @@ export function HabitsPage() {
         !isHabitScheduledToday(h, today, weeklyResetDay)
       ) {
         up.push(h);
-      } else if (h.type === 'limiter') {
-        l.push(h);
       } else {
         s.push(h);
       }
     });
 
     return { scheduled: s, upcoming: up, limiters: l, completed: c };
-  }, [habits, log, today, userDoc]);
+  }, [habits, log, today, userDoc, periodLogs]);
 
   // ── Space key quick-complete (complete focused scheduled habit) ──
   const handleQuickComplete = useCallback(() => {
@@ -377,7 +394,7 @@ export function HabitsPage() {
                     })()}
                     onComplete={() => handleComplete(h.id)} 
                     onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
-                    currentValue={log?.habits?.[h.id]?.value || 0}
+                    currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
                     riskScore={riskScores[h.id]}
                   />
                 ))}
@@ -407,7 +424,7 @@ export function HabitsPage() {
                              onComplete={() => handleComplete(h.id)}
                              onUndo={() => handleUndo(h.id)}
                              onClick={() => setSelectedHabitId(h.id)}
-                             currentValue={log?.habits?.[h.id]?.value || 0}
+                             currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
                              riskScore={riskScores[h.id]}
                            />
                         ))}
@@ -437,7 +454,7 @@ export function HabitsPage() {
                              onComplete={() => handleComplete(h.id)}
                              onUndo={() => handleUndo(h.id)}
                              onClick={() => setSelectedHabitId(h.id)}
-                             currentValue={log?.habits?.[h.id]?.value || 0}
+                             currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
                              riskScore={riskScores[h.id]}
                            />
                           ))}
@@ -504,7 +521,7 @@ export function HabitsPage() {
                     })()}
                     onComplete={() => handleComplete(h.id)} 
                     onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
-                      currentValue={log?.habits?.[h.id]?.value || 0}
+                      currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
                     />
                   ))}
                 </div>
@@ -522,7 +539,7 @@ export function HabitsPage() {
                       doneToday={false}
                       onComplete={() => handleComplete(h.id)} 
                       onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
-                      currentValue={log?.habits?.[h.id]?.value || 0}
+                      currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
                     />
                   ))}
                 </div>
@@ -581,4 +598,97 @@ export function HabitsPage() {
       )}
     </div>
   );
+}
+
+function formatDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getWeekStart(dateStr: string, weekStartDay: number): string {
+  const d = new Date(dateStr + "T12:00:00");
+  while (d.getDay() !== weekStartDay) {
+    d.setDate(d.getDate() - 1);
+  }
+  return formatDate(d);
+}
+
+function getMonthStart(dateStr: string): string {
+  return `${dateStr.slice(0, 7)}-01`;
+}
+
+function getIntervalStart(habit: Habit, todayStr: string): string {
+  if (habit.period !== "interval" || habit.intervalDays <= 0) return todayStr;
+  const created = new Date(habit.createdAt);
+  created.setHours(12, 0, 0, 0);
+  const today = new Date(todayStr + "T12:00:00");
+  const diffDays = Math.floor((today.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) return formatDate(created);
+  const segmentStart = diffDays - (diffDays % habit.intervalDays);
+  created.setDate(created.getDate() + segmentStart);
+  return formatDate(created);
+}
+
+function getPeriodStart(habit: Habit, todayStr: string, weekStartDay: number): string {
+  if (habit.period === "weekly") return getWeekStart(todayStr, weekStartDay);
+  if (habit.period === "monthly") return getMonthStart(todayStr);
+  if (habit.period === "interval") return getIntervalStart(habit, todayStr);
+  return todayStr;
+}
+
+function isMultiDayMetric(habit: Habit): boolean {
+  return (habit.type === "metric" || habit.type === "limiter") && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
+}
+
+function getTotalInRange(logs: HabitLog[], habitId: string, startDate: string): number {
+  let total = 0;
+  for (const log of logs) {
+    if (log.date < startDate) continue;
+    total += log.habits?.[habitId]?.value ?? 0;
+  }
+  return total;
+}
+
+function isHabitCompletedInPeriod(
+  habit: Habit,
+  today: string,
+  weeklyResetDay: number,
+  log: HabitLog | null,
+  periodLogs: HabitLog[],
+  userResetTime?: string
+): boolean {
+  if (habit.period === "daily") {
+    return !!log?.habits?.[habit.id]?.completed;
+  }
+  if (habit.period === "weekly") {
+    if (habit.type === "standard") {
+      if (!habit.lastCompletedDate) return false;
+      const currentWeekStart = getWeekStart(today, weeklyResetDay);
+      return habit.lastCompletedDate >= currentWeekStart;
+    } else if (habit.type === "metric") {
+      const target = habit.metric?.targetValue ?? 1;
+      const start = getWeekStart(today, weeklyResetDay);
+      const total = getTotalInRange(periodLogs, habit.id, start);
+      return total >= target;
+    }
+  }
+  if (habit.period === "monthly") {
+    if (habit.type === "standard") {
+      if (!habit.lastCompletedDate) return false;
+      const currentMonthStart = getMonthStart(today);
+      return habit.lastCompletedDate >= currentMonthStart;
+    } else if (habit.type === "metric") {
+      const target = habit.metric?.targetValue ?? 1;
+      const start = getMonthStart(today);
+      const total = getTotalInRange(periodLogs, habit.id, start);
+      return total >= target;
+    }
+  }
+  if (habit.period === "interval") {
+    if (!!log?.habits?.[habit.id]?.completed) return true;
+    return isHabitResting(habit, userResetTime);
+  }
+  return false;
 }

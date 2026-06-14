@@ -16,7 +16,11 @@ export function loadPositions(): PositionMap {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
-    return JSON.parse(raw) as PositionMap;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as PositionMap;
+    }
+    return {};
   } catch {
     return {};
   }

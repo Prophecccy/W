@@ -39,11 +39,15 @@ export function TodosPage() {
         getGroups(),
       ]);
 
-      setActiveTodos(todos);
+      const today = getToday(undefined, userDoc?.settings?.dailyResetTime);
+      const visibleTodos = todos.filter(t => {
+        const isExpiredAndDisappeared = t.postDeadlineAction === "disappear" && t.deadline && t.deadline < today;
+        return !isExpiredAndDisappeared;
+      });
+
+      setActiveTodos(visibleTodos);
       setCompletedTodos(completed);
       setGroups(fetchedGroups);
-
-      const today = getToday(undefined, userDoc?.settings?.dailyResetTime);
       const upcomingIntervals = habits
         .filter(h => h.period === "interval")
         .map(h => ({ ...h, nextDue: getNextDueDate(h) || "" }))
@@ -59,7 +63,7 @@ export function TodosPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [userDoc?.settings?.dailyResetTime]);
 
   // ── Custom event listener (N key / CommandPalette) ──
   useEffect(() => {
@@ -139,12 +143,14 @@ export function TodosPage() {
             handleComplete(todoId, finishedTodo);
           } else {
             // Optimistic increment
+            const updatedTodo: Todo = {
+              ...todo,
+              numbered: { ...todo.numbered, current: newCurrent }
+            };
             setActiveTodos(prev => prev.map(t => 
-              t.id === todoId 
-                ? { ...t, numbered: { ...t.numbered!, current: newCurrent } } 
-                : t
+              t.id === todoId ? updatedTodo : t
             ));
-            await incrementNumberedTodo(todoId, todo);
+            await incrementNumberedTodo(todoId, updatedTodo);
           }
        } catch (e) {
           console.error(e);

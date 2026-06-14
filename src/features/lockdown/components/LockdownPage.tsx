@@ -25,20 +25,28 @@ export function LockdownPage() {
       // Reverse-map existing blocklist to presets
       const presetIds = new Set<string>();
       const customs: string[] = [];
-      const allPresetItems = new Set<string>();
 
       for (const preset of LOCKDOWN_PRESETS) {
         const lower = preset.items.map((i) => i.toLowerCase());
-        lower.forEach((i) => allPresetItems.add(i));
         const matchCount = state.blocklist.filter((b) => lower.includes(b.toLowerCase())).length;
         if (matchCount >= preset.items.length * 0.5) {
           presetIds.add(preset.id);
         }
       }
 
-      // Any blocklist item not in presets = custom
+      // Any blocklist item not in an enabled preset = custom
       for (const item of state.blocklist) {
-        if (!allPresetItems.has(item.toLowerCase())) {
+        let inEnabledPreset = false;
+        for (const preset of LOCKDOWN_PRESETS) {
+          if (presetIds.has(preset.id)) {
+            const lower = preset.items.map((i) => i.toLowerCase());
+            if (lower.includes(item.toLowerCase())) {
+              inEnabledPreset = true;
+              break;
+            }
+          }
+        }
+        if (!inEnabledPreset) {
           customs.push(item);
         }
       }
@@ -78,7 +86,7 @@ export function LockdownPage() {
   // ── Custom entry add/remove ────────────────────────────────────
   const addCustomEntry = () => {
     const trimmed = customInput.trim();
-    if (!trimmed || customEntries.includes(trimmed)) return;
+    if (!trimmed || customEntries.some((e) => e.toLowerCase() === trimmed.toLowerCase())) return;
     setCustomEntries((prev) => [...prev, trimmed]);
     setCustomInput("");
   };

@@ -5,6 +5,8 @@ import { getToday, subtractDays } from "../../../../shared/utils/dateUtils";
 import { LucideIcon } from "../../../../shared/components/IconPicker/LucideIcon";
 import { useToast } from "../../../../shared/components/Toast/Toast";
 import { updateHabit, archiveHabit } from "../../services/habitService";
+import { isHabitScheduledToday } from "../../utils/scheduleEngine";
+import { useUserStore } from "../../../../shared/stores/userStore";
 import "./HabitDetail.css";
 
 interface HabitDetailProps {
@@ -16,6 +18,7 @@ interface HabitDetailProps {
 }
 
 export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest, userResetTime }: HabitDetailProps) {
+  const { userDoc } = useUserStore();
   const [logs, setLogs] = useState<HabitLog[]>([]);
   const { showToast } = useToast();
 
@@ -41,15 +44,25 @@ export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest, userRes
 
   // Generate trailing 28 days layout for Heatmap (7 days x 4 weeks)
   const heatmapCells = useMemo(() => {
+    const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
     const cells = [];
     for (let i = 27; i >= 0; i--) {
       const d = subtractDays(today, i);
       const dayLog = logs.find((l) => l.date === d);
-      const isCompleted = dayLog?.habits?.[habit.id]?.completed || false;
+      const isScheduled = isHabitScheduledToday(habit, d, weeklyResetDay);
+      let isCompleted = false;
+      if (isScheduled) {
+        if (habit.type === "limiter") {
+          const entry = dayLog?.habits?.[habit.id];
+          isCompleted = entry ? entry.value <= entry.target : true;
+        } else {
+          isCompleted = dayLog?.habits?.[habit.id]?.completed || false;
+        }
+      }
       cells.push({ date: d, isCompleted });
     }
     return cells;
-  }, [logs, habit.id, today]);
+  }, [logs, habit, today, userDoc]);
 
   // Generate path data for SVG sparkline (last 14 days)
   const sparklineData = useMemo(() => {
