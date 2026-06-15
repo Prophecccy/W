@@ -3,6 +3,9 @@
   "identifier": "default",
   "description": "Capability for the main window, sticky overlay, and widget",
   "windows": ["main", "sticky-overlay", "widget", "block-overlay"],
+  "remote": {
+    "urls": ["http://localhost:1420", "http://localhost:1420/**"]
+  },
   "permissions": [
     "core:default",
     "opener:default",

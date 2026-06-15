@@ -20,7 +20,8 @@ fn allow_app_close() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    println!("[W RUN] Starting pub fn run()...");
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -31,26 +32,43 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--hidden"]),
-        ))
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(main_window) = app.get_webview_window("main") {
-                let _ = main_window.show();
-                let _ = main_window.set_focus();
-            }
-        }))
+        ));
+        // .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+        //     println!("[W RUN] Single instance trigger. Args: {:?}, Cwd: {:?}", args, cwd);
+        //     if let Some(main_window) = app.get_webview_window("main") {
+        //         println!("[W RUN] Showing main window due to single instance trigger.");
+        //         let _ = main_window.show();
+        //         let _ = main_window.set_focus();
+        //     }
+        // }));
+
+    println!("[W RUN] Plugins initialized. Setting up...");
+
+    builder
         .setup(|app| {
+            println!("[W SETUP] Inside setup closure.");
             // ── Autolaunch (always locked in) ──────────────────────────────
             use tauri_plugin_autostart::ManagerExt;
+            println!("[W SETUP] Enabling autolaunch...");
             let _ = app.autolaunch().enable();
+            println!("[W SETUP] Autolaunch enabled.");
 
             // ── Startup visibility ─────────────────────────────────────────
             let args: Vec<String> = std::env::args().collect();
             let is_hidden_startup = args.contains(&"--hidden".to_string());
+            println!("[W SETUP] Args: {:?}, is_hidden_startup: {}", args, is_hidden_startup);
 
             if !is_hidden_startup {
+                println!("[W SETUP] Not hidden startup. Locating 'main' window...");
                 if let Some(main_window) = app.get_webview_window("main") {
+                    println!("[W SETUP] Found 'main' window. Showing...");
                     let _ = main_window.show();
                     let _ = main_window.set_focus();
+                    println!("[W SETUP] Main window show/focus requested. Opening devtools...");
+                    main_window.open_devtools();
+                    println!("[W SETUP] Devtools opened.");
+                } else {
+                    println!("[W SETUP] WARNING: 'main' window not found!");
                 }
             }
 
@@ -100,10 +118,23 @@ pub fn run() {
                 ],
             )?;
 
+            println!("[W SETUP] Checking default window icon...");
+            let icon = match app.default_window_icon() {
+                Some(icon) => {
+                    println!("[W SETUP] Default window icon found.");
+                    icon.clone()
+                }
+                None => {
+                    println!("[W SETUP] WARNING: Default window icon is None! Using fallback or empty icon.");
+                    // Fallback to avoid panic
+                    tauri::image::Image::new(&[], 0, 0)
+                }
+            };
+
             let _tray = TrayIconBuilder::new()
                 .menu(&tray_menu)
                 .show_menu_on_left_click(false)     // left-click shows window, right-click opens menu
-                .icon(app.default_window_icon().unwrap().clone())
+                .icon(icon)
                 .tooltip("W")
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => {

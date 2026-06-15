@@ -218,11 +218,6 @@ export function StickyNote({
     const onDown = (e: PointerEvent) => {
       console.log("[StickyNote] pointerdown fired!", { button: e.button, completionState: completionStateRef.current, x: e.clientX, y: e.clientY });
 
-      // ── Z-Order Enforcer: Active Defense on Click ──
-      try {
-        invoke("pin_widget_bottom").catch(() => {});
-      } catch {}
-
       // Disable interaction if in purgatory or completing
       if (completionStateRef.current !== 'idle') return;
 
