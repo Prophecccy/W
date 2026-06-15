@@ -56,19 +56,11 @@ pub fn run() {
             // ── Startup visibility ─────────────────────────────────────────
             let args: Vec<String> = std::env::args().collect();
             let is_hidden_startup = args.contains(&"--hidden".to_string());
-            println!("[W SETUP] Args: {:?}, is_hidden_startup: {}", args, is_hidden_startup);
 
             if !is_hidden_startup {
-                println!("[W SETUP] Not hidden startup. Locating 'main' window...");
                 if let Some(main_window) = app.get_webview_window("main") {
-                    println!("[W SETUP] Found 'main' window. Showing...");
                     let _ = main_window.show();
                     let _ = main_window.set_focus();
-                    println!("[W SETUP] Main window show/focus requested. Opening devtools...");
-                    main_window.open_devtools();
-                    println!("[W SETUP] Devtools opened.");
-                } else {
-                    println!("[W SETUP] WARNING: 'main' window not found!");
                 }
             }
 
