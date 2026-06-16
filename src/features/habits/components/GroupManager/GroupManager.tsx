@@ -3,6 +3,7 @@ import { HabitGroup } from "../../types";
 import { getGroups, createGroup, updateGroup, deleteGroup, reorderGroups, sanitizeGroupName } from "../../services/groupService";
 import { LucideIcon } from "../../../../shared/components/IconPicker/LucideIcon";
 import { useToast } from "../../../../shared/components/Toast/Toast";
+import { confirmDialog } from "../../../../shared/utils/tauri";
 import "./GroupManager.css";
 
 interface GroupManagerProps {
@@ -59,7 +60,8 @@ export function GroupManager({ onClose }: GroupManagerProps) {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this group? Habits within it will become ungrouped.")) return;
+    const confirmed = await confirmDialog("Are you sure you want to delete this group? Habits within it will become ungrouped.");
+    if (!confirmed) return;
     try {
       await deleteGroup(id);
       setGroups(groups.filter((g) => g.id !== id));

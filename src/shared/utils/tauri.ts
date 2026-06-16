@@ -29,3 +29,16 @@ export function openExternalLink(url: string) {
     window.open(url, "_blank", "noreferrer");
   }
 }
+
+export async function confirmDialog(message: string): Promise<boolean> {
+  if (isTauri()) {
+    try {
+      const { ask } = await import("@tauri-apps/plugin-dialog");
+      return await ask(message, { title: "W", kind: "warning" });
+    } catch (e) {
+      console.error("Tauri dialog.ask failed, falling back to window.confirm", e);
+    }
+  }
+  return window.confirm(message);
+}
+

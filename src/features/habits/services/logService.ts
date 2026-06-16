@@ -47,6 +47,8 @@ export async function getTodayLog(resetTimeOverride?: string): Promise<HabitLog>
   return emptyLog;
 }
 
+let operationQueue: Promise<any> = Promise.resolve();
+
 export async function completeHabit(
   habitId: string,
   value: number = 1,
@@ -54,7 +56,32 @@ export async function completeHabit(
   note: string = "",
   resetTimeOverride?: string,
   skipLog = false
-): Promise<void> {
+): Promise<Record<string, any> | null> {
+  const run = () => completeHabitImpl(habitId, value, target, note, resetTimeOverride, skipLog);
+  const resultPromise = operationQueue.then(run);
+  operationQueue = resultPromise.then(() => {}, () => {});
+  return resultPromise;
+}
+
+export async function uncompleteHabit(
+  habitId: string,
+  resetTimeOverride?: string,
+  skipLog = false
+): Promise<Record<string, any> | null> {
+  const run = () => uncompleteHabitImpl(habitId, resetTimeOverride, skipLog);
+  const resultPromise = operationQueue.then(run);
+  operationQueue = resultPromise.then(() => {}, () => {});
+  return resultPromise;
+}
+
+async function completeHabitImpl(
+  habitId: string,
+  value: number = 1,
+  target: number = 1,
+  note: string = "",
+  resetTimeOverride?: string,
+  skipLog = false
+): Promise<Record<string, any> | null> {
   const userId = uid();
   const today = getToday(undefined, resetTimeOverride);
   const ref = logRef(userId, today);
@@ -145,6 +172,7 @@ export async function completeHabit(
   // Update habit stats
   let habitTitle = "Limiter";
   let limitExceeded = false;
+  let updatesToReturn: Record<string, any> | null = null;
 
   if (habit) {
     habitTitle = habit.title || "Limiter";
@@ -161,9 +189,11 @@ export async function completeHabit(
 
       if (justExceeded) {
         limitExceeded = true;
-        await updateDoc(habitRef, {
+        const up = {
           currentStreak: 0,
-        });
+        };
+        await updateDoc(habitRef, up);
+        updatesToReturn = up;
       } else {
         const newTotal = (habit.totalCompletions || 0) + 1;
         const lvlInfo = calculateLevel(newTotal);
@@ -225,6 +255,7 @@ export async function completeHabit(
         }
 
         await updateDoc(habitRef, updates);
+        updatesToReturn = updates;
       }
     } else {
       // Existing daily/interval logic
@@ -269,16 +300,23 @@ export async function completeHabit(
 
         const newTotal = (habit.totalCompletions || 0) + 1;
         const lvlInfo = calculateLevel(newTotal);
-        await updateDoc(habitRef, {
+        const updates = {
           totalCompletions: newTotal,
           lastCompletedDate: today,
           level: lvlInfo.level,
           levelProgress: lvlInfo.progress,
           currentStreak,
           longestStreak,
-        });
+        };
+        await updateDoc(habitRef, updates);
+        updatesToReturn = updates;
       } else if (habit.type === "limiter") {
         limitExceeded = newValue > resolvedTarget;
+        if (limitExceeded) {
+          const up = { currentStreak: 0 };
+          await updateDoc(habitRef, up);
+          updatesToReturn = up;
+        }
       }
     }
   }
@@ -305,24 +343,26 @@ export async function completeHabit(
       console.error("Failed to add limiter strike:", e);
     }
   }
+
+  return updatesToReturn;
 }
 
-export async function uncompleteHabit(
+async function uncompleteHabitImpl(
   habitId: string,
   resetTimeOverride?: string,
   skipLog = false
-): Promise<void> {
+): Promise<Record<string, any> | null> {
   const userId = uid();
   const today = getToday(undefined, resetTimeOverride);
   const ref = logRef(userId, today);
   const habitRef = doc(db, "users", userId, "habits", habitId);
 
   const snap = await getDoc(ref);
-  if (!snap.exists()) return;
+  if (!snap.exists()) return null;
 
   const log = snap.data() as HabitLog;
   const existing = log.habits?.[habitId];
-  if (!existing || existing.completions.length === 0) return;
+  if (!existing || existing.completions.length === 0) return null;
 
   const habitSnap = await getDoc(habitRef);
   const habit = habitSnap.exists() ? habitSnap.data() : null;
@@ -350,11 +390,11 @@ export async function uncompleteHabit(
     [`habits.${habitId}`]: newEntry,
   });
 
+  let statsUpdate: Record<string, any> = {};
+
   // ── Sync habit document stats (Rollback) ────────────────────────
   try {
     if (habit) {
-      let statsUpdate: Record<string, any> = {};
-
       if (habit.type === "limiter") {
         if (existing.value > existing.target && newValue <= existing.target) {
           try {
@@ -446,7 +486,6 @@ export async function uncompleteHabit(
 
               if (completedDates.length > 0) {
                 prevCompletedDate = completedDates[0];
-                calculatedStreak = 1;
 
                 const userDocRef = doc(db, "users", userId);
                 const userSnap = await getDoc(userDocRef);
@@ -456,23 +495,30 @@ export async function uncompleteHabit(
                 const period = habit.period || "daily";
                 const intervalDays = habit.intervalDays || 2;
 
-                let currentRefDate = prevCompletedDate;
+                // Check if the previous completion is consecutive with today
+                if (isConsecutiveDates(today, prevCompletedDate, period, weeklyResetDay, intervalDays)) {
+                  calculatedStreak = 1;
 
-                for (let i = 1; i < completedDates.length; i++) {
-                  const date2 = completedDates[i];
-                  
-                  // Skip same period completion
-                  if (isSamePeriodDates(currentRefDate, date2, period, weeklyResetDay)) {
-                    continue;
-                  }
+                  let currentRefDate = prevCompletedDate;
 
-                  // Check if consecutive
-                  if (isConsecutiveDates(currentRefDate, date2, period, weeklyResetDay, intervalDays)) {
-                    calculatedStreak++;
-                    currentRefDate = date2;
-                  } else {
-                    break;
+                  for (let i = 1; i < completedDates.length; i++) {
+                    const date2 = completedDates[i];
+                    
+                    // Skip same period completion
+                    if (isSamePeriodDates(currentRefDate, date2, period, weeklyResetDay)) {
+                      continue;
+                    }
+
+                    // Check if consecutive
+                    if (isConsecutiveDates(currentRefDate, date2, period, weeklyResetDay, intervalDays)) {
+                      calculatedStreak++;
+                      currentRefDate = date2;
+                    } else {
+                      break;
+                    }
                   }
+                } else {
+                  calculatedStreak = 0;
                 }
               }
             } catch (err) {
@@ -514,6 +560,8 @@ export async function uncompleteHabit(
       console.error("Failed to revert limiter strike:", e);
     }
   }
+
+  return statsUpdate;
 }
 
 // ─── Log range (for analytics) ────────────────────────────────────

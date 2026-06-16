@@ -160,3 +160,9 @@
 .habit-card__progress-fill[data-limit-exceeded="true"] {
   background: var(--strike-red);
 }
+
+.habit-card:focus-visible {
+  outline: 2px solid var(--card-accent);
+  outline-offset: 2px;
+  background: rgba(24, 26, 30, 0.85) !important;
+}

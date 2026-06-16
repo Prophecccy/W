@@ -10,13 +10,16 @@ export function DesktopSection() {
   const { showToast } = useToast();
   const { phase, startUpdate, reboot } = useUpdateManager();
   const [isChecking, setIsChecking] = useState(false);
-  const [appVersion, setAppVersion] = useState("Alpha.v.1.6");
+  const [appVersion, setAppVersion] = useState("...");
   const [autostartEnabled, setAutostartEnabled] = useState(true);
   const inTauri = isTauri();
 
   useEffect(() => {
     if (inTauri) {
-      setAppVersion("Alpha.v.1.6");
+      // Dynamically read real app version from Tauri
+      import('@tauri-apps/api/app').then(({ getVersion }) =>
+        getVersion().then(v => setAppVersion(`Alpha.v.${v.replace(/-.*$/, '').replace(/\.0$/, '')}`))
+      ).catch(() => setAppVersion('Alpha'));
 
       // Check actual autostart state from the plugin
       import('@tauri-apps/plugin-autostart').then(({ isEnabled }) => {

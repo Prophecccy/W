@@ -7,6 +7,7 @@ import { useToast } from "../../../../shared/components/Toast/Toast";
 import { updateHabit, archiveHabit } from "../../services/habitService";
 import { isHabitScheduledToday } from "../../utils/scheduleEngine";
 import { useUserStore } from "../../../../shared/stores/userStore";
+import { confirmDialog } from "../../../../shared/utils/tauri";
 import "./HabitDetail.css";
 
 interface HabitDetailProps {
@@ -93,12 +94,11 @@ export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest, userRes
     setIsSaving(true);
     try {
       const updated = { ...habit, title, description: desc };
-      // Wait, habitService doesn't have updateHabit yet!
-      // I will need to add it, or just use the generic update. I'll add updateHabit.
-      await updateHabit(habit.id, updated);
+      await updateHabit(habit.id, { title, description: desc });
       onUpdate(updated);
       showToast("[ HABIT UPDATED ]");
-    } catch {
+    } catch (err) {
+      console.error("Failed to update habit:", err);
       showToast("[ FAILED TO SAVE ]");
     } finally {
       setIsSaving(false);
@@ -106,14 +106,16 @@ export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest, userRes
   }
 
   async function handleArchive() {
-    if (!confirm("Soft-delete (Archive) this habit? It won't appear, but data remains.")) return;
+    const confirmed = await confirmDialog("Soft-delete (Archive) this habit? It won't appear, but data remains.");
+    if (!confirmed) return;
     try {
       setIsSaving(true);
       await archiveHabit(habit.id);
       showToast("[ ARCHIVED ]");
       onUpdate({ ...habit, isArchived: true });
       onClose();
-    } catch {
+    } catch (err) {
+      console.error("Failed to archive habit:", err);
       showToast("[ FAILED TO ARCHIVE ]");
       setIsSaving(false);
     }

@@ -180,23 +180,35 @@ export function calculateStreak(habit: Habit, logs: HabitLog[]): number {
     }
 
     case "interval": {
-      // Count consecutive "due dates" that were completed
       if (!habit.lastCompletedDate) return 0;
-      const dueDates = buildDueDates(habit, sorted[sorted.length - 1].date, today);
-      let isFirst = true;
-      for (const dueDate of dueDates) {
-        const matchLog = sorted.find((l) => l.date === dueDate);
-        if (!matchLog?.habits[habit.id]?.completed) {
-          if (isFirst && dueDate === today) {
-            isFirst = false;
-            continue;
-          }
+
+      // Filter and map logs to completed dates (sorted newest-first)
+      const completedDates = sorted
+        .filter((l) => l.habits[habit.id]?.completed)
+        .map((l) => l.date);
+
+      if (completedDates.length === 0) return 0;
+
+      const lastDate = parseLocalDate(completedDates[0]);
+      const todayDate = parseLocalDate(today);
+      const diffDays = Math.round((todayDate.getTime() - lastDate.getTime()) / 86400000);
+
+      if (diffDays > habit.intervalDays) {
+        return 0;
+      }
+
+      let streak = 1;
+      for (let i = 0; i < completedDates.length - 1; i++) {
+        const d1 = parseLocalDate(completedDates[i]);
+        const d2 = parseLocalDate(completedDates[i + 1]);
+        const gap = Math.round((d1.getTime() - d2.getTime()) / 86400000);
+        if (gap <= habit.intervalDays) {
+          streak++;
+        } else {
           break;
         }
-        streak++;
-        isFirst = false;
       }
-      break;
+      return streak;
     }
   }
 
@@ -219,6 +231,12 @@ export function calculateGlobalStreak(
   const today = formatDate(new Date());
   const sorted = [...logs].sort((a, b) => (a.date > b.date ? -1 : 1));
 
+  const byWeek = groupLogsByISOWeek(logs);
+  const byMonth = groupLogsByMonth(logs);
+
+  const todayWeek = getISOWeek(today);
+  const todayMonth = today.slice(0, 7);
+
   let streak = 0;
   let expectedDate = today;
   let isFirst = true;
@@ -240,12 +258,47 @@ export function calculateGlobalStreak(
     const scheduledHabits = habits.filter((h) =>
       isHabitScheduledToday(h, log.date, weeklyResetDay)
     );
+
     const allCompleted = scheduledHabits.every((h) => {
       if (h.type === "limiter") {
         const entry = log.habits[h.id];
         return !entry || entry.value <= entry.target;
       }
-      return log.habits[h.id]?.completed;
+
+      if (h.period === "weekly") {
+        const weekKey = getISOWeek(log.date);
+        if (weekKey === todayWeek) {
+          return true; // Exempt current week in progress
+        }
+        const weekLogs = byWeek.get(weekKey) ?? [];
+        if (h.type === "metric") {
+          const target = h.metric?.targetValue ?? 1;
+          const total = weekLogs.reduce((sum, l) => sum + (l.habits[h.id]?.value ?? 0), 0);
+          return total >= target;
+        } else {
+          const completions = weekLogs.filter((l) => l.habits[h.id]?.completed).length;
+          return completions >= (h.frequency || 1);
+        }
+      }
+
+      if (h.period === "monthly") {
+        const monthKey = log.date.slice(0, 7);
+        if (monthKey === todayMonth) {
+          return true; // Exempt current month in progress
+        }
+        const monthLogs = byMonth.get(monthKey) ?? [];
+        if (h.type === "metric") {
+          const target = h.metric?.targetValue ?? 1;
+          const total = monthLogs.reduce((sum, l) => sum + (l.habits[h.id]?.value ?? 0), 0);
+          return total >= target;
+        } else {
+          const completions = monthLogs.filter((l) => l.habits[h.id]?.completed).length;
+          return completions >= (h.frequency || 1);
+        }
+      }
+
+      // daily or interval
+      return !!log.habits[h.id]?.completed;
     });
 
     if (!allCompleted) {
@@ -271,11 +324,25 @@ export function calculateGlobalStreak(
 
 function getISOWeek(dateStr: string): string {
   const d = parseLocalDate(dateStr);
-  const jan4 = new Date(d.getFullYear(), 0, 4);
-  const weekNum = Math.ceil(
-    ((d.getTime() - jan4.getTime()) / 86400000 + jan4.getDay() + 1) / 7
-  );
-  return `${d.getFullYear()}-W${String(weekNum).padStart(2, "0")}`;
+  
+  // ISO week rules:
+  // The first week of the year is the week that contains the first Thursday of the year.
+  // Set to nearest Thursday: current date + 4 - current day number (Monday = 1, Sunday = 7)
+  const dayNum = d.getDay() || 7;
+  d.setDate(d.getDate() + 4 - dayNum);
+  
+  // Get first Thursday of the year
+  const year = d.getFullYear();
+  const firstThursday = new Date(year, 0, 4);
+  const firstThursdayDayNum = firstThursday.getDay() || 7;
+  firstThursday.setDate(firstThursday.getDate() + 4 - firstThursdayDayNum);
+  
+  // Calculate difference in weeks
+  const diffMs = d.getTime() - firstThursday.getTime();
+  const diffDays = Math.round(diffMs / 86400000);
+  const weekNum = 1 + Math.round(diffDays / 7);
+  
+  return `${year}-W${String(weekNum).padStart(2, "0")}`;
 }
 
 function groupLogsByISOWeek(logs: HabitLog[]): Map<string, HabitLog[]> {
@@ -323,6 +390,7 @@ function buildDueDates(
   earliestLog: string,
   today: string
 ): string[] {
+  if (habit.intervalDays <= 0) return [];
   const due: string[] = [];
   const startStr = habit.startDate || formatDate(new Date(habit.createdAt));
   const d = parseLocalDate(startStr);

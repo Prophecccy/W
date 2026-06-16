@@ -23,6 +23,9 @@ interface HabitCardProps {
   isResting?: boolean;
   userResetTime?: string;
   upcomingStatus?: string;
+  tabIndex?: number;
+  onFocus?: () => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLDivElement>) => void;
 }
 
 function getCooldownText(habit: Habit, userResetTime?: string): string {
@@ -64,6 +67,9 @@ export function HabitCard({
   isResting = false,
   userResetTime,
   upcomingStatus,
+  tabIndex,
+  onFocus,
+  onKeyDown,
 }: HabitCardProps) {
   const { showToast } = useToast();
   const [isHolding, setIsHolding] = useState(false);
@@ -162,6 +168,9 @@ export function HabitCard({
 
   return (
     <div
+      tabIndex={tabIndex}
+      onFocus={onFocus}
+      onKeyDown={onKeyDown}
       className={`habit-card ${isCompletedToday ? "habit-card--completed" : ""} ${isResting ? "habit-card--resting" : ""} ${isHolding ? "habit-card--holding" : ""} level-tier-${Math.min(habit.level, 10)}${riskScore != null && riskScore > 90 ? " risk-critical" : riskScore != null && riskScore > 75 ? " risk-elevated" : ""}`}
       style={cardStyle}
       onPointerDown={startHold}

@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -29,6 +30,17 @@ interface SidebarProps {
 
 export function Sidebar({ strikeCount = 0, globalStreak = 0, isLockdownActive = false }: SidebarProps) {
   const { isDriveLinked } = useAuthContext();
+  const [appVersion, setAppVersion] = useState('...');
+
+  useEffect(() => {
+    if (isTauri()) {
+      import('@tauri-apps/api/app').then(({ getVersion }) =>
+        getVersion().then(v => setAppVersion(`Alpha.v.${v.replace(/-.*$/, '').replace(/\.0$/, '')}`))
+      ).catch(() => setAppVersion('Alpha'));
+    } else {
+      setAppVersion(`Alpha.v.${__APP_VERSION__.replace(/-.*$/, '').replace(/\.0$/, '')}`);
+    }
+  }, []);
   const isWarning = strikeCount >= 3;
   const isLocked = strikeCount >= 5;
 
@@ -119,7 +131,7 @@ export function Sidebar({ strikeCount = 0, globalStreak = 0, isLockdownActive = 
       )}
 
       <div className="sidebar__version">
-        Alpha.v.1.6
+        {appVersion}
       </div>
     </aside>
   );

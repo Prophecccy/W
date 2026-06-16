@@ -24,7 +24,7 @@ interface HabitFormData {
 export interface HabitFormProps {
   initialData?: Partial<HabitFormData>;
   groups: HabitGroup[];
-  onSubmit: (data: HabitFormData) => void;
+  onSubmit: (data: HabitFormData) => Promise<void> | void;
   onCancel: () => void;
   userResetTime?: string;
 }
@@ -55,6 +55,7 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [intervalDays, setIntervalDays] = useState(initialData?.intervalDays ? String(initialData.intervalDays) : "");
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const todayDate = getToday(undefined, userResetTime);
   const tomorrowDate = addDays(todayDate, 1);
@@ -140,11 +141,18 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
     else onCancel();
   };
 
-  const handleSubmit = () => {
-    onSubmit({
-      ...data,
-      newGroupName: isCreatingGroup && newGroupName.trim() ? newGroupName.trim() : undefined,
-    });
+  const handleSubmit = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await onSubmit({
+        ...data,
+        newGroupName: isCreatingGroup && newGroupName.trim() ? newGroupName.trim() : undefined,
+      });
+    } catch (err) {
+      console.error("Submission failed:", err);
+      setIsSubmitting(false);
+    }
   };
 
   const renderStepContent = () => {
@@ -483,9 +491,9 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
           type="button" 
           className="habit-form__btn habit-form__btn--primary t-label" 
           onClick={handleNext}
-          disabled={!currentStepIsValid()}
+          disabled={!currentStepIsValid() || isSubmitting}
         >
-          {step === 2 ? "[ SAVE HABIT ]" : "[ NEXT ]"}
+          {step === 2 ? (isSubmitting ? "[ CREATING... ]" : "[ SAVE HABIT ]") : "[ NEXT ]"}
         </button>
       </div>
     </div>

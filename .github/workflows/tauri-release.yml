@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g. Alpha.v.1.2) — must match tauri.conf.json version'
+        description: 'Git release tag (e.g. Alpha.v.1.7) — the semver for the updater comes from tauri.conf.json, not this tag'
         required: true
-        default: 'Alpha.v.1.2'
+        default: 'Alpha.v.1.7'
 
 jobs:
   release:

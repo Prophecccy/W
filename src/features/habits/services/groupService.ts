@@ -6,6 +6,7 @@ import {
   updateDoc,
   deleteDoc,
   query,
+  where,
   orderBy,
   writeBatch,
 } from "firebase/firestore";
@@ -85,6 +86,22 @@ export async function updateGroup(id: string, name: string): Promise<void> {
 export async function deleteGroup(id: string): Promise<void> {
   const userId = uid();
   await deleteDoc(doc(db, "users", userId, "groups", id));
+
+  // Cascade clear group field on all habits matching group ID
+  try {
+    const habitsColl = collection(db, "users", userId, "habits");
+    const q = query(habitsColl, where("group", "==", id));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const batch = writeBatch(db);
+      snap.docs.forEach((d) => {
+        batch.update(d.ref, { group: null });
+      });
+      await batch.commit();
+    }
+  } catch (err) {
+    console.error("Failed to clear group reference on habits:", err);
+  }
 }
 
 export async function reorderGroups(groups: HabitGroup[]): Promise<void> {

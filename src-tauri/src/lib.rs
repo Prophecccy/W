@@ -32,15 +32,15 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--hidden"]),
-        ));
-        // .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
-        //     println!("[W RUN] Single instance trigger. Args: {:?}, Cwd: {:?}", args, cwd);
-        //     if let Some(main_window) = app.get_webview_window("main") {
-        //         println!("[W RUN] Showing main window due to single instance trigger.");
-        //         let _ = main_window.show();
-        //         let _ = main_window.set_focus();
-        //     }
-        // }));
+        ))
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            println!("[W RUN] Single instance trigger. Args: {:?}, Cwd: {:?}", args, cwd);
+            if let Some(main_window) = app.get_webview_window("main") {
+                println!("[W RUN] Showing main window due to single instance trigger.");
+                let _ = main_window.show();
+                let _ = main_window.set_focus();
+            }
+        }));
 
     println!("[W RUN] Plugins initialized. Setting up...");
 
