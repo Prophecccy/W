@@ -9,7 +9,8 @@ import {
   orderBy,
   updateDoc,
   deleteDoc,
-  limit
+  limit,
+  writeBatch
 } from "firebase/firestore";
 import { db, auth } from "../../../shared/config/firebase";
 import { Todo } from "../types";
@@ -79,6 +80,7 @@ export async function restoreTodo(todo: Todo): Promise<void> {
  * NOTE: Requires Firestore composite index: status ASC, order ASC
  */
 export async function getTodos(): Promise<Todo[]> {
+  if (!auth.currentUser) return [];
   const q = query(todosRef(), where("status", "==", "active"), orderBy("order", "asc"));
   const snap = await getDocs(q);
   return snap.docs.map((d) => d.data() as Todo);
@@ -89,6 +91,7 @@ export async function getTodos(): Promise<Todo[]> {
  * NOTE: Requires Firestore composite index: status ASC, completedAt DESC
  */
 export async function getCompletedTodos(): Promise<Todo[]> {
+  if (!auth.currentUser) return [];
   const q = query(
     todosRef(),
     where("status", "==", "done"),
@@ -178,6 +181,7 @@ export async function completeTodo(todoId: string): Promise<void> {
     console.error("Failed to log todo_complete:", err);
   }
 
+  await purgeOldCompletedTodos();
   await notifyTodoUpdated();
 }
 
@@ -188,39 +192,9 @@ export async function incrementNumberedTodo(todoId: string, currentTodo: Todo): 
     throw new Error("Target todo is not a numbered todo");
   }
 
-  const currentCount = currentTodo.numbered.current;
-  const targetCount = currentTodo.numbered.target;
-  
-  if (currentTodo.status === "done" || currentCount >= targetCount) {
-    return; // Already completed or reached target
-  }
-  
-  const nextCount = Math.min(currentCount + 1, targetCount);
-  
-  if (nextCount >= targetCount) {
-    // Auto-complete if target reached
-    await updateDoc(todoDoc(todoId), {
-      "numbered.current": nextCount,
-      status: "done",
-      completedAt: Date.now(),
-    });
-
-    // Log to undo history
-    try {
-      const { logAction } = await import("../../settings/services/undoService");
-      await logAction("todo_complete", `[ TODO COMPLETED ] - ${currentTodo.title}`, {
-        todoId,
-        prevNumbered: currentTodo.numbered,
-      });
-    } catch (err) {
-      console.error("Failed to log todo_complete:", err);
-    }
-  } else {
-    // Just increment
-    await updateDoc(todoDoc(todoId), {
-      "numbered.current": nextCount,
-    });
-  }
+  await updateDoc(todoDoc(todoId), {
+    "numbered.current": currentTodo.numbered.current,
+  });
 
   await notifyTodoUpdated();
 }
@@ -249,5 +223,28 @@ export async function completeNumberedTodoFull(todoId: string, currentTodo: Todo
     console.error("Failed to log todo_complete:", err);
   }
 
+  await purgeOldCompletedTodos();
   await notifyTodoUpdated();
+}
+
+export async function purgeOldCompletedTodos(): Promise<void> {
+  if (!auth.currentUser) return;
+  try {
+    const q = query(
+      todosRef(),
+      where("status", "==", "done"),
+      orderBy("completedAt", "desc")
+    );
+    const snap = await getDocs(q);
+    if (snap.size > 50) {
+      const docsToDelete = snap.docs.slice(50);
+      const batch = writeBatch(db);
+      for (const d of docsToDelete) {
+        batch.delete(d.ref);
+      }
+      await batch.commit();
+    }
+  } catch (err) {
+    console.error("Failed to purge old completed todos:", err);
+  }
 }

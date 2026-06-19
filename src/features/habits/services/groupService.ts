@@ -102,6 +102,22 @@ export async function deleteGroup(id: string): Promise<void> {
   } catch (err) {
     console.error("Failed to clear group reference on habits:", err);
   }
+
+  // Cascade clear group field on all todos matching group ID
+  try {
+    const todosColl = collection(db, "users", userId, "todos");
+    const q = query(todosColl, where("group", "==", id));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const batch = writeBatch(db);
+      snap.docs.forEach((d) => {
+        batch.update(d.ref, { group: null });
+      });
+      await batch.commit();
+    }
+  } catch (err) {
+    console.error("Failed to clear group reference on todos:", err);
+  }
 }
 
 export async function reorderGroups(groups: HabitGroup[]): Promise<void> {

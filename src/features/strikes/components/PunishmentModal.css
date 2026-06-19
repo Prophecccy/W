@@ -24,7 +24,8 @@
   transition: max-width 0.3s ease, width 0.3s ease;
 }
 
-.punishment-modal:has(.habit-form--wide) {
+.punishment-modal:has(.habit-form--wide),
+.punishment-modal:has(.todo-form--wide) {
   max-width: 1200px;
   width: 95vw;
 }

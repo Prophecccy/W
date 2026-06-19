@@ -539,6 +539,38 @@ export function WidgetApp() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
+  const handleCreateTodoClick = useCallback(async (e: React.PointerEvent) => {
+    e.stopPropagation(); // Prevent widget drag behavior on button press
+    try {
+      const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+      const { emit } = await import("@tauri-apps/api/event");
+
+      // 1. Show and focus the main window
+      const main = await WebviewWindow.getByLabel("main");
+      if (main) {
+        await main.show();
+        await main.setFocus();
+      } else {
+        const newMain = new WebviewWindow("main", {
+          url: "/",
+          decorations: false,
+          title: "W Command Center",
+          width: 1024,
+          height: 768,
+          minWidth: 800,
+          minHeight: 600,
+        });
+        await newMain.show();
+        await newMain.setFocus();
+      }
+
+      // 2. Emit trigger event to open todo form
+      await emit("widget-trigger-new-todo");
+    } catch (err) {
+      console.error("Failed to trigger new todo from widget:", err);
+    }
+  }, []);
+
   if (loading) {
     return (
       <div className="widget-app widget-app--loading">
@@ -598,6 +630,12 @@ export function WidgetApp() {
               <span className="widget-app__logo">[ W ]</span>
               <span className="widget-app__protocols-title">[ ACTIVE PROTOCOLS ]</span>
             </div>
+            <button
+              className="widget-app__add-todo t-meta"
+              onPointerDown={handleCreateTodoClick}
+            >
+              [ + TODO ]
+            </button>
           </div>
 
           <div className="widget-app__habits-scroll">

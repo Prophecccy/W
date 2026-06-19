@@ -137,3 +137,27 @@
   margin-left: 2px;
   opacity: 0.85;
 }
+
+.todo-card__delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.todo-card:hover .todo-card__delete-btn {
+  opacity: 0.7;
+}
+
+.todo-card__delete-btn:hover {
+  opacity: 1 !important;
+  color: var(--strike-red) !important;
+  background: rgba(255, 77, 77, 0.15);
+}

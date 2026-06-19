@@ -3,316 +3,348 @@ import { TodoType } from "../../types";
 import { createTodo } from "../../services/todoService";
 import { HabitGroup } from "../../../habits/types";
 import { createGroup, sanitizeGroupName } from "../../../habits/services/groupService";
+import { getToday } from "../../../../shared/utils/dateUtils";
+import { DatePicker } from "../../../../shared/components/DatePicker/DatePicker";
 import "./TodoForm.css";
 
 interface TodoFormProps {
   onClose: () => void;
   onSuccess?: () => void;
   groups?: HabitGroup[];
+  dailyResetTime?: string;
 }
 
-export function TodoForm({ onClose, onSuccess, groups = [] }: TodoFormProps) {
-  const [step, setStep] = useState(1);
+export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime }: TodoFormProps) {
+  // Input fields
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<TodoType>("standard");
-  const [target, setTarget] = useState(5);
-  const [deadline, setDeadline] = useState("");
+  const [targetInput, setTargetInput] = useState("5");
+  const [isUrgent, setIsUrgent] = useState(false);
+  const [hasCustomDeadline, setHasCustomDeadline] = useState(false);
+  const [customDeadline, setCustomDeadline] = useState("");
   const [postDeadlineAction, setPostDeadlineAction] = useState<"keep" | "disappear">("keep");
-  const [future, setFuture] = useState("");
-  const [showOnDesktop, setShowOnDesktop] = useState(true);
   const [group, setGroup] = useState<string | null>(null);
-  
+
+  // Group creation state
   const [newGroupName, setNewGroupName] = useState("");
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
-
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const totalSteps = 5;
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!title.trim() || isSubmitting || (hasCustomDeadline && !customDeadline)) return;
 
-  const handleNext = () => setStep((s) => Math.min(s + 1, totalSteps));
-  const handlePrev = () => setStep((s) => Math.max(s - 1, 1));
-
-  const handleSubmit = async () => {
-    if (!title.trim()) return;
     setIsSubmitting(true);
     try {
       let finalGroup = group;
-      if (group && group.startsWith("new_") && newGroupName.trim()) {
-        const sanitized = sanitizeGroupName(newGroupName);
-        if (sanitized) {
-          const lower = sanitized.toLowerCase();
-          const existingGroup = groups.find(g => sanitizeGroupName(g.name).toLowerCase() === lower);
-          if (existingGroup) {
-            finalGroup = existingGroup.id;
+      if (group && group.startsWith("new_")) {
+        if (newGroupName.trim()) {
+          const sanitized = sanitizeGroupName(newGroupName);
+          if (sanitized) {
+            const lower = sanitized.toLowerCase();
+            const existingGroup = groups.find((g) => sanitizeGroupName(g.name).toLowerCase() === lower);
+            if (existingGroup) {
+              finalGroup = existingGroup.id;
+            } else {
+              const created = await createGroup(sanitized, groups.length);
+              finalGroup = created.id;
+            }
           } else {
-            const created = await createGroup(sanitized, groups.length);
-            finalGroup = created.id;
+            finalGroup = null;
           }
         } else {
           finalGroup = null;
         }
       }
 
+      const todayStr = getToday(undefined, dailyResetTime);
+      let deadlineVal: string | null = null;
+      if (isUrgent) {
+        deadlineVal = todayStr;
+      } else if (hasCustomDeadline && customDeadline) {
+        deadlineVal = customDeadline;
+      }
+
       const todoData: Parameters<typeof createTodo>[0] = {
-        title,
-        description,
+        title: title.trim(),
+        description: description.trim(),
         type,
-        color: "#5B8DEF",
-        order: 0,
-        deadline: deadline || null,
-        future: future || null,
+        color: isUrgent ? "#ff4d4d" : "#5B8DEF",
+        order: Date.now(),
+        deadline: deadlineVal,
+        future: null,
         group: finalGroup,
-        postDeadlineAction: deadline ? postDeadlineAction : undefined,
       };
+
+      if (isUrgent || (hasCustomDeadline && customDeadline)) {
+        todoData.postDeadlineAction = postDeadlineAction;
+      }
+
       if (type === "numbered") {
-        const clampedTarget = Math.max(2, Math.min(999, target));
+        const parsed = parseInt(targetInput, 10);
+        const clampedTarget = isNaN(parsed) ? 5 : Math.max(2, Math.min(999, parsed));
         todoData.numbered = { current: 0, target: clampedTarget };
       }
-      if (showOnDesktop) {
-        todoData.stickyPosition = { x: 100, y: 100 };
-      }
+
+      // Default to enabled on desktop widget with random offset to prevent stacking overlaps
+      const stagger = Math.floor(Math.random() * 8) * 20;
+      todoData.stickyPosition = { x: 100 + stagger, y: 100 + stagger };
+
       await createTodo(todoData);
+
+      // Reset main input fields
+      setTitle("");
+      setDescription("");
+      setIsUrgent(false);
+      setHasCustomDeadline(false);
+      setCustomDeadline("");
+      setPostDeadlineAction("keep");
+      setTargetInput("5");
+
+      // Notify parent list to refresh
       if (onSuccess) onSuccess();
+      // Auto close on success since we are in instant mode
       onClose();
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error("Failed to create todo:", err);
+      alert("Failed to create todo: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="todo-form">
+    <div className="todo-form todo-form--single">
       <div className="todo-form__header">
-        <span className="t-meta">[ NEW TODO ]</span>
-        <button className="todo-form__close t-label" onClick={onClose}>
+        <span className="t-label">[ TODO CREATOR ]</span>
+        <button className="todo-form__close t-label" onClick={onClose} title="Close">
           [ X ]
         </button>
       </div>
 
-      <div className="todo-form__content">
-        {step === 1 && (
-          <div className="todo-form__step">
-            <span className="t-label">STEP 1: BASICS</span>
-            <div className="todo-form__field">
-              <span className="t-meta">TITLE</span>
-              <input
-                autoFocus
-                className="todo-form__input t-body"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="What needs to be done?"
-              />
-            </div>
-            <div className="todo-form__field">
-              <span className="t-meta">NOTES (OPTIONAL)</span>
-              <textarea
-                className="todo-form__input todo-form__textarea t-body"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Additional details..."
-              />
-            </div>
-          </div>
-        )}
+      <form onSubmit={handleSubmit} className="todo-form__body">
+        {/* Title input (Prompt style) */}
+        <div className="todo-form__field todo-form__field--title">
+          <span className="todo-form__prompt-char">&gt;</span>
+          <input
+            autoFocus
+            className="todo-form__title-input"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="ENTER TODO TITLE..."
+            disabled={isSubmitting}
+          />
+        </div>
 
-        {step === 2 && (
-          <div className="todo-form__step">
-            <span className="t-label">STEP 2: TYPE</span>
-            <div className="todo-form__radio-group">
+        {/* Quick Notes/Details */}
+        <div className="todo-form__field">
+          <span className="t-meta">DETAILS (OPTIONAL)</span>
+          <textarea
+            className="todo-form__textarea t-body"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Add notes, bullet points, or context..."
+            disabled={isSubmitting}
+          />
+        </div>
+
+        {/* Controls Grid: Type & Priority (Sleek text segments) */}
+        <div className="todo-form__controls-grid">
+          <div className="todo-form__field">
+            <span className="t-meta">TASK TYPE</span>
+            <div className="todo-form__selector-group">
               <button
-                className={`todo-form__radio-btn ${type === "standard" ? "todo-form__radio-btn--active" : ""}`}
+                type="button"
+                className={`todo-form__selector-btn ${type === "standard" ? "active" : ""}`}
                 onClick={() => setType("standard")}
               >
-                <div className="t-label mb-1">STANDARD</div>
-                <span className="t-meta">One-off task. Complete it once and it's done.</span>
+                STANDARD
               </button>
               <button
-                className={`todo-form__radio-btn ${type === "numbered" ? "todo-form__radio-btn--active" : ""}`}
+                type="button"
+                className={`todo-form__selector-btn ${type === "numbered" ? "active" : ""}`}
                 onClick={() => setType("numbered")}
               >
-                <div className="t-label mb-1">NUMBERED</div>
-                <span className="t-meta">Requires multiple steps or reps to complete.</span>
-              </button>
-            </div>
-
-            {type === "numbered" && (
-              <div className="todo-form__field mt-4">
-                <span className="t-meta">TARGET VALUE</span>
-                <input
-                  type="number"
-                  min="2"
-                  max="999"
-                  className="todo-form__input t-data"
-                  value={target}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value) || 2;
-                    setTarget(Math.max(2, Math.min(999, val)));
-                  }}
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="todo-form__step">
-            <span className="t-label">STEP 3: SCHEDULING (OPTIONAL)</span>
-            <div className="todo-form__field">
-              <span className="t-meta">DEADLINE</span>
-              <input
-                type="date"
-                className="todo-form__input t-data"
-                value={deadline}
-                onChange={(e) => {
-                  setDeadline(e.target.value);
-                  if (!e.target.value) {
-                    setPostDeadlineAction("keep");
-                  }
-                }}
-              />
-              <span className="t-meta" style={{color: "var(--text-muted)", marginTop: "4px"}}>
-                Missing this will issue a strike.
-              </span>
-            </div>
-
-            {deadline && (
-              <div className="todo-form__field mt-4">
-                <span className="t-meta">POST-DEADLINE ACTION</span>
-                <div className="todo-form__radio-group mt-2">
-                  <button
-                    type="button"
-                    className={`todo-form__radio-btn ${postDeadlineAction === "keep" ? "todo-form__radio-btn--active" : ""}`}
-                    onClick={() => setPostDeadlineAction("keep")}
-                  >
-                    <div className="t-label mb-1">KEEP ON BOARD</div>
-                    <span className="t-meta">Stays on your board until manually completed.</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`todo-form__radio-btn ${postDeadlineAction === "disappear" ? "todo-form__radio-btn--active" : ""}`}
-                    onClick={() => setPostDeadlineAction("disappear")}
-                  >
-                    <div className="t-label mb-1">VANISH FROM BOARD</div>
-                    <span className="t-meta">Disappears from all active lists once the deadline passes.</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="todo-form__field mt-4">
-              <span className="t-meta">START DATE (FUTURE)</span>
-              <input
-                type="date"
-                className="todo-form__input t-data"
-                value={future}
-                onChange={(e) => setFuture(e.target.value)}
-              />
-              <span className="t-meta" style={{color: "var(--text-muted)", marginTop: "4px"}}>
-                Hides the todo until this date.
-              </span>
-            </div>
-          </div>
-        )}
-
-        {step === 4 && (
-          <div className="todo-form__step">
-            <span className="t-label">STEP 4: APPEARANCE</span>
-
-            <div className="todo-form__field mt-4">
-              <span className="t-meta">DESKTOP WIDGET</span>
-              <button
-                className={`todo-form__radio-btn ${showOnDesktop ? "todo-form__radio-btn--active" : ""}`}
-                onClick={() => setShowOnDesktop(!showOnDesktop)}
-              >
-                <div className="t-label">{showOnDesktop ? "[ ENABLED ]" : "[ DISABLED ]"}</div>
+                NUMBERED
               </button>
             </div>
           </div>
-        )}
 
-        {step === 5 && (
-          <div className="todo-form__step">
-            <span className="t-label">STEP 5: GROUPING (OPTIONAL)</span>
-            <div className="todo-form__radio-group mt-4">
+          <div className="todo-form__field">
+            <span className="t-meta">PRIORITY</span>
+            <div className="todo-form__selector-group">
               <button
-                className={`todo-form__radio-btn ${group === null && !isCreatingGroup ? "todo-form__radio-btn--active" : ""}`}
-                onClick={() => { setGroup(null); setIsCreatingGroup(false); setNewGroupName(""); }}
-              >
-                <div className="t-label">NO GROUP</div>
-              </button>
-              
-              {groups.map(g => (
-                <button
-                  key={g.id}
-                  className={`todo-form__radio-btn ${group === g.id && !isCreatingGroup ? "todo-form__radio-btn--active" : ""}`}
-                  onClick={() => { setGroup(g.id); setIsCreatingGroup(false); setNewGroupName(""); }}
-                >
-                  <div className="t-label">{g.name.toUpperCase()}</div>
-                </button>
-              ))}
-
-              <button
-                className={`todo-form__radio-btn ${isCreatingGroup ? "todo-form__radio-btn--active" : ""}`}
+                type="button"
+                className={`todo-form__selector-btn ${!isUrgent && !hasCustomDeadline ? "active" : ""}`}
                 onClick={() => {
-                  setIsCreatingGroup(true);
-                  if (newGroupName.trim()) {
-                    setGroup(`new_${newGroupName.trim().toLowerCase().replace(/\s+/g, '_')}`);
-                  } else {
-                    setGroup(null);
-                  }
+                  setIsUrgent(false);
+                  setHasCustomDeadline(false);
                 }}
               >
-                <div className="t-label">+ NEW GROUP</div>
+                NORMAL
+              </button>
+              <button
+                type="button"
+                className={`todo-form__selector-btn todo-form__selector-btn--urgent ${isUrgent ? "active" : ""}`}
+                onClick={() => {
+                  setIsUrgent(true);
+                  setHasCustomDeadline(false);
+                }}
+              >
+                URGENT
+              </button>
+              <button
+                type="button"
+                className={`todo-form__selector-btn ${hasCustomDeadline ? "active" : ""}`}
+                onClick={() => {
+                  setIsUrgent(false);
+                  setHasCustomDeadline(true);
+                }}
+              >
+                CUSTOM
               </button>
             </div>
+          </div>
+        </div>
 
-            {isCreatingGroup && (
-              <div className="todo-form__field mt-4">
-                <input 
-                  type="text" 
-                  className="todo-form__input t-body" 
-                  placeholder="New Group Name" 
-                  value={newGroupName} 
-                  onChange={e => {
-                    setNewGroupName(e.target.value);
-                    setGroup(`new_${e.target.value.toLowerCase().replace(/\s+/g, '_')}`);
-                  }}
-                  autoFocus
-                />
-              </div>
-            )}
+        {/* Custom Deadline Input */}
+        {hasCustomDeadline && (
+          <div className="todo-form__field todo-form__field--deadline">
+            <span className="t-meta">DEADLINE DATE</span>
+            <DatePicker
+              value={customDeadline}
+              onChange={setCustomDeadline}
+              min={getToday(undefined, dailyResetTime)}
+              disabled={isSubmitting}
+              placeholder="SELECT DEADLINE DATE..."
+              dailyResetTime={dailyResetTime}
+            />
+            <span className="t-meta" style={{ color: "var(--text-muted)", marginTop: "4px" }}>
+              Missing this deadline will issue a strike.
+            </span>
           </div>
         )}
-      </div>
 
-      <div className="todo-form__footer">
-        {step > 1 ? (
-          <button className="todo-form__btn t-label" onClick={handlePrev}>
-            [ BACK ]
-          </button>
-        ) : (
-          <div /> // spacer
+        {/* Post-Deadline Action Selection */}
+        {(isUrgent || hasCustomDeadline) && (
+          <div className="todo-form__field todo-form__field--post-action">
+            <span className="t-meta">POST-DEADLINE ACTION</span>
+            <div className="todo-form__selector-group">
+              <button
+                type="button"
+                className={`todo-form__selector-btn ${postDeadlineAction === "keep" ? "active" : ""}`}
+                onClick={() => setPostDeadlineAction("keep")}
+                disabled={isSubmitting}
+              >
+                KEEP ON BOARD
+              </button>
+              <button
+                type="button"
+                className={`todo-form__selector-btn todo-form__selector-btn--urgent ${postDeadlineAction === "disappear" ? "active" : ""}`}
+                onClick={() => setPostDeadlineAction("disappear")}
+                disabled={isSubmitting}
+              >
+                VANISH FROM BOARD
+              </button>
+            </div>
+          </div>
         )}
 
-        {step < totalSteps ? (
-          <button
-            className="todo-form__btn todo-form__btn--primary t-label"
-            onClick={handleNext}
-            disabled={step === 1 && !title.trim()}
-          >
-            [ NEXT ]
+        {/* Numbered Repetitions Input */}
+        {type === "numbered" && (
+          <div className="todo-form__field todo-form__field--numbered">
+            <span className="t-meta">TARGET REPETITIONS</span>
+            <input
+              type="number"
+              min="2"
+              max="999"
+              className="todo-form__number-input t-data"
+              value={targetInput}
+              onChange={(e) => setTargetInput(e.target.value)}
+              disabled={isSubmitting}
+            />
+          </div>
+        )}
+
+        {/* Group Selection (Sleek inline tags) */}
+        <div className="todo-form__field">
+          <span className="t-meta">GROUP CATEGORY</span>
+          <div className="todo-form__groups-row">
+            <button
+              type="button"
+              className={`todo-form__group-tag ${group === null && !isCreatingGroup ? "active" : ""}`}
+              onClick={() => {
+                setGroup(null);
+                setIsCreatingGroup(false);
+                setNewGroupName("");
+              }}
+            >
+              [ NONE ]
+            </button>
+            {groups.map((g) => (
+              <button
+                key={g.id}
+                type="button"
+                className={`todo-form__group-tag ${group === g.id && !isCreatingGroup ? "active" : ""}`}
+                onClick={() => {
+                  setGroup(g.id);
+                  setIsCreatingGroup(false);
+                  setNewGroupName("");
+                }}
+              >
+                {`[ ${g.name.toUpperCase()} ]`}
+              </button>
+            ))}
+            <button
+              type="button"
+              className={`todo-form__group-tag ${isCreatingGroup ? "active" : ""}`}
+              onClick={() => {
+                setIsCreatingGroup(true);
+                if (newGroupName.trim()) {
+                  setGroup(`new_${newGroupName.trim().toLowerCase().replace(/\s+/g, "_")}`);
+                } else {
+                  setGroup(null);
+                }
+              }}
+            >
+              [ + NEW ]
+            </button>
+          </div>
+        </div>
+
+        {isCreatingGroup && (
+          <div className="todo-form__field todo-form__field--new-group">
+            <input
+              type="text"
+              className="todo-form__new-group-input t-body"
+              placeholder="Type new group name..."
+              value={newGroupName}
+              onChange={(e) => {
+                setNewGroupName(e.target.value);
+                setGroup(`new_${e.target.value.toLowerCase().replace(/\s+/g, "_")}`);
+              }}
+              autoFocus
+              disabled={isSubmitting}
+            />
+          </div>
+        )}
+
+        {/* Action Row */}
+        <div className="todo-form__action-row">
+          <button type="button" className="btn-action btn-action--secondary" onClick={onClose}>
+            [ CANCEL ]
           </button>
-        ) : (
           <button
-            className="todo-form__btn todo-form__btn--primary t-label"
-            onClick={handleSubmit}
-            disabled={isSubmitting}
+            type="submit"
+            className="btn-action btn-action--primary"
+            disabled={isSubmitting || !title.trim() || (hasCustomDeadline && !customDeadline)}
           >
             [ CREATE TODO ]
           </button>
-        )}
-      </div>
+        </div>
+      </form>
     </div>
   );
 }
+

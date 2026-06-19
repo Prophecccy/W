@@ -59,8 +59,13 @@ pub fn run() {
 
             if !is_hidden_startup {
                 if let Some(main_window) = app.get_webview_window("main") {
-                    let _ = main_window.show();
-                    let _ = main_window.set_focus();
+                    println!("[W SETUP] Found main window. Visibility: {:?}", main_window.is_visible());
+                    let res = main_window.show();
+                    println!("[W SETUP] main_window.show() result: {:?}", res);
+                    let res_focus = main_window.set_focus();
+                    println!("[W SETUP] main_window.set_focus() result: {:?}", res_focus);
+                } else {
+                    println!("[W SETUP] ERROR: main window NOT found!");
                 }
             }
 
@@ -174,6 +179,23 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+
+            // Window Monitor Thread
+            let app_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(5));
+                    if let Some(main_win) = app_handle.get_webview_window("main") {
+                        let visible = main_win.is_visible();
+                        let pos = main_win.outer_position();
+                        let size = main_win.outer_size();
+                        let hwnd = main_win.hwnd();
+                        println!("[W MONITOR] Main Window -> Visible: {:?}, Position: {:?}, Size: {:?}, HWND: {:?}", visible, pos, size, hwnd);
+                    } else {
+                        println!("[W MONITOR] Main Window NOT FOUND!");
+                    }
+                }
+            });
 
             Ok(())
         })

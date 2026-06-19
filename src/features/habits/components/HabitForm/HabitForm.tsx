@@ -2,6 +2,7 @@ import { useState } from "react";
 import { IconPicker } from "../../../../shared/components/IconPicker/IconPicker";
 import { HabitPeriod, HabitType, HabitMetric, HabitDuration, HabitGroup } from "../../types";
 import { getToday, addDays } from "../../../../shared/utils/dateUtils";
+import { DatePicker } from "../../../../shared/components/DatePicker/DatePicker";
 import "./HabitForm.css";
 
 interface HabitFormData {
@@ -277,11 +278,11 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
                 {data.duration.type === "endpoint" && (
                   <div className="habit-form__field">
                     <label className="t-meta">END DATE</label>
-                    <input 
-                      type="date" 
-                      className="t-data habit-form__input" 
-                      value={data.duration.endDate || getToday()} 
-                      onChange={e => update({ duration: { ...data.duration, endDate: e.target.value } })}
+                    <DatePicker
+                      value={data.duration.endDate || getToday()}
+                      onChange={val => update({ duration: { ...data.duration, endDate: val } })}
+                      min={getToday()}
+                      placeholder="SELECT END DATE..."
                     />
                   </div>
                 )}
@@ -370,12 +371,11 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
                 <div className={`habit-form__custom-date-container ${startDateOption === "custom" ? "habit-form__custom-date-container--visible" : ""}`}>
                   <div className="habit-form__field">
                     <label className="t-meta">SPECIFY DATE</label>
-                    <input
-                      type="date"
-                      className="t-data habit-form__date-input"
+                    <DatePicker
                       value={data.startDate || todayDate}
+                      onChange={val => update({ startDate: val })}
                       min={todayDate}
-                      onChange={(e) => update({ startDate: e.target.value })}
+                      placeholder="SELECT START DATE..."
                     />
                   </div>
                 </div>

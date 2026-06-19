@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Todo } from "../types";
 import { Habit, HabitGroup } from "../../habits/types";
-import { getTodos, getCompletedTodos, completeTodo, completeNumberedTodoFull, incrementNumberedTodo } from "../services/todoService";
+import { getTodos, getCompletedTodos, completeTodo, completeNumberedTodoFull, incrementNumberedTodo, deleteTodo } from "../services/todoService";
 import { getHabits } from "../../habits/services/habitService";
 import { getGroups } from "../../habits/services/groupService";
 import { HabitGroupHeader } from "../../habits/components/HabitGroupHeader/HabitGroupHeader";
@@ -29,8 +29,10 @@ export function TodosPage() {
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('default');
   const [expandedTodoIds, setExpandedTodoIds] = useState<Record<string, boolean>>({});
 
-  const loadData = async () => {
-    setIsLoading(true);
+  const loadData = async (isBackground = false) => {
+    if (!isBackground) {
+      setIsLoading(true);
+    }
     try {
       const [todos, completed, habits, fetchedGroups] = await Promise.all([
         getTodos(),
@@ -57,7 +59,9 @@ export function TodosPage() {
     } catch (e) {
       console.error(e);
     } finally {
-      setIsLoading(false);
+      if (!isBackground) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -85,10 +89,10 @@ export function TodosPage() {
         if (!active) return [];
 
         const unsubHabit = await listen("widget-habit-updated", () => {
-          if (active) loadData();
+          if (active) loadData(true);
         });
         const unsubTodo = await listen("widget-todo-updated", () => {
-          if (active) loadData();
+          if (active) loadData(true);
         });
 
         return [unsubHabit, unsubTodo];
@@ -123,7 +127,20 @@ export function TodosPage() {
       }
     } catch (e) {
       console.error(e);
-      loadData(); // revert
+      loadData(true); // revert silently or update
+    }
+  };
+
+  const handleDelete = async (todoId: string) => {
+    if (confirm("Are you sure you want to delete this todo?")) {
+      try {
+        // Optimistic delete
+        setActiveTodos(prev => prev.filter(t => t.id !== todoId));
+        await deleteTodo(todoId);
+      } catch (e) {
+        console.error(e);
+        loadData(true);
+      }
     }
   };
 
@@ -154,7 +171,7 @@ export function TodosPage() {
           }
        } catch (e) {
           console.error(e);
-          loadData();
+          loadData(true);
        }
     } else {
        // Toggle description expansion
@@ -172,7 +189,12 @@ export function TodosPage() {
   if (isFormOpen) {
     return (
       <div className="todos-page" style={{ height: "100%" }}>
-         <TodoForm groups={groups} onClose={() => setIsFormOpen(false)} onSuccess={loadData} />
+         <TodoForm 
+           groups={groups} 
+           onClose={() => setIsFormOpen(false)} 
+           onSuccess={() => loadData(true)} 
+           dailyResetTime={userDoc?.settings?.dailyResetTime}
+         />
       </div>
     );
   }
@@ -265,7 +287,9 @@ export function TodosPage() {
                         todo={todo} 
                         onComplete={() => handleComplete(todo.id)}
                         onClick={() => handleCardClick(todo.id)}
+                        onDelete={() => handleDelete(todo.id)}
                         expanded={!!expandedTodoIds[todo.id]}
+                        dailyResetTime={userDoc?.settings?.dailyResetTime}
                       />
                     ))
                   ) : (
@@ -282,7 +306,9 @@ export function TodosPage() {
                                   todo={todo} 
                                   onComplete={() => handleComplete(todo.id)}
                                   onClick={() => handleCardClick(todo.id)}
+                                  onDelete={() => handleDelete(todo.id)}
                                   expanded={!!expandedTodoIds[todo.id]}
+                                  dailyResetTime={userDoc?.settings?.dailyResetTime}
                                 />
                               ))}
                             </div>
@@ -301,7 +327,9 @@ export function TodosPage() {
                                     todo={todo} 
                                     onComplete={() => handleComplete(todo.id)}
                                     onClick={() => handleCardClick(todo.id)}
+                                    onDelete={() => handleDelete(todo.id)}
                                     expanded={!!expandedTodoIds[todo.id]}
+                                    dailyResetTime={userDoc?.settings?.dailyResetTime}
                                   />
                                 ))}
                               </div>
@@ -323,7 +351,9 @@ export function TodosPage() {
                              todo={todo} 
                              onComplete={() => handleComplete(todo.id)}
                              onClick={() => handleCardClick(todo.id)}
+                             onDelete={() => handleDelete(todo.id)}
                              expanded={!!expandedTodoIds[todo.id]}
+                             dailyResetTime={userDoc?.settings?.dailyResetTime}
                            />
                          ))}
                          

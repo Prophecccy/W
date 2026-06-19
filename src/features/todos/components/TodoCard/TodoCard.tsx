@@ -9,10 +9,19 @@ interface TodoCardProps {
   todo: Todo;
   onComplete: () => void;
   onClick: () => void;
+  onDelete?: () => void;
   expanded?: boolean;
+  dailyResetTime?: string;
 }
 
-export function TodoCard({ todo, onComplete, onClick, expanded = false }: TodoCardProps) {
+export function TodoCard({ 
+  todo, 
+  onComplete, 
+  onClick, 
+  onDelete, 
+  expanded = false,
+  dailyResetTime
+}: TodoCardProps) {
   const [isHolding, setIsHolding] = useState(false);
   const [completeTriggered, setCompleteTriggered] = useState(false);
   const holdTimeoutRef = useRef<number | null>(null);
@@ -21,14 +30,17 @@ export function TodoCard({ todo, onComplete, onClick, expanded = false }: TodoCa
 
   const HOLD_DURATION = 500; // ms to hold to complete
   const isCompleted = todo.status === "done";
+  const isClickable = todo.type === "numbered" || (!!todo.description && todo.description.trim() !== "");
 
   const cardStyle = {
     "--card-accent": todo.color,
+    cursor: isClickable ? "pointer" : "default",
   } as React.CSSProperties;
 
   // ─── Interaction Handlers ───────────────────────────────────────
   const startHold = (e: React.PointerEvent<HTMLDivElement>) => {
     if (isCompleted) return;
+    if (e.button !== 0) return;
 
     // Cancel any existing running hold first to ensure double-tap safety
     if (holdTimeoutRef.current) {
@@ -79,7 +91,7 @@ export function TodoCard({ todo, onComplete, onClick, expanded = false }: TodoCa
   const handlePointerUp = () => {
     const shouldClick = !hasHeldRef.current && pointerStartCoordsRef.current !== null;
     cancelHold();
-    if (shouldClick) {
+    if (shouldClick && isClickable) {
       onClick();
     }
   };
@@ -89,7 +101,7 @@ export function TodoCard({ todo, onComplete, onClick, expanded = false }: TodoCa
   // Calculate days left for deadline
   let deadlineText = null;
   if (todo.deadline && !isCompleted) {
-    const today = getToday();
+    const today = getToday(undefined, dailyResetTime);
     if (todo.deadline < today) {
       deadlineText = "OVERDUE";
     } else if (todo.deadline === today) {
@@ -142,6 +154,19 @@ export function TodoCard({ todo, onComplete, onClick, expanded = false }: TodoCa
             />
             <span className="todo-card__title t-body">{todo.title}</span>
           </div>
+          {onDelete && (
+            <button
+              type="button"
+              className="todo-card__delete-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              title="Delete Todo"
+            >
+              <LucideIcon name="Trash2" size={14} />
+            </button>
+          )}
         </div>
 
         <AnimatePresence initial={false}>

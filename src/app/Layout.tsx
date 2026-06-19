@@ -331,6 +331,40 @@ function LayoutInner() {
     };
   }, [phase]);
 
+  // ─── Tauri: Handle widget-trigger-new-todo event ──────────────
+  useEffect(() => {
+    let active = true;
+    let unsubPromise: Promise<() => void> | null = null;
+    
+    async function setupWidgetTrigger() {
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        if (!active) return () => {};
+        const unsub = await listen("widget-trigger-new-todo", () => {
+          if (!active) return;
+          console.info("[Layout] Received widget-trigger-new-todo event. Navigating and opening form...");
+          navigate("/todos");
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent("w:open-todo-form"));
+          }, 100);
+        });
+        return unsub;
+      } catch (err) {
+        console.warn("Tauri event listener not available (browser mode?):", err);
+        return () => {};
+      }
+    }
+    
+    unsubPromise = setupWidgetTrigger();
+    
+    return () => {
+      active = false;
+      if (unsubPromise) {
+        unsubPromise.then(unsub => unsub()).catch(() => {});
+      }
+    };
+  }, [navigate]);
+
   useEffect(() => {
     if (phase !== "ready" || !user) return;
 
@@ -340,6 +374,16 @@ function LayoutInner() {
     async function initializeSync() {
       // SECURITY: Legacy Firestore notes migration removed (Batch 36)
       // Daily notes are local-only — they NEVER touch Firestore.
+
+      if (isUnmounted) return;
+
+      // 1.0. LAYER 6: Initialize encryption key before any note operations
+      try {
+        const { initEncryptionKey } = await import("../shared/utils/noteCrypto");
+        await initEncryptionKey();
+      } catch (err) {
+        console.error("[Sync Engine] Encryption key init failed (notes will use graceful degradation):", err);
+      }
 
       if (isUnmounted) return;
 
@@ -491,7 +535,8 @@ function LayoutInner() {
     });
 
     const todosRef = collection(db, "users", user.uid, "todos");
-    const unsubTodos = onSnapshot(todosRef, (snap) => {
+    const todosQuery = query(todosRef, where("status", "==", "active"));
+    const unsubTodos = onSnapshot(todosQuery, (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Todo));
       setPaletteTodos(data);
     }, (err) => {

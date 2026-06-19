@@ -72,7 +72,7 @@ graph TD
   - **TypeScript Zero-Error Standard**: All changes must successfully pass typing checks (`tsc`) with zero errors in `tsconfig.json`.
 
 ### 5. [ Lockout Penance & Difficulty System ]
-* **Zero-Bypass Form State**: Users cannot bypass the lockout overlay by clicking cancel on compensation forms. The form wizards (`HabitForm`, `TodoForm`) are securely embedded **inline** within the `PunishmentModal` overlay. Cancelling a form simply routes the user back to the primary penance choice menu without unlocking the viewport.
+* **Zero-Bypass Form State**: Users cannot bypass the lockout overlay by clicking cancel on compensation forms. The forms (`HabitForm`, `TodoForm`) are securely embedded **inline** within the `PunishmentModal` overlay. Cancelling a form simply routes the user back to the primary penance choice menu without unlocking the viewport.
 * **Delayed Strike Resolution**: Strikes are strictly reset only *after* successful database writing of compensatory habits/todos, at which point the app reactively unlocks.
 * **Interactive Difficulty Escalation**: Selecting difficulty increase dynamically prompts the user to select an active metric or limiter habit to calibrate:
   * **Metric Habits**: Raise target value by $+33\%$ (min $+1$).
@@ -326,4 +326,58 @@ This batch documents where the application version is maintained and how the dyn
 2. **Habit Leveling Persistence**:
    - `src/features/habits/services/logService.ts`: Re-routed completion and uncompletion/undo updates to import `calculateLevel` from `../utils/levelEngine` and update the `level` and `levelProgress` fields dynamically on the habit document in Firestore, resolving the Level 0 freeze bug.
 
+---
+
+## Batch 39 — Layer 6: AES-256-GCM Encryption at Rest for Daily Notes
+
+Added client-side encryption so that notes stored in IndexedDB are ciphertext, not plaintext. Even with physical access to the machine or browser profile, an attacker cannot read notes without the separately-stored encryption key.
+
+1. **New Module** — `src/shared/utils/noteCrypto.ts`: Zero-dependency encryption utility using the Web Crypto API. Generates a random 256-bit AES-GCM key on first run, stores it as JWK in Tauri's `$APPDATA/note_key.json` (OS filesystem), and provides `encryptNote()` / `decryptNote()` / `isEncryptedRecord()` functions.
+2. **Modified** — `src/features/logs/services/localLogService.ts`: All write paths (`saveLocalNote`, `saveDownloadedNote`) now encrypt note content before `idb-keyval.set()`. All read paths (`getLocalNote`, `getLocalNoteRecord`, `getPendingSyncNotes`, `getLocalNoteHistory`) transparently decrypt. Legacy unencrypted records are automatically re-encrypted in the background on first read.
+3. **Modified** — `src/app/Layout.tsx`: Added `initEncryptionKey()` call at the start of the sync engine's `initializeSync()` function, ensuring the key is loaded from disk before any note operations run.
+4. **Security Architecture**: The encryption key lives in `$APPDATA` (OS filesystem), while encrypted data lives in IndexedDB (browser storage) — an attacker needs access to both. Google Drive sync is unaffected: `getPendingSyncNotes()` returns decrypted plaintext for upload to the user's personal Drive.
+5. **Graceful Degradation**: If the encryption key is unavailable (e.g. web builds, init failure), notes fall back to plaintext storage. Reads always work — unencrypted records return normally, and decryption failure returns empty string (Drive copy serves as recovery).
+
+---
+
+## Batch 40 — Streamlined Split-Screen Todo Creator & Widget Trigger
+
+Replaced the complex 3-column configuration form with a high-productivity, split-screen todo creation dashboard and wired a trigger button into the Desktop Widget.
+
+1. **Split-Screen Creator** — `src/features/todos/components/TodoForm/TodoForm.tsx` & `.css`:
+   - Re-designed the creation layout into a wide, 2-column workspace.
+   - **Left Panel (60% width)**: Houses a massive title input (`[ TYPE TODO TITLE & ENTER ]`), a quick details area, and single-click buttons for setting Priority (Urgent) and Category (Group).
+   - **Right Panel (40% width)**: Lists all current active todos in a scrollable, glassmorphic container. Allows checking off tasks directly from this creator view.
+2. **Widget Launch Trigger** — `src/features/widget/components/WidgetApp.tsx` & `.css`:
+   - Rendered a custom `[ + TODO ]` button on the Desktop Widget header.
+   - Pointer down on the button uses Tauri's WebviewWindow APIs to show and focus the main window, and emits a Tauri-wide event `widget-trigger-new-todo`.
+3. **App-Wide Handler** — `src/app/Layout.tsx`:
+   - Listens to `widget-trigger-new-todo` event. Automatically routes the main window to `/todos` and dispatches `w:open-todo-form` to display the quick creator.
+
+---
+
+## Batch 41 — Centered Console-Style Todo Creator & Creation Freeze Fix
+
+We simplified the Todo Creator layout, polished the visual aesthetic, and resolved a critical Firestore write failure.
+
+1. **Centered Todo Creator**: Removed the right-side active todo list panel from [TodoForm.tsx](file:///C:/Users/redre/Downloads/Projects/W/src/features/todos/components/TodoForm/TodoForm.tsx) to focus exclusively on creation. Configured [TodoForm.css](file:///C:/Users/redre/Downloads/Projects/W/src/features/todos/components/TodoForm/TodoForm.css) to center the form with a max-width of `680px`.
+2. **Inline Text Selectors**: Replaced boxy card buttons with flat, low-profile text toggles (e.g., `[ STANDARD ]` / `[ NUMBERED ]` and group category tags `[ NONE ]` / `[ + NEW ]`), fitting W's terminal/console aesthetic.
+3. **Firestore Undefined Properties**: Added `ignoreUndefinedProperties: true` to `initializeFirestore` in [firebase.ts](file:///C:/Users/redre/Downloads/Projects/W/src/shared/config/firebase.ts). This globally prevents Firestore writes from crashing when objects contain optional fields that resolve to `undefined` (such as `postDeadlineAction`).
+4. **TodoForm Payload Sanitization**: Modified [TodoForm.tsx](file:///C:/Users/redre/Downloads/Projects/W/src/features/todos/components/TodoForm/TodoForm.tsx) to only append `postDeadlineAction` to the `todoData` payload when a deadline (urgent or custom) is explicitly present, preventing unnecessary properties from leaking into the database.
+5. **Custom Deadline Selector**: Added a `CUSTOM` Priority option to [TodoForm.tsx](file:///C:/Users/redre/Downloads/Projects/W/src/features/todos/components/TodoForm/TodoForm.tsx) that shows a custom date picker input (styled with a sleek monospaced console look in [TodoForm.css](file:///C:/Users/redre/Downloads/Projects/W/src/features/todos/components/TodoForm/TodoForm.css)) and selectable post-deadline actions (`KEEP ON BOARD` / `VANISH FROM BOARD`).
+
+---
+
+## Batch 42 — Custom Retro-Console DatePicker Component
+
+We created and integrated a custom DatePicker component to replace default, unstyled browser date inputs.
+
+1. **Shared DatePicker Component**: Created [DatePicker.tsx](file:///C:/Users/redre/Downloads/Projects/W/src/shared/components/DatePicker/DatePicker.tsx) and [DatePicker.css](file:///C:/Users/redre/Downloads/Projects/W/src/shared/components/DatePicker/DatePicker.css). The component features:
+   - Google-inspired quick preset buttons (`TODAY`, `TOMORROW`, `+3 DAYS`, `+1 WEEK`) calculated relative to the local date.
+   - Clean retro-themed calendar navigation with custom bracketed elements (`[ < ]` and `[ > ]`).
+   - Dynamic boundary checks to disable past days.
+   - Automatic popover dismissals on outside clicks.
+2. **App-Wide Integrations**:
+   - Integrated into [TodoForm.tsx](file:///C:/Users/redre/Downloads/Projects/W/src/features/todos/components/TodoForm/TodoForm.tsx) for custom todo deadlines.
+   - Integrated into [HabitForm.tsx](file:///C:/Users/redre/Downloads/Projects/W/src/features/habits/components/HabitForm/HabitForm.tsx) for Endpoint End Dates and Commencement Dates.
 

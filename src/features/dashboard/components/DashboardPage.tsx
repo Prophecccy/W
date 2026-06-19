@@ -8,7 +8,7 @@ import { Todo } from '../../todos/types';
 import { getHabits } from '../../habits/services/habitService';
 import { getTodayLog, getLogRange, completeHabit, uncompleteHabit } from '../../habits/services/logService';
 import { getLocalNote } from '../../logs/services/localLogService';
-import { getTodos, completeTodo, completeNumberedTodoFull, incrementNumberedTodo } from '../../todos/services/todoService';
+import { getTodos, completeTodo, completeNumberedTodoFull, incrementNumberedTodo, deleteTodo } from '../../todos/services/todoService';
 import { isHabitScheduledToday, isHabitResting } from '../../habits/utils/scheduleEngine';
 import { getToday } from '../../../shared/utils/dateUtils';
 import { User } from '../../../shared/types';
@@ -390,6 +390,16 @@ export function DashboardPage() {
     }
   };
 
+  const handleDelete = async (todoId: string) => {
+    try {
+      setTodos(prev => prev.filter(t => t.id !== todoId));
+      await deleteTodo(todoId);
+    } catch (e) {
+      console.error(e);
+      setRefreshTrigger(prev => prev + 1); // trigger reload to revert optimistic UI
+    }
+  };
+
   if (loading) {
     return (
       <div className="dashboard-loading">
@@ -534,8 +544,10 @@ export function DashboardPage() {
                   <TodoCard 
                     key={todo.id} 
                     todo={todo} 
+                    dailyResetTime={userDoc?.settings?.dailyResetTime}
                     onComplete={() => handleTodoComplete(todo.id)}
                     onClick={() => handleTodoClick(todo.id)}
+                    onDelete={() => handleDelete(todo.id)}
                   />
                 ))}
               </div>

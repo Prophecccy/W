@@ -1,7 +1,7 @@
 import { Todo } from "../types";
 import { addStrike } from "../../strikes/services/strikeService";
-import { updateTodo } from "./todoService";
-import { getToday, formatDate } from "../../../shared/utils/dateUtils";
+import { updateTodo, purgeOldCompletedTodos } from "./todoService";
+import { getToday } from "../../../shared/utils/dateUtils";
 import { getFreezeState, isDateInFreezeRange } from "../../freeze/services/freezeService";
 
 /**
@@ -25,7 +25,7 @@ export async function checkDeadlines(
   }
   
   for (const todo of todos) {
-    const wasActiveOnDay = todo.status === "active" || (todo.status === "done" && todo.completedAt && formatDate(new Date(todo.completedAt)) >= today);
+    const wasActiveOnDay = todo.status === "active" || (todo.status === "done" && todo.completedAt && getToday(new Date(todo.completedAt), userResetTime) >= today);
     if (!wasActiveOnDay) continue;
     if (todo.future && todo.future > today) continue; // Skip future (hidden) todos
     if (!todo.deadline) continue;
@@ -38,23 +38,39 @@ export async function checkDeadlines(
         continue;
       }
       try {
-        await addStrike(todo.id, todo.title, "missed");
-        strikesAdded++;
-        
-        // Handle post-deadline action
+        const completedTimestamp = new Date(today + "T12:00:00").getTime();
+        // Handle post-deadline action (Update DB first to prevent duplicate strikes on write timeouts)
         if (todo.postDeadlineAction === "disappear") {
           // Vanish: mark as done and record strikeIssued to prevent future checks
-          await updateTodo(todo.id, { status: "done", completedAt: Date.now(), strikeIssued: true });
+          const updates: any = { status: "done", completedAt: completedTimestamp, strikeIssued: true };
+          if (todo.type === "numbered" && todo.numbered) {
+            updates.numbered = {
+              ...todo.numbered,
+              current: todo.numbered.target
+            };
+          }
+          await updateTodo(todo.id, updates);
           todo.status = "done";
-          todo.completedAt = Date.now();
+          todo.completedAt = completedTimestamp;
           todo.strikeIssued = true;
+          if (todo.type === "numbered" && todo.numbered) {
+            todo.numbered = {
+              ...todo.numbered,
+              current: todo.numbered.target
+            };
+          }
+          await purgeOldCompletedTodos();
         } else {
           // Keep: keep on board (active + keeps deadline), but mark strikeIssued to prevent duplicate strikes
           await updateTodo(todo.id, { strikeIssued: true });
           todo.strikeIssued = true;
         }
+
+        // Apply strike after successful database state lock
+        await addStrike(todo.id, todo.title, "missed");
+        strikesAdded++;
       } catch (e) {
-        console.error("Failed to add strike for missed todo:", todo.title, e);
+        console.error("Failed to process missed todo:", todo.title, e);
       }
     }
   }

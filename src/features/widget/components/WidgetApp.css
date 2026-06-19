@@ -98,6 +98,28 @@
   text-shadow: var(--text-shadow-glow);
 }
 
+.widget-app__add-todo {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 1px;
+  transition: all 0.2s ease;
+  text-shadow: var(--text-shadow-glow);
+}
+
+.widget-app__add-todo:hover {
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.widget-app__add-todo:active {
+  transform: translateY(0);
+}
+
 .widget-app__clock-container {
   display: flex;
   justify-content: center;

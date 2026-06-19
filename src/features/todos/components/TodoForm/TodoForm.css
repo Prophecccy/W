@@ -1,18 +1,33 @@
-.todo-form {
+/* ─── TodoForm Centered Container ─── */
+.todos-page:has(.todo-form--single) {
   display: flex;
-  flex-direction: column;
-  height: 100%;
-  max-width: 480px;
-  margin: 0 auto;
+  align-items: center;
+  justify-content: center;
   padding: 24px;
+  box-sizing: border-box;
 }
 
+.todo-form.todo-form--single {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 680px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8);
+  padding: 32px;
+  box-sizing: border-box;
+  animation: todoFormSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Header */
 .todo-form__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 32px;
-  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 16px;
+  margin-bottom: 24px;
 }
 
 .todo-form__close {
@@ -27,22 +42,11 @@
   color: var(--text-primary);
 }
 
-.todo-form__content {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.todo-form__step {
+/* Body and fields */
+.todo-form__body {
   display: flex;
   flex-direction: column;
   gap: 24px;
-  animation: fade-in 0.2s ease forwards;
-}
-
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 .todo-form__field {
@@ -51,92 +55,225 @@
   gap: 8px;
 }
 
-.todo-form__input {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-primary);
-  padding: 12px;
-  border-radius: 4px;
+/* Prompt Title Input */
+.todo-form__field--title {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border-default);
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+  transition: border-bottom-color 0.25s ease;
+}
+
+.todo-form__field--title:focus-within {
+  border-bottom-color: var(--accent);
+}
+
+.todo-form__prompt-char {
+  color: var(--accent);
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-shadow: var(--text-shadow-glow);
+  user-select: none;
+}
+
+.todo-form__title-input {
+  flex: 1;
+  background: transparent;
+  border: none;
   outline: none;
-  width: 100%;
-  font-family: inherit;
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  color: var(--text-primary);
+  caret-color: var(--accent);
+  padding: 8px 0;
+}
+
+.todo-form__title-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.4;
+  font-weight: 300;
+}
+
+/* Details Textarea */
+.todo-form__textarea {
+  min-height: 80px;
+  resize: vertical;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid var(--border-subtle);
+  padding: 12px;
+  color: var(--text-secondary);
+  outline: none;
   transition: border-color 0.2s ease;
 }
 
-.todo-form__input:focus {
+.todo-form__textarea:focus {
   border-color: var(--accent);
 }
 
-.todo-form__textarea {
-  resize: vertical;
-  min-height: 80px;
+.todo-form__textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.5;
 }
 
-.todo-form__radio-group {
+/* Selector buttons (Type and Priority) */
+.todo-form__controls-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.todo-form__selector-group {
   display: flex;
-  flex-direction: column;
   gap: 8px;
+  margin-top: 4px;
 }
 
-.todo-form__radio-btn {
-  background: transparent;
-  border: 1px solid var(--border-default);
-  color: var(--text-secondary);
-  padding: 16px;
-  border-radius: 4px;
-  text-align: left;
+.todo-form__selector-btn {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid var(--border-subtle);
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-align: center;
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s ease;
-  font-family: inherit;
 }
 
-.todo-form__radio-btn:hover {
-  border-color: var(--border-subtle);
-  background: var(--bg-elevated);
-}
-
-.todo-form__radio-btn--active {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--bg-elevated);
-}
-
-.todo-form__footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 48px;
-  padding-top: 24px;
-  border-top: 1px solid var(--border-default);
-}
-
-.todo-form__btn {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 8px 16px;
-  transition: color 0.2s ease;
-}
-
-.todo-form__btn:hover:not(:disabled) {
+.todo-form__selector-btn:hover {
+  border-color: var(--text-secondary);
   color: var(--text-primary);
 }
 
-.todo-form__btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.todo-form__btn--primary {
+.todo-form__selector-btn.active {
+  border-color: var(--accent);
   color: var(--accent);
+  background: rgba(91, 141, 239, 0.05);
 }
 
-.todo-form__btn--primary:hover:not(:disabled) {
+.todo-form__selector-btn--urgent.active {
+  border-color: var(--strike-red);
+  color: var(--strike-red);
+  background: rgba(232, 115, 108, 0.05);
+}
+
+/* Numbered Target repetitions */
+.todo-form__field--numbered {
+  animation: todoFormSlideDown 0.2s ease-out;
+}
+
+.todo-form__number-input {
+  max-width: 100px;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid var(--border-subtle);
+  padding: 8px 12px;
+  color: var(--text-primary);
+  outline: none;
+  margin-top: 4px;
+  transition: border-color 0.2s ease;
+}
+
+.todo-form__number-input:focus {
+  border-color: var(--accent);
+}
+
+/* Group selection (Inline list of bracket tags) */
+.todo-form__groups-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 4px;
+}
+
+.todo-form__group-tag {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 4px 0;
+  transition: all 0.2s ease;
+}
+
+.todo-form__group-tag:hover {
+  color: var(--text-primary);
+}
+
+.todo-form__group-tag.active {
   color: var(--accent);
-  opacity: 0.8;
+  text-shadow: var(--text-shadow-glow);
+  font-weight: 700;
 }
 
-/* Margin helpers */
-.mt-4 { margin-top: 16px; }
-.mb-1 { margin-bottom: 4px; }
+/* Create group field */
+.todo-form__field--new-group {
+  animation: todoFormSlideDown 0.2s ease-out;
+  margin-top: -8px;
+}
+
+.todo-form__new-group-input {
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid var(--border-subtle);
+  padding: 10px 12px;
+  color: var(--text-primary);
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s ease;
+}
+
+.todo-form__new-group-input:focus {
+  border-color: var(--accent);
+}
+
+/* Actions */
+.todo-form__action-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 24px;
+}
+
+/* Custom Deadline Date Picker */
+.todo-form__field--deadline {
+  animation: todoFormSlideDown 0.2s ease-out;
+}
+
+.todo-form__date-input {
+  max-width: 200px;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid var(--border-subtle);
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  outline: none;
+  margin-top: 4px;
+  transition: border-color 0.2s ease;
+}
+
+.todo-form__date-input:focus {
+  border-color: var(--accent);
+}
+
+/* Post-deadline action */
+.todo-form__field--post-action {
+  animation: todoFormSlideDown 0.2s ease-out;
+}
+
+/* Animations */
+@keyframes todoFormSlideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes todoFormSlideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
