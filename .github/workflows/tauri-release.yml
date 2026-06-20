@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Git release tag (e.g. Alpha.v.1.7) — the semver for the updater comes from tauri.conf.json, not this tag'
+        description: 'Git release tag (e.g. Alpha.v.1.7.1) — the semver for the updater comes from tauri.conf.json, not this tag'
         required: true
-        default: 'Alpha.v.1.7'
+        default: 'Alpha.v.1.7.1'
 
 jobs:
   release:
@@ -70,7 +70,27 @@ jobs:
         with:
           tagName: ${{ github.event.inputs.version }}
           releaseName: "W Desktop ${{ github.event.inputs.version }}"
-          releaseBody: "Evolution Protocol — automated release for W Command Center."
+          releaseBody: |
+            Evolution Protocol — Version 1.7.1
+
+            ### 🚀 Redesigns & Features
+            - **Custom Retro DatePicker**: Integrated a custom, responsive retro DatePicker component for todo deadlines and habit start/end dates, with quick presets (Today, Tomorrow, +3 Days, +1 Week) and clean keyboard navigation.
+            - **Console-Style Todo Creator**: Streamlined the creator panel to a clean, centered layout with horizontal category tag styling.
+            - **Desktop Widget Creation Launch Trigger**: Added a fast `[ + TODO ]` trigger inside the desktop widget that automatically opens the creation modal.
+
+            ### 🛡️ Critical Bug Fixes & UX Optimization (Batch 1)
+            - **Numbered Todo Fixes**: Resolved double-increment and auto-completion timing desynchronizations.
+            - **Timezone-Aware Deadlines**: Patched the deadline checker to respect custom timezone offsets and user-specific rollover times.
+            - **Cold Boot Stability**: Handled auth initialization delays to prevent uncaught exceptions on launch.
+            - **Memory & Resource Leak Cleanup**: Cleared inactive Tauri listeners and toast timers to prevent thread/battery leaks.
+            - **Strike System Safety**: Re-ordered Firestore writes to prevent duplicate strikes under slow networks, and disabled strikes during active freeze intervals.
+
+            ### ⚡ Batch 2 Performance & UI Patches
+            - **Custom Deadline Validation**: Disabled Enter-key bypass submissions on empty custom dates.
+            - **Reps Count Locking**: Refactored the repetitions field to a non-locking text input, clamping values only on submission.
+            - **Group category Reference Safety**: Prevented empty new groups from creating garbage database links.
+            - **Auto-Purging (Firestore Optimization)**: Cap completed todo lists strictly to the 50 most recent documents via automatic database purging.
+            - **Command Palette Efficiency**: Scoped search listeners to active items only, avoiding full history downloads.
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
