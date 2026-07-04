@@ -1,5 +1,4 @@
-import { doc, getDoc, updateDoc, runTransaction } from "firebase/firestore";
-import { db, auth } from "../../../shared/config/firebase";
+import { db, auth, doc, getDoc, updateDoc, runTransaction } from "../../../shared/config/firebase";
 import { StrikeState, StrikeHistoryEntry, MAX_STRIKES } from "../types";
 import { getToday } from "../../../shared/utils/dateUtils";
 

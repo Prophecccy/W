@@ -7,10 +7,10 @@
   padding: 14px 16px;
   margin-bottom: 12px;
   /* Ghost Elevation: Projected Data look */
-  background: rgba(255, 255, 255, 0.02);
-  border: none; 
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08); 
   border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.8);
+  box-shadow: none;
   cursor: pointer;
   user-select: none;
   overflow: hidden;
@@ -75,16 +75,16 @@
 
 /* ─── Limiter Accent ─────────────────────────────────────── */
 .widget-habit-card.limiter {
-  box-shadow: 0 8px 24px rgba(0,0,0,0.8), 0 0 15px rgba(232, 115, 108, 0.1);
+  box-shadow: 0 0 10px rgba(232, 115, 108, 0.08);
 }
 .widget-habit-card.limiter:hover {
-  box-shadow: 0 8px 24px rgba(0,0,0,0.9), 0 0 20px rgba(232, 115, 108, 0.2);
+  box-shadow: 0 0 15px rgba(232, 115, 108, 0.15);
 }
 
 .widget-habit-card.exceeded {
   border: 1px solid var(--strike-red) !important;
   background: rgba(232, 115, 108, 0.05) !important;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.8), 0 0 20px rgba(232, 115, 108, 0.2) !important;
+  box-shadow: 0 0 15px rgba(232, 115, 108, 0.15) !important;
 }
 
 /* ─── Hold Fill Animation ────────────────────────────────── */

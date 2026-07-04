@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db } from "../../../shared/config/firebase";
+import { db, collection, query, where, onSnapshot } from "../../../shared/config/firebase";
 import { Todo } from "../../todos/types";
 import { useAuthContext } from "../../auth/context";
 import { loadPositions, savePositionLocal } from "../services/positionStore";
@@ -60,6 +59,7 @@ export function useStickyNotes(): StickyNotesReturn {
   }, []);
 
   useEffect(() => {
+    console.log("[useStickyNotes] mount/user change. user:", user ? user.uid : "null");
     if (!user) {
       setLoading(false);
       return;
@@ -67,18 +67,21 @@ export function useStickyNotes(): StickyNotesReturn {
 
     // 1. Load local cache first (instant)
     const cachedPositions = loadPositions();
+    console.log("[useStickyNotes] loaded cachedPositions:", cachedPositions);
     setPositions(cachedPositions);
 
     // 2. Real-time Firestore listener
     const todosRef = collection(db, "users", user.uid, "todos");
     const q = query(todosRef, where("status", "==", "active"));
+    console.log("[useStickyNotes] subscribing to onSnapshot for query...");
 
     const unsub = onSnapshot(q, (snapshot) => {
+      console.log("[useStickyNotes] onSnapshot callback fired, docs size:", snapshot.size);
       const activeTodos: Todo[] = [];
       const firestorePositions: Record<string, { x: number; y: number }> = {};
 
-      snapshot.docs.forEach((doc) => {
-        const todo = doc.data() as Todo;
+      snapshot.docs.forEach((doc: any) => {
+        const todo = { id: doc.id, ...doc.data() } as Todo;
         const localPos = cachedPositions[todo.id];
 
         // Hide todo if it has expired and is configured to disappear
@@ -105,7 +108,7 @@ export function useStickyNotes(): StickyNotesReturn {
       });
 
       // Prune old completed/deleted positions from localStorage cache to prevent leaks
-      if (!snapshot.metadata.fromCache) {
+      if (snapshot.metadata && !snapshot.metadata.fromCache) {
         const activeIds = new Set(activeTodos.map(t => t.id));
         try {
           const cached = loadPositions();

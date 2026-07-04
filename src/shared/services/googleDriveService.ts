@@ -482,7 +482,7 @@ async function createEmptyFile(accessToken: string, fileName: string, parentId: 
   const body = {
     name: fileName,
     parents: [parentId],
-    mimeType: "text/markdown",
+    mimeType: fileName.endsWith(".json") ? "application/json" : "text/markdown",
   };
 
   const res = await fetch(url, {
@@ -506,14 +506,19 @@ async function createEmptyFile(accessToken: string, fileName: string, parentId: 
  * Uploads/Overwrites the content of a file using standard media upload.
  * Returns the server modifiedTime of the uploaded file.
  */
-async function uploadFileContent(accessToken: string, fileId: string, content: string): Promise<string> {
+async function uploadFileContent(
+  accessToken: string,
+  fileId: string,
+  content: string,
+  mimeType: string = "text/markdown"
+): Promise<string> {
   const url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=modifiedTime`;
   
   const res = await fetch(url, {
     method: "PATCH",
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "text/markdown",
+      "Content-Type": mimeType,
     },
     body: content,
   });
@@ -524,6 +529,69 @@ async function uploadFileContent(accessToken: string, fileId: string, content: s
 
   const data = await res.json();
   return data.modifiedTime;
+}
+
+/**
+ * Uploads consolidated W_state.json to Google Drive.
+ */
+export async function uploadStateToDrive(accessToken: string, content: string): Promise<string> {
+  const fileName = "W_state.json";
+  try {
+    const rootFolderId = await resolveAndConsolidateRootFolder(accessToken);
+    let fileId = await findFile(accessToken, fileName, rootFolderId);
+    if (!fileId) {
+      console.info("[GDrive Service] W_state.json does not exist on Drive. Creating new...");
+      fileId = await createEmptyFile(accessToken, fileName, rootFolderId);
+    }
+    const modifiedTime = await uploadFileContent(accessToken, fileId, content, "application/json");
+    console.info("[GDrive Service] Successfully uploaded W_state.json to Drive.");
+    return modifiedTime;
+  } catch (err) {
+    console.error("[GDrive Service] W_state.json upload failed:", err);
+    throw err;
+  }
+}
+
+/**
+ * Downloads consolidated W_state.json from Google Drive.
+ * Returns file content string or null if not found.
+ */
+export async function downloadStateFromDrive(accessToken: string): Promise<{ content: string; modifiedTime: string } | null> {
+  const fileName = "W_state.json";
+  try {
+    const rootFolderId = await resolveAndConsolidateRootFolder(accessToken);
+    const fileId = await findFile(accessToken, fileName, rootFolderId);
+    if (!fileId) {
+      console.info("[GDrive Service] W_state.json not found on Drive.");
+      return null;
+    }
+    
+    // Download file content
+    const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to download W_state.json: ${res.statusText}`);
+    }
+    const content = await res.text();
+    
+    // Get file metadata to get modifiedTime
+    const metaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`;
+    const metaRes = await fetch(metaUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    let modifiedTime = "";
+    if (metaRes.ok) {
+      const meta = await metaRes.json();
+      modifiedTime = meta.modifiedTime;
+    }
+    
+    return { content, modifiedTime };
+  } catch (err) {
+    console.error("[GDrive Service] W_state.json download failed:", err);
+    return null;
+  }
 }
 
 /**
@@ -570,7 +638,7 @@ export async function syncNoteToDrive(accessToken: string, dateStr: string, cont
     }
 
     // 4. Overwrite raw file media contents and get server modified time
-    const modifiedTime = await uploadFileContent(accessToken, fileId, content);
+    const modifiedTime = await uploadFileContent(accessToken, fileId, content, "text/markdown");
     console.info(`[GDrive Service] Successfully sync'd ${fileName} to Drive.`);
     return modifiedTime;
   } catch (err) {

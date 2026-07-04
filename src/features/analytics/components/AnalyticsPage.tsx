@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../auth/hooks/useAuth";
 import { getHabits } from "../../habits/services/habitService";
@@ -26,6 +27,18 @@ export const AnalyticsPage: React.FC = () => {
 
   // For deep dive
   const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
+  const location = useLocation();
+
+  // Sync selectedHabitId with the 'habit' query parameter
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const habitParam = searchParams.get("habit");
+    if (habitParam) {
+      setSelectedHabitId(habitParam);
+    } else {
+      setSelectedHabitId(null);
+    }
+  }, [location.search]);
 
   useEffect(() => {
     async function load() {
@@ -88,16 +101,14 @@ export const AnalyticsPage: React.FC = () => {
         subValue: monthSummary.mostConsistent 
           ? 'Top performer'
           : "Needs completions",
-        icon: "Crown",
-        color: monthSummary.mostConsistent?.color || 'var(--accent)'
+        icon: "Crown"
       },
       {
         id: "improved",
         title: "MOST IMPROVED",
         value: monthSummary.mostImproved?.title || "More data needed",
         subValue: monthSummary.mostImproved ? "Trending up this period" : "Track for a few days",
-        icon: "TrendingUp",
-        color: monthSummary.mostImproved?.color
+        icon: "TrendingUp"
       },
       {
         id: "best-day",
@@ -115,8 +126,7 @@ export const AnalyticsPage: React.FC = () => {
         title: "HIGHEST STREAK",
         value: topStreak ? topStreak.title : "No habits yet",
         subValue: topStreak ? `${topStreak.currentStreak} day${topStreak.currentStreak !== 1 ? 's' : ''} active` : "Create your first habit",
-        icon: "Flame",
-        color: topStreak?.color
+        icon: "Flame"
       }
     ];
   }, [monthSummary, weekSummary, habits]);
@@ -209,7 +219,13 @@ export const AnalyticsPage: React.FC = () => {
             <button 
               key={h.id} 
               className="habit-deep-dive-trigger"
-              onClick={() => setSelectedHabitId(h.id)}
+              onClick={() => {
+                setSelectedHabitId(h.id);
+                const searchParams = new URLSearchParams(window.location.search);
+                searchParams.set("habit", h.id);
+                const newUrl = window.location.pathname + "?" + searchParams.toString();
+                window.history.replaceState({}, "", newUrl);
+              }}
             >
               {h.title}
             </button>
@@ -218,7 +234,7 @@ export const AnalyticsPage: React.FC = () => {
       </div>
 
       <AnimatePresence>
-        {selectedHabitId && (
+        {selectedHabitId && habits.find(h => h.id === selectedHabitId) && (
           <motion.div
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
@@ -227,7 +243,16 @@ export const AnalyticsPage: React.FC = () => {
           >
             <HabitDeepDive 
               habit={habits.find(h => h.id === selectedHabitId)!} 
-              onClose={() => setSelectedHabitId(null)} 
+              onClose={() => {
+                setSelectedHabitId(null);
+                const searchParams = new URLSearchParams(window.location.search);
+                if (searchParams.has("habit")) {
+                  searchParams.delete("habit");
+                  const newSearch = searchParams.toString();
+                  const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : "");
+                  window.history.replaceState({}, "", newUrl);
+                }
+              }} 
             />
           </motion.div>
         )}

@@ -5,8 +5,7 @@ import { getLogRange } from "../../habits/services/logService";
 import { getHabits } from "../../habits/services/habitService";
 import { getFreezeState, isDateInFreezeRange, checkAutoFreeze } from "../../freeze/services/freezeService";
 import { updateUserDoc, getUserDoc } from "../../auth/services/userService";
-import { db, auth } from "../../../shared/config/firebase";
-import { doc, updateDoc } from "firebase/firestore";
+import { db, auth, doc, updateDoc } from "../../../shared/config/firebase";
 import { getToday, formatDate } from "../../../shared/utils/dateUtils";
 
 // ─── Gap Processor ──────────────────────────────────────────────
@@ -31,6 +30,53 @@ export interface GapProcessorResult {
   frozenSince: string | null;
 }
 
+let logQueue: string[] = [];
+let isFlushing = false;
+
+async function flushLogQueue() {
+  if (isFlushing || logQueue.length === 0) return;
+  if (typeof window === "undefined" || !(window as any).__TAURI_INTERNALS__) {
+    // Browser mode: clear queue and print to console
+    logQueue = [];
+    return;
+  }
+  isFlushing = true;
+  try {
+    const { writeTextFile, readTextFile, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+    let windowLabel = "unknown";
+    try {
+      windowLabel = (window as any).__TAURI_INTERNALS__?.metadata?.currentWindow?.label || "unknown";
+    } catch {}
+    const logFile = `w_gap_${windowLabel}_debug.log`;
+    const toWrite = logQueue.join("\n");
+    logQueue = [];
+    
+    let currentLogs = "";
+    try {
+      if (await exists(logFile, { baseDir: BaseDirectory.AppData })) {
+        currentLogs = await readTextFile(logFile, { baseDir: BaseDirectory.AppData });
+      }
+    } catch (e) {}
+    
+    const newLogs = currentLogs + "\n" + toWrite;
+    await writeTextFile(logFile, newLogs, { baseDir: BaseDirectory.AppData });
+  } catch (e) {
+    console.error("Failed to flush log queue:", e);
+  } finally {
+    isFlushing = false;
+    if (logQueue.length > 0) {
+      flushLogQueue().catch(() => {});
+    }
+  }
+}
+
+function logDebug(message: string) {
+  console.log(message);
+  const logLine = new Date().toISOString() + " [GAP_PROC]: " + message;
+  logQueue.push(logLine);
+  flushLogQueue().catch(() => {});
+}
+
 /**
  * Main entry point. Call after sign-in, before showing dashboard.
  *
@@ -41,6 +87,16 @@ export async function processGap(
   lastActiveDate: string,
   today: string = getToday()
 ): Promise<GapProcessorResult> {
+  try {
+    const { writeTextFile, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+    let windowLabel = "unknown";
+    try {
+      windowLabel = (window as any).__TAURI_INTERNALS__?.metadata?.currentWindow?.label || "unknown";
+    } catch {}
+    await writeTextFile(`w_gap_${windowLabel}_debug.log`, `--- NEW RUN: ${new Date().toISOString()} ---\n`, { baseDir: BaseDirectory.AppData });
+  } catch (e) {}
+
+  logDebug(`processGap entry. lastActiveDate: ${lastActiveDate}, today: ${today}`);
   const result: GapProcessorResult = {
     daysProcessed: 0,
     missedCount: 0,
@@ -50,26 +106,42 @@ export async function processGap(
     frozenSince: null,
   };
 
+  // Guard: if lastActiveDate is falsy, undefined, or invalid — skip processing and set it to today
+  if (!lastActiveDate || !/^\d{4}-\d{2}-\d{2}$/.test(lastActiveDate) || isNaN(new Date(lastActiveDate + "T12:00:00").getTime())) {
+    logDebug(`Invalid or missing lastActiveDate: ${lastActiveDate} — setting to today and skipping.`);
+    await updateLastActiveDate(today);
+    return result;
+  }
+
   // If same day or future — nothing to process
-  if (lastActiveDate >= today) return result;
+  if (lastActiveDate >= today) {
+    logDebug("lastActiveDate is today or future, returning early.");
+    return result;
+  }
 
   // 1. Check for auto-freeze (≥ 3 day absence)
+  logDebug("Checking auto-freeze...");
   const autoFreezeResult = await checkAutoFreeze(lastActiveDate, today);
+  logDebug(`Auto-freeze check done: ${JSON.stringify(autoFreezeResult)}`);
   if (autoFreezeResult.triggered) {
     result.autoFreezeTriggered = true;
     result.frozenSince = autoFreezeResult.frozenSince;
-    // When auto-freeze triggers, all gap days are frozen — no penalties
-    // Update lastActiveDate and return so WelcomeBack screen shows
+    logDebug("Auto-freeze triggered! Updating lastActiveDate to today and returning.");
     await updateLastActiveDate(today);
     return result;
   }
 
   // 2. Fetch freeze state (for manual freezes or historical freeze ranges)
+  logDebug("Fetching freeze state...");
   const freezeState = await getFreezeState();
+  logDebug(`Freeze state fetched: ${JSON.stringify(freezeState)}`);
 
   // 3. Fetch all active habits
+  logDebug("Fetching active habits...");
   const habits = await getHabits();
+  logDebug(`Habits fetched. Count: ${habits.length}`);
   if (habits.length === 0) {
+    logDebug("No habits found, updating lastActiveDate and returning.");
     await updateLastActiveDate(today);
     return result;
   }
@@ -80,23 +152,29 @@ export async function processGap(
   const u = auth.currentUser;
   if (u) {
     try {
+      logDebug(`Fetching user doc settings for uid: ${u.uid}...`);
       const userD = await getUserDoc(u.uid);
+      logDebug("User doc settings fetched successfully.");
       if (userD?.settings?.weeklyResetDay !== undefined) {
         weeklyResetDay = userD.settings.weeklyResetDay;
       }
       if (userD?.settings?.dailyResetTime !== undefined) {
         dailyResetTime = userD.settings.dailyResetTime;
       }
-    } catch (e) {
-      console.warn("[GapProcessor] Failed to fetch user doc for settings:", e);
+    } catch (e: any) {
+      logDebug(`Failed to fetch user doc for settings: ${e?.message || e}`);
     }
+  } else {
+    logDebug("No auth.currentUser found when checking settings.");
   }
 
   // 4. Calculate the date range to process: (lastActiveDate + 1) … yesterday
   const startDate = nextDay(lastActiveDate);
   const yesterday = prevDay(today);
+  logDebug(`Processing range: ${startDate} to ${yesterday}`);
 
   if (startDate > yesterday) {
+    logDebug("startDate > yesterday, updating lastActiveDate to yesterday.");
     await updateLastActiveDate(yesterday);
     return result;
   }
@@ -125,7 +203,9 @@ export async function processGap(
   }
 
   // 5. Fetch all logs in the query range (batch read — efficient)
+  logDebug(`Fetching logs in range: ${logFetchStartDate} to ${yesterday}`);
   const logs = await getLogRange(logFetchStartDate, yesterday);
+  logDebug(`Logs fetched. Count: ${logs.length}`);
   const logMap = new Map<string, HabitLog>();
   for (const log of logs) {
     logMap.set(log.date, log);
@@ -135,21 +215,25 @@ export async function processGap(
   const intervalStrikeTracker = new Set<string>(); // "habitId:date"
 
   // 6.5 Fetch active and recently completed todos once before the day-by-day loop
+  logDebug("Fetching active/completed todos...");
   let activeTodos: any[] = [];
   try {
     const { getTodos, getCompletedTodos } = await import("../../todos/services/todoService");
+    logDebug("Imported todoService. Calling getTodos and getCompletedTodos...");
     const [activeList, completedList] = await Promise.all([
       getTodos(),
       getCompletedTodos()
     ]);
     activeTodos = [...activeList, ...completedList];
-  } catch (err) {
-    console.error("Failed to fetch todos for gap processor:", err);
+    logDebug(`Todos fetched. Count: ${activeTodos.length}`);
+  } catch (err: any) {
+    logDebug(`Failed to fetch todos for gap processor: ${err?.message || err}`);
   }
 
   // 7. Day-by-day loop
   let currentDate = new Date(startDate + "T12:00:00");
   const endDate = new Date(yesterday + "T12:00:00");
+  logDebug(`Starting day-by-day loop from: ${formatDate(currentDate)} to: ${formatDate(endDate)}`);
 
   while (currentDate <= endDate) {
     const dateStr = formatDate(currentDate);
@@ -421,9 +505,20 @@ export async function processGap(
 // ─── Helpers ────────────────────────────────────────────────────
 
 async function updateLastActiveDate(today: string): Promise<void> {
+  logDebug(`updateLastActiveDate: entry. today: ${today}`);
   const u = auth.currentUser;
-  if (!u) return;
-  await updateUserDoc(u.uid, { lastActiveDate: today } as any);
+  if (!u) {
+    logDebug("updateLastActiveDate: no currentUser, returning.");
+    return;
+  }
+  logDebug(`updateLastActiveDate: calling updateUserDoc for ${u.uid}...`);
+  try {
+    await updateUserDoc(u.uid, { lastActiveDate: today } as any);
+    logDebug("updateLastActiveDate: updateUserDoc resolved successfully.");
+  } catch (err: any) {
+    logDebug(`updateLastActiveDate: updateUserDoc threw: ${err?.message || err}`);
+    throw err;
+  }
 }
 
 function nextDay(dateStr: string): string {
@@ -440,8 +535,14 @@ function prevDay(dateStr: string): string {
 
 function getWeekStart(dateStr: string, weekStartDay: number): string {
   const d = new Date(dateStr + "T12:00:00");
-  while (d.getDay() !== weekStartDay) {
+  if (isNaN(d.getTime())) {
+    console.warn("[getWeekStart] Invalid dateStr:", dateStr, "— returning dateStr as-is.");
+    return dateStr;
+  }
+  let safety = 0;
+  while (d.getDay() !== weekStartDay && safety < 10) {
     d.setDate(d.getDate() - 1);
+    safety++;
   }
   return formatDate(d);
 }

@@ -1,15 +1,4 @@
-import {
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  collection,
-  query,
-  where,
-  orderBy,
-  getDocs,
-} from "firebase/firestore";
-import { db, auth } from "../../../shared/config/firebase";
+import { db, auth, doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs } from "../../../shared/config/firebase";
 import { HabitLog, HabitLogEntry, CompletionEntry } from "../types";
 import { getToday } from "../../../shared/utils/dateUtils";
 import { addStrike, removeLimiterStrike } from "../../strikes/services/strikeService";
@@ -467,7 +456,7 @@ async function uncompleteHabitImpl(
             let prevCompletedDate: string | null = null;
             let calculatedStreak = 0;
             try {
-              const { collection, query, where, orderBy, getDocs } = await import("firebase/firestore");
+              const { collection, query, where, orderBy, getDocs } = await import("../../../shared/config/firebase");
               const logsRef = collection(db, "users", userId, "logs");
               const prevLogsQuery = query(
                 logsRef,
@@ -591,8 +580,11 @@ export async function getLogRange(
 // ─── Helpers ────────────────────────────────────────────────────
 function getWeekStartLocal(dateStr: string, weekStartDay: number): string {
   const d = new Date(dateStr + "T12:00:00");
-  while (d.getDay() !== weekStartDay) {
+  if (isNaN(d.getTime())) return dateStr;
+  let safety = 0;
+  while (d.getDay() !== weekStartDay && safety < 10) {
     d.setDate(d.getDate() - 1);
+    safety++;
   }
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");

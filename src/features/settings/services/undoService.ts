@@ -1,17 +1,4 @@
-import {
-  collection,
-  doc,
-  addDoc,
-  getDocs,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  getDoc,
-  writeBatch,
-} from "firebase/firestore";
-import { db, auth } from "../../../shared/config/firebase";
+import { db, auth, collection, doc, addDoc, getDocs, deleteDoc, query, where, orderBy, limit, getDoc, writeBatch } from "../../../shared/config/firebase";
 import { UndoAction, UndoActionType } from "./undoTypes";
 import { uncompleteHabit, completeHabit } from "../../habits/services/logService";
 import { deleteTodo } from "../../todos/services/todoService";

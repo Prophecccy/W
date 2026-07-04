@@ -10,8 +10,9 @@ import {
   activateLockdown,
   deactivateLockdown,
   resumeLockdownIfActive,
+  updateSchedules,
 } from "../services/lockdownService";
-import { LockdownState, DEFAULT_LOCKDOWN_STATE } from "../types";
+import { LockdownState, DEFAULT_LOCKDOWN_STATE, LockdownSchedule } from "../types";
 import { isTauri } from "../../../shared/utils/tauri";
 
 interface UseLockdownReturn {
@@ -22,6 +23,8 @@ interface UseLockdownReturn {
   deactivate: () => Promise<void>;
   reload: () => Promise<void>;
   loading: boolean;
+  schedules: LockdownSchedule[];
+  saveSchedules: (schedules: LockdownSchedule[]) => Promise<void>;
 }
 
 export function useLockdown(): UseLockdownReturn {
@@ -252,8 +255,7 @@ export function useLockdown(): UseLockdownReturn {
         );
         
         if (user) {
-          const { doc, updateDoc } = await import("firebase/firestore");
-          const { db } = await import("../../../shared/config/firebase");
+          const { doc, updateDoc, db } = await import("../../../shared/config/firebase");
           await updateDoc(doc(db, "users", user.uid), {
             "lockdown.remainingSeconds": newSecs,
             "lockdown.startedAt": now,
@@ -294,8 +296,7 @@ export function useLockdown(): UseLockdownReturn {
       // Autosave check - runs every 10 seconds (including when hidden)
       if (now - lastSaveRef.current >= 10000 && user) {
         lastSaveRef.current = now;
-        const { doc, updateDoc } = await import("firebase/firestore");
-        const { db } = await import("../../../shared/config/firebase");
+        const { doc, updateDoc, db } = await import("../../../shared/config/firebase");
         updateDoc(doc(db, "users", user.uid), {
           "lockdown.remainingSeconds": newSecs,
         }).catch(console.error);
@@ -312,6 +313,11 @@ export function useLockdown(): UseLockdownReturn {
     };
   }, [state.active, state.duration, user, deactivateLockdownHandler]);
 
+  const saveSchedules = useCallback(async (nextSchedules: LockdownSchedule[]) => {
+    await updateSchedules(nextSchedules);
+    await reload();
+  }, [reload]);
+
   return {
     state,
     isActive: state.active,
@@ -320,5 +326,7 @@ export function useLockdown(): UseLockdownReturn {
     deactivate: deactivateLockdownHandler,
     reload,
     loading,
+    schedules: state.schedules ?? [],
+    saveSchedules,
   };
 }

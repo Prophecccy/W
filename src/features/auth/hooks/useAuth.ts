@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { User as FirebaseUser, signInAnonymously } from "firebase/auth";
-import { auth } from "../../../shared/config/firebase";
+import { auth, LocalUser as FirebaseUser, signInAnonymously } from "../../../shared/config/firebase";
 import { signInWithGoogle, signOut, onAuthStateChanged } from "../services/authService";
 
 export function useAuth() {
@@ -28,11 +27,13 @@ export function useAuth() {
       try {
         const { getValidAccessToken, pullNotesFromDrive } = await import("../../../shared/services/googleDriveService");
         const accessToken = await getValidAccessToken();
-        if (accessToken) {
+        if (accessToken && auth.currentUser) {
+          const { migrateFirestoreToLocal } = await import("../services/authService");
+          await migrateFirestoreToLocal(auth.currentUser.uid, accessToken);
           await pullNotesFromDrive(accessToken);
         }
       } catch (err) {
-        console.error("[W Auth Hook] Failed to pull notes from Drive on link:", err);
+        console.error("[W Auth Hook] Failed to migrate/pull on link:", err);
       }
     };
     const handleUnlinked = () => {
@@ -50,9 +51,30 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged((firebaseUser) => {
+    const unsubscribe = onAuthStateChanged((firebaseUser: any) => {
       setUser(firebaseUser);
       setLoading(false);
+
+      if (firebaseUser) {
+        const runMigrationIfRequired = async () => {
+          const isLinked = localStorage.getItem("driveLinked") === "true";
+          const migratedKey = `w_migrated_v2_${firebaseUser.uid}`;
+          if (!isLinked || localStorage.getItem(migratedKey) === "true") return;
+
+          console.info("[W Auth Hook] User logged in but v2 migration not completed. Auto-migrating legacy Firestore data...");
+          try {
+            const { getValidAccessToken } = await import("../../../shared/services/googleDriveService");
+            const accessToken = await getValidAccessToken();
+            if (accessToken) {
+              const { migrateFirestoreToLocal } = await import("../services/authService");
+              await migrateFirestoreToLocal(firebaseUser.uid, accessToken);
+            }
+          } catch (err) {
+            console.error("[W Auth Hook] Failed to run auto-migration on startup:", err);
+          }
+        };
+        runMigrationIfRequired();
+      }
     });
 
     return () => unsubscribe();

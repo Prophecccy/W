@@ -172,8 +172,8 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
               {/* Row 2 */}
               <div className="onboarding-flow__table-cell t-data" style={{ color: "var(--text-primary)" }}>Sync Services</div>
-              <div className="onboarding-flow__table-cell t-body">Firestore (Secure cloud sync)</div>
-              <div className="onboarding-flow__table-cell t-body" style={{ color: "var(--accent)" }}>Encrypted database, used strictly for sync.</div>
+              <div className="onboarding-flow__table-cell t-body">Google Drive (Secure self-sovereign sync)</div>
+              <div className="onboarding-flow__table-cell t-body" style={{ color: "var(--accent)" }}>Direct client-side sync. Stored inside your own Drive container.</div>
 
               {/* Row 3 */}
               <div className="onboarding-flow__table-cell t-data" style={{ color: "var(--text-primary)" }}>System Usage</div>

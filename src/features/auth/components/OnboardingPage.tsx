@@ -3,8 +3,7 @@ import { useAuthContext } from "../context";
 import { createUserDoc } from "../services/userService";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../../../shared/components/Toast/Toast";
-import { doc, updateDoc } from "firebase/firestore";
-import { db } from "../../../shared/config/firebase";
+import { db, doc, updateDoc } from "../../../shared/config/firebase";
 import { TimeInput } from "../../../shared/components/RadialTimePicker/TimeInput";
 import "./OnboardingPage.css";
 

@@ -1,7 +1,6 @@
 import { useContext } from 'react';
 import { useTimeLeft } from '../hooks/useTimeLeft';
 import { UserStoreContext } from '../../../shared/stores/userStore';
-import { isTauri } from '../../../shared/utils/tauri';
 import './SleepTube.css';
 
 interface SleepTubeProps {
@@ -14,7 +13,6 @@ interface SleepTubeProps {
 }
 
 export function SleepTube({ settings: propsSettings, isWidget }: SleepTubeProps) {
-  const isDesktop = isTauri();
   const store = useContext(UserStoreContext);
   const userStoreDoc = store?.userDoc ?? null;
 
@@ -33,7 +31,6 @@ export function SleepTube({ settings: propsSettings, isWidget }: SleepTubeProps)
     <div 
       className={`sleep-tube ${isWidget ? 'sleep-tube--widget' : ''}`}
       title={`${Math.round(percent)}%`}
-      style={isDesktop && !isWidget ? { height: '100%', maxHeight: 'none', minHeight: '400px' } : undefined}
     >
       <div className="sleep-tube__label t-meta">{isWidget ? '[ FUEL ]' : '[ WAKING FUEL ]'}</div>
       <div className={`sleep-tube__track ${isEmpty ? 'is-empty' : ''}`}>

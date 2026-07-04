@@ -113,3 +113,60 @@
 .habit-deep-dive-trigger:active {
   transform: translateY(0);
 }
+
+/* ─── Responsive Breakpoints ─────────────────────────────────── */
+
+@media (max-width: 1200px) {
+  .analytics-page {
+    padding: 0 1.5rem 1.5rem 1.5rem;
+    gap: 1.5rem;
+  }
+
+  .smart-insights-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .analytics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .heatmap-card {
+    grid-column: span 2;
+  }
+
+  .rate-card {
+    grid-column: span 1;
+  }
+
+  .chart-card {
+    grid-column: span 2;
+    min-height: 220px;
+  }
+}
+
+@media (max-width: 768px) {
+  .analytics-page {
+    padding: 0 1rem 1rem 1rem;
+    gap: 1rem;
+  }
+
+  .smart-insights-row {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .analytics-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .heatmap-card,
+  .rate-card,
+  .chart-card {
+    grid-column: span 1;
+  }
+  
+  .rate-card {
+    align-items: stretch;
+  }
+}

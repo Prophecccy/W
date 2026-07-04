@@ -24,11 +24,19 @@ interface SidebarProps {
   strikeCount?: number;
   globalStreak?: number;
   isLockdownActive?: boolean;
+  habitsCount?: number;
+  todosCount?: number;
+  isFrozen?: boolean;
 }
 
-
-
-export function Sidebar({ strikeCount = 0, globalStreak = 0, isLockdownActive = false }: SidebarProps) {
+export function Sidebar({ 
+  strikeCount = 0, 
+  globalStreak = 0, 
+  isLockdownActive = false,
+  habitsCount = 0,
+  todosCount = 0,
+  isFrozen = false
+}: SidebarProps) {
   const { isDriveLinked } = useAuthContext();
   const [appVersion, setAppVersion] = useState('...');
 
@@ -58,8 +66,10 @@ export function Sidebar({ strikeCount = 0, globalStreak = 0, isLockdownActive = 
     { to: "/settings", icon: Settings, label: "Settings" },
   ];
   return (
-    <aside className="sidebar">
-      <div className="sidebar__logo t-display">[ W ]</div>
+    <aside className={`sidebar ${isFrozen ? "sidebar--frozen" : ""}`}>
+      <div className={`sidebar__logo t-display ${isFrozen ? "sidebar__logo--frozen" : ""}`}>
+        {isFrozen ? "✳ [ W ]" : "[ W ]"}
+      </div>
 
       <nav className="sidebar__nav">
         {activeNavItems.map((item) => (
@@ -102,6 +112,14 @@ export function Sidebar({ strikeCount = 0, globalStreak = 0, isLockdownActive = 
         <div className={`sidebar__stat sidebar__stat--strikes${isWarning ? ' sidebar__stat--warning' : ''}${isLocked ? ' sidebar__stat--locked' : ''}`}>
           <AlertTriangle size={14} strokeWidth={1.5} />
           <span className="t-data">{strikeCount}/5</span>
+        </div>
+        <div className="sidebar__stat" title="Active Habits">
+          <Target size={14} strokeWidth={1.5} style={{ color: "var(--accent)" }} />
+          <span className="t-data">{habitsCount} <span className="sidebar__stat-text">Habits</span></span>
+        </div>
+        <div className="sidebar__stat" title="Active Todos">
+          <ListChecks size={14} strokeWidth={1.5} style={{ color: "var(--accent)" }} />
+          <span className="t-data">{todosCount} <span className="sidebar__stat-text">Todos</span></span>
         </div>
       </div>
 

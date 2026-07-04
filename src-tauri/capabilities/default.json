@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window, sticky overlay, and widget",
-  "windows": ["main", "sticky-overlay", "widget", "block-overlay"],
+  "windows": ["main", "sticky-overlay", "widget", "block-overlay", "todo-creator"],
   "remote": {
     "urls": ["http://localhost:1420", "http://localhost:1420/**"]
   },

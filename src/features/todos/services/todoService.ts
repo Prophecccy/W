@@ -1,18 +1,4 @@
-import {
-  collection,
-  doc,
-  setDoc,
-  getDoc,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  updateDoc,
-  deleteDoc,
-  limit,
-  writeBatch
-} from "firebase/firestore";
-import { db, auth } from "../../../shared/config/firebase";
+import { db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, orderBy, updateDoc, deleteDoc, limit, writeBatch } from "../../../shared/config/firebase";
 import { Todo } from "../types";
 import { isTauri } from "../../../shared/utils/tauri";
 

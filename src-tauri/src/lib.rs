@@ -5,12 +5,74 @@ use tauri::{
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
 };
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
 
 mod workerw;
 mod sticky_overlay;
 mod lockdown;
 
 static ALLOW_CLOSE: AtomicBool = AtomicBool::new(false);
+static HIDDEN_OWNER_HWND: OnceLock<isize> = OnceLock::new();
+
+#[cfg(target_os = "windows")]
+pub fn get_hidden_owner() -> isize {
+    *HIDDEN_OWNER_HWND.get_or_init(|| {
+        use windows::core::w;
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            CreateWindowExW, WS_POPUP, WINDOW_EX_STYLE,
+        };
+
+        unsafe {
+            let hwnd = CreateWindowExW(
+                WINDOW_EX_STYLE(0),
+                w!("STATIC"),
+                w!("W_Hidden_Owner"),
+                WS_POPUP,
+                0, 0, 0, 0,
+                HWND(std::ptr::null_mut()),
+                None,
+                None,
+                None
+            );
+            match hwnd {
+                Ok(h) => h.0 as isize,
+                Err(_) => 0,
+            }
+        }
+    })
+}
+
+#[cfg(target_os = "windows")]
+pub fn enable_efficiency_mode() {
+    use windows::Win32::System::Threading::{
+        GetCurrentProcess, SetPriorityClass, SetProcessInformation,
+        IDLE_PRIORITY_CLASS, PROCESS_POWER_THROTTLING_STATE,
+        PROCESS_POWER_THROTTLING_CURRENT_VERSION,
+        PROCESS_POWER_THROTTLING_EXECUTION_SPEED, ProcessPowerThrottling,
+    };
+
+    unsafe {
+        let handle = GetCurrentProcess();
+        
+        // Lower priority to Idle
+        let _ = SetPriorityClass(handle, IDLE_PRIORITY_CLASS);
+
+        // Turn on power throttling (EcoQoS)
+        let throttling_state = PROCESS_POWER_THROTTLING_STATE {
+            Version: PROCESS_POWER_THROTTLING_CURRENT_VERSION,
+            ControlMask: PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
+            StateMask: PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
+        };
+
+        let _ = SetProcessInformation(
+            handle,
+            ProcessPowerThrottling,
+            &throttling_state as *const _ as *const _,
+            std::mem::size_of::<PROCESS_POWER_THROTTLING_STATE>() as u32,
+        );
+    }
+}
 
 #[tauri::command]
 fn allow_app_close() {
@@ -47,6 +109,11 @@ pub fn run() {
     builder
         .setup(|app| {
             println!("[W SETUP] Inside setup closure.");
+            #[cfg(target_os = "windows")]
+            {
+                println!("[W SETUP] Enabling Windows Efficiency Mode (EcoQoS)...");
+                enable_efficiency_mode();
+            }
             // ── Autolaunch (always locked in) ──────────────────────────────
             use tauri_plugin_autostart::ManagerExt;
             println!("[W SETUP] Enabling autolaunch...");
@@ -146,6 +213,7 @@ pub fn run() {
                                 let _ = win.hide();
                             } else {
                                 let _ = win.show();
+                                let _ = workerw::pin_widget_bottom(app.clone());
                             }
                         }
                     }
@@ -155,6 +223,7 @@ pub fn run() {
                                 let _ = win.hide();
                             } else {
                                 let _ = win.show();
+                                let _ = workerw::pin_widget_bottom(app.clone());
                             }
                         }
                     }
@@ -185,14 +254,14 @@ pub fn run() {
             std::thread::spawn(move || {
                 loop {
                     std::thread::sleep(std::time::Duration::from_secs(5));
-                    if let Some(main_win) = app_handle.get_webview_window("main") {
-                        let visible = main_win.is_visible();
-                        let pos = main_win.outer_position();
-                        let size = main_win.outer_size();
-                        let hwnd = main_win.hwnd();
-                        println!("[W MONITOR] Main Window -> Visible: {:?}, Position: {:?}, Size: {:?}, HWND: {:?}", visible, pos, size, hwnd);
-                    } else {
-                        println!("[W MONITOR] Main Window NOT FOUND!");
+                    let windows = app_handle.webview_windows();
+                    println!("[W MONITOR] --- Window Status Report ---");
+                    for (label, win) in windows {
+                        let visible = win.is_visible();
+                        let pos = win.outer_position();
+                        let size = win.outer_size();
+                        let hwnd = win.hwnd();
+                        println!("[W MONITOR] Window '{}' -> Visible: {:?}, Position: {:?}, Size: {:?}, HWND: {:?}", label, visible, pos, size, hwnd);
                     }
                 }
             });
@@ -218,14 +287,64 @@ pub fn run() {
             allow_app_close
         ])
         .on_window_event(|window, event| {
+            let label = window.label().to_string();
+
             // Closing the main or widget window hides it (sends to tray) instead of exiting
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let label = window.label();
                 if label == "main" || label == "widget" {
                     if !ALLOW_CLOSE.load(Ordering::SeqCst) {
                         let _ = window.hide();
                         api.prevent_close();
                     }
+                }
+            }
+
+            // Keep the widget and sticky-overlay windows at the bottom of the Z-order
+            if label == "widget" || label == "sticky-overlay" {
+                match event {
+                    tauri::WindowEvent::Focused(focused) => {
+                        if *focused {
+                            #[cfg(target_os = "windows")]
+                            {
+                                use windows::Win32::UI::WindowsAndMessaging::{
+                                    SetWindowPos, SWP_NOSIZE, SWP_NOMOVE, SWP_NOACTIVATE, HWND_BOTTOM,
+                                };
+                                use windows::Win32::Foundation::HWND;
+                                if let Ok(hwnd) = window.hwnd() {
+                                    unsafe {
+                                        let target = HWND(hwnd.0 as *mut _);
+                                        let _ = SetWindowPos(
+                                            target,
+                                            HWND_BOTTOM,
+                                            0, 0, 0, 0,
+                                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    tauri::WindowEvent::Moved(_) => {
+                        #[cfg(target_os = "windows")]
+                        {
+                            use windows::Win32::UI::WindowsAndMessaging::{
+                                SetWindowPos, SWP_NOSIZE, SWP_NOMOVE, SWP_NOACTIVATE, HWND_BOTTOM,
+                            };
+                            use windows::Win32::Foundation::HWND;
+                            if let Ok(hwnd) = window.hwnd() {
+                                unsafe {
+                                    let target = HWND(hwnd.0 as *mut _);
+                                    let _ = SetWindowPos(
+                                        target,
+                                        HWND_BOTTOM,
+                                        0, 0, 0, 0,
+                                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
         })

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Sidebar } from "../shared/components/Sidebar/Sidebar";
@@ -17,8 +17,7 @@ import { useKeyboardShortcuts } from "../shared/hooks/useKeyboardShortcuts";
 import { useAuthContext } from "../features/auth/context";
 import { OnboardingFlow } from "../features/auth/components/OnboardingFlow";
 import { UserProvider, useUserStore } from "../shared/stores/userStore";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db } from "../shared/config/firebase";
+import { db, collection, query, where, onSnapshot } from "../shared/config/firebase";
 import { User } from "../shared/types";
 import { Habit } from "../features/habits/types";
 import { Todo } from "../features/todos/types";
@@ -50,6 +49,7 @@ function LayoutInner() {
   const [userDoc, setUserDoc] = useState<User | null>(null);
   const [phase, setPhase] = useState<StartupPhase>("loading");
   const [showPunishment, setShowPunishment] = useState(false);
+  const gapProcessorStartedRef = useRef(false);
 
   // Freeze / WelcomeBack state
   const [frozenSince, setFrozenSince] = useState<string | null>(null);
@@ -70,26 +70,30 @@ function LayoutInner() {
     const doc = userStore.userDoc;
     if (doc) {
       setUserDoc(doc);
-      document.documentElement.style.setProperty("--accent", doc.aesthetics.desktop.accentColor);
+      document.documentElement.style.setProperty("--accent", doc.aesthetics?.desktop?.accentColor ?? "#5B8DEF");
       
       // Dim and Blur intensity
-      const dimStr = (doc.aesthetics.desktop.dimIntensity ?? 0.2).toString();
-      const blurStr = `${doc.aesthetics.desktop.blurIntensity ?? 0}px`;
+      const dimStr = (doc.aesthetics?.desktop?.dimIntensity ?? 0.2).toString();
+      const blurStr = `${doc.aesthetics?.desktop?.blurIntensity ?? 0}px`;
       document.documentElement.style.setProperty("--app-wallpaper-dim", dimStr);
       document.documentElement.style.setProperty("--app-wallpaper-blur", blurStr);
 
       // Low Graphics Mode
-      if (doc.settings.lowGraphicsMode) {
+      if (doc.settings?.lowGraphicsMode) {
         document.body.classList.add("low-graphics");
       } else {
         document.body.classList.remove("low-graphics");
       }
 
-      setPhase("processing");
+      if (phase === "loading") {
+        setPhase("processing");
+      }
     } else if (user) {
-      setPhase("onboarding");
+      if (phase === "loading") {
+        setPhase("onboarding");
+      }
     }
-  }, [user, userStore.loading, userStore.userDoc]);
+  }, [user, userStore.loading, userStore.userDoc, phase]);
 
   // ── Apply Desktop Wallpaper (Local cache) ──────────────────────
   useEffect(() => {
@@ -171,17 +175,36 @@ function LayoutInner() {
     return () => window.removeEventListener('w:toast', handleGlobalToast);
   }, [showToast]);
 
+  // Keep a ref of userDoc to avoid restarting/cancelling the gap processor on document updates
+  const userDocRef = useRef(userDoc);
+  userDocRef.current = userDoc;
+
   // ── Phase 2: Run gap processor ─────────────────────────────────
   useEffect(() => {
-    if (phase !== "processing" || !userDoc) return;
+    if (phase !== "processing") {
+      if (phase === "loading") {
+        gapProcessorStartedRef.current = false;
+      }
+      return;
+    }
+
+    if (gapProcessorStartedRef.current) return;
+    gapProcessorStartedRef.current = true;
 
     let cancelled = false;
 
     async function runGapProcessor() {
       try {
-        const dailyResetTime = userDoc?.settings?.dailyResetTime;
+        const currentUserDoc = userDocRef.current;
+        if (!currentUserDoc) {
+          console.warn("[Layout] No userDoc available for gap processor");
+          setPhase("ready");
+          return;
+        }
+
+        const dailyResetTime = currentUserDoc.settings?.dailyResetTime;
         const today = getToday(undefined, dailyResetTime);
-        const result = await processGap(userDoc!.lastActiveDate, today);
+        const result = await processGap(currentUserDoc.lastActiveDate, today);
         if (cancelled) return;
 
         setGapResult(result);
@@ -200,11 +223,14 @@ function LayoutInner() {
 
     runGapProcessor();
     return () => { cancelled = true; };
-  }, [phase, userDoc]);
+  }, [phase]);
 
   // ── Phase 3: Launch sticky overlay + widget windows ────────────
   useEffect(() => {
     if (phase !== "ready") return;
+
+    let unlistenScale: (() => void) | null = null;
+    let monitorPollInterval: number | null = null;
 
     async function launchStickyOverlay() {
       try {
@@ -245,6 +271,7 @@ function LayoutInner() {
         }
 
         const overlay = new WebviewWindow("sticky-overlay", {
+          title: "Sticky Notes",
           url: "/sticky-canvas",
           decorations: false,
           transparent: true,
@@ -282,6 +309,7 @@ function LayoutInner() {
           await existing.show();
         } else {
           const widget = new WebviewWindow("widget", {
+            title: "Widget",
             url: "/widget",
             decorations: false,
             transparent: true,
@@ -318,6 +346,48 @@ function LayoutInner() {
     launchStickyOverlay();
     launchWidget();
 
+    // Listen to scale changes to handle monitor connection/disconnection
+    async function setupScaleListener() {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const win = getCurrentWindow();
+        const unsub = await win.onScaleChanged(() => {
+          console.log("[Layout] Scale factor changed. Re-evaluating sticky overlay bounds...");
+          launchStickyOverlay();
+        });
+        unlistenScale = unsub;
+      } catch (err) {
+        // Ignored
+      }
+    }
+    setupScaleListener();
+
+    // Poll monitor configuration changes every 3 seconds to handle hot-plugging
+    let lastMonitorsStr = "";
+    monitorPollInterval = window.setInterval(async () => {
+      try {
+        const { availableMonitors } = await import("@tauri-apps/api/window");
+        const monitors = await availableMonitors();
+        if (monitors && monitors.length > 0) {
+          const monitorsStr = JSON.stringify(monitors.map(m => ({
+            name: m.name,
+            x: m.position.x,
+            y: m.position.y,
+            w: m.size.width,
+            h: m.size.height
+          })));
+          
+          if (lastMonitorsStr && monitorsStr !== lastMonitorsStr) {
+            console.log("[Layout] Monitor configuration change detected via polling. Re-evaluating sticky overlay bounds...");
+            await launchStickyOverlay();
+          }
+          lastMonitorsStr = monitorsStr;
+        }
+      } catch (err) {
+        // Ignored
+      }
+    }, 3000);
+
     // Listen for re-launch requests from settings/etc
     const handleWidgetRelaunch = () => launchWidget();
     const handleStickyRelaunch = () => launchStickyOverlay();
@@ -328,8 +398,57 @@ function LayoutInner() {
     return () => {
       window.removeEventListener("w:launch-widget", handleWidgetRelaunch);
       window.removeEventListener("w:launch-sticky", handleStickyRelaunch);
+      if (monitorPollInterval) clearInterval(monitorPollInterval);
+      if (unlistenScale) unlistenScale();
     };
   }, [phase]);
+
+  // Temporary database diagnostic logging
+  useEffect(() => {
+    let timer: any = null;
+    async function logDbDiagnostics() {
+      try {
+        const { get } = await import("idb-keyval");
+        const { auth } = await import("../shared/services/localDb");
+        const uid = auth.currentUser?.uid;
+        if (!uid) {
+          const { writeTextFile, readTextFile, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+          const logFile = "w_localdb_main_debug.log";
+          let current = "";
+          if (await exists(logFile, { baseDir: BaseDirectory.AppData })) {
+            current = await readTextFile(logFile, { baseDir: BaseDirectory.AppData });
+          }
+          await writeTextFile(logFile, current + "\n" + `[DB DIAGNOSTICS] UID is null/undefined!\n`, { baseDir: BaseDirectory.AppData });
+          return;
+        }
+        const todos = await get(`w_col_users/${uid}/todos`);
+        const stickyNotes = await get(`w_col_users/${uid}/sticky-notes`);
+        const msg = `[DB DIAGNOSTICS] UID: ${uid}\nTODOS: ${JSON.stringify(todos)}\nSTICKY-NOTES: ${JSON.stringify(stickyNotes)}\n`;
+        
+        const { writeTextFile, readTextFile, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+        const logFile = "w_localdb_main_debug.log";
+        let current = "";
+        if (await exists(logFile, { baseDir: BaseDirectory.AppData })) {
+          current = await readTextFile(logFile, { baseDir: BaseDirectory.AppData });
+        }
+        await writeTextFile(logFile, current + "\n" + msg, { baseDir: BaseDirectory.AppData });
+      } catch (err: any) {
+        try {
+          const { writeTextFile, readTextFile, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+          const logFile = "w_localdb_main_debug.log";
+          let current = "";
+          if (await exists(logFile, { baseDir: BaseDirectory.AppData })) {
+            current = await readTextFile(logFile, { baseDir: BaseDirectory.AppData });
+          }
+          await writeTextFile(logFile, current + "\n" + `[DB DIAGNOSTICS] ERROR: ${err?.message || err}\n`, { baseDir: BaseDirectory.AppData });
+        } catch {}
+      }
+    }
+    
+    logDbDiagnostics();
+    timer = setInterval(logDbDiagnostics, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   // ─── Tauri: Handle widget-trigger-new-todo event ──────────────
   useEffect(() => {
@@ -385,6 +504,8 @@ function LayoutInner() {
         console.error("[Sync Engine] Encryption key init failed (notes will use graceful degradation):", err);
       }
 
+
+
       if (isUnmounted) return;
 
       // 1.2. Flush pending offline strikes (non-blocking)
@@ -426,6 +547,16 @@ function LayoutInner() {
         }
       } catch (err) {
         console.error("[Sync Engine] Drive notes pull-down failed:", err);
+      }
+
+      if (isUnmounted) return;
+
+      // 2.7. Pull down and merge consolidated state from Google Drive
+      try {
+        const { pullAndMergeFromGoogleDrive } = await import("../shared/services/localDb");
+        await pullAndMergeFromGoogleDrive();
+      } catch (err) {
+        console.error("[Sync Engine] W_state.json pull-down/merge failed:", err);
       }
 
       if (isUnmounted) return;
@@ -526,9 +657,9 @@ function LayoutInner() {
     const habitsRef = collection(db, "users", user.uid, "habits");
     const habitsQuery = query(habitsRef, where("isActive", "==", true));
     const unsubHabits = onSnapshot(habitsQuery, (snap) => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Habit));
-      data.sort((a, b) => a.order - b.order);
-      const activeHabits = data.filter(h => !h.startDate || h.startDate <= getToday(undefined, userDoc?.settings?.dailyResetTime));
+      const data = snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as Habit));
+      data.sort((a: any, b: any) => a.order - b.order);
+      const activeHabits = data.filter((h: any) => !h.startDate || h.startDate <= getToday(undefined, userDoc?.settings?.dailyResetTime));
       setPaletteHabits(activeHabits);
     }, (err) => {
       console.warn("[Layout] Habits listener failed:", err);
@@ -537,7 +668,7 @@ function LayoutInner() {
     const todosRef = collection(db, "users", user.uid, "todos");
     const todosQuery = query(todosRef, where("status", "==", "active"));
     const unsubTodos = onSnapshot(todosQuery, (snap) => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Todo));
+      const data = snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as Todo));
       setPaletteTodos(data);
     }, (err) => {
       console.warn("[Layout] Todos listener failed:", err);
@@ -564,8 +695,11 @@ function LayoutInner() {
     if (location.pathname === "/todos") {
       window.dispatchEvent(new CustomEvent("w:open-todo-form"));
     } else {
-      if (location.pathname !== "/habits") navigate("/habits");
-      setTimeout(() => window.dispatchEvent(new CustomEvent("w:open-habit-form")), 50);
+      if (location.pathname !== "/habits") {
+        navigate("/habits?action=new");
+      } else {
+        window.dispatchEvent(new CustomEvent("w:open-habit-form"));
+      }
     }
   }, [location.pathname, navigate]);
 
@@ -591,13 +725,19 @@ function LayoutInner() {
   }, [userDoc]);
 
   const handlePaletteNewHabit = useCallback(() => {
-    if (location.pathname !== "/habits") navigate("/habits");
-    setTimeout(() => window.dispatchEvent(new CustomEvent("w:open-habit-form")), 50);
+    if (location.pathname !== "/habits") {
+      navigate("/habits?action=new");
+    } else {
+      window.dispatchEvent(new CustomEvent("w:open-habit-form"));
+    }
   }, [location.pathname, navigate]);
 
   const handlePaletteNewTodo = useCallback(() => {
-    if (location.pathname !== "/todos") navigate("/todos");
-    setTimeout(() => window.dispatchEvent(new CustomEvent("w:open-todo-form")), 50);
+    if (location.pathname !== "/todos") {
+      navigate("/todos?action=new");
+    } else {
+      window.dispatchEvent(new CustomEvent("w:open-todo-form"));
+    }
   }, [location.pathname, navigate]);
 
   // ── Render: Loading ────────────────────────────────────────────
@@ -620,7 +760,7 @@ function LayoutInner() {
           // 2. Local sync of accent color if available
           const doc = userStore.userDoc;
           if (doc) {
-            document.documentElement.style.setProperty("--accent", doc.aesthetics.desktop.accentColor);
+            document.documentElement.style.setProperty("--accent", doc.aesthetics?.desktop?.accentColor ?? "#5B8DEF");
           }
           
           // 3. Transition to processing to run the gap processor
@@ -683,8 +823,15 @@ function LayoutInner() {
   return (
     <div className="layout">
       <div inert={isLocked ? true : undefined} style={{ display: "contents" }}>
-        <Sidebar strikeCount={strikes.current} globalStreak={globalStreak} isLockdownActive={isLockdownActive} />
-        <Topbar onCommandPaletteOpen={toggleCommandPalette} />
+        <Sidebar
+          strikeCount={strikes.current}
+          globalStreak={globalStreak}
+          isLockdownActive={isLockdownActive}
+          habitsCount={paletteHabits.length}
+          todosCount={paletteTodos.length}
+          isFrozen={!!userDoc?.freeze?.active}
+        />
+        <Topbar onCommandPaletteOpen={toggleCommandPalette} isFrozen={!!userDoc?.freeze?.active} />
         <main className="layout__content">
           <AnimatePresence mode="wait">
             <motion.div

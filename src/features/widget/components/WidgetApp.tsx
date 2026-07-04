@@ -10,6 +10,8 @@ import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi';
 import { invoke } from '@tauri-apps/api/core';
 import { SleepTube } from '../../dashboard/components/SleepTube';
 import { ProgressCircle } from '../../../shared/components/ProgressCircle/ProgressCircle';
+import { syncActiveLockdownState } from '../../lockdown/services/lockdownService';
+import { processGap } from '../../strikes/services/gapProcessor';
 import './WidgetApp.css';
 
 export function WidgetApp() {
@@ -36,6 +38,8 @@ export function WidgetApp() {
   const [timeString, setTimeString] = useState('');
   const [isPositionInitialized, setIsPositionInitialized] = useState(false);
 
+
+
   useEffect(() => {
     const updateClock = () => {
       const now = new Date();
@@ -48,6 +52,43 @@ export function WidgetApp() {
     const timer = setInterval(updateClock, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // ─── Background Lockdown Scheduler ─────────────────────────
+  useEffect(() => {
+    if (loading || !userDoc?.uid) return;
+
+    // Run sync immediately
+    syncActiveLockdownState(userDoc.uid);
+
+    // Run sync every 15 seconds
+    const interval = setInterval(() => {
+      syncActiveLockdownState(userDoc.uid);
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [loading, userDoc?.uid, userDoc?.lockdown]);
+
+  // ─── Background Gap/Strikes Processor ──────────────────────
+  const gapProcessorStarted = useRef(false);
+  useEffect(() => {
+    if (loading || !userDoc?.uid || !userDoc?.lastActiveDate) return;
+
+    const lastActive = userDoc.lastActiveDate;
+    if (lastActive < today && !gapProcessorStarted.current) {
+      gapProcessorStarted.current = true;
+      console.log(`[Widget] Detected gap (lastActiveDate: ${lastActive}, today: ${today}). Running gap processor...`);
+      
+      processGap(lastActive, today)
+        .then((result) => {
+          console.log('[Widget] Gap processor completed:', result);
+          gapProcessorStarted.current = false;
+        })
+        .catch((err) => {
+          console.error('[Widget] Gap processor failed:', err);
+          gapProcessorStarted.current = false;
+        });
+    }
+  }, [loading, userDoc?.uid, userDoc?.lastActiveDate, today]);
 
   // ── Z-Order Enforcer: Active Defense ───────────────────────
   useEffect(() => {
@@ -173,6 +214,8 @@ export function WidgetApp() {
 
   // ─── Wallpaper ───────────────────────────────────────────
   const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(null);
+  const [previewDim, setPreviewDim] = useState<number | null>(null);
+  const [previewBlur, setPreviewBlur] = useState<number | null>(null);
 
   useEffect(() => {
     async function applyWallpaper() {
@@ -190,6 +233,12 @@ export function WidgetApp() {
     channel.onmessage = (e) => {
       if (e.data.type === 'WALLPAPER_CHANGED') {
         applyWallpaper();
+      } else if (e.data.type === 'WIDGET_AESTHETICS_PREVIEW') {
+        setPreviewDim(e.data.dimIntensity);
+        setPreviewBlur(e.data.blurIntensity);
+      } else if (e.data.type === 'CLEAR_AESTHETICS_PREVIEW') {
+        setPreviewDim(null);
+        setPreviewBlur(null);
       }
     };
     
@@ -199,8 +248,8 @@ export function WidgetApp() {
       window.removeEventListener("wallpaper-changed", applyWallpaper);
     };
   }, []);
-  const dimIntensity = userDoc?.aesthetics?.widget?.dimIntensity ?? 0.7;
-  const blurIntensity = userDoc?.aesthetics?.widget?.blurIntensity ?? 0;
+  const dimIntensity = previewDim !== null ? previewDim : (userDoc?.aesthetics?.widget?.dimIntensity ?? 0.7);
+  const blurIntensity = previewBlur !== null ? previewBlur : (userDoc?.aesthetics?.widget?.blurIntensity ?? 0);
   const accentColor = userDoc?.aesthetics?.widget?.accentColor ?? userDoc?.aesthetics?.desktop?.accentColor ?? '#5B8DEF';
   const cropX = userDoc?.aesthetics?.widget?.cropX ?? 50;
   const cropY = userDoc?.aesthetics?.widget?.cropY ?? 50;
@@ -541,35 +590,41 @@ export function WidgetApp() {
 
   const handleCreateTodoClick = useCallback(async (e: React.PointerEvent) => {
     e.stopPropagation(); // Prevent widget drag behavior on button press
+    console.log("Widget: handleCreateTodoClick triggered!");
     try {
-      const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
-      const { emit } = await import("@tauri-apps/api/event");
+       const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
 
-      // 1. Show and focus the main window
-      const main = await WebviewWindow.getByLabel("main");
-      if (main) {
-        await main.show();
-        await main.setFocus();
-      } else {
-        const newMain = new WebviewWindow("main", {
-          url: "/",
-          decorations: false,
-          title: "W Command Center",
-          width: 1024,
-          height: 768,
-          minWidth: 800,
-          minHeight: 600,
-        });
-        await newMain.show();
-        await newMain.setFocus();
-      }
-
-      // 2. Emit trigger event to open todo form
-      await emit("widget-trigger-new-todo");
+       const todoCreator = await WebviewWindow.getByLabel("todo-creator");
+       console.log("Widget: Found todoCreator by label:", todoCreator);
+       if (todoCreator) {
+         console.log("Widget: Showing existing todoCreator window...");
+         const resShow = await todoCreator.show();
+         console.log("Widget: show() result:", resShow);
+         const resFocus = await todoCreator.setFocus();
+         console.log("Widget: setFocus() result:", resFocus);
+       } else {
+         console.log("Widget: todoCreator not found, instantiating new WebviewWindow...");
+         const newTodoCreator = new WebviewWindow("todo-creator", {
+           url: "/todo-creator",
+           decorations: false,
+           transparent: true,
+           center: true,
+           width: 640,
+           height: 560,
+           resizable: false,
+           alwaysOnTop: true,
+           skipTaskbar: true,
+           title: "Todo Creator",
+           visible: false,
+         });
+         console.log("Widget: newTodoCreator created:", newTodoCreator);
+       }
     } catch (err) {
-      console.error("Failed to trigger new todo from widget:", err);
+       console.error("Failed to trigger new todo from widget:", err);
     }
   }, []);
+
+
 
   if (loading) {
     return (
@@ -591,7 +646,10 @@ export function WidgetApp() {
         backgroundImage: `url(${wallpaperUrl})`,
         backgroundSize: 'cover',
         backgroundPosition: `${cropX}% ${cropY}%`,
-      } : undefined}
+        backgroundColor: 'transparent',
+      } : {
+        backgroundColor: '#000000',
+      }}
     >
       {wallpaperUrl && (
         <div
@@ -709,8 +767,11 @@ function formatDate(date: Date): string {
 
 function getWeekStart(dateStr: string, weekStartDay: number): string {
   const d = new Date(dateStr + "T12:00:00");
-  while (d.getDay() !== weekStartDay) {
+  if (isNaN(d.getTime())) return dateStr;
+  let safety = 0;
+  while (d.getDay() !== weekStartDay && safety < 10) {
     d.setDate(d.getDate() - 1);
+    safety++;
   }
   return formatDate(d);
 }

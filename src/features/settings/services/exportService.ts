@@ -1,5 +1,4 @@
-import { collection, getDocs } from "firebase/firestore";
-import { db, auth } from "../../../shared/config/firebase";
+import { db, auth, collection, getDocs } from "../../../shared/config/firebase";
 import { getUserDoc } from "../../auth/services/userService";
 import { getLocalNoteHistory } from "../../logs/services/localLogService";
 

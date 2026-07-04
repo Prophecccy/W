@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { useUserStore } from "../../../shared/stores/userStore";
 import { Settings, Aesthetics } from "../../../shared/types";
 import { AccountSection } from "./AccountSection";
@@ -12,6 +13,7 @@ import { ManualFreezeToggle } from "../../freeze/components/ManualFreezeToggle";
 import { UndoHistory } from "./UndoHistory/UndoHistory";
 import { WallpaperPicker } from "../../wallpaper/components/WallpaperPicker/WallpaperPicker";
 import { Save, RotateCcw, User, Palette, Monitor, Clock, Bell, HardDrive, LogOut } from "lucide-react";
+
 import { useAuthContext } from "../../auth/context";
 
 import "./SettingsPage.css";
@@ -27,44 +29,124 @@ interface TabConfig {
 const TABS: TabConfig[] = [
   { id: "account", label: "ACCOUNT", icon: User },
   { id: "appearance", label: "APPEARANCE", icon: Palette },
-  { id: "desktop", label: "DESKTOP & WALLPAPERS", icon: Monitor },
+  { id: "desktop", label: "DESKTOP", icon: Monitor },
   { id: "sleep-tube", label: "SLEEP TUBE", icon: Clock },
   { id: "schedule", label: "SCHEDULE & TIME", icon: Clock },
   { id: "notifications", label: "NOTIFICATIONS", icon: Bell },
   { id: "data", label: "DATA & SYSTEM", icon: HardDrive }
 ];
 
+const DEFAULT_SETTINGS: Settings = {
+  theme: "system",
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  weekStartsOn: 1,
+  dailyResetTime: "04:00",
+  weeklyResetDay: 1,
+  notifications: true,
+  eveningNudge: true,
+  strikeWarnings: true,
+  lockoutAlert: true,
+  weeklySummary: true,
+  completionSound: true,
+  predictiveWarnings: true,
+  lowGraphicsMode: false,
+  wakeUpTime: "07:00",
+  bedTime: "23:00",
+  emptyTubeText: "DEPLETED",
+};
+
+const DEFAULT_AESTHETICS: Aesthetics = {
+  widget: { dimIntensity: 0.6, accentColor: "#5B8DEF" },
+  mobile: { dimIntensity: 0.6, accentColor: "#5B8DEF" },
+  desktop: { dimIntensity: 0.6, accentColor: "#5B8DEF" },
+};
+
 export function SettingsPage() {
   const { userDoc, loading } = useUserStore();
   const { signOut } = useAuthContext();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<TabId>("account");
   const [draftSettings, setDraftSettings] = useState<Settings | null>(null);
   const [draftAesthetics, setDraftAesthetics] = useState<Aesthetics | null>(null);
 
-  // Initialize draft when userDoc loads
+  // Synchronize activeTab with URL tab query parameter if present
   useEffect(() => {
-    if (userDoc) {
-      if (!draftSettings) setDraftSettings(JSON.parse(JSON.stringify(userDoc.settings)));
-      if (!draftAesthetics) setDraftAesthetics(JSON.parse(JSON.stringify(userDoc.aesthetics)));
+    const searchParams = new URLSearchParams(location.search);
+    const tabParam = searchParams.get("tab") as TabId;
+    if (tabParam && ["account", "appearance", "desktop", "sleep-tube", "schedule", "notifications", "data"].includes(tabParam)) {
+      setActiveTab(tabParam);
     }
-  }, [userDoc, draftSettings, draftAesthetics]);
+  }, [location.search]);
+
+  const lastBaseSettings = useRef<Settings | null>(null);
+  const lastBaseAesthetics = useRef<Aesthetics | null>(null);
+
+
+
+  // Construct fully populated fallback states
+  const baseSettings = useMemo(() => {
+    if (!userDoc) return null;
+    return { ...DEFAULT_SETTINGS, ...userDoc.settings };
+  }, [userDoc]);
+
+  const baseAesthetics = useMemo(() => {
+    if (!userDoc) return null;
+    return {
+      widget: { ...DEFAULT_AESTHETICS.widget, ...userDoc.aesthetics?.widget },
+      mobile: { ...DEFAULT_AESTHETICS.mobile, ...userDoc.aesthetics?.mobile },
+      desktop: { ...DEFAULT_AESTHETICS.desktop, ...userDoc.aesthetics?.desktop },
+    };
+  }, [userDoc]);
+
+  // Initialize or update draft settings when base state changes and user has not modified them
+  useEffect(() => {
+    if (baseSettings && baseAesthetics) {
+      const isFirstLoad = !lastBaseSettings.current;
+      
+      if (isFirstLoad) {
+        setDraftSettings(JSON.parse(JSON.stringify(baseSettings)));
+        setDraftAesthetics(JSON.parse(JSON.stringify(baseAesthetics)));
+      } else {
+        const baseSettingsChanged = JSON.stringify(baseSettings) !== JSON.stringify(lastBaseSettings.current);
+        const baseAestheticsChanged = JSON.stringify(baseAesthetics) !== JSON.stringify(lastBaseAesthetics.current);
+        
+        const settingsClean = JSON.stringify(draftSettings) === JSON.stringify(lastBaseSettings.current);
+        const aestheticsClean = JSON.stringify(draftAesthetics) === JSON.stringify(lastBaseAesthetics.current);
+
+        if (baseSettingsChanged && settingsClean) {
+          setDraftSettings(JSON.parse(JSON.stringify(baseSettings)));
+        }
+        if (baseAestheticsChanged && aestheticsClean) {
+          setDraftAesthetics(JSON.parse(JSON.stringify(baseAesthetics)));
+        }
+      }
+
+      lastBaseSettings.current = baseSettings;
+      lastBaseAesthetics.current = baseAesthetics;
+    }
+  }, [baseSettings, baseAesthetics]);
 
   // Check for unsaved changes
   const isDirty = useMemo(() => {
-    if (!userDoc || !draftSettings || !draftAesthetics) return false;
-    const settingsChanged = JSON.stringify(userDoc.settings) !== JSON.stringify(draftSettings);
-    const aestheticsChanged = JSON.stringify(userDoc.aesthetics) !== JSON.stringify(draftAesthetics);
+    if (!baseSettings || !baseAesthetics || !draftSettings || !draftAesthetics) return false;
+    const settingsChanged = JSON.stringify(baseSettings) !== JSON.stringify(draftSettings);
+    const aestheticsChanged = JSON.stringify(baseAesthetics) !== JSON.stringify(draftAesthetics);
     return settingsChanged || aestheticsChanged;
-  }, [userDoc, draftSettings, draftAesthetics]);
+  }, [baseSettings, baseAesthetics, draftSettings, draftAesthetics]);
 
   // Revert color preview on unmount if changes were discarded/unsaved
   useEffect(() => {
     return () => {
-      if (userDoc) {
-        const savedColor = userDoc.aesthetics.desktop.accentColor;
+      // Clear real-time aesthetics previews in widget window on unmount
+      const channel = new BroadcastChannel('w_channel');
+      channel.postMessage({ type: 'CLEAR_AESTHETICS_PREVIEW' });
+      channel.close();
+
+      if (baseSettings && baseAesthetics) {
+        const savedColor = baseAesthetics.desktop.accentColor;
         document.documentElement.style.setProperty("--accent", savedColor);
         
-        const savedLowGraphics = userDoc.settings.lowGraphicsMode;
+        const savedLowGraphics = baseSettings.lowGraphicsMode;
         if (savedLowGraphics) {
           document.body.classList.add("low-graphics");
         } else {
@@ -78,7 +160,7 @@ export function SettingsPage() {
         } catch {}
       }
     };
-  }, [userDoc]);
+  }, [baseSettings, baseAesthetics]);
 
   // Prevent accidental unload if changes are unsaved
   useEffect(() => {
@@ -102,27 +184,25 @@ export function SettingsPage() {
   const handleUpdateAesthetics = (patch: Partial<Aesthetics>) => {
     setDraftAesthetics((prev: Aesthetics | null) => {
       if (!prev) return null;
-      // Handle deep patch for aesthetics if needed, or simple merge
       return { ...prev, ...patch };
     });
   };
 
   const handleSave = async () => {
-    if (!draftSettings || !draftAesthetics || !userDoc) return;
+    if (!draftSettings || !draftAesthetics || !userDoc || !baseSettings || !baseAesthetics) return;
     try {
-      // Save both settings and aesthetics
       const updates: any = {};
       
       // Patch settings
       Object.entries(draftSettings).forEach(([key, val]) => {
-        if (val !== (userDoc.settings as any)[key]) {
+        if (val !== (baseSettings as any)[key]) {
           updates[`settings.${key}`] = val;
         }
       });
 
       // Patch aesthetics
       Object.entries(draftAesthetics).forEach(([key, val]) => {
-        if (JSON.stringify(val) !== JSON.stringify((userDoc.aesthetics as any)[key])) {
+        if (JSON.stringify(val) !== JSON.stringify((baseAesthetics as any)[key])) {
           updates[`aesthetics.${key}`] = val;
         }
       });
@@ -131,21 +211,23 @@ export function SettingsPage() {
         const { updateUserDoc } = await import("../../auth/services/userService");
         await updateUserDoc(userDoc.uid, updates);
       }
-      
-      setDraftSettings(null);
-      setDraftAesthetics(null);
+
+      // Notify widget to clear preview and load saved values
+      const channel = new BroadcastChannel('w_channel');
+      channel.postMessage({ type: 'CLEAR_AESTHETICS_PREVIEW' });
+      channel.close();
     } catch (err) {
       console.error("Failed to save settings:", err);
     }
   };
 
   const handleDiscard = () => {
-    if (userDoc) {
+    if (baseSettings && baseAesthetics) {
       // Revert accent color previews instantly
-      const savedColor = userDoc.aesthetics.desktop.accentColor;
+      const savedColor = baseAesthetics.desktop.accentColor;
       document.documentElement.style.setProperty("--accent", savedColor);
 
-      const savedLowGraphics = userDoc.settings.lowGraphicsMode;
+      const savedLowGraphics = baseSettings.lowGraphicsMode;
       if (savedLowGraphics) {
         document.body.classList.add("low-graphics");
       } else {
@@ -158,8 +240,13 @@ export function SettingsPage() {
         }).catch(() => {});
       } catch {}
 
-      setDraftSettings(JSON.parse(JSON.stringify(userDoc.settings)));
-      setDraftAesthetics(JSON.parse(JSON.stringify(userDoc.aesthetics)));
+      setDraftSettings(JSON.parse(JSON.stringify(baseSettings)));
+      setDraftAesthetics(JSON.parse(JSON.stringify(baseAesthetics)));
+
+      // Notify widget to clear preview and revert to base
+      const channel = new BroadcastChannel('w_channel');
+      channel.postMessage({ type: 'CLEAR_AESTHETICS_PREVIEW' });
+      channel.close();
     }
   };
 
@@ -173,25 +260,26 @@ export function SettingsPage() {
         return <AccountSection />;
       case "appearance":
         return (
-          <AppearanceSection 
-            settings={draftSettings} 
-            onUpdate={handleUpdateDraft}
-            aesthetics={draftAesthetics}
-            onUpdateAesthetics={handleUpdateAesthetics}
-          />
-        );
-      case "desktop":
-        return (
           <>
-            <DesktopSection />
+            <AppearanceSection 
+              settings={draftSettings} 
+              onUpdate={handleUpdateDraft}
+              aesthetics={draftAesthetics}
+              onUpdateAesthetics={handleUpdateAesthetics}
+            />
             <div className="settings-section" id="settings-wallpapers">
               <h2 className="settings-section__header t-label">[ WALLPAPERS ]</h2>
               <div className="settings-section__content">
-                <WallpaperPicker />
+                <WallpaperPicker 
+                  aesthetics={draftAesthetics} 
+                  onUpdateAesthetics={handleUpdateAesthetics} 
+                />
               </div>
             </div>
           </>
         );
+      case "desktop":
+        return <DesktopSection />;
       case "sleep-tube":
         return <SleepTubeSection settings={draftSettings} onUpdate={handleUpdateDraft} />;
       case "schedule":

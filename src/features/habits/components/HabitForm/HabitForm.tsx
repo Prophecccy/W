@@ -480,13 +480,17 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
       </div>
 
       <div className="habit-form__footer">
-        <button 
-          type="button" 
-          className="habit-form__btn t-label" 
-          onClick={handleBack}
-        >
-          {step === 0 ? "[ CANCEL ]" : "[ BACK ]"}
-        </button>
+        {step > 0 ? (
+          <button 
+            type="button" 
+            className="habit-form__btn t-label" 
+            onClick={handleBack}
+          >
+            [ BACK ]
+          </button>
+        ) : (
+          <div />
+        )}
         <button 
           type="button" 
           className="habit-form__btn habit-form__btn--primary t-label" 

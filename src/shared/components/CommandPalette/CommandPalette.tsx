@@ -10,6 +10,12 @@ import {
   Plus,
   Target,
   CheckCircle2,
+  User,
+  Palette,
+  Monitor,
+  Clock,
+  Bell,
+  HardDrive,
   type LucideIcon as LucideIconType,
 } from "lucide-react";
 import { LucideIcon } from "../IconPicker/LucideIcon";
@@ -111,6 +117,62 @@ export function CommandPalette({
         category: "pages",
         action: () => { navigate("/settings"); onClose(); },
         keywords: ["settings", "config", "preferences", "options"],
+      },
+      {
+        id: "page-settings-account",
+        label: "Settings: Account",
+        icon: User,
+        category: "pages",
+        action: () => { navigate("/settings?tab=account"); onClose(); },
+        keywords: ["settings", "account", "profile", "user"],
+      },
+      {
+        id: "page-settings-appearance",
+        label: "Settings: Appearance",
+        icon: Palette,
+        category: "pages",
+        action: () => { navigate("/settings?tab=appearance"); onClose(); },
+        keywords: ["settings", "appearance", "theme", "accent", "colors", "wallpapers", "wallpaper"],
+      },
+      {
+        id: "page-settings-desktop",
+        label: "Settings: Desktop",
+        icon: Monitor,
+        category: "pages",
+        action: () => { navigate("/settings?tab=desktop"); onClose(); },
+        keywords: ["settings", "desktop", "widget", "layout", "align"],
+      },
+      {
+        id: "page-settings-sleep-tube",
+        label: "Settings: Sleep Tube",
+        icon: Clock,
+        category: "pages",
+        action: () => { navigate("/settings?tab=sleep-tube"); onClose(); },
+        keywords: ["settings", "sleep", "tube", "bedtime", "wakeup"],
+      },
+      {
+        id: "page-settings-schedule",
+        label: "Settings: Schedule & Time",
+        icon: Clock,
+        category: "pages",
+        action: () => { navigate("/settings?tab=schedule"); onClose(); },
+        keywords: ["settings", "schedule", "time", "reset"],
+      },
+      {
+        id: "page-settings-notifications",
+        label: "Settings: Notifications",
+        icon: Bell,
+        category: "pages",
+        action: () => { navigate("/settings?tab=notifications"); onClose(); },
+        keywords: ["settings", "notifications", "alerts", "nudges"],
+      },
+      {
+        id: "page-settings-data",
+        label: "Settings: Data & System",
+        icon: HardDrive,
+        category: "pages",
+        action: () => { navigate("/settings?tab=data"); onClose(); },
+        keywords: ["settings", "data", "system", "freeze", "backup", "restore"],
       }
     );
 
@@ -156,6 +218,20 @@ export function CommandPalette({
         keywords: [h.title.toLowerCase(), h.description?.toLowerCase() || "", h.type, h.period],
       });
 
+      // Detailed View trigger item
+      list.push({
+        id: `detailed-habit-${h.id}`,
+        label: `Detailed: ${h.title}`,
+        icon: BarChart3,
+        category: "actions",
+        accent: h.color,
+        action: () => {
+          navigate(`/analytics?habit=${h.id}`);
+          onClose();
+        },
+        keywords: ["detailed", h.title.toLowerCase()],
+      });
+
       // Complete action (only if callback provided)
       if (onCompleteHabit) {
         list.push({
@@ -195,7 +271,19 @@ export function CommandPalette({
       // Show pages + actions only when no query
       return items.filter((i) => i.category === "pages" || i.category === "actions");
     }
-    const q = query.toLowerCase();
+    const q = query.toLowerCase().trim();
+
+    // Special handling for "detailed <habitname>" syntax search
+    if (q.startsWith("detailed")) {
+      const rest = q.substring(8).trim();
+      // Filter only to detailed-habit items
+      return items.filter(
+        (item) =>
+          item.id.startsWith("detailed-habit-") &&
+          (rest === "" || item.keywords.some((kw) => kw.includes(rest)))
+      );
+    }
+
     return items.filter(
       (item) =>
         item.label.toLowerCase().includes(q) ||
@@ -312,7 +400,10 @@ export function CommandPalette({
                             return <Icon size={14} strokeWidth={1.5} style={item.accent ? { color: item.accent } : undefined} />;
                           })()
                         )}
-                        <span>{item.label}</span>
+                        <span className="command-palette__item-text">{item.label}</span>
+                        {idx === selectedIndex && (
+                          <span className="command-palette__item-shortcut t-meta">[ ENTER ]</span>
+                        )}
                       </button>
                     );
                   })}

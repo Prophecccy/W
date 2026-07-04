@@ -104,3 +104,33 @@
   background: var(--strike-red);
   color: #fff;
 }
+
+.topbar__freeze-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(74, 222, 128, 0.08);
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: topbar-pulse 2s infinite ease-in-out;
+}
+
+.topbar__freeze-indicator:hover {
+  background: rgba(74, 222, 128, 0.16);
+  border-color: rgba(74, 222, 128, 0.4);
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.25);
+  transform: translateY(-0.5px);
+}
+
+@keyframes topbar-pulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}

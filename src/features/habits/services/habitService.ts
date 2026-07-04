@@ -1,18 +1,4 @@
-import {
-  collection,
-  doc,
-  getDocs,
-  getDoc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  writeBatch,
-} from "firebase/firestore";
-import { db } from "../../../shared/config/firebase";
-import { auth } from "../../../shared/config/firebase";
+import { db, auth, collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, query, where, orderBy, writeBatch } from "../../../shared/config/firebase";
 import { Habit } from "../types";
 
 function uid(): string {

@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { collection, query, where, onSnapshot, doc, orderBy } from 'firebase/firestore';
-import { db } from '../../../shared/config/firebase';
+import { db, collection, query, where, onSnapshot, doc, orderBy } from '../../../shared/config/firebase';
 import { useAuthContext } from '../../auth/context';
 import { Habit, HabitLog } from '../../habits/types';
 import { User } from '../../../shared/types';
@@ -63,9 +62,9 @@ export function useWidgetData(): WidgetData {
     const q = query(habitsRef, where('isActive', '==', true));
 
     const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Habit));
-      data.sort((a, b) => a.order - b.order);
-      const activeData = data.filter(h => (!h.startDate || h.startDate <= today));
+      const data = snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as Habit));
+      data.sort((a: any, b: any) => a.order - b.order);
+      const activeData = data.filter((h: any) => (!h.startDate || h.startDate <= today));
       setHabits(activeData);
     });
 
@@ -107,7 +106,7 @@ export function useWidgetData(): WidgetData {
     );
 
     const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map((d) => d.data() as HabitLog);
+      const data = snap.docs.map((d: any) => d.data() as HabitLog);
       setPeriodLogs(data);
     });
 
@@ -228,8 +227,11 @@ function formatDate(date: Date): string {
 
 function getWeekStart(dateStr: string, weekStartDay: number): string {
   const d = new Date(dateStr + "T12:00:00");
-  while (d.getDay() !== weekStartDay) {
+  if (isNaN(d.getTime())) return dateStr;
+  let safety = 0;
+  while (d.getDay() !== weekStartDay && safety < 10) {
     d.setDate(d.getDate() - 1);
+    safety++;
   }
   return formatDate(d);
 }

@@ -40,7 +40,25 @@ export const HabitDeepDive: React.FC<Props> = ({ habit, onClose }) => {
 
   if (!stats) return <div className="habit-deep-dive loading">Analyzing...</div>;
 
-  const maxHourVal = Math.max(...stats.timeOfDayDistribution, 1);
+  // Group the 24 hours into 4 periods
+  const morningCount = stats.timeOfDayDistribution.slice(6, 12).reduce((a, b) => a + b, 0);
+  const afternoonCount = stats.timeOfDayDistribution.slice(12, 18).reduce((a, b) => a + b, 0);
+  const eveningCount = stats.timeOfDayDistribution.slice(18, 22).reduce((a, b) => a + b, 0);
+  const nightCount = [
+    ...stats.timeOfDayDistribution.slice(22, 24),
+    ...stats.timeOfDayDistribution.slice(0, 6)
+  ].reduce((a, b) => a + b, 0);
+
+  const periods = [
+    { label: "Morning", range: "6 AM – 12 PM", count: morningCount, icon: "🌅" },
+    { label: "Afternoon", range: "12 PM – 6 PM", count: afternoonCount, icon: "☀️" },
+    { label: "Evening", range: "6 PM – 10 PM", count: eveningCount, icon: "🌇" },
+    { label: "Night", range: "10 PM – 6 AM", count: nightCount, icon: "🌙" },
+  ];
+
+  const totalCompletions = periods.reduce((sum, p) => sum + p.count, 0);
+  const maxPeriodCount = Math.max(...periods.map(p => p.count), 1);
+  const peakPeriod = periods.reduce((prev, current) => (prev.count > current.count) ? prev : current, periods[0]);
 
   return (
     <div className="habit-deep-dive">
@@ -70,22 +88,42 @@ export const HabitDeepDive: React.FC<Props> = ({ habit, onClose }) => {
 
         <div className="analytics-card tod-chart">
           <h3 className="t-label">[ TIME OF DAY ]</h3>
-          <div className="tod-bars">
-            {stats.timeOfDayDistribution.map((count, hour) => {
-              const hPercent = (count / maxHourVal) * 100;
-              return (
-                <div key={hour} className="tod-bar-group" title={`${hour}:00 - ${count} completions`}>
-                  <div className="tod-bar-container">
-                    <motion.div 
-                      className="tod-bar-fill"
-                      initial={{ height: 0 }}
-                      animate={{ height: `${hPercent}%` }}
-                    />
+          <div className="tod-content">
+            <div className="tod-summary-box">
+              <span className="tod-summary-title">Peak Activity</span>
+              {totalCompletions > 0 ? (
+                <p className="tod-summary-highlight">
+                  Most active during <span>{peakPeriod.label}</span> ({peakPeriod.icon}) with <span>{peakPeriod.count}</span> completion{peakPeriod.count !== 1 ? 's' : ''}.
+                </p>
+              ) : (
+                <p className="tod-summary-highlight" style={{ opacity: 0.6 }}>
+                  No completion times recorded yet.
+                </p>
+              )}
+            </div>
+            <div className="tod-progress-list">
+              {periods.map((p) => {
+                const percent = totalCompletions > 0 ? (p.count / maxPeriodCount) * 100 : 0;
+                return (
+                  <div key={p.label} className="tod-row">
+                    <span className="tod-row-icon">{p.icon}</span>
+                    <div className="tod-row-info">
+                      <span className="tod-row-label">{p.label}</span>
+                      <span className="tod-row-range">{p.range}</span>
+                    </div>
+                    <div className="tod-progress-container">
+                      <motion.div
+                        className="tod-progress-fill"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${percent}%` }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                      />
+                    </div>
+                    <span className="tod-row-count">{p.count} {p.count === 1 ? 'log' : 'logs'}</span>
                   </div>
-                  <span className="t-meta tod-label">{hour % 4 === 0 ? `${hour}h` : ''}</span>
-                </div>
-              )
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

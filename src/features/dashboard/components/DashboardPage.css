@@ -76,6 +76,7 @@
   flex-direction: column;
   gap: 16px;
   overflow-y: auto;
+  padding-top: 8px;
   padding-right: 8px;
 }
 
@@ -105,4 +106,106 @@
 .dashboard-page__footer {
   flex-shrink: 0;
   margin-top: 16px;
+}
+
+/* ─── Responsive Media Queries ────────────────────────────────── */
+
+@media (max-height: 800px) {
+  .sleep-tube {
+    min-height: 0 !important;
+    max-height: 300px !important;
+  }
+}
+
+@media (max-height: 650px) {
+  .sleep-tube {
+    min-height: 0 !important;
+    max-height: 200px !important;
+  }
+}
+
+@media (max-width: 1250px) {
+  .dashboard-page {
+    padding: 0 16px 16px 16px;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: max-content 1fr 1fr;
+    gap: 20px;
+  }
+
+  .dashboard-grid > :nth-child(1) {
+    grid-row: span 2;
+  }
+
+  .dashboard-grid > :nth-child(4) {
+    grid-column: 2 / 4;
+    margin-top: 8px;
+  }
+}
+
+@media (max-width: 950px) {
+  .dashboard-page {
+    overflow-y: auto;
+  }
+
+  .dashboard-page__content {
+    overflow-y: visible;
+    flex-grow: unset;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: max-content 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 16px;
+    min-height: unset;
+    flex-grow: unset;
+  }
+
+  .dashboard-grid > :nth-child(1) {
+    grid-row: span 3;
+    height: auto;
+    max-height: 380px;
+  }
+
+  .sleep-tube {
+    min-height: 0 !important;
+    max-height: 280px !important;
+  }
+
+  .dashboard-grid > :nth-child(4) {
+    grid-column: 2;
+    margin-top: 0;
+  }
+
+  .dashboard-column {
+    height: auto;
+    min-height: 200px;
+  }
+
+  .dashboard-list {
+    overflow-y: visible;
+    height: auto;
+    flex-grow: unset;
+  }
+}
+
+@media (max-width: 600px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto auto;
+    gap: 20px;
+  }
+
+  .dashboard-grid > :nth-child(1) {
+    grid-row: span 1;
+    align-self: center;
+    padding-right: 0;
+    margin: 0 auto 16px auto;
+    height: 250px;
+  }
+
+  .dashboard-grid > :nth-child(4) {
+    grid-column: 1;
+  }
 }

@@ -26,14 +26,16 @@ mod platform {
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
             ).map_err(|e| format!("SetWindowPos failed: {e}"))?;
 
-            // Add WS_EX_TOOLWINDOW to hide from Alt+Tab and taskbar
             // Add WS_EX_NOACTIVATE to prevent the window from taking focus when clicked
+            // Clear WS_EX_TOOLWINDOW to ensure Task Manager registers the window, and clear WS_EX_APPWINDOW to hide it from the taskbar.
             let ex_style = GetWindowLongPtrW(target, GWL_EXSTYLE);
-            let new_style = (ex_style as u32 | WS_EX_TOOLWINDOW.0 | WS_EX_NOACTIVATE.0) & !WS_EX_APPWINDOW.0;
+            let new_style = (ex_style as u32 | WS_EX_NOACTIVATE.0) & !WS_EX_TOOLWINDOW.0 & !WS_EX_APPWINDOW.0;
             SetWindowLongPtrW(target, GWL_EXSTYLE, new_style as isize);
 
-            // Break parent/owner linkage so the main window can render over it
-            SetWindowLongPtrW(target, GWLP_HWNDPARENT, 0);
+            // Set parent/owner linkage to our hidden owner window so it is owned (hiding it from Task Manager Apps list)
+            // but is independent of the main dashboard window (so main window can render over it).
+            let owner = crate::get_hidden_owner();
+            SetWindowLongPtrW(target, GWLP_HWNDPARENT, owner);
         }
         Ok(())
     }

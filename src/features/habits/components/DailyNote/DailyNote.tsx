@@ -198,6 +198,11 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
     try {
       await saveLocalNote(activeDateRef.current, content);
       hasUnsavedChangesRef.current = false;
+      
+      // Auto-trigger GDrive background sync worker instantly to back up the note
+      import("../../../../shared/services/googleDriveService")
+        .then((m) => m.runBackgroundSync())
+        .catch((err) => console.error("[DailyNote] Instant background sync failed:", err));
     } catch (err) {
       console.error("Failed to save daily note locally:", err);
       showToast("[ ERROR SAVING NOTE LOCALLY ]");

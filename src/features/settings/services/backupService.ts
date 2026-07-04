@@ -1,5 +1,4 @@
-import { collection, getDocs, doc, setDoc, writeBatch } from "firebase/firestore";
-import { db, auth } from "../../../shared/config/firebase";
+import { db, auth, collection, getDocs, doc, setDoc, writeBatch } from "../../../shared/config/firebase";
 import { getUserDoc } from "../../auth/services/userService";
 import { getLocalNoteHistory, saveDownloadedNote } from "../../logs/services/localLogService";
 

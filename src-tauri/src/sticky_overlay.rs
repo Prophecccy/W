@@ -31,6 +31,41 @@ use windows::Win32::Foundation::POINT;
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
+#[cfg(target_os = "windows")]
+pub fn set_click_through(hwnd: isize, ignore: bool) {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, GWLP_HWNDPARENT,
+        WS_EX_TRANSPARENT, WS_EX_LAYERED, WS_EX_NOACTIVATE,
+        WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
+    };
+    unsafe {
+        let target = windows::Win32::Foundation::HWND(hwnd as *mut _);
+        
+        // 1. Set owner to hidden owner
+        let owner = crate::get_hidden_owner();
+        SetWindowLongPtrW(target, GWLP_HWNDPARENT, owner);
+
+        // 2. Adjust hit testing and taskbar styles
+        let ex_style = GetWindowLongPtrW(target, GWL_EXSTYLE) as u32;
+        let mut new_style = ex_style;
+        
+        if ignore {
+            new_style |= WS_EX_TRANSPARENT.0 | WS_EX_LAYERED.0;
+        } else {
+            new_style &= !(WS_EX_TRANSPARENT.0 | WS_EX_LAYERED.0);
+        }
+        
+        // Ensure WS_EX_NOACTIVATE is set
+        new_style |= WS_EX_NOACTIVATE.0;
+        // Ensure WS_EX_TOOLWINDOW and WS_EX_APPWINDOW are NOT set (hides from taskbar, retains Task Manager registration via owner)
+        new_style &= !WS_EX_TOOLWINDOW.0 & !WS_EX_APPWINDOW.0;
+        
+        if new_style != ex_style {
+            SetWindowLongPtrW(target, GWL_EXSTYLE, new_style as isize);
+        }
+    }
+}
+
 // ─── Shared state ────────────────────────────────────────────────
 
 #[derive(Clone)]
@@ -134,7 +169,9 @@ fn start_polling(app_handle: tauri::AppHandle) {
 
                 // Toggle only when state changes
                 if should_ignore != currently_ignoring {
-                    let _ = win.set_ignore_cursor_events(should_ignore);
+                    if let Ok(hwnd) = win.hwnd() {
+                        set_click_through(hwnd.0 as isize, should_ignore);
+                    }
                     IS_IGNORING.store(should_ignore, Ordering::Relaxed);
                 }
             }
@@ -176,6 +213,13 @@ pub fn start_sticky_hit_test(app: tauri::AppHandle) -> Result<(), String> {
     stop_polling();
 
     // Configure WebView2 compositor for click-through
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(hwnd) = overlay.hwnd() {
+            set_click_through(hwnd.0 as isize, true);
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
     overlay
         .set_ignore_cursor_events(true)
         .map_err(|e| format!("set_ignore_cursor_events failed: {e}"))?;
@@ -226,6 +270,13 @@ pub fn update_sticky_regions(regions: Vec<JsRect>) -> Result<(), String> {
 pub fn force_sticky_interactive(app: tauri::AppHandle) -> Result<(), String> {
     if IS_IGNORING.load(Ordering::Relaxed) {
         if let Some(window) = app.get_webview_window("sticky-overlay") {
+            #[cfg(target_os = "windows")]
+            {
+                if let Ok(hwnd) = window.hwnd() {
+                    set_click_through(hwnd.0 as isize, false);
+                }
+            }
+            #[cfg(not(target_os = "windows"))]
             window
                 .set_ignore_cursor_events(false)
                 .map_err(|e| format!("force interactive failed: {e}"))?;
@@ -245,6 +296,13 @@ pub fn set_sticky_drag_mode(app: tauri::AppHandle, dragging: bool) -> Result<(),
         // Immediately make interactive
         if IS_IGNORING.load(Ordering::Relaxed) {
             if let Some(window) = app.get_webview_window("sticky-overlay") {
+                #[cfg(target_os = "windows")]
+                {
+                    if let Ok(hwnd) = window.hwnd() {
+                        set_click_through(hwnd.0 as isize, false);
+                    }
+                }
+                #[cfg(not(target_os = "windows"))]
                 let _ = window.set_ignore_cursor_events(false);
                 IS_IGNORING.store(false, Ordering::Relaxed);
             }

@@ -2,8 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { isTauri } from "../../../shared/utils/tauri";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "../../../shared/config/firebase";
+import { db, doc, onSnapshot } from "../../../shared/config/firebase";
 import { useAuthContext } from "../../auth/context";
 import { useStickyNotes } from "../hooks/useStickyNotes";
 import { StickyNote } from "./StickyNote";
@@ -91,6 +90,47 @@ export function StickyCanvas() {
   const initRef = useRef(false);
   const regionsTimerRef = useRef<number | null>(null);
 
+  // Redirect console logs to localDb log file for diagnostics
+  useEffect(() => {
+    if (typeof window === "undefined" || !(window as any).__TAURI_INTERNALS__) return;
+    const originalLog = console.log;
+    const originalError = console.error;
+    const originalWarn = console.warn;
+
+    const logToLocalDb = async (level: string, args: any[]) => {
+      try {
+        const msg = args.map(a => typeof a === "object" ? JSON.stringify(a) : String(a)).join(" ");
+        const logLine = `[${new Date().toISOString()}] [StickyCanvas ${level}]: ${msg}`;
+        const { writeTextFile, readTextFile, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+        const logFile = "w_localdb_sticky-overlay_debug.log";
+        let current = "";
+        if (await exists(logFile, { baseDir: BaseDirectory.AppData })) {
+          current = await readTextFile(logFile, { baseDir: BaseDirectory.AppData });
+        }
+        await writeTextFile(logFile, current + "\n" + logLine, { baseDir: BaseDirectory.AppData });
+      } catch {}
+    };
+
+    console.log = (...args) => {
+      originalLog(...args);
+      logToLocalDb("INFO", args);
+    };
+    console.error = (...args) => {
+      originalError(...args);
+      logToLocalDb("ERROR", args);
+    };
+    console.warn = (...args) => {
+      originalWarn(...args);
+      logToLocalDb("WARN", args);
+    };
+
+    return () => {
+      console.log = originalLog;
+      console.error = originalError;
+      console.warn = originalWarn;
+    };
+  }, []);
+
   // Make body transparent for Tauri transparent window
   useEffect(() => {
     document.body.classList.add("transparent-window");
@@ -140,6 +180,42 @@ export function StickyCanvas() {
       initHitTest();
     }
   }, []);
+
+  // Clamping check for off-screen notes (e.g. after monitor disconnection)
+  const isInitializedRef = useRef(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      isInitializedRef.current = true;
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!isInitializedRef.current || notesLoading || !accentReady) return;
+    if (todos.length === 0) return;
+
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    // Safety threshold: don't clamp if window is abnormally small (initializing or hidden)
+    if (width <= 800 || height <= 600) return;
+
+    todos.forEach((todo) => {
+      const pos = positions[todo.id] || todo.stickyPosition;
+      if (pos) {
+        // StickyNote size is roughly 300x200
+        const clampedX = Math.max(20, Math.min(pos.x, width - 320));
+        const clampedY = Math.max(20, Math.min(pos.y, height - 220));
+
+        if (clampedX !== pos.x || clampedY !== pos.y) {
+          console.log(`[StickyCanvas] Clamping off-screen note ${todo.title} (${todo.id}) from (${pos.x}, ${pos.y}) to (${clampedX}, ${clampedY})`);
+          savePositionLocal(todo.id, { x: clampedX, y: clampedY });
+          syncPositionToFirestore(todo.id, { x: clampedX, y: clampedY });
+        }
+      }
+    });
+  }, [todos, positions, notesLoading, accentReady]);
 
   // Update sticky note bounding boxes whenever notes or positions change
   const triggerUpdateRegions = useCallback(() => {

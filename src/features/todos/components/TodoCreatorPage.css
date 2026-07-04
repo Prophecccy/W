@@ -1,0 +1,74 @@
+.todo-creator-window-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  padding: 16px;
+  box-sizing: border-box;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+}
+
+.todo-creator-window-container--loading {
+  background: rgba(10, 10, 10, 0.85);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-family: 'Departure Mono', monospace;
+}
+
+.todo-creator-window-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: rgba(10, 10, 10, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Ensure the TodoForm fits perfectly inside our window and looks native */
+.todo-creator-window-content .todo-form.todo-form--single {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 24px !important;
+  margin: 0 !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  width: 100% !important;
+  display: flex;
+  flex-direction: column;
+  animation: none !important; /* already animated at window spawn level */
+}
+
+.todo-creator-window-content .todo-form__body {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Style scrollbar for clean look */
+.todo-creator-window-content .todo-form__body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.todo-creator-window-content .todo-form__body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.todo-creator-window-content .todo-form__body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.todo-creator-window-content .todo-form__body::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}

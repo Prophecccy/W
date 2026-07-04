@@ -73,6 +73,14 @@ export function TodosPage() {
   useEffect(() => {
     const handleOpenForm = () => setIsFormOpen(true);
     window.addEventListener("w:open-todo-form", handleOpenForm);
+
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get("action") === "new") {
+      setIsFormOpen(true);
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, "", newUrl);
+    }
+
     return () => window.removeEventListener("w:open-todo-form", handleOpenForm);
   }, []);
 

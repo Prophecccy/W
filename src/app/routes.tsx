@@ -12,6 +12,7 @@ import { StickyCanvas } from "../features/sticky-notes/components/StickyCanvas";
 import { WidgetApp } from "../features/widget/components/WidgetApp";
 import { LogbookPage } from "../features/logs/components/LogbookPage";
 import { BlockOverlay } from "../features/lockdown/components/BlockOverlay";
+import { TodoCreatorPage } from "../features/todos/components/TodoCreatorPage";
 
 
 export const router = createBrowserRouter([
@@ -40,6 +41,14 @@ export const router = createBrowserRouter([
   {
     path: "/block-overlay",
     element: <BlockOverlay />,
+  },
+  {
+    path: "/todo-creator",
+    element: (
+      <AuthGuard>
+        <TodoCreatorPage />
+      </AuthGuard>
+    ),
   },
   {
     path: "/",

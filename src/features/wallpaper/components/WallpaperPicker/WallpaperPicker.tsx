@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uploadWallpaper, removeWallpaper } from "../../services/wallpaperService";
 import { getAllLocalWallpapers, setLocalWallpaper } from "../../../../shared/utils/storageUtils";
-import { Wallpapers } from "../../../../shared/types";
+import { Wallpapers, Aesthetics } from "../../../../shared/types";
 import { useToast } from "../../../../shared/components/Toast/Toast";
 import { Image as ImageIcon, Upload, Trash2, Contrast, Droplet } from "lucide-react";
 import { useAuthContext } from "../../../auth/context";
-import { getUserDoc, updateUserDoc } from "../../../auth/services/userService";
+import { updateUserDoc } from "../../../auth/services/userService";
 import { isTauri, isMobileWeb } from "../../../../shared/utils/tauri";
 import { WallpaperCropEditor, CropResult } from "../WallpaperCropEditor/WallpaperCropEditor";
 import "./WallpaperPicker.css";
@@ -33,7 +33,13 @@ function getVisibleSlots() {
   return ALL_SLOTS.filter(s => s.key === "desktop");
 }
 
-export function WallpaperPicker() {
+export function WallpaperPicker({
+  aesthetics,
+  onUpdateAesthetics,
+}: {
+  aesthetics: Aesthetics;
+  onUpdateAesthetics: (patch: Partial<Aesthetics>) => void;
+}) {
   const { showToast } = useToast();
   
   const [wallpapers, setWallpapers] = useState<Wallpapers>({
@@ -49,10 +55,11 @@ export function WallpaperPicker() {
   const [cropFile, setCropFile] = useState<File | null>(null);
   
   const { user } = useAuthContext();
-  const [dimDesktop, setDimDesktop] = useState(0.2);
-  const [blurDesktop, setBlurDesktop] = useState(0);
-  const [dimWidget, setDimWidget] = useState(0.7);
-  const [blurWidget, setBlurWidget] = useState(0);
+
+  const dimDesktop = aesthetics.desktop?.dimIntensity ?? 0.2;
+  const blurDesktop = aesthetics.desktop?.blurIntensity ?? 0;
+  const dimWidget = aesthetics.widget?.dimIntensity ?? 0.7;
+  const blurWidget = aesthetics.widget?.blurIntensity ?? 0;
 
   useEffect(() => {
     // Fetch directly from IndexedDB on mount
@@ -61,40 +68,49 @@ export function WallpaperPicker() {
     }).catch(err => {
       console.error("Failed to load local wallpapers", err);
     });
+  }, []);
 
-    if (user) {
-      getUserDoc(user.uid).then(doc => {
-        if (doc) {
-          setDimDesktop(doc.aesthetics?.desktop?.dimIntensity ?? 0.2);
-          setBlurDesktop(doc.aesthetics?.desktop?.blurIntensity ?? 0);
-          setDimWidget(doc.aesthetics?.widget?.dimIntensity ?? 0.7);
-          setBlurWidget(doc.aesthetics?.widget?.blurIntensity ?? 0);
-        }
-      });
-    }
-  }, [user]);
-
-  const handleDimChange = async (slot: 'desktop' | 'widget', e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDimChange = (slot: 'desktop' | 'widget', e: React.ChangeEvent<HTMLInputElement>) => {
     const v = parseFloat(e.target.value);
     if (slot === 'desktop') {
-      setDimDesktop(v);
       document.documentElement.style.setProperty("--app-wallpaper-dim", v.toString());
-      if (user) await updateUserDoc(user.uid, { "aesthetics.desktop.dimIntensity": v } as any);
+      onUpdateAesthetics({
+        desktop: { ...aesthetics.desktop, dimIntensity: v }
+      });
     } else {
-      setDimWidget(v);
-      if (user) await updateUserDoc(user.uid, { "aesthetics.widget.dimIntensity": v } as any);
+      const channel = new BroadcastChannel('w_channel');
+      channel.postMessage({
+        type: 'WIDGET_AESTHETICS_PREVIEW',
+        dimIntensity: v,
+        blurIntensity: aesthetics.widget?.blurIntensity ?? 0
+      });
+      channel.close();
+
+      onUpdateAesthetics({
+        widget: { ...aesthetics.widget, dimIntensity: v }
+      });
     }
   };
 
-  const handleBlurChange = async (slot: 'desktop' | 'widget', e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBlurChange = (slot: 'desktop' | 'widget', e: React.ChangeEvent<HTMLInputElement>) => {
     const v = parseFloat(e.target.value);
     if (slot === 'desktop') {
-      setBlurDesktop(v);
       document.documentElement.style.setProperty("--app-wallpaper-blur", `${v}px`);
-      if (user) await updateUserDoc(user.uid, { "aesthetics.desktop.blurIntensity": v } as any);
+      onUpdateAesthetics({
+        desktop: { ...aesthetics.desktop, blurIntensity: v }
+      });
     } else {
-      setBlurWidget(v);
-      if (user) await updateUserDoc(user.uid, { "aesthetics.widget.blurIntensity": v } as any);
+      const channel = new BroadcastChannel('w_channel');
+      channel.postMessage({
+        type: 'WIDGET_AESTHETICS_PREVIEW',
+        dimIntensity: aesthetics.widget?.dimIntensity ?? 0.7,
+        blurIntensity: v
+      });
+      channel.close();
+
+      onUpdateAesthetics({
+        widget: { ...aesthetics.widget, blurIntensity: v }
+      });
     }
   };
 

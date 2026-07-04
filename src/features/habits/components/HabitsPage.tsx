@@ -122,6 +122,13 @@ export function HabitsPage() {
     window.addEventListener("w:open-habit-form", handleOpenForm);
     window.addEventListener("w:select-habit", handleSelectHabit);
 
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get("action") === "new") {
+      setIsFormOpen(true);
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, "", newUrl);
+    }
+
     return () => {
       window.removeEventListener("w:open-habit-form", handleOpenForm);
       window.removeEventListener("w:select-habit", handleSelectHabit);
@@ -452,7 +459,12 @@ export function HabitsPage() {
           </div>
         ) : (
           <div className="habits-page__layout-container">
-            {layoutMode === 'default' && (
+            {layoutMode === 'custom' && (
+              <div className="t-meta" style={{ padding: '12px 0 24px', opacity: 0.5 }}>
+                 Custom drag-and-drop sort mode active. (Reordering handled by parent wrapper in full implementation)
+              </div>
+            )}
+            {(layoutMode === 'default' || layoutMode === 'custom') && (
               <div className="habits-grid">
                 {scheduled.map((h, index) => (
                   <HabitCard 
@@ -548,11 +560,7 @@ export function HabitsPage() {
               </div>
             )}
 
-            {layoutMode === 'custom' && (
-              <div className="t-meta" style={{ padding: '24px 0', opacity: 0.5 }}>
-                 Custom drag-and-drop sort mode active. (Reordering handled by parent wrapper in full implementation)
-              </div>
-            )}
+
 
             {upcoming.length > 0 && (
               <div className="habits-section">
@@ -699,8 +707,11 @@ function formatDate(date: Date): string {
 
 function getWeekStart(dateStr: string, weekStartDay: number): string {
   const d = new Date(dateStr + "T12:00:00");
-  while (d.getDay() !== weekStartDay) {
+  if (isNaN(d.getTime())) return dateStr;
+  let safety = 0;
+  while (d.getDay() !== weekStartDay && safety < 10) {
     d.setDate(d.getDate() - 1);
+    safety++;
   }
   return formatDate(d);
 }

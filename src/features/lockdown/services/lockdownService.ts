@@ -3,9 +3,8 @@
 // NOTE: recordViolation and strike logic have been removed.
 // Lockdown now uses a physical block overlay instead of punishment.
 
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { db, auth } from "../../../shared/config/firebase";
-import { LockdownState, DEFAULT_LOCKDOWN_STATE } from "../types";
+import { db, auth, doc, getDoc, updateDoc } from "../../../shared/config/firebase";
+import { LockdownState, DEFAULT_LOCKDOWN_STATE, LockdownSchedule } from "../types";
 
 function uid(): string {
   const u = auth.currentUser;
@@ -155,5 +154,110 @@ export async function resumeLockdownIfActive(userId?: string): Promise<boolean> 
   } catch (err) {
     console.error("[lockdown] resumeLockdownIfActive FAILED:", err);
     return false;
+  }
+}
+
+// ─── Scheduled Lockdown Management ───────────────────────────────
+
+export async function updateSchedules(schedules: LockdownSchedule[]): Promise<void> {
+  const activeUid = uid();
+  await updateDoc(doc(db, "users", activeUid), {
+    "lockdown.schedules": schedules,
+  });
+}
+
+// Keep track of the last blocklist in memory to avoid redundant tauri calls
+let lastAppliedBlocklistJson = "";
+let wasBlocking = false;
+
+export async function syncActiveLockdownState(userId?: string): Promise<void> {
+  try {
+    const activeUid = userId || uid();
+    const state = await getLockdownState(activeUid);
+
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+
+    // 1. Determine active schedules
+    const activeSchedules = (state.schedules ?? []).filter((s) => {
+      if (!s.enabled) return false;
+      if (!s.days.includes(currentDay)) return false;
+
+      const [startH, startM] = s.startTime.split(":").map(Number);
+      const [endH, endM] = s.endTime.split(":").map(Number);
+      const startMin = startH * 60 + startM;
+      const endMin = endH * 60 + endM;
+
+      if (startMin <= endMin) {
+        return currentMinutes >= startMin && currentMinutes < endMin;
+      } else {
+        // Overnight schedule
+        return currentMinutes >= startMin || currentMinutes < endMin;
+      }
+    });
+
+    // 2. Determine manual lockdown state
+    let manualActive = false;
+    if (state.active) {
+      if (state.duration && state.startedAt) {
+        const elapsedMs = Date.now() - state.startedAt;
+        const elapsedMins = elapsedMs / 1000 / 60;
+        if (elapsedMins < state.duration) {
+          manualActive = true;
+        } else {
+          // Duration expired — auto de-activate manual state
+          console.log("[lockdown] Manual duration expired — deactivating in Firestore");
+          await deactivateLockdown(activeUid);
+        }
+      } else {
+        // Infinite manual session
+        manualActive = true;
+      }
+    }
+
+    // 3. Combine targets
+    const scheduleBlocklist = activeSchedules.flatMap((s) => s.blocklist);
+    const manualBlocklist = manualActive ? (state.blocklist ?? []) : [];
+    const combined = Array.from(new Set([...scheduleBlocklist, ...manualBlocklist]));
+
+    // 4. Update Rust monitor
+    const shouldBeBlocking = combined.length > 0;
+    const combinedJson = JSON.stringify(combined.sort());
+
+    const { isTauri } = await import("../../../shared/utils/tauri");
+    if (!isTauri()) return;
+
+    const { invoke } = await import("@tauri-apps/api/core");
+
+    if (shouldBeBlocking) {
+      if (!wasBlocking || combinedJson !== lastAppliedBlocklistJson) {
+        console.log("[lockdown] Syncing blocklist to Rust:", combined);
+        await invoke("start_lockdown_monitor", {
+          blocklist: combined,
+          remainingSecs: null, // Schedules run continuously without fixed countdowns
+        });
+        wasBlocking = true;
+        lastAppliedBlocklistJson = combinedJson;
+      }
+    } else {
+      if (wasBlocking) {
+        console.log("[lockdown] Syncing to inactive — stopping Rust monitor");
+        await invoke("stop_lockdown_monitor");
+        wasBlocking = false;
+        lastAppliedBlocklistJson = "";
+        
+        // Hide the block overlay if active
+        try {
+          const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+          const overlay = await WebviewWindow.getByLabel("block-overlay");
+          if (overlay) {
+            await overlay.hide();
+          }
+        } catch {}
+      }
+    }
+  } catch (err) {
+    console.error("[lockdown] syncActiveLockdownState failed:", err);
   }
 }

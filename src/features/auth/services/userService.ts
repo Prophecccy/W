@@ -1,6 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs, writeBatch, deleteDoc } from "firebase/firestore";
-import { deleteUser } from "firebase/auth";
-import { db, auth } from "../../../shared/config/firebase";
+import { db, auth, doc, getDoc, setDoc, updateDoc, collection, getDocs, writeBatch, deleteDoc, deleteUser } from "../../../shared/config/firebase";
 import { User, Settings, Aesthetics, Wallpapers } from "../../../shared/types";
 import { getToday, subtractDays } from "../../../shared/utils/dateUtils";
 

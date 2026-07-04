@@ -80,6 +80,7 @@
 .habits-page__content {
   flex-grow: 1;
   overflow-y: auto;
+  padding-top: 8px;
   padding-bottom: 24px;
   /* Scrollbar override */
 }

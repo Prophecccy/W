@@ -35,9 +35,10 @@ Unlike standard to-do lists, [ W ] operates as a strict, OS-level dashboard desi
 
 | [ DATA TYPE ] | [ STORAGE LOCATION ] | [ PURPOSE ] |
 | :--- | :--- | :--- |
-| **Account Credentials** | ☁️ Cloud (Firebase Auth) | Secure login & authentication. |
-| **Habits & Todos** | ☁️ Cloud (Firestore) | Cross-device synchronization. |
-| **Fuel Calibration** | ☁️ Cloud (Firestore) | Syncs your sleep/wake cycle across platforms. |
+| **Account Credentials** | 🔒 Local (IndexedDB) | Local guest profile authentication. |
+| **Habits & Todos** | 🔒 Local (IndexedDB) | Local-first habits & todos storage. |
+| **Fuel Calibration** | 🔒 Local (IndexedDB) | Sleep/wake cycle configuration. |
+| **Google Drive Sync** | ☁️ Personal Cloud (GDrive) | Encrypted sync & backup of dashboard state. |
 | **Window Coordinates** | 🔒 Local (Disk) | Persistent layout memory. Never leaves your machine. |
 | **Lockdown Blocklists** | 🔒 Local (OS Level) | Native process blocking. Never leaves your machine. |
 | **App Settings & UI** | 🔒 Local (Disk) | Interface preferences and theme configurations. |
@@ -49,7 +50,7 @@ Built for extreme performance and deep OS-level control.
 * **Core:** Tauri v2 (Rust)
 * **Frontend:** React (Vite / TypeScript)
 * **Styling:** Pure Vanilla CSS (No Tailwind, strict Design System Tokens)
-* **Data:** Firebase (Auth & Cloud Firestore)
+* **Data:** Local-first (IndexedDB) + Encrypted Google Drive Sync
 * **OS APIs:** `windows-rs` for Z-order manipulation and foreground window interception.
 
 ## [ DEPLOYMENT ]

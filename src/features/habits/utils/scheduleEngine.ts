@@ -22,8 +22,11 @@ export function isHabitResting(
 // Helper functions for period calculations
 function getWeekStart(dateStr: string, weekStartDay: number): string {
   const d = new Date(dateStr + "T12:00:00");
-  while (d.getDay() !== weekStartDay) {
+  if (isNaN(d.getTime())) return dateStr;
+  let safety = 0;
+  while (d.getDay() !== weekStartDay && safety < 10) {
     d.setDate(d.getDate() - 1);
+    safety++;
   }
   return formatDate(d);
 }
@@ -52,7 +55,7 @@ export function isHabitScheduledToday(
   if (today < activationDate) return false;
 
   // Check endpoint duration
-  if (habit.duration.type === "endpoint" && habit.duration.endDate) {
+  if (habit.duration && habit.duration.type === "endpoint" && habit.duration.endDate) {
     if (today > habit.duration.endDate) return false;
   }
 

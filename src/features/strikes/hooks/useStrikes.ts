@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "../../../shared/config/firebase";
+import { db, doc, onSnapshot } from "../../../shared/config/firebase";
 import { StrikeState, MAX_STRIKES } from "../types";
 import { addStrike, resetStrikes } from "../services/strikeService";
 import { useAuthContext } from "../../auth/context";

@@ -1,6 +1,6 @@
 import { createContext, useContext, ReactNode } from "react";
 import { useAuth } from "./hooks/useAuth";
-import { User as FirebaseUser } from "firebase/auth";
+import { LocalUser as FirebaseUser } from "../../shared/services/localDb";
 
 interface AuthContextType {
   user: FirebaseUser | null;

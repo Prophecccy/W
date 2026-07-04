@@ -1,6 +1,16 @@
 // ─── Lockdown Mode Types ─────────────────────────────────────────
 // Behavior: inactive → active (monitoring) → blocked app detected → overlay intercept
 
+export interface LockdownSchedule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  startTime: string; // "HH:MM" in 24h format
+  endTime: string;   // "HH:MM" in 24h format
+  days: number[];    // [0..6] (0 = Sunday, 1 = Monday, etc.)
+  blocklist: string[];
+}
+
 export interface LockdownState {
   active: boolean;
   startedAt: number | null;       // Date.now() when activated
@@ -10,6 +20,7 @@ export interface LockdownState {
   totalSessions: number;
   totalViolations: number;
   remainingSeconds?: number | null; // Monotonic countdown track
+  schedules?: LockdownSchedule[];  // Scheduled lockdowns
 }
 
 export interface LockdownViolation {
@@ -192,4 +203,5 @@ export const DEFAULT_LOCKDOWN_STATE: LockdownState = {
   violations: [],
   totalSessions: 0,
   totalViolations: 0,
+  schedules: [],
 };

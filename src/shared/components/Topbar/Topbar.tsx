@@ -1,10 +1,11 @@
-import { Search, Minus, Square, X, Download } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { Search, Minus, Square, X, Download, Snowflake } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useUpdateManager } from "../../../features/updater/hooks/useUpdateManager";
 import "./Topbar.css";
 
 interface TopbarProps {
   onCommandPaletteOpen: () => void;
+  isFrozen?: boolean;
 }
 
 const TITLE_MAP: Record<string, string> = {
@@ -18,9 +19,10 @@ const TITLE_MAP: Record<string, string> = {
   "/lockdown": "[ LOCKDOWN ]"
 };
 
-export function Topbar({ onCommandPaletteOpen }: TopbarProps) {
+export function Topbar({ onCommandPaletteOpen, isFrozen = false }: TopbarProps) {
   const { phase, startUpdate } = useUpdateManager();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const handleMinimize = async () => {
     try {
@@ -76,7 +78,19 @@ export function Topbar({ onCommandPaletteOpen }: TopbarProps) {
           <Search size={14} strokeWidth={1.5} />
           <span className="t-meta">CTRL+K</span>
         </button>
-        <span className="topbar__title">{currentTitle}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span className="topbar__title">{currentTitle}</span>
+          {isFrozen && (
+            <button
+              className="topbar__freeze-indicator"
+              onClick={() => navigate("/settings?tab=data")}
+              title="Habits are currently frozen. Click to manage."
+            >
+              <Snowflake size={11} strokeWidth={2} />
+              <span>FROZEN</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {isTauri && (

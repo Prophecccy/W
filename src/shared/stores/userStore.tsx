@@ -2,8 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { useAuthContext } from "../../features/auth/context";
 import { getUserDoc, updateUserDoc } from "../../features/auth/services/userService";
 import { User, Settings } from "../types";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "../config/firebase";
+import { db, doc, onSnapshot } from "../config/firebase";
 
 
 // ─── Context shape ───────────────────────────────────────────────
@@ -22,6 +21,9 @@ interface UserStoreContextType {
 }
 
 export const UserStoreContext = createContext<UserStoreContextType | undefined>(undefined);
+
+// In-memory lock to prevent overlapping migration runs from multiple snapshot triggers
+let isMigrationRunning = false;
 
 // ─── Provider ────────────────────────────────────────────────────
 export function UserProvider({ children }: { children: ReactNode }) {
@@ -44,7 +46,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const userRef = doc(db, "users", user.uid);
     const unsubscribe = onSnapshot(
       userRef,
-      (snap) => {
+      async (snap) => {
         if (snap.exists()) {
           const docData = snap.data() as User;
           if (typeof window !== "undefined" && docData.settings?.dailyResetTime) {
@@ -54,7 +56,30 @@ export function UserProvider({ children }: { children: ReactNode }) {
         } else {
           setUserDoc(null);
         }
+
         setLoading(false);
+
+        // Run one-time auto-migration check from Firestore if logged in with Google
+        if (user.uid !== "local-user") {
+          const migratedKey = `w_migrated_v2_${user.uid}`;
+          if (localStorage.getItem(migratedKey) !== "true" && !isMigrationRunning) {
+            isMigrationRunning = true;
+            (async () => {
+              try {
+                const { getValidAccessToken } = await import("../../shared/services/googleDriveService");
+                const accessToken = await getValidAccessToken();
+                if (accessToken) {
+                  const { migrateFirestoreToLocal } = await import("../../features/auth/services/authService");
+                  await migrateFirestoreToLocal(user.uid, accessToken);
+                }
+              } catch (err) {
+                console.error("[UserStore] Auto-migration check failed:", err);
+              } finally {
+                isMigrationRunning = false;
+              }
+            })();
+          }
+        }
       },
       (err) => {
         console.error("[UserStore] onSnapshot failed:", err);
