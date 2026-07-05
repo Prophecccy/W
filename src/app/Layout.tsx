@@ -611,7 +611,7 @@ function LayoutInner() {
   useEffect(() => {
     if (phase !== "ready" || !user) return;
 
-    let backupTimer: NodeJS.Timeout | null = null;
+    let backupTimer: ReturnType<typeof setTimeout> | null = null;
     let isUnmounted = false;
 
     // Fetch user reset time (reactive dynamically)

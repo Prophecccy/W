@@ -4,7 +4,7 @@ import { getToday, formatDate, subtractDays, isBeforeResetTime } from "./dateUti
 // Mock localStorage for Node test environment
 if (typeof localStorage === "undefined") {
   const store: Record<string, string> = {};
-  global.localStorage = {
+  (globalThis as any).localStorage = {
     getItem: (key: string) => store[key] || null,
     setItem: (key: string, value: string) => { store[key] = String(value); },
     removeItem: (key: string) => { delete store[key]; },

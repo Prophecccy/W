@@ -19,7 +19,7 @@ const ToastContext = createContext<ToastContextType | undefined>(undefined);
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [activeToast, setActiveToast] = useState<Toast | null>(null);
   const [queue, setQueue] = useState<Toast[]>([]);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const hideToast = useCallback((id: string) => {
     setActiveToast((current) => {

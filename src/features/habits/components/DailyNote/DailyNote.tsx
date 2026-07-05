@@ -25,7 +25,7 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
   latestNoteRef.current = note;
   const [isSaving, setIsSaving] = useState(false);
   const [syncStatus, setSyncStatus] = useState<"synced" | "pending" | "offline">("synced");
-  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { showToast } = useToast();
   const navigate = useNavigate();
 
