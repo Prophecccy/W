@@ -147,16 +147,18 @@ async function completeHabitImpl(
     completions: [...existing.completions, entry],
   };
 
-  // Write log entry — setDoc with merge: true is concurrent-safe and prevents overwriting
-  await setDoc(
-    ref,
-    {
+  // Write log entry — update nested field if document exists, otherwise initialize document
+  if (snap.exists()) {
+    await updateDoc(ref, {
+      [`habits.${habitId}`]: newEntry,
+    });
+  } else {
+    await setDoc(ref, {
       date: today,
       uid: userId,
       habits: { [habitId]: newEntry },
-    },
-    { merge: true }
-  );
+    });
+  }
 
   // Update habit stats
   let habitTitle = "Limiter";
