@@ -340,5 +340,36 @@
     gap: 24px;
   }
 }
+.habit-form__days-selector {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+}
 
+.habit-form__day-btn {
+  flex: 1;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  padding: 8px 0;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  text-align: center;
+  transition: all var(--transition-fast);
+}
 
+.habit-form__day-btn:hover {
+  background: rgba(24, 26, 30, 0.85);
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+}
+
+.habit-form__day-btn--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg-elevated);
+  font-weight: bold;
+}

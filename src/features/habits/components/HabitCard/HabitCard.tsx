@@ -102,7 +102,7 @@ export function HabitCard({
       holdTimeoutRef.current = null;
     }
 
-    if (isResting || upcomingStatus || isCompletedToday) return;
+    if (isResting || upcomingStatus) return;
     
     setIsHolding(true);
     setCompleteTriggered(false);
@@ -111,21 +111,27 @@ export function HabitCard({
       setCompleteTriggered(true);
       setIsHolding(false);
       hasHeldRef.current = true;
-      playCompletionSound();
-      onComplete();
+      
+      if (isCompletedToday) {
+        onUndo();
+        showToast(`Undid ${habit.title}`);
+      } else {
+        playCompletionSound();
+        onComplete();
 
-      const isLimiter = habit.type === "limiter";
-      const isExceeded = isLimiter && (currentValue + 1) > target;
-      const toastMessage = isLimiter
-        ? isExceeded
-          ? `[ LIMIT EXCEEDED ] Strike added!`
-          : `Logged ${habit.title}`
-        : `Completed ${habit.title}`;
+        const isLimiter = habit.type === "limiter";
+        const isExceeded = isLimiter && (currentValue + 1) > target;
+        const toastMessage = isLimiter
+          ? isExceeded
+            ? `[ LIMIT EXCEEDED ] Strike added!`
+            : `Logged ${habit.title}`
+          : `Completed ${habit.title}`;
 
-      showToast(toastMessage, {
-        actionLabel: 'UNDO',
-        onAction: () => onUndo()
-      });
+        showToast(toastMessage, {
+          actionLabel: 'UNDO',
+          onAction: () => onUndo()
+        });
+      }
     }, HOLD_DURATION);
   };
 
@@ -144,8 +150,8 @@ export function HabitCard({
     const deltaX = Math.abs(e.clientX - pointerStartCoordsRef.current.x);
     const deltaY = Math.abs(e.clientY - pointerStartCoordsRef.current.y);
     
-    // If the pointer has drifted by more than 5px, cancel the hold immediately!
-    if (deltaX > 5 || deltaY > 5) {
+    // If the pointer has drifted by more than 15px, cancel the hold immediately!
+    if (deltaX > 15 || deltaY > 15) {
       cancelHold();
     }
   };

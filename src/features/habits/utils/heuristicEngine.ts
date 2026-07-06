@@ -70,7 +70,7 @@ export function calculateRisk(
   now: Date = new Date()
 ): RiskResult {
   const ageMs = now.getTime() - habit.createdAt;
-  const historyCount = historicalLogs.filter((log) => log.habits[habit.id]).length;
+  const historyCount = historicalLogs.filter((log) => log.habits && log.habits[habit.id]).length;
 
   if (ageMs < 3 * 24 * 3600 * 1000 || historyCount < MIN_DATA_POINTS) {
     return {
@@ -230,7 +230,7 @@ function calcLoadFactor(
 
   for (const log of logs) {
     let count = 0;
-    for (const entry of Object.values(log.habits)) {
+    for (const entry of Object.values(log.habits || {})) {
       if (entry.completed) count++;
     }
     dailyCounts.push(count);

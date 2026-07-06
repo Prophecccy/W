@@ -321,7 +321,7 @@ export async function processGap(
       // Special evaluation for multi-day metric/limiter and standard anyday habits
       const isMultiDayPeriodEvaluation =
         (habit.period === "weekly" || habit.period === "monthly") &&
-        (habit.type === "metric" || habit.type === "limiter" || (habit.type === "standard" && (!habit.daysOfWeek || habit.daysOfWeek.length === 0)));
+        (habit.type === "metric" || habit.type === "limiter" || habit.type === "standard");
 
       if (isMultiDayPeriodEvaluation) {
         // BUG 9: Multi-Day Period End Penalty Bypassing via a Single Frozen Day
@@ -389,19 +389,6 @@ export async function processGap(
           continue;
         }
 
-        // BUG 3: Standard weekly habits without daysOfWeek should only be evaluated on the week's end date
-        const isStandardWeeklyAnyday =
-          habit.period === "weekly" &&
-          habit.type === "standard" &&
-          (!habit.daysOfWeek || habit.daysOfWeek.length === 0);
-
-        if (isStandardWeeklyAnyday) {
-          const isPeriodEnd = currentDate.getDay() === (weeklyResetDay === 0 ? 6 : weeklyResetDay - 1);
-          if (!isPeriodEnd) {
-            continue; // Skip evaluation until the end of the week
-          }
-        }
-
         // Was this habit scheduled on this day?
         if (!isHabitScheduledToday(habit, dateStr, weeklyResetDay)) {
           continue;
@@ -426,7 +413,12 @@ export async function processGap(
               habit.longestStreak = longestStreak;
               habit.lastCompletedDate = dateStr;
             } else {
-              await updateDoc(habitRef, { currentStreak: 0 });
+              const updates: Record<string, any> = { currentStreak: 0 };
+              if (habit.period === "interval") {
+                updates.lastCompletedDate = dateStr;
+                habit.lastCompletedDate = dateStr;
+              }
+              await updateDoc(habitRef, updates);
               habit.currentStreak = 0;
             }
           }
@@ -476,7 +468,12 @@ export async function processGap(
         const u = auth.currentUser;
         if (u) {
           const habitRef = doc(db, "users", u.uid, "habits", habit.id);
-          await updateDoc(habitRef, { currentStreak: 0 });
+          const updates: Record<string, any> = { currentStreak: 0 };
+          if (habit.period === "interval") {
+            updates.lastCompletedDate = dateStr;
+            habit.lastCompletedDate = dateStr;
+          }
+          await updateDoc(habitRef, updates);
           habit.currentStreak = 0;
         }
       }

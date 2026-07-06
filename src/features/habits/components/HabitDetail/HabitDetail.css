@@ -239,6 +239,25 @@
   color: var(--strike-red);
 }
 
+.btn-undo {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: none;
+  cursor: pointer;
+  padding: 8px 24px;
+  transition: all var(--transition-fast);
+}
+
+.btn-undo:hover {
+  background: var(--bg-surface);
+  color: var(--text-bright);
+}
+
+.btn-undo:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

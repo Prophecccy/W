@@ -105,6 +105,26 @@ export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest, userRes
     }
   }
 
+  async function handleUndo() {
+    try {
+      setIsSaving(true);
+      const { uncompleteHabit } = await import("../../services/logService");
+      const updates = await uncompleteHabit(habit.id, userResetTime);
+      if (updates) {
+        onUpdate({ ...habit, ...updates });
+        showToast("[ LOG COMPILATION UNDONE ]");
+      } else {
+        showToast("[ NOTHING TO UNDO ]");
+      }
+      onClose();
+    } catch (err) {
+      console.error("Failed to undo habit completion in detail modal:", err);
+      showToast("[ FAILED TO UNDO ]");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function handleArchive() {
     const confirmed = await confirmDialog("Soft-delete (Archive) this habit? It won't appear, but data remains.");
     if (!confirmed) return;
@@ -248,7 +268,7 @@ export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest, userRes
                 )}
               </div>
 
-              <div className="habit-detail__actions">
+              <div className="habit-detail__actions" style={{ display: 'flex', gap: '12px' }}>
                 <button 
                   className="btn-save t-label" 
                   onClick={handleSave} 
@@ -256,6 +276,14 @@ export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest, userRes
                   style={{ color: title !== habit.title || desc !== habit.description ? habit.color : 'inherit' }}
                 >
                   {isSaving ? "[ SAVING... ]" : "[ SAVE EDITS ]"}
+                </button>
+                <button 
+                  type="button"
+                  className="btn-undo t-label" 
+                  onClick={handleUndo} 
+                  disabled={isSaving}
+                >
+                  [ UNDO LOG ]
                 </button>
               </div>
             </div>

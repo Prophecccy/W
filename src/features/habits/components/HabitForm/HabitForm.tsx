@@ -329,6 +329,33 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
                   </div>
                 )}
 
+                {data.period === "weekly" && (
+                  <div className="habit-form__field">
+                    <label className="t-meta">DAYS OF WEEK</label>
+                    <div className="habit-form__days-selector">
+                      {["S", "M", "T", "W", "T", "F", "S"].map((dayName, idx) => {
+                        const active = (data.daysOfWeek || [0,1,2,3,4,5,6]).includes(idx);
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            className={`habit-form__day-btn ${active ? "habit-form__day-btn--active" : ""}`}
+                            onClick={() => {
+                              const currentDays = data.daysOfWeek || [0,1,2,3,4,5,6];
+                              const nextDays = active
+                                ? currentDays.filter(d => d !== idx)
+                                : [...currentDays, idx].sort((a, b) => a - b);
+                              update({ daysOfWeek: nextDays });
+                            }}
+                          >
+                            {dayName}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div className="habit-form__field" style={{ marginTop: 8 }}>
                   <label className="t-meta">COMMENCEMENT</label>
                   <div className="habit-form__radio-group-compact">

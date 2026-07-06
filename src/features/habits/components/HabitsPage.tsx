@@ -302,7 +302,23 @@ export function HabitsPage() {
         const newCompletions = existing.completions.slice(0, -1);
         const lastValue = existing.completions[existing.completions.length - 1].value;
         const newValue = Math.max(0, (existing.value ?? 0) - lastValue);
-        const isCompleted = newValue >= (existing.target ?? 1);
+        
+        const habit = originalHabits.find(h => h.id === habitId);
+        const isMulti = habit && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
+        const targetVal = habit?.type === "standard" ? (habit.frequency || 1) : (existing.target ?? 1);
+        
+        let isCompleted = false;
+        if (habit) {
+          if (habit.type === "limiter") {
+            isCompleted = false;
+          } else if (isMulti) {
+            const periodStart = getPeriodStart(habit, today, userDoc?.settings?.weeklyResetDay ?? 1);
+            const currentCum = getTotalInRange(originalPeriodLogs, habitId, periodStart);
+            isCompleted = (currentCum - lastValue) >= targetVal;
+          } else {
+            isCompleted = newValue >= targetVal;
+          }
+        }
 
         if (newCompletions.length === 0) {
           delete newHabits[habitId];
@@ -476,6 +492,7 @@ export function HabitsPage() {
                       const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
                       if (h.type === 'limiter') return interactedToday;
                       const isMulti = h.period === "weekly" || h.period === "monthly" || h.period === "interval";
+                      if (h.type === "standard" && isMulti) return interactedToday;
                       return h.type === "metric" && isMulti && interactedToday;
                     })()}
                     onComplete={() => handleComplete(h.id)} 
@@ -508,6 +525,7 @@ export function HabitsPage() {
                                const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
                                if (h.type === 'limiter') return interactedToday;
                                const isMulti = h.period === "weekly" || h.period === "monthly" || h.period === "interval";
+                               if (h.type === "standard" && isMulti) return interactedToday;
                                return h.type === "metric" && isMulti && interactedToday;
                              })()}
                              onComplete={() => handleComplete(h.id)}
@@ -537,11 +555,12 @@ export function HabitsPage() {
                               habit={h}
                               isCompletedToday={false}
                               doneToday={(() => {
-                               const entry = log?.habits?.[h.id];
-                               const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
-                               if (h.type === 'limiter') return interactedToday;
-                               const isMulti = h.period === "weekly" || h.period === "monthly" || h.period === "interval";
-                               return h.type === "metric" && isMulti && interactedToday;
+                                const entry = log?.habits?.[h.id];
+                                const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
+                                if (h.type === 'limiter') return interactedToday;
+                                const isMulti = h.period === "weekly" || h.period === "monthly" || h.period === "interval";
+                                if (h.type === "standard" && isMulti) return interactedToday;
+                                return h.type === "metric" && isMulti && interactedToday;
                               })()}
                               onComplete={() => handleComplete(h.id)}
                               onUndo={() => handleUndo(h.id)}
@@ -579,11 +598,18 @@ export function HabitsPage() {
                         key={h.id} 
                         habit={h} 
                         isCompletedToday={false} 
-                        doneToday={false}
-                        onComplete={() => {}} 
-                        onUndo={() => {}} 
-                        onClick={() => setSelectedHabitId(h.id)}
-                        currentValue={0}
+                        doneToday={(() => {
+                           const entry = log?.habits?.[h.id];
+                           const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
+                           if (h.type === 'limiter') return interactedToday;
+                           const isMulti = h.period === "weekly" || h.period === "monthly" || h.period === "interval";
+                           if (h.type === "standard" && isMulti) return interactedToday;
+                           return h.type === "metric" && isMulti && interactedToday;
+                         })()}
+                         onComplete={() => handleComplete(h.id)} 
+                         onUndo={() => handleUndo(h.id)} 
+                         onClick={() => setSelectedHabitId(h.id)}
+                         currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
                         isResting={isResting}
                         userResetTime={userDoc?.settings?.dailyResetTime}
                         upcomingStatus={upcomingStatus}
@@ -631,7 +657,7 @@ export function HabitsPage() {
                       key={h.id} 
                       habit={h} 
                       isCompletedToday={true} 
-                      doneToday={false}
+                      doneToday={true}
                       onComplete={() => handleComplete(h.id)} 
                       onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
                       currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}

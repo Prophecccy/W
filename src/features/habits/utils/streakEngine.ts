@@ -1,5 +1,5 @@
 import { Habit, HabitLog } from "../types";
-import { formatDate } from "../../../shared/utils/dateUtils";
+import { formatDate, getToday } from "../../../shared/utils/dateUtils";
 import { isHabitScheduledToday } from "./scheduleEngine";
 
 /**
@@ -17,9 +17,9 @@ function parseLocalDate(dateStr: string): Date {
  * Calculates the current streak for a single habit based on its log history.
  * Handles daily, weekly, monthly, and interval period types.
  */
-export function calculateStreak(habit: Habit, logs: HabitLog[]): number {
+export function calculateStreak(habit: Habit, logs: HabitLog[], userResetTime?: string): number {
   if (habit.type === "limiter") {
-    const today = formatDate(new Date());
+    const today = getToday(undefined, userResetTime);
     const startLimitDate = habit.startDate || formatDate(new Date(habit.createdAt));
     const sorted = [...logs].sort((a, b) => (a.date > b.date ? -1 : 1));
     let streak = 0;
@@ -92,7 +92,7 @@ export function calculateStreak(habit: Habit, logs: HabitLog[]): number {
   const sorted = [...logs].sort((a, b) => (a.date > b.date ? -1 : 1));
 
   let streak = 0;
-  const today = formatDate(new Date());
+  const today = getToday(undefined, userResetTime);
 
   switch (habit.period) {
     case "daily": {
@@ -224,11 +224,12 @@ export function calculateStreak(habit: Habit, logs: HabitLog[]): number {
 export function calculateGlobalStreak(
   habits: Habit[],
   logs: HabitLog[],
-  weeklyResetDay: number = 1
+  weeklyResetDay: number = 1,
+  userResetTime?: string
 ): number {
   if (habits.length === 0 || logs.length === 0) return 0;
 
-  const today = formatDate(new Date());
+  const today = getToday(undefined, userResetTime);
   const sorted = [...logs].sort((a, b) => (a.date > b.date ? -1 : 1));
 
   const byWeek = groupLogsByISOWeek(logs);

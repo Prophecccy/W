@@ -7,6 +7,7 @@ import { getToday } from '../../../shared/utils/dateUtils';
 import { completeHabit as completeHabitLog, uncompleteHabit as uncompleteHabitLog } from '../../habits/services/logService';
 import { isHabitScheduledToday, isHabitResting } from '../../habits/utils/scheduleEngine';
 import { isTauri } from '../../../shared/utils/tauri';
+import { calculateGlobalStreak } from '../../habits/utils/streakEngine';
 
 export interface WidgetData {
   habits: Habit[];
@@ -157,8 +158,8 @@ export function useWidgetData(): WidgetData {
 
   const totalScheduled = scheduledHabits.length;
 
-  // Global streak = longest current streak across all habits
-  const globalStreak = habits.reduce((max, h) => Math.max(max, h.currentStreak), 0);
+  // Global streak
+  const globalStreak = calculateGlobalStreak(habits, periodLogs, userDoc?.settings?.weeklyResetDay ?? 1, userDoc?.settings?.dailyResetTime);
 
   const weeklyCompletions = periodLogs.reduce((acc, log) => {
     const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;

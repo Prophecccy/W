@@ -1,4 +1,4 @@
-import { db, auth, doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs } from "../../../shared/config/firebase";
+import { db, auth, doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, limit } from "../../../shared/config/firebase";
 import { HabitLog, HabitLogEntry, CompletionEntry } from "../types";
 import { getToday } from "../../../shared/utils/dateUtils";
 import { addStrike, removeLimiterStrike } from "../../strikes/services/strikeService";
@@ -126,7 +126,7 @@ async function completeHabitImpl(
           prevCumulativeValue += pl.habits?.[habitId]?.value ?? 0;
         }
       }
-      const targetVal = habit.type === "standard" ? 1 : resolvedTarget;
+      const targetVal = habit.type === "standard" ? (habit.frequency || 1) : resolvedTarget;
       isCompleted = habit.type !== "limiter" && (prevCumulativeValue + newValue) >= targetVal;
     } else {
       isCompleted =
@@ -186,15 +186,17 @@ async function completeHabitImpl(
         await updateDoc(habitRef, up);
         updatesToReturn = up;
       } else {
-        const newTotal = (habit.totalCompletions || 0) + 1;
-        const lvlInfo = calculateLevel(newTotal);
-        let updates: Record<string, any> = {
-          totalCompletions: newTotal,
-          level: lvlInfo.level,
-          levelProgress: lvlInfo.progress,
-        };
+        let updates: Record<string, any> = {};
 
         if (justCompleted) {
+          const newTotal = (habit.totalCompletions || 0) + 1;
+          const lvlInfo = calculateLevel(newTotal);
+          updates = {
+            totalCompletions: newTotal,
+            level: lvlInfo.level,
+            levelProgress: lvlInfo.progress,
+          };
+
           const lastDate = (habit.lastCompletedDate as string | null) ?? null;
           let currentStreak = habit.currentStreak || 0;
           let longestStreak = habit.longestStreak || 0;
@@ -245,8 +247,10 @@ async function completeHabitImpl(
           updates.lastCompletedDate = today;
         }
 
-        await updateDoc(habitRef, updates);
-        updatesToReturn = updates;
+        if (Object.keys(updates).length > 0) {
+          await updateDoc(habitRef, updates);
+          updatesToReturn = updates;
+        }
       }
     } else {
       // Existing daily/interval logic
@@ -302,7 +306,7 @@ async function completeHabitImpl(
         await updateDoc(habitRef, updates);
         updatesToReturn = updates;
       } else if (habit.type === "limiter") {
-        limitExceeded = newValue > resolvedTarget;
+        limitExceeded = existing.value <= resolvedTarget && newValue > resolvedTarget;
         if (limitExceeded) {
           const up = { currentStreak: 0 };
           await updateDoc(habitRef, up);
@@ -436,7 +440,8 @@ async function uncompleteHabitImpl(
               const prevLogsQuery = query(
                 logsRef,
                 where("date", "<", today),
-                orderBy("date", "desc")
+                orderBy("date", "desc"),
+                limit(40)
               );
               const prevLogsSnap = await getDocs(prevLogsQuery);
               for (const d of prevLogsSnap.docs) {
@@ -463,7 +468,8 @@ async function uncompleteHabitImpl(
               const prevLogsQuery = query(
                 logsRef,
                 where("date", "<", today),
-                orderBy("date", "desc")
+                orderBy("date", "desc"),
+                limit(40)
               );
               const prevLogsSnap = await getDocs(prevLogsQuery);
               

@@ -88,29 +88,37 @@ export function WidgetHabitList({ today, scheduledHabits, scheduledLimiters, tod
           <div className="widget-habit-list__section-title t-label" style={{ color: "var(--strike-red)", marginBottom: "8px", textShadow: "var(--text-shadow-sharp)" }}>
             [ LIMITERS ]
           </div>
-          {scheduledLimiters.map((habit: Habit) => {
-            const entry = todayLog?.habits?.[habit.id];
-            const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
-            const isMulti = habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval";
-            const start = getPeriodStart(habit, today, weeklyResetDay);
-            const currentValue = isMulti
-              ? getTotalInRange(habit.id, start)
-              : (todayLog?.habits?.[habit.id]?.value || 0);
-            const completions = todayLog?.habits?.[habit.id]?.completions || [];
-            
-            return (
-              <WidgetHabitCard
-                key={habit.id}
-                habit={habit}
-                isCompletedToday={false}
-                doneToday={interactedToday}
-                currentValue={currentValue}
-                completions={completions}
-                onComplete={onComplete}
-                onUndo={onUndo}
-              />
-            );
-          })}
+          {[...scheduledLimiters]
+            .sort((a, b) => {
+              const entryA = todayLog?.habits?.[a.id];
+              const entryB = todayLog?.habits?.[b.id];
+              const intA = (entryA?.completions?.length ?? 0) > 0 || (entryA?.value ?? 0) > 0 ? 1 : 0;
+              const intB = (entryB?.completions?.length ?? 0) > 0 || (entryB?.value ?? 0) > 0 ? 1 : 0;
+              return intA - intB;
+            })
+            .map((habit: Habit) => {
+              const entry = todayLog?.habits?.[habit.id];
+              const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
+              const isMulti = habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval";
+              const start = getPeriodStart(habit, today, weeklyResetDay);
+              const currentValue = isMulti
+                ? getTotalInRange(habit.id, start)
+                : (todayLog?.habits?.[habit.id]?.value || 0);
+              const completions = todayLog?.habits?.[habit.id]?.completions || [];
+              
+              return (
+                <WidgetHabitCard
+                  key={habit.id}
+                  habit={habit}
+                  isCompletedToday={false}
+                  doneToday={interactedToday}
+                  currentValue={currentValue}
+                  completions={completions}
+                  onComplete={onComplete}
+                  onUndo={onUndo}
+                />
+              );
+            })}
         </div>
       )}
     </div>
@@ -141,14 +149,14 @@ function getMonthStart(dateStr: string): string {
 
 function getIntervalStart(habit: Habit, todayStr: string): string {
   if (habit.period !== "interval" || habit.intervalDays <= 0) return todayStr;
-  const created = new Date(habit.createdAt);
-  created.setHours(12, 0, 0, 0); // Normalize to noon to match today comparison
+  const baseDate = habit.startDate ? new Date(habit.startDate + "T12:00:00") : new Date(habit.createdAt);
+  baseDate.setHours(12, 0, 0, 0); // Normalize to noon to match today comparison
   const today = new Date(todayStr + "T12:00:00");
-  const diffDays = Math.floor((today.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays <= 0) return formatDate(created);
+  const diffDays = Math.floor((today.getTime() - baseDate.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) return formatDate(baseDate);
   const segmentStart = diffDays - (diffDays % habit.intervalDays);
-  created.setDate(created.getDate() + segmentStart);
-  return formatDate(created);
+  baseDate.setDate(baseDate.getDate() + segmentStart);
+  return formatDate(baseDate);
 }
 
 function getPeriodStart(habit: Habit, todayStr: string, weekStartDay: number): string {
