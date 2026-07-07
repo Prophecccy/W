@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { TodoType } from "../../types";
-import { createTodo } from "../../services/todoService";
+import { Todo, TodoType } from "../../types";
+import { createTodo, updateTodo } from "../../services/todoService";
 import { HabitGroup } from "../../../habits/types";
 import { createGroup, sanitizeGroupName } from "../../../habits/services/groupService";
 import { getToday } from "../../../../shared/utils/dateUtils";
@@ -12,19 +12,23 @@ interface TodoFormProps {
   onSuccess?: () => void;
   groups?: HabitGroup[];
   dailyResetTime?: string;
+  todoToEdit?: Todo;
 }
 
-export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime }: TodoFormProps) {
+export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todoToEdit }: TodoFormProps) {
   // Input fields
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [type, setType] = useState<TodoType>("standard");
-  const [targetInput, setTargetInput] = useState("5");
-  const [isUrgent, setIsUrgent] = useState(false);
-  const [hasCustomDeadline, setHasCustomDeadline] = useState(false);
-  const [customDeadline, setCustomDeadline] = useState("");
-  const [postDeadlineAction, setPostDeadlineAction] = useState<"keep" | "disappear">("keep");
-  const [group, setGroup] = useState<string | null>(null);
+  const [title, setTitle] = useState(todoToEdit?.title ?? "");
+  const [description, setDescription] = useState(todoToEdit?.description ?? "");
+  const [type, setType] = useState<TodoType>(todoToEdit?.type ?? "standard");
+  const [targetInput, setTargetInput] = useState(todoToEdit?.numbered?.target ? String(todoToEdit.numbered.target) : "5");
+  const [isUrgent, setIsUrgent] = useState(todoToEdit ? todoToEdit.color === "#ff4d4d" : false);
+  const [hasCustomDeadline, setHasCustomDeadline] = useState(todoToEdit ? !!todoToEdit.deadline : false);
+  const [customDeadline, setCustomDeadline] = useState(todoToEdit?.deadline ?? "");
+  const [postDeadlineAction, setPostDeadlineAction] = useState<"keep" | "disappear">(todoToEdit?.postDeadlineAction ?? "keep");
+  const [group, setGroup] = useState<string | null>(todoToEdit?.group ?? null);
+  const [color, setColor] = useState(todoToEdit?.color ?? (todoToEdit?.color || "#5B8DEF"));
+  const [futureDate, setFutureDate] = useState(todoToEdit?.future ?? "");
+  const [hasFutureDate, setHasFutureDate] = useState(todoToEdit ? !!todoToEdit.future : false);
 
   // Group creation state
   const [newGroupName, setNewGroupName] = useState("");
@@ -66,32 +70,40 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime }: To
         deadlineVal = customDeadline;
       }
 
-      const todoData: Parameters<typeof createTodo>[0] = {
+      const todoData: any = {
         title: title.trim(),
         description: description.trim(),
-        type,
-        color: isUrgent ? "#ff4d4d" : "#5B8DEF",
-        order: Date.now(),
+        color: color,
         deadline: deadlineVal,
-        future: null,
+        future: hasFutureDate && futureDate ? futureDate : null,
         group: finalGroup,
       };
 
       if (isUrgent || (hasCustomDeadline && customDeadline)) {
         todoData.postDeadlineAction = postDeadlineAction;
+      } else {
+        todoData.postDeadlineAction = null;
       }
 
       if (type === "numbered") {
         const parsed = parseInt(targetInput, 10);
         const clampedTarget = isNaN(parsed) ? 5 : Math.max(2, Math.min(999, parsed));
-        todoData.numbered = { current: 0, target: clampedTarget };
+        todoData.numbered = { 
+          current: todoToEdit?.numbered ? todoToEdit.numbered.current : 0, 
+          target: clampedTarget 
+        };
       }
 
-      // Default to enabled on desktop widget with random offset to prevent stacking overlaps
-      const stagger = Math.floor(Math.random() * 8) * 20;
-      todoData.stickyPosition = { x: 100 + stagger, y: 100 + stagger };
-
-      await createTodo(todoData);
+      if (todoToEdit) {
+        await updateTodo(todoToEdit.id, todoData);
+      } else {
+        todoData.type = type;
+        todoData.order = Date.now();
+        // Default to enabled on desktop widget with random offset to prevent stacking overlaps
+        const stagger = Math.floor(Math.random() * 8) * 20;
+        todoData.stickyPosition = { x: 100 + stagger, y: 100 + stagger };
+        await createTodo(todoData);
+      }
 
       // Reset main input fields
       setTitle("");
@@ -107,8 +119,8 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime }: To
       // Auto close on success since we are in instant mode
       onClose();
     } catch (err) {
-      console.error("Failed to create todo:", err);
-      alert("Failed to create todo: " + (err instanceof Error ? err.message : String(err)));
+      console.error("Failed to save todo:", err);
+      alert("Failed to save todo: " + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsSubmitting(false);
     }
@@ -267,6 +279,66 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime }: To
           </div>
         )}
 
+        {/* Accent Color Selection */}
+        <div className="todo-form__field">
+          <span className="t-meta">ACCENT COLOR</span>
+          <div className="todo-form__colors-row">
+            {["#5B8DEF", "#ff4d4d", "#4ADE80", "#FACC15", "#A855F7", "#EC4899", "#F97316"].map(c => (
+              <button
+                key={c}
+                type="button"
+                className={`todo-form__color-dot ${color === c ? "active" : ""}`}
+                style={{ backgroundColor: c }}
+                onClick={() => setColor(c)}
+                title={c}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Commencement Date Selector */}
+        <div className="todo-form__field">
+          <span className="t-meta">COMMENCEMENT</span>
+          <div className="todo-form__selector-group">
+            <button
+              type="button"
+              className={`todo-form__selector-btn ${!hasFutureDate ? "active" : ""}`}
+              onClick={() => {
+                setHasFutureDate(false);
+                setFutureDate("");
+              }}
+              disabled={isSubmitting}
+            >
+              IMMEDIATE
+            </button>
+            <button
+              type="button"
+              className={`todo-form__selector-btn ${hasFutureDate ? "active" : ""}`}
+              onClick={() => {
+                setHasFutureDate(true);
+                setFutureDate(futureDate || getToday(undefined, dailyResetTime));
+              }}
+              disabled={isSubmitting}
+            >
+              SCHEDULE START
+            </button>
+          </div>
+        </div>
+
+        {hasFutureDate && (
+          <div className="todo-form__field todo-form__field--future">
+            <span className="t-meta">START DATE</span>
+            <DatePicker
+              value={futureDate || getToday(undefined, dailyResetTime)}
+              onChange={setFutureDate}
+              min={getToday(undefined, dailyResetTime)}
+              disabled={isSubmitting}
+              placeholder="SELECT START DATE..."
+              dailyResetTime={dailyResetTime}
+            />
+          </div>
+        )}
+
         {/* Group Selection (Sleek inline tags) */}
         <div className="todo-form__field">
           <span className="t-meta">GROUP CATEGORY</span>
@@ -338,9 +410,9 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime }: To
           <button
             type="submit"
             className="btn-action btn-action--primary"
-            disabled={isSubmitting || !title.trim() || (hasCustomDeadline && !customDeadline)}
+            disabled={isSubmitting || !title.trim() || (hasCustomDeadline && !customDeadline) || (hasFutureDate && !futureDate)}
           >
-            [ CREATE TODO ]
+            {todoToEdit ? "[ SAVE CHANGES ]" : "[ CREATE TODO ]"}
           </button>
         </div>
       </form>

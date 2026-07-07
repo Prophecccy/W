@@ -97,3 +97,41 @@ export function getMsUntilBackup(dailyResetTime: string, now: Date = new Date())
   return Math.max(0, backupDate.getTime() - now.getTime());
 }
 
+export function getWeekStart(dateStr: string, weekStartDay: number): string {
+  const d = new Date(dateStr + "T12:00:00");
+  if (isNaN(d.getTime())) return dateStr;
+  let safety = 0;
+  while (d.getDay() !== weekStartDay && safety < 10) {
+    d.setDate(d.getDate() - 1);
+    safety++;
+  }
+  return formatDate(d);
+}
+
+export function getMonthStart(dateStr: string): string {
+  return `${dateStr.slice(0, 7)}-01`;
+}
+
+export function getIntervalStart(habit: { period: string; intervalDays?: number; startDate?: string; createdAt: any }, todayStr: string): string {
+  if (habit.period !== "interval" || !habit.intervalDays || habit.intervalDays <= 0) return todayStr;
+  const baseDate = habit.startDate ? new Date(habit.startDate + "T12:00:00") : new Date(habit.createdAt);
+  baseDate.setHours(12, 0, 0, 0); // Normalize to noon to match today comparison
+  const today = new Date(todayStr + "T12:00:00");
+  const diffDays = Math.floor((today.getTime() - baseDate.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) return formatDate(baseDate);
+  const segmentStart = diffDays - (diffDays % habit.intervalDays);
+  baseDate.setDate(baseDate.getDate() + segmentStart);
+  return formatDate(baseDate);
+}
+
+export function getPeriodStart(habit: { period: string; intervalDays?: number; startDate?: string; createdAt: any }, todayStr: string, weekStartDay: number): string {
+  if (habit.period === "weekly") return getWeekStart(todayStr, weekStartDay);
+  if (habit.period === "monthly") return getMonthStart(todayStr);
+  if (habit.period === "interval") return getIntervalStart(habit, todayStr);
+  return todayStr;
+}
+
+export function isMultiDayMetric(habit: { type: string; period: string }): boolean {
+  return (habit.type === "metric" || habit.type === "limiter") && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
+}
+

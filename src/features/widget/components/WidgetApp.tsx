@@ -5,14 +5,23 @@ import { WidgetHabitList } from './HabitList/WidgetHabitList';
 import { loadWidgetPosition, saveWidgetPosition, flushWidgetPosition } from '../services/widgetPositionStore';
 import { ShieldAlert } from 'lucide-react';
 import { getLocalWallpaper } from '../../../shared/utils/storageUtils';
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi';
-import { invoke } from '@tauri-apps/api/core';
+import { isTauri } from '../../../shared/utils/tauri';
 import { SleepTube } from '../../dashboard/components/SleepTube';
 import { ProgressCircle } from '../../../shared/components/ProgressCircle/ProgressCircle';
 import { syncActiveLockdownState } from '../../lockdown/services/lockdownService';
 import { processGap } from '../../strikes/services/gapProcessor';
 import './WidgetApp.css';
+
+async function safeInvoke(cmd: string, args?: any) {
+  if (isTauri()) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return await invoke(cmd, args);
+    } catch (e) {
+      console.error(`safeInvoke failed for ${cmd}:`, e);
+    }
+  }
+}
 
 export function WidgetApp() {
   const {
@@ -28,6 +37,8 @@ export function WidgetApp() {
     completeHabit,
     undoHabit,
     habits,
+    globalStreak,
+    weeklyCompletions,
   } = useWidgetData();
 
   const strikeCount = userDoc?.strikes?.current ?? 0;
@@ -37,6 +48,8 @@ export function WidgetApp() {
   // ─── Real-Time Clock ─────────────────────────────────────
   const [timeString, setTimeString] = useState('');
   const [isPositionInitialized, setIsPositionInitialized] = useState(false);
+  const userManualHeightRef = useRef<number | null>(null);
+  const isAutoResizingRef = useRef(false);
 
 
 
@@ -66,7 +79,7 @@ export function WidgetApp() {
     }, 15000);
 
     return () => clearInterval(interval);
-  }, [loading, userDoc?.uid, userDoc?.lockdown]);
+  }, [loading, userDoc?.uid]);
 
   // ─── Background Gap/Strikes Processor ──────────────────────
   const gapProcessorStarted = useRef(false);
@@ -97,7 +110,6 @@ export function WidgetApp() {
     async function setupZOrderDefense() {
       try {
         const { getCurrentWebviewWindow, WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
-        const { invoke } = await import("@tauri-apps/api/core");
         const currentWin = getCurrentWebviewWindow();
         const unsub = await currentWin.onFocusChanged(async ({ payload: focused }) => {
           if (!active) return;
@@ -111,7 +123,7 @@ export function WidgetApp() {
               }
             } catch {}
             // Push self back to bottom native layer
-            try { await invoke("pin_widget_bottom"); } catch {}
+            try { await safeInvoke("pin_widget_bottom"); } catch {}
           }
         });
         return unsub;
@@ -132,10 +144,8 @@ export function WidgetApp() {
   // The actual window move is handled natively by Rust (move_widget_by).
   // Z-Order defense is DEFERRED to pointerUp (tap-only) so it doesn't
   // steal focus or push the window behind others mid-drag.
-  const isDragging = useRef(false);
-  const dragMoved = useRef(false);
-  const lastPos = useRef({ x: 0, y: 0 });
   const lastMonitorNameRef = useRef<string | null>(null);
+  const currentSizeRef = useRef({ width: 400, height: 580 });
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     // Skip interactive children — but NOT the scroll container itself
@@ -149,67 +159,29 @@ export function WidgetApp() {
     // Only primary button (left click)
     if (e.button !== 0) return;
 
-    isDragging.current = true;
-    dragMoved.current = false;
-    const dpr = window.devicePixelRatio || 1;
-    lastPos.current = { x: e.screenX * dpr, y: e.screenY * dpr };
-    // MUST be called synchronously — captures pointer even outside window bounds
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  }, []);
-
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!isDragging.current) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const currentX = e.screenX * dpr;
-    const currentY = e.screenY * dpr;
-
-    const dx = Math.round(currentX - lastPos.current.x);
-    const dy = Math.round(currentY - lastPos.current.y);
-
-    if (dx === 0 && dy === 0) return;
-
-    dragMoved.current = true;
-    // Store absolute physical position plus offset to prevent fractional drift over time
-    lastPos.current = { x: lastPos.current.x + dx, y: lastPos.current.y + dy };
-    // Fire-and-forget — Rust handles the native move synchronously
-    invoke('move_widget_by', { dx, dy });
-  }, []);
-
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch {}
-
-    const wasDrag = dragMoved.current;
-    isDragging.current = false;
-    dragMoved.current = false;
-
-    if (wasDrag) {
-      // ── Flush position immediately on drag-end ──
-      // The debounced save may never fire if the app is closed soon after.
-      getCurrentWindow().outerPosition().then(pos => {
-        getCurrentWindow().innerSize().then(size => {
-          flushWidgetPosition({ x: pos.x, y: pos.y, width: size.width, height: size.height });
-        });
+    if (isTauri()) {
+      import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
+        getCurrentWindow().startDragging();
       }).catch(() => {});
-    } else {
-      // ── Z-Order Enforcer: only on TAP (no drag movement) ──
-      // During a drag we must NOT steal focus or re-pin, otherwise
-      // the window gets sent behind other windows mid-move.
-      try {
-        invoke("pin_widget_bottom");
-        import("@tauri-apps/api/webviewWindow").then(({ WebviewWindow }) => {
-          WebviewWindow.getByLabel("main").then(main => {
-            if (main) {
-              main.isMinimized().then(isMin => {
-                if (!isMin) main.setFocus();
-              });
-            }
-          });
-        });
-      } catch {}
     }
+  }, []);
+
+  const handlePointerUp = useCallback(() => {
+    // ── Z-Order Enforcer: only on TAP (no drag movement) ──
+    // Since startDragging intercepts mouse events during native drag,
+    // this handler is only reached on simple clicks/taps.
+    try {
+      safeInvoke("pin_widget_bottom");
+      import("@tauri-apps/api/webviewWindow").then(({ WebviewWindow }) => {
+        WebviewWindow.getByLabel("main").then(main => {
+          if (main) {
+            main.isMinimized().then(isMin => {
+              if (!isMin) main.setFocus();
+            });
+          }
+        });
+      });
+    } catch {}
   }, []);
 
   // ─── Wallpaper ───────────────────────────────────────────
@@ -257,13 +229,9 @@ export function WidgetApp() {
   // Apply accent color to widget
   useEffect(() => {
     document.documentElement.style.setProperty('--accent', accentColor);
-    if (accentColor.startsWith('#')) {
-      const r = parseInt(accentColor.slice(1, 3), 16);
-      const g = parseInt(accentColor.slice(3, 5), 16);
-      const b = parseInt(accentColor.slice(5, 7), 16);
-      if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
-        document.documentElement.style.setProperty('--accent-rgb', `${r}, ${g}, ${b}`);
-      }
+    const parsedRgb = parseColorToRgb(accentColor);
+    if (parsedRgb) {
+      document.documentElement.style.setProperty('--accent-rgb', parsedRgb);
     }
   }, [accentColor]);
 
@@ -280,13 +248,9 @@ export function WidgetApp() {
           if (!active) return;
           const color = event.payload;
           document.documentElement.style.setProperty('--accent', color);
-          if (color.startsWith('#')) {
-            const r = parseInt(color.slice(1, 3), 16);
-            const g = parseInt(color.slice(3, 5), 16);
-            const b = parseInt(color.slice(5, 7), 16);
-            if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
-              document.documentElement.style.setProperty('--accent-rgb', `${r}, ${g}, ${b}`);
-            }
+          const parsedRgb = parseColorToRgb(color);
+          if (parsedRgb) {
+            document.documentElement.style.setProperty('--accent-rgb', parsedRgb);
           }
         });
         return unlisten;
@@ -425,14 +389,20 @@ export function WidgetApp() {
   useEffect(() => {
     async function resizeToContent() {
       if (!isPositionInitialized) return;
+      if (userManualHeightRef.current !== null) return; // Respect manual resize adjustments
       try {
-        const win = getCurrentWindow();
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const { PhysicalSize } = await import("@tauri-apps/api/dpi");
+        const win = getCurrentWindow() as any;
         const scaleFactor = await win.scaleFactor();
         const targetPhysical = Math.round(targetLogicalHeight * scaleFactor);
 
         const currentSize = await win.innerSize();
         if (Math.abs(currentSize.height - targetPhysical) > 2) {
+          isAutoResizingRef.current = true;
           await win.setSize(new PhysicalSize(currentSize.width, targetPhysical));
+          isAutoResizingRef.current = false;
+
           const pos = await win.outerPosition();
           saveWidgetPosition({
             x: pos.x,
@@ -458,8 +428,11 @@ export function WidgetApp() {
 
     async function initPosition() {
       try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const { PhysicalPosition, PhysicalSize } = await import("@tauri-apps/api/dpi");
         const win = getCurrentWindow() as any;
         const saved = await loadWidgetPosition();
+        currentSizeRef.current = { width: saved.width, height: saved.height };
 
         const scaleFactor = await win.scaleFactor();
         const MIN_LOGICAL_WIDTH = 340; // updated minimum width
@@ -511,33 +484,56 @@ export function WidgetApp() {
 
         setIsPositionInitialized(true);
 
+        let throttleTimer: any = null;
+        const lastPendingPositionRef = { x: saved.x, y: saved.y };
+
         const unlistenM = await win.onMoved(async (pos: any) => {
           if (cleanup) return;
-          const size = await win.innerSize();
-          saveWidgetPosition({
-            x: pos.payload.x,
-            y: pos.payload.y,
-            width: size.width,
-            height: size.height,
-          });
 
-          try {
-            const monitor = await win.currentMonitor();
-            if (monitor && lastMonitorNameRef.current && monitor.name !== lastMonitorNameRef.current) {
-              console.log(`[WidgetApp] Monitor changed from ${lastMonitorNameRef.current} to ${monitor.name}. Reloading...`);
-              lastMonitorNameRef.current = monitor.name;
-              window.location.reload();
-              return;
-            } else if (monitor && !lastMonitorNameRef.current) {
-              lastMonitorNameRef.current = monitor.name;
+          lastPendingPositionRef.x = pos.payload.x;
+          lastPendingPositionRef.y = pos.payload.y;
+
+          if (throttleTimer) return;
+
+          throttleTimer = setTimeout(async () => {
+            throttleTimer = null;
+            if (cleanup) return;
+
+            const targetX = lastPendingPositionRef.x;
+            const targetY = lastPendingPositionRef.y;
+
+            saveWidgetPosition({
+              x: targetX,
+              y: targetY,
+              width: currentSizeRef.current.width,
+              height: currentSizeRef.current.height,
+            });
+
+            try {
+              const monitor = await win.currentMonitor();
+              if (monitor && lastMonitorNameRef.current && monitor.name !== lastMonitorNameRef.current) {
+                console.log(`[WidgetApp] Monitor changed from ${lastMonitorNameRef.current} to ${monitor.name}. Flushing and reloading...`);
+                lastMonitorNameRef.current = monitor.name;
+                await flushWidgetPosition();
+                window.location.reload();
+                return;
+              } else if (monitor && !lastMonitorNameRef.current) {
+                lastMonitorNameRef.current = monitor.name;
+              }
+            } catch (err) {
+              console.warn("[WidgetApp] Failed to check monitor onMoved:", err);
             }
-          } catch (err) {
-            console.warn("[WidgetApp] Failed to check monitor onMoved:", err);
-          }
+          }, 200); // 200ms throttle
         });
 
         const unlistenR = await win.onResized(async (size: any) => {
           if (cleanup) return;
+          if (isAutoResizingRef.current) return; // Skip if resized by auto-resizer
+
+          // User manually resized: record manual height and save config
+          userManualHeightRef.current = size.payload.height;
+          currentSizeRef.current = { width: size.payload.width, height: size.payload.height };
+
           const pos = await win.outerPosition();
           saveWidgetPosition({
             x: pos.x,
@@ -571,7 +567,7 @@ export function WidgetApp() {
   }, []);
 
   useEffect(() => {
-    invoke('embed_widget_in_desktop').catch((e) => {
+    safeInvoke('embed_widget_in_desktop').catch((e) => {
       console.warn('Widget pin failed:', e);
     });
   }, []);
@@ -638,10 +634,7 @@ export function WidgetApp() {
     <div
       className={`widget-app ${isFrozen ? 'widget-app--frozen' : ''}`}
       onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
-      onLostPointerCapture={handlePointerUp}
       style={wallpaperUrl ? {
         backgroundImage: `url(${wallpaperUrl})`,
         backgroundSize: 'cover',
@@ -706,6 +699,7 @@ export function WidgetApp() {
               weeklyResetDay={userDoc?.settings?.weeklyResetDay ?? 1}
               onComplete={completeHabit}
               onUndo={undoHabit}
+              isFrozen={isFrozen}
             />
           </div>
 
@@ -714,6 +708,8 @@ export function WidgetApp() {
               completedCount={completedCount}
               totalScheduled={totalScheduled}
               strikeCount={strikeCount}
+              globalStreak={globalStreak}
+              weeklyCompletions={weeklyCompletions}
             />
           </div>
 
@@ -801,4 +797,60 @@ function getPeriodStart(habit: any, todayStr: string, weekStartDay: number): str
 
 function isMultiDayMetric(habit: any): boolean {
   return (habit.type === "metric" || habit.type === "limiter") && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
+}
+
+function parseColorToRgb(color: string): string | null {
+  if (!color) return null;
+  const trimmed = color.trim().toLowerCase();
+  
+  if (trimmed.startsWith('#')) {
+    const hex = trimmed.slice(1);
+    if (hex.length === 3) {
+      const r = parseInt(hex[0] + hex[0], 16);
+      const g = parseInt(hex[1] + hex[1], 16);
+      const b = parseInt(hex[2] + hex[2], 16);
+      return !isNaN(r) && !isNaN(g) && !isNaN(b) ? `${r}, ${g}, ${b}` : null;
+    } else if (hex.length === 6 || hex.length === 8) {
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      return !isNaN(r) && !isNaN(g) && !isNaN(b) ? `${r}, ${g}, ${b}` : null;
+    }
+  }
+
+  if (trimmed.startsWith('rgb')) {
+    const matches = trimmed.match(/rgba?\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (matches && matches.length >= 4) {
+      return `${matches[1]}, ${matches[2]}, ${matches[3]}`;
+    }
+  }
+
+  if (trimmed.startsWith('hsl')) {
+    const matches = trimmed.match(/hsla?\((\d+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%/);
+    if (matches && matches.length >= 4) {
+      const h = parseInt(matches[1], 10) / 360;
+      const s = parseFloat(matches[2]) / 100;
+      const l = parseFloat(matches[3]) / 100;
+      
+      let r = l, g = l, b = l;
+      if (s !== 0) {
+        const hue2rgb = (p: number, q: number, t: number) => {
+          if (t < 0) t += 1;
+          if (t > 1) t -= 1;
+          if (t < 1/6) return p + (q - p) * 6 * t;
+          if (t < 1/2) return q;
+          if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+          return p;
+        };
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+      }
+      return `${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}`;
+    }
+  }
+
+  return null;
 }

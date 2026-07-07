@@ -6,6 +6,7 @@ export type UndoActionType =
   | "todo_create"
   | "todo_delete"
   | "todo_complete"
+  | "todo_increment"
   | "strike_added";
 
 export interface UndoAction {

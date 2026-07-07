@@ -182,6 +182,17 @@ export async function incrementNumberedTodo(todoId: string, currentTodo: Todo): 
     "numbered.current": currentTodo.numbered.current,
   });
 
+  // Log to undo history
+  try {
+    const { logAction } = await import("../../settings/services/undoService");
+    await logAction("todo_increment", `[ TODO INCREMENTED ] - ${currentTodo.title}`, {
+      todoId,
+      prevValue: currentTodo.numbered.current - 1,
+    });
+  } catch (err) {
+    console.error("Failed to log todo_increment:", err);
+  }
+
   await notifyTodoUpdated();
 }
 
@@ -219,7 +230,8 @@ export async function purgeOldCompletedTodos(): Promise<void> {
     const q = query(
       todosRef(),
       where("status", "==", "done"),
-      orderBy("completedAt", "desc")
+      orderBy("completedAt", "desc"),
+      limit(100)
     );
     const snap = await getDocs(q);
     if (snap.size > 50) {
@@ -233,4 +245,36 @@ export async function purgeOldCompletedTodos(): Promise<void> {
   } catch (err) {
     console.error("Failed to purge old completed todos:", err);
   }
+}
+
+// ─── Pending Completions for Transactional Safety ──────────────────
+let pendingCompletions: Array<{ todoId: string; numbered?: any }> = [];
+
+export function addPendingCompletion(todoId: string, numbered?: any) {
+  if (!pendingCompletions.some(c => c.todoId === todoId)) {
+    pendingCompletions.push({ todoId, numbered });
+  }
+}
+
+export function removePendingCompletion(todoId: string) {
+  pendingCompletions = pendingCompletions.filter(c => c.todoId !== todoId);
+}
+
+export async function flushPendingCompletions() {
+  if (pendingCompletions.length === 0) return;
+  const completionsToFlush = [...pendingCompletions];
+  pendingCompletions = [];
+
+  const promises = completionsToFlush.map(async (c) => {
+    try {
+      if (c.numbered) {
+        await completeNumberedTodoFull(c.todoId, { id: c.todoId, type: "numbered", numbered: c.numbered } as any);
+      } else {
+        await completeTodo(c.todoId);
+      }
+    } catch (err) {
+      console.error("Failed to flush pending completion on close:", err);
+    }
+  });
+  await Promise.all(promises);
 }

@@ -1,5 +1,6 @@
 import { Habit, HabitLog } from '../../../habits/types';
 import { WidgetHabitCard } from './WidgetHabitCard';
+import { getPeriodStart, isMultiDayMetric } from '../../../../shared/utils/dateUtils';
 
 interface WidgetHabitListProps {
   today: string;
@@ -8,11 +9,12 @@ interface WidgetHabitListProps {
   todayLog: HabitLog | null;
   periodLogs: HabitLog[];
   weeklyResetDay: number;
-  onComplete: (habitId: string) => void;
+  onComplete: (habitId: string, increment?: number) => void;
   onUndo: (habitId: string) => void;
+  isFrozen?: boolean;
 }
 
-export function WidgetHabitList({ today, scheduledHabits, scheduledLimiters, todayLog, periodLogs, weeklyResetDay, onComplete, onUndo }: WidgetHabitListProps) {
+export function WidgetHabitList({ today, scheduledHabits, scheduledLimiters, todayLog, periodLogs, weeklyResetDay, onComplete, onUndo, isFrozen = false }: WidgetHabitListProps) {
   const getTotalInRange = (habitId: string, startDate: string) => {
     let total = 0;
     for (const log of periodLogs) {
@@ -72,6 +74,7 @@ export function WidgetHabitList({ today, scheduledHabits, scheduledLimiters, tod
             completions={completions}
             onComplete={onComplete}
             onUndo={onUndo}
+            disabled={isFrozen}
           />
         );
       })}
@@ -116,6 +119,7 @@ export function WidgetHabitList({ today, scheduledHabits, scheduledLimiters, tod
                   completions={completions}
                   onComplete={onComplete}
                   onUndo={onUndo}
+                  disabled={isFrozen}
                 />
               );
             })}
@@ -123,49 +127,4 @@ export function WidgetHabitList({ today, scheduledHabits, scheduledLimiters, tod
       )}
     </div>
   );
-}
-
-function formatDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function getWeekStart(dateStr: string, weekStartDay: number): string {
-  const d = new Date(dateStr + "T12:00:00");
-  if (isNaN(d.getTime())) return dateStr;
-  let safety = 0;
-  while (d.getDay() !== weekStartDay && safety < 10) {
-    d.setDate(d.getDate() - 1);
-    safety++;
-  }
-  return formatDate(d);
-}
-
-function getMonthStart(dateStr: string): string {
-  return `${dateStr.slice(0, 7)}-01`;
-}
-
-function getIntervalStart(habit: Habit, todayStr: string): string {
-  if (habit.period !== "interval" || habit.intervalDays <= 0) return todayStr;
-  const baseDate = habit.startDate ? new Date(habit.startDate + "T12:00:00") : new Date(habit.createdAt);
-  baseDate.setHours(12, 0, 0, 0); // Normalize to noon to match today comparison
-  const today = new Date(todayStr + "T12:00:00");
-  const diffDays = Math.floor((today.getTime() - baseDate.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays <= 0) return formatDate(baseDate);
-  const segmentStart = diffDays - (diffDays % habit.intervalDays);
-  baseDate.setDate(baseDate.getDate() + segmentStart);
-  return formatDate(baseDate);
-}
-
-function getPeriodStart(habit: Habit, todayStr: string, weekStartDay: number): string {
-  if (habit.period === "weekly") return getWeekStart(todayStr, weekStartDay);
-  if (habit.period === "monthly") return getMonthStart(todayStr);
-  if (habit.period === "interval") return getIntervalStart(habit, todayStr);
-  return todayStr;
-}
-
-function isMultiDayMetric(habit: Habit): boolean {
-  return (habit.type === "metric" || habit.type === "limiter") && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
 }

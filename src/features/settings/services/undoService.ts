@@ -97,6 +97,15 @@ export async function undoAction(actionId: string): Promise<void> {
       }
       break;
     }
+    case "todo_increment": {
+      const { updateTodo } = await import("../../todos/services/todoService");
+      const todoId = action.reverseData.todoId as string;
+      const prevValue = action.reverseData.prevValue as number;
+      await updateTodo(todoId, {
+        "numbered.current": prevValue
+      } as any);
+      break;
+    }
     case "strike_added": {
       // Strikes are generally not reversible from undo history,
       // but we log them for visibility. Show as non-undoable.

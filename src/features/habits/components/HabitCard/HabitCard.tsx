@@ -26,6 +26,7 @@ interface HabitCardProps {
   tabIndex?: number;
   onFocus?: () => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLDivElement>) => void;
+  disabled?: boolean;
 }
 
 function getCooldownText(habit: Habit, userResetTime?: string): string {
@@ -70,6 +71,7 @@ export function HabitCard({
   tabIndex,
   onFocus,
   onKeyDown,
+  disabled = false,
 }: HabitCardProps) {
   const { showToast } = useToast();
   const [isHolding, setIsHolding] = useState(false);
@@ -92,6 +94,7 @@ export function HabitCard({
 
   // ─── Interaction Handlers ───────────────────────────────────────
   const startHold = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (disabled) return;
     // Keep track of the initial touch coordinate to prevent scroll/drag completion collisions
     pointerStartCoordsRef.current = { x: e.clientX, y: e.clientY };
     hasHeldRef.current = false;
@@ -165,6 +168,7 @@ export function HabitCard({
   const progressPercent = Math.min(100, (currentValue / target) * 100);
 
   const handlePointerUp = () => {
+    if (disabled) return;
     const shouldClick = !hasHeldRef.current && pointerStartCoordsRef.current !== null;
     cancelHold();
     if (shouldClick) {
@@ -177,7 +181,7 @@ export function HabitCard({
       tabIndex={tabIndex}
       onFocus={onFocus}
       onKeyDown={onKeyDown}
-      className={`habit-card ${isCompletedToday ? "habit-card--completed" : ""} ${isResting ? "habit-card--resting" : ""} ${isHolding ? "habit-card--holding" : ""} level-tier-${Math.min(habit.level, 10)}${riskScore != null && riskScore > 90 ? " risk-critical" : riskScore != null && riskScore > 75 ? " risk-elevated" : ""}`}
+      className={`habit-card ${isCompletedToday ? "habit-card--completed" : ""} ${isResting ? "habit-card--resting" : ""} ${isHolding ? "habit-card--holding" : ""} ${disabled ? "habit-card--disabled" : ""} level-tier-${Math.min(habit.level, 10)}${riskScore != null && riskScore > 90 ? " risk-critical" : riskScore != null && riskScore > 75 ? " risk-elevated" : ""}`}
       style={cardStyle}
       onPointerDown={startHold}
       onPointerUp={handlePointerUp}

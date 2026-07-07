@@ -267,6 +267,40 @@
   animation: todoFormSlideDown 0.2s ease-out;
 }
 
+/* Colors Selection */
+.todo-form__colors-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+
+.todo-form__color-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.todo-form__color-dot:hover {
+  transform: scale(1.15);
+}
+
+.todo-form__color-dot.active {
+  border-color: #ffffff;
+  transform: scale(1.1);
+  box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 4px #ffffff;
+}
+
+.todo-form__field--future {
+  animation: todoFormSlideDown 0.2s ease-out;
+}
+
 /* Animations */
 @keyframes todoFormSlideUp {
   from { opacity: 0; transform: translateY(16px); }

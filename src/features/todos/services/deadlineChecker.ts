@@ -33,8 +33,11 @@ export async function checkDeadlines(
 
     // String comparison works for YYYY-MM-DD
     if (todo.deadline < today) {
-      // BUG 6: Skip applying strikes or clearing deadlines if the deadline date is within a freeze range
+      // BUG 6: Skip applying strikes or clearing deadlines if the deadline date is within a freeze range.
+      // Update the deadline to today (first active day) to clear the permanent overdue state.
       if (freezeState && isDateInFreezeRange(freezeState, todo.deadline)) {
+        await updateTodo(todo.id, { deadline: today });
+        todo.deadline = today;
         continue;
       }
       try {

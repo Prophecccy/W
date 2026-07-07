@@ -82,15 +82,18 @@ export function syncPositionToFirestore(todoId: string, pos: { x: number; y: num
 /**
  * Immediately flush all pending syncs (e.g., on window close).
  */
-export function flushPendingSyncs(): void {
+export async function flushPendingSyncs(): Promise<void> {
+  const promises: Promise<void>[] = [];
   pendingSyncs.forEach((sync, todoId) => {
     clearTimeout(sync.timer);
     // Write immediately to prevent data loss on close/reload
-    updateTodo(todoId, { stickyPosition: sync.pos }).catch((e) => {
+    const p = updateTodo(todoId, { stickyPosition: sync.pos }).catch((e) => {
       console.error("Failed to flush sticky position to Firestore:", todoId, e);
     });
+    promises.push(p);
   });
   pendingSyncs.clear();
+  await Promise.all(promises);
 }
 
 // Automatically register global unload listener to guarantee persistence

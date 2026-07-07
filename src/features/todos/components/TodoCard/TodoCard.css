@@ -138,7 +138,8 @@
   opacity: 0.85;
 }
 
-.todo-card__delete-btn {
+.todo-card__delete-btn,
+.todo-card__edit-btn {
   background: none;
   border: none;
   color: var(--text-muted);
@@ -152,7 +153,8 @@
   transition: all 0.2s ease;
 }
 
-.todo-card:hover .todo-card__delete-btn {
+.todo-card:hover .todo-card__delete-btn,
+.todo-card:hover .todo-card__edit-btn {
   opacity: 0.7;
 }
 
@@ -160,4 +162,19 @@
   opacity: 1 !important;
   color: var(--strike-red) !important;
   background: rgba(255, 77, 77, 0.15);
+}
+
+.todo-card__edit-btn:hover {
+  opacity: 1 !important;
+  color: var(--card-accent) !important;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.todo-card__expand-btn {
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.todo-card__expand-btn:hover {
+  color: var(--card-accent) !important;
+  transform: scale(1.1);
 }

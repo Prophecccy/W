@@ -28,6 +28,9 @@ export function TodosPage() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('default');
   const [expandedTodoIds, setExpandedTodoIds] = useState<Record<string, boolean>>({});
+  const [todoToEdit, setTodoToEdit] = useState<Todo | undefined>(undefined);
+  const [undoTodo, setUndoTodo] = useState<Todo | null>(null);
+  const [showUndoToast, setShowUndoToast] = useState(false);
 
   const loadData = async (isBackground = false) => {
     if (!isBackground) {
@@ -42,12 +45,8 @@ export function TodosPage() {
       ]);
 
       const today = getToday(undefined, userDoc?.settings?.dailyResetTime);
-      const visibleTodos = todos.filter(t => {
-        const isExpiredAndDisappeared = t.postDeadlineAction === "disappear" && t.deadline && t.deadline < today;
-        return !isExpiredAndDisappeared;
-      });
 
-      setActiveTodos(visibleTodos);
+      setActiveTodos(todos);
       setCompletedTodos(completed);
       setGroups(fetchedGroups);
       const upcomingIntervals = habits
@@ -119,6 +118,15 @@ export function TodosPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (showUndoToast) {
+      const timer = setTimeout(() => {
+        setShowUndoToast(false);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [showUndoToast]);
+
   const handleComplete = async (todoId: string, updatedTodo?: Todo) => {
     try {
       // Optimistic update
@@ -132,6 +140,10 @@ export function TodosPage() {
         } else {
            await completeTodo(todoId);
         }
+
+        // Show undo toast
+        setUndoTodo(completedTodo);
+        setShowUndoToast(true);
       }
     } catch (e) {
       console.error(e);
@@ -139,8 +151,39 @@ export function TodosPage() {
     }
   };
 
+  const handleUndoComplete = async () => {
+    if (!undoTodo) return;
+    try {
+      const todoId = undoTodo.id;
+      const { updateTodo } = await import("../services/todoService");
+      await updateTodo(todoId, { status: "active", completedAt: null });
+      
+      setCompletedTodos(prev => prev.filter(t => t.id !== todoId));
+      setActiveTodos(prev => [...prev, { ...undoTodo, status: "active" }]);
+      
+      setUndoTodo(null);
+      setShowUndoToast(false);
+    } catch (e) {
+      console.error("Failed to undo todo completion:", e);
+    }
+  };
+
+  const handleReactivateCompleted = async (todo: Todo) => {
+    try {
+      const todoId = todo.id;
+      const { updateTodo } = await import("../services/todoService");
+      await updateTodo(todoId, { status: "active", completedAt: null });
+      
+      setCompletedTodos(prev => prev.filter(t => t.id !== todoId));
+      setActiveTodos(prev => [...prev, { ...todo, status: "active" }]);
+    } catch (e) {
+      console.error("Failed to reactivate completed todo:", e);
+    }
+  };
+
   const handleDelete = async (todoId: string) => {
-    if (confirm("Are you sure you want to delete this todo?")) {
+    const { confirmDialog } = await import("../../../shared/utils/tauri");
+    if (await confirmDialog("Are you sure you want to delete this todo?")) {
       try {
         // Optimistic delete
         setActiveTodos(prev => prev.filter(t => t.id !== todoId));
@@ -150,6 +193,11 @@ export function TodosPage() {
         loadData(true);
       }
     }
+  };
+
+  const handleEdit = (todo: Todo) => {
+    setTodoToEdit(todo);
+    setIsFormOpen(true);
   };
 
   const handleCardClick = async (todoId: string) => {
@@ -196,15 +244,19 @@ export function TodosPage() {
 
   if (isFormOpen) {
     return (
-      <div className="todos-page" style={{ height: "100%" }}>
+      <div className="todos-page" style={{ height: "100%", overflowY: "auto" }}>
          <TodoForm 
-           groups={groups} 
-           onClose={() => setIsFormOpen(false)} 
-           onSuccess={() => loadData(true)} 
-           dailyResetTime={userDoc?.settings?.dailyResetTime}
-         />
-      </div>
-    );
+            groups={groups} 
+            onClose={() => {
+              setIsFormOpen(false);
+              setTodoToEdit(undefined);
+            }} 
+            onSuccess={() => loadData(true)} 
+            dailyResetTime={userDoc?.settings?.dailyResetTime}
+            todoToEdit={todoToEdit}
+          />
+       </div>
+     );
   }
 
   return (
@@ -296,6 +348,8 @@ export function TodosPage() {
                         onComplete={() => handleComplete(todo.id)}
                         onClick={() => handleCardClick(todo.id)}
                         onDelete={() => handleDelete(todo.id)}
+                        onEdit={() => handleEdit(todo)}
+                        onToggleExpand={() => setExpandedTodoIds(prev => ({ ...prev, [todo.id]: !prev[todo.id] }))}
                         expanded={!!expandedTodoIds[todo.id]}
                         dailyResetTime={userDoc?.settings?.dailyResetTime}
                       />
@@ -315,6 +369,8 @@ export function TodosPage() {
                                   onComplete={() => handleComplete(todo.id)}
                                   onClick={() => handleCardClick(todo.id)}
                                   onDelete={() => handleDelete(todo.id)}
+                                  onEdit={() => handleEdit(todo)}
+                                  onToggleExpand={() => setExpandedTodoIds(prev => ({ ...prev, [todo.id]: !prev[todo.id] }))}
                                   expanded={!!expandedTodoIds[todo.id]}
                                   dailyResetTime={userDoc?.settings?.dailyResetTime}
                                 />
@@ -336,6 +392,8 @@ export function TodosPage() {
                                     onComplete={() => handleComplete(todo.id)}
                                     onClick={() => handleCardClick(todo.id)}
                                     onDelete={() => handleDelete(todo.id)}
+                                    onEdit={() => handleEdit(todo)}
+                                    onToggleExpand={() => setExpandedTodoIds(prev => ({ ...prev, [todo.id]: !prev[todo.id] }))}
                                     expanded={!!expandedTodoIds[todo.id]}
                                     dailyResetTime={userDoc?.settings?.dailyResetTime}
                                   />
@@ -360,6 +418,8 @@ export function TodosPage() {
                              onComplete={() => handleComplete(todo.id)}
                              onClick={() => handleCardClick(todo.id)}
                              onDelete={() => handleDelete(todo.id)}
+                             onEdit={() => handleEdit(todo)}
+                             onToggleExpand={() => setExpandedTodoIds(prev => ({ ...prev, [todo.id]: !prev[todo.id] }))}
                              expanded={!!expandedTodoIds[todo.id]}
                              dailyResetTime={userDoc?.settings?.dailyResetTime}
                            />
@@ -389,11 +449,17 @@ export function TodosPage() {
                       </button>
 
                       {showCompleted && (
-                         <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "16px", opacity: 0.5 }}>
+                         <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "16px", opacity: 0.7 }}>
                            {completedTodos.map(todo => (
-                             <div key={todo.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px", border: "1px solid var(--border-subtle)", borderRadius: "4px" }}>
-                               <LucideIcon name="Check" size={16} style={{ color: "var(--text-muted)" }} />
-                               <span className="t-body" style={{ textDecoration: "line-through", color: "var(--text-muted)" }}>{todo.title}</span>
+                             <div 
+                               key={todo.id} 
+                               style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px", border: "1px solid var(--border-subtle)", borderRadius: "4px", cursor: "pointer" }}
+                               onClick={() => handleReactivateCompleted(todo)}
+                               title="Click to reactivate todo"
+                             >
+                               <LucideIcon name="RefreshCw" size={16} style={{ color: "var(--text-muted)", opacity: 0.7 }} />
+                               <span className="t-body" style={{ textDecoration: "line-through", color: "var(--text-muted)", flex: 1 }}>{todo.title}</span>
+                               <span className="t-meta" style={{ color: "var(--text-muted)", fontSize: "10px" }}>[ REACTIVATE ]</span>
                              </div>
                            ))}
                          </div>
@@ -412,6 +478,43 @@ export function TodosPage() {
           <div className="habits-modal-content" onClick={e => e.stopPropagation()}>
             <GroupManager onClose={() => setIsGroupManagerOpen(false)} />
           </div>
+        </div>
+      )}
+
+      {showUndoToast && undoTodo && (
+        <div className="habits-undo-toast" style={{
+          position: "fixed",
+          bottom: "24px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: "var(--bg-elevated)",
+          border: "1px solid var(--accent)",
+          padding: "12px 24px",
+          borderRadius: "4px",
+          display: "flex",
+          alignItems: "center",
+          gap: "16px",
+          zIndex: 1000,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+          fontFamily: "var(--font-mono)",
+          fontSize: "12px",
+          animation: "todoFormSlideUp 0.2s ease-out"
+        }}>
+          <span style={{ color: "var(--text-primary)" }}>[ TODO COMPLETED ] - {undoTodo.title}</span>
+          <button 
+            onClick={handleUndoComplete} 
+            className="t-label" 
+            style={{ 
+              background: "none", 
+              border: "none", 
+              color: "var(--accent)", 
+              cursor: "pointer", 
+              padding: 0,
+              textDecoration: "underline" 
+            }}
+          >
+            [ UNDO ]
+          </button>
         </div>
       )}
     </div>

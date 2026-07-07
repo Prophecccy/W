@@ -479,8 +479,8 @@ export async function processGap(
       }
     }
 
-    // Process todo deadlines chronologically for this day
-    if (activeTodos.length > 0) {
+    // Process todo deadlines chronologically for this day (skip if this specific day is frozen)
+    if (!isFrozen && activeTodos.length > 0) {
       try {
         const { checkDeadlines } = await import("../../todos/services/deadlineChecker");
         const todoStrikes = await checkDeadlines(activeTodos, dailyResetTime, dateStr);

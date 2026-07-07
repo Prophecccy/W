@@ -3,7 +3,7 @@ import { db, collection, query, where, onSnapshot, doc, orderBy } from '../../..
 import { useAuthContext } from '../../auth/context';
 import { Habit, HabitLog } from '../../habits/types';
 import { User } from '../../../shared/types';
-import { getToday } from '../../../shared/utils/dateUtils';
+import { getToday, getWeekStart, getPeriodStart, isMultiDayMetric } from '../../../shared/utils/dateUtils';
 import { completeHabit as completeHabitLog, uncompleteHabit as uncompleteHabitLog } from '../../habits/services/logService';
 import { isHabitScheduledToday, isHabitResting } from '../../habits/utils/scheduleEngine';
 import { isTauri } from '../../../shared/utils/tauri';
@@ -22,7 +22,7 @@ export interface WidgetData {
   globalStreak: number;
   weeklyCompletions: number;
   scheduledLimiters: Habit[];
-  completeHabit: (habitId: string) => Promise<void>;
+  completeHabit: (habitId: string, increment?: number) => Promise<void>;
   undoHabit: (habitId: string) => Promise<void>;
 }
 
@@ -32,9 +32,16 @@ export function useWidgetData(): WidgetData {
   const [todayLog, setTodayLog] = useState<HabitLog | null>(null);
   const [periodLogs, setPeriodLogs] = useState<HabitLog[]>([]);
   const [userDoc, setUserDoc] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  
+  const [userLoading, setUserLoading] = useState(true);
+  const [habitsLoading, setHabitsLoading] = useState(true);
+  const [logLoading, setLogLoading] = useState(true);
+  const [periodLoading, setPeriodLoading] = useState(true);
 
-  const [today, setToday] = useState(() => getToday(undefined, userDoc?.settings?.dailyResetTime));
+  const [today, setToday] = useState(() => {
+    const cachedTime = typeof localStorage !== 'undefined' ? localStorage.getItem("w_daily_reset_time") || "04:00" : "04:00";
+    return getToday(undefined, cachedTime);
+  });
 
   // Update today state when userDoc loads or dailyResetTime changes, and poll for midnight/reset rollover
   useEffect(() => {
@@ -67,6 +74,10 @@ export function useWidgetData(): WidgetData {
       data.sort((a: any, b: any) => a.order - b.order);
       const activeData = data.filter((h: any) => (!h.startDate || h.startDate <= today));
       setHabits(activeData);
+      setHabitsLoading(false);
+    }, (err) => {
+      console.error("Habits listener error:", err);
+      setHabitsLoading(false);
     });
 
     return unsub;
@@ -83,6 +94,10 @@ export function useWidgetData(): WidgetData {
       } else {
         setTodayLog(null);
       }
+      setLogLoading(false);
+    }, (err) => {
+      console.error("Log listener error:", err);
+      setLogLoading(false);
     });
 
     return unsub;
@@ -109,6 +124,10 @@ export function useWidgetData(): WidgetData {
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map((d: any) => d.data() as HabitLog);
       setPeriodLogs(data);
+      setPeriodLoading(false);
+    }, (err) => {
+      console.error("Period logs listener error:", err);
+      setPeriodLoading(false);
     });
 
     return unsub;
@@ -127,13 +146,18 @@ export function useWidgetData(): WidgetData {
           localStorage.setItem("w_daily_reset_time", data.settings.dailyResetTime);
         }
       }
-      setLoading(false);
+      setUserLoading(false);
+    }, (err) => {
+      console.error("User doc listener error:", err);
+      setUserLoading(false);
     });
 
     return unsub;
   }, [user]);
 
   // Compute derived data
+  const loading = userLoading || habitsLoading || logLoading || periodLoading;
+  
   const scheduledHabits = habits.filter(h => {
     const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
     return isHabitScheduledToday(h, today, weeklyResetDay) && 
@@ -169,7 +193,8 @@ export function useWidgetData(): WidgetData {
     const completionsInLog = Object.entries(log.habits || {})
       .filter(([habitId, entry]) => {
         const h = habits.find(x => x.id === habitId);
-        return entry.completed && h && h.type !== 'limiter';
+        if (h) return entry.completed && h.type !== 'limiter';
+        return entry.completed; // Standard/metric completions are true; limiters are never true
       })
       .length;
     return acc + completionsInLog;
@@ -177,6 +202,10 @@ export function useWidgetData(): WidgetData {
 
   const completeHabit = useCallback(async (habitId: string) => {
     if (!user) return;
+    if (userDoc?.freeze?.active) {
+      console.warn("Widget is frozen. Habit completion is disabled.");
+      return;
+    }
     try {
       await completeHabitLog(habitId, 1, undefined, "", userDoc?.settings?.dailyResetTime);
       if (isTauri()) {
@@ -190,6 +219,10 @@ export function useWidgetData(): WidgetData {
 
   const undoHabit = useCallback(async (habitId: string) => {
     if (!user) return;
+    if (userDoc?.freeze?.active) {
+      console.warn("Widget is frozen. Habit undo is disabled.");
+      return;
+    }
     try {
       await uncompleteHabitLog(habitId, userDoc?.settings?.dailyResetTime);
       if (isTauri()) {
@@ -217,49 +250,4 @@ export function useWidgetData(): WidgetData {
     completeHabit,
     undoHabit,
   };
-}
-
-function formatDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function getWeekStart(dateStr: string, weekStartDay: number): string {
-  const d = new Date(dateStr + "T12:00:00");
-  if (isNaN(d.getTime())) return dateStr;
-  let safety = 0;
-  while (d.getDay() !== weekStartDay && safety < 10) {
-    d.setDate(d.getDate() - 1);
-    safety++;
-  }
-  return formatDate(d);
-}
-
-function getMonthStart(dateStr: string): string {
-  return `${dateStr.slice(0, 7)}-01`;
-}
-
-function isMultiDayMetric(habit: Habit): boolean {
-  return (habit.type === "metric" || habit.type === "limiter") && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
-}
-
-function getIntervalStart(habit: Habit, todayStr: string): string {
-  if (habit.period !== "interval" || habit.intervalDays <= 0) return todayStr;
-  const created = new Date(habit.createdAt);
-  created.setHours(12, 0, 0, 0); // Normalize to noon to match today comparison
-  const today = new Date(todayStr + "T12:00:00");
-  const diffDays = Math.floor((today.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays <= 0) return formatDate(created);
-  const segmentStart = diffDays - (diffDays % habit.intervalDays);
-  created.setDate(created.getDate() + segmentStart);
-  return formatDate(created);
-}
-
-function getPeriodStart(habit: Habit, todayStr: string, weekStartDay: number): string {
-  if (habit.period === "weekly") return getWeekStart(todayStr, weekStartDay);
-  if (habit.period === "monthly") return getMonthStart(todayStr);
-  if (habit.period === "interval") return getIntervalStart(habit, todayStr);
-  return todayStr;
 }

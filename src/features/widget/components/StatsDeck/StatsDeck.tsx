@@ -4,12 +4,16 @@ interface StatsDeckProps {
   completedCount: number;
   totalScheduled: number;
   strikeCount: number;
+  globalStreak: number;
+  weeklyCompletions: number;
 }
 
 export function StatsDeck({
   completedCount,
   totalScheduled,
   strikeCount,
+  globalStreak,
+  weeklyCompletions,
 }: StatsDeckProps) {
   const progress = totalScheduled > 0 ? completedCount / totalScheduled : 0;
   const progressPercentage = Math.round(progress * 100);
@@ -38,8 +42,12 @@ export function StatsDeck({
         </div>
       </div>
 
-      {/* Footer showing Strikes */}
+      {/* Footer showing Streak, Weekly and Strikes */}
       <div className="stats-deck__footer">
+        <span className="stats-deck__status">STREAK {globalStreak}D</span>
+        <div className="stats-deck__divider">|</div>
+        <span className="stats-deck__status">WEEKLY {weeklyCompletions}</span>
+        <div className="stats-deck__divider">|</div>
         <span className={`stats-deck__strikes ${strikeCount > 0 ? 'stats-deck__strikes--active' : ''}`}>
           {strikeCount > 0 ? `${strikeCount} STRIKES` : '0 STRIKES'}
         </span>

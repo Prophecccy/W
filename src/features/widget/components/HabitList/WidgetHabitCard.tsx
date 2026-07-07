@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, PointerEvent, useEffect } from 'react';
 import { Habit, CompletionEntry } from '../../../habits/types';
-import { Check, Circle } from 'lucide-react';
+import { Check } from 'lucide-react';
+import { LucideIcon } from '../../../../shared/components/IconPicker/LucideIcon';
 import './WidgetHabitCard.css';
 
 interface WidgetHabitCardProps {
@@ -9,8 +10,9 @@ interface WidgetHabitCardProps {
   doneToday?: boolean;
   currentValue?: number;
   completions?: CompletionEntry[];
-  onComplete: (habitId: string) => void;
+  onComplete: (habitId: string, increment: number) => void;
   onUndo: (habitId: string) => void;
+  disabled?: boolean;
 }
 
 export function WidgetHabitCard({
@@ -21,9 +23,11 @@ export function WidgetHabitCard({
   completions = [],
   onComplete,
   onUndo,
+  disabled = false,
 }: WidgetHabitCardProps) {
   const [isHolding, setIsHolding] = useState(false);
   const [justCompleted, setJustCompleted] = useState(false);
+  const [remainingUndoTime, setRemainingUndoTime] = useState(8000);
   const holdTimeoutRef = useRef<number | null>(null);
   const undoTimeoutRef = useRef<number | null>(null);
   const pointerStartCoordsRef = useRef<{ x: number; y: number } | null>(null);
@@ -45,6 +49,7 @@ export function WidgetHabitCard({
     
     if (ageMs < UNDO_DURATION) {
       setJustCompleted(true);
+      setRemainingUndoTime(UNDO_DURATION - ageMs);
       
       // Auto-clear justCompleted after remaining time expires
       if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
@@ -62,12 +67,18 @@ export function WidgetHabitCard({
 
   const handleUndo = useCallback((e: PointerEvent<HTMLSpanElement>) => {
     e.stopPropagation();
+    if (disabled) return;
     if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
     onUndo(habit.id);
-    setJustCompleted(false);
-  }, [habit.id, onUndo]);
+    // Let the reactive useEffect manage justCompleted based on remaining completions!
+  }, [habit.id, onUndo, disabled]);
 
   const startHold = useCallback((e: PointerEvent<HTMLDivElement>) => {
+    if (disabled) return;
+    if (e.target instanceof Element && e.target.closest('.widget-habit-card__undo')) {
+      return;
+    }
+
     const isMetricLike = habit.type === 'metric' || habit.type === 'limiter';
     if (isMetricLike) {
       // Metric/limiter types are metric-like: we do not block clicks/holds even when completed
@@ -92,7 +103,17 @@ export function WidgetHabitCard({
       setIsHolding(false);
       setJustCompleted(true);
       hasHeldRef.current = true;
-      onComplete(habit.id);
+
+      // HOLD action: complete remaining target
+      if (isMetricLike && habit.metric) {
+        const target = habit.metric.targetValue ?? 1;
+        const current = currentValue;
+        const remaining = Math.max(0, target - current);
+        const incrementVal = remaining > 0 ? remaining : 1;
+        onComplete(habit.id, incrementVal);
+      } else {
+        onComplete(habit.id, 1);
+      }
 
       // Auto-clear undo window after 8s
       if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
@@ -100,7 +121,7 @@ export function WidgetHabitCard({
         setJustCompleted(false);
       }, UNDO_DURATION);
     }, HOLD_DURATION);
-  }, [isCompletedToday, justCompleted, habit.id, habit.type, onComplete, onUndo]);
+  }, [isCompletedToday, justCompleted, habit.id, habit.type, habit.metric, currentValue, onComplete, onUndo]);
 
   // Clean up timers on unmount to prevent memory leaks and ghost updates
   useEffect(() => {
@@ -119,11 +140,12 @@ export function WidgetHabitCard({
   }, []);
 
   const handlePointerUp = useCallback(() => {
+    if (disabled) return;
     const isMetricLike = habit.type === 'metric' || habit.type === 'limiter';
-    if (isHolding && holdTimeoutRef.current) {
+    if (isHolding && holdTimeoutRef.current && !hasHeldRef.current) {
       // Short click/tap detection
       if (isMetricLike) {
-        onComplete(habit.id);
+        onComplete(habit.id, 1);
         setJustCompleted(true);
         if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
         undoTimeoutRef.current = window.setTimeout(() => {
@@ -132,13 +154,13 @@ export function WidgetHabitCard({
       }
     }
     cancelHold();
-  }, [isHolding, habit.id, habit.type, onComplete, cancelHold]);
+  }, [isHolding, habit.id, habit.type, onComplete, cancelHold, disabled]);
 
   const handlePointerMove = useCallback((e: PointerEvent<HTMLDivElement>) => {
     if (!isHolding || !pointerStartCoordsRef.current) return;
     const deltaX = Math.abs(e.clientX - pointerStartCoordsRef.current.x);
     const deltaY = Math.abs(e.clientY - pointerStartCoordsRef.current.y);
-    if (deltaX > 5 || deltaY > 5) {
+    if (deltaX > 15 || deltaY > 15) { // Align threshold to 15px
       cancelHold();
     }
   }, [isHolding, cancelHold]);
@@ -152,8 +174,11 @@ export function WidgetHabitCard({
 
   return (
     <div
-      className={`widget-habit-card ${isCommitted ? 'committed' : ''} ${isPendingUndo ? 'pending-undo' : ''} ${isDoneToday ? 'done-today' : ''} ${isLimiter ? 'limiter' : ''} ${isExceeded ? 'exceeded' : ''}`}
-      style={{ '--card-accent': isLimiter ? 'var(--strike-red)' : habit.color } as React.CSSProperties}
+      className={`widget-habit-card ${isCommitted ? 'committed' : ''} ${isPendingUndo ? 'pending-undo' : ''} ${isDoneToday ? 'done-today' : ''} ${isLimiter ? 'limiter' : ''} ${isExceeded ? 'exceeded' : ''} ${disabled ? 'widget-habit-card--disabled' : ''}`}
+      style={{
+        '--card-accent': isLimiter ? 'var(--strike-red)' : habit.color,
+        '--undo-duration': `${remainingUndoTime}ms`
+      } as React.CSSProperties}
       onPointerDown={startHold}
       onPointerUp={handlePointerUp}
       onPointerMove={handlePointerMove}
@@ -167,7 +192,7 @@ export function WidgetHabitCard({
         {isCompleted && !isLimiter ? (
           <Check size={18} strokeWidth={3.5} />
         ) : (
-          <Circle size={18} strokeWidth={2.5} opacity={0.6} />
+          <LucideIcon name={habit.icon || "Circle"} size={18} strokeWidth={2.5} opacity={0.6} />
         )}
       </div>
 
@@ -205,4 +230,3 @@ export function WidgetHabitCard({
     </div>
   );
 }
-

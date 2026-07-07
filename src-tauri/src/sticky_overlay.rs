@@ -167,8 +167,23 @@ fn start_polling(app_handle: tauri::AppHandle) {
                 let should_ignore = !over_note && !in_drag;
                 let currently_ignoring = IS_IGNORING.load(Ordering::Relaxed);
 
-                // Toggle only when state changes
-                if should_ignore != currently_ignoring {
+                let mut needs_update = should_ignore != currently_ignoring;
+
+                if !needs_update {
+                    if let Ok(hwnd) = win.hwnd() {
+                        use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TRANSPARENT};
+                        unsafe {
+                            let target = windows::Win32::Foundation::HWND(hwnd.0);
+                            let ex_style = GetWindowLongPtrW(target, GWL_EXSTYLE) as u32;
+                            let is_currently_transparent = (ex_style & WS_EX_TRANSPARENT.0) != 0;
+                            if should_ignore != is_currently_transparent {
+                                needs_update = true;
+                            }
+                        }
+                    }
+                }
+
+                if needs_update {
                     if let Ok(hwnd) = win.hwnd() {
                         set_click_through(hwnd.0 as isize, should_ignore);
                     }

@@ -200,6 +200,10 @@ export function DashboardPage() {
 
   // Actions for Habits
   const handleHabitComplete = async (habitId: string) => {
+    if (userDoc?.freeze?.active) {
+      window.dispatchEvent(new CustomEvent("w:toast", { detail: "[ APP IS FROZEN ]" }));
+      return;
+    }
     const originalLog = log ? JSON.parse(JSON.stringify(log)) : null;
     const originalPeriodLogs = periodLogs ? JSON.parse(JSON.stringify(periodLogs)) : [];
     try {
@@ -272,6 +276,10 @@ export function DashboardPage() {
   };
 
   const handleHabitUndo = async (habitId: string) => {
+    if (userDoc?.freeze?.active) {
+      window.dispatchEvent(new CustomEvent("w:toast", { detail: "[ APP IS FROZEN ]" }));
+      return;
+    }
     const originalLog = log ? JSON.parse(JSON.stringify(log)) : null;
     const originalPeriodLogs = periodLogs ? JSON.parse(JSON.stringify(periodLogs)) : [];
     try {
@@ -409,6 +417,7 @@ export function DashboardPage() {
   }
 
   const isDefaultCycle = !userDoc?.settings?.wakeUpTime || !userDoc?.settings?.bedTime || (userDoc?.settings?.wakeUpTime === "07:00" && userDoc?.settings?.bedTime === "23:00");
+  const isAppFrozen = !!userDoc?.freeze?.active;
 
   return (
     <div className="dashboard-page">
@@ -471,6 +480,7 @@ export function DashboardPage() {
                     onUndo={() => handleHabitUndo(h.id)}
                     onClick={() => {}}
                     currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
+                    disabled={isAppFrozen}
                   />
                 ))}
               </div>
@@ -512,6 +522,7 @@ export function DashboardPage() {
                     onUndo={() => handleHabitUndo(h.id)}
                     onClick={() => {}}
                     currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
+                    disabled={isAppFrozen}
                   />
                 ))}
               </div>

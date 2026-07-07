@@ -713,6 +713,10 @@ function LayoutInner() {
 
   // ── Command palette actions ────────────────────────────────────
   const handlePaletteCompleteHabit = useCallback(async (habitId: string) => {
+    if (userDoc?.freeze?.active) {
+      window.dispatchEvent(new CustomEvent("w:toast", { detail: "[ APP IS FROZEN ]" }));
+      return;
+    }
     try {
       await completeHabit(habitId, 1, undefined, "", userDoc?.settings?.dailyResetTime);
       // Refresh palette data

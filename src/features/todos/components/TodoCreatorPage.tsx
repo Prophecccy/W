@@ -1,17 +1,44 @@
 import { useEffect, useState } from "react";
 import { TodoForm } from "./TodoForm/TodoForm";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useWidgetData } from "../../widget/hooks/useWidgetData";
 import { getGroups } from "../../habits/services/groupService";
 import { HabitGroup } from "../../habits/types";
 import "./TodoCreatorPage.css";
 
+async function safeStartDragging() {
+  const { isTauri } = await import("../../../shared/utils/tauri");
+  if (isTauri()) {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().startDragging();
+  }
+}
+
+async function safeClose() {
+  const { isTauri } = await import("../../../shared/utils/tauri");
+  if (isTauri()) {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().close();
+  }
+}
+
+async function safeShowAndFocus() {
+  const { isTauri } = await import("../../../shared/utils/tauri");
+  if (isTauri()) {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    const win = getCurrentWindow();
+    await win.show().then(() => win.setFocus()).catch(() => {});
+  }
+}
+
 export function TodoCreatorPage() {
-  const { userDoc, loading: widgetLoading } = useWidgetData();
   const [groups, setGroups] = useState<HabitGroup[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(true);
+  const [dailyResetTime, setDailyResetTime] = useState("04:00");
 
   useEffect(() => {
+    // Read dailyResetTime from localStorage cache
+    const cachedTime = localStorage.getItem("w_daily_reset_time") || "04:00";
+    setDailyResetTime(cachedTime);
+
     getGroups()
       .then((res) => {
         setGroups(res);
@@ -23,18 +50,15 @@ export function TodoCreatorPage() {
       });
   }, []);
 
-  const loading = widgetLoading || groupsLoading;
-  const dailyResetTime = userDoc?.settings?.dailyResetTime;
+  const loading = groupsLoading;
 
   // Let the user drag the window by holding down on any non-interactive areas
   useEffect(() => {
-    // We can allow dragging the container
     const container = document.querySelector(".todo-creator-window-container");
     if (container) {
       const handlePointerDown = (e: PointerEvent) => {
-        // Only drag if clicking on the background container itself
         if (e.target === container || (e.target as HTMLElement).classList.contains("todo-creator-window-content")) {
-          getCurrentWindow().startDragging();
+          safeStartDragging();
         }
       };
       container.addEventListener("pointerdown", handlePointerDown as any);
@@ -44,8 +68,7 @@ export function TodoCreatorPage() {
 
   const handleClose = async () => {
     try {
-      const win = getCurrentWindow();
-      await win.close();
+      await safeClose();
     } catch (err) {
       console.error("Failed to close window:", err);
     }
@@ -55,9 +78,7 @@ export function TodoCreatorPage() {
   useEffect(() => {
     if (!loading) {
       setTimeout(() => {
-        getCurrentWindow().show().then(() => {
-          getCurrentWindow().setFocus();
-        }).catch((err) => console.error("Failed to show window:", err));
+        safeShowAndFocus();
       }, 50);
     }
   }, [loading]);

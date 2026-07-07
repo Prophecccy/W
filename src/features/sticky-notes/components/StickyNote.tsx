@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { motion } from "framer-motion";
-import { invoke } from "@tauri-apps/api/core";
+import { motion, AnimatePresence } from "framer-motion";
 import { Todo } from "../../todos/types";
 import { getToday } from "../../../shared/utils/dateUtils";
 import { forceInteractive, sendStickyRegions } from "./StickyCanvas";
+import { LucideIcon } from "../../../shared/components/IconPicker/LucideIcon";
 
 import "./StickyNote.css";
 
@@ -18,6 +18,18 @@ interface StickyNoteProps {
 
 type CompletionState = 'idle' | 'completing' | 'undoable';
 
+async function safeInvoke(cmd: string, args?: any) {
+  const { isTauri } = await import("../../../shared/utils/tauri");
+  if (isTauri()) {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke(cmd, args);
+    } catch (err) {
+      console.error(`Failed to invoke command ${cmd}:`, err);
+    }
+  }
+}
+
 export function StickyNote({
   todo,
   position,
@@ -30,13 +42,13 @@ export function StickyNote({
   const [isHolding, setIsHolding] = useState(false);
   const [completionState, setCompletionState] = useState<CompletionState>('idle');
   const [isExiting, setIsExiting] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const noteRef = useRef<HTMLDivElement>(null);
   const livePosRef = useRef(position);
   const isDraggingRef = useRef(false);
   const holdTimeoutRef = useRef<number | null>(null);
-  const clickCountRef = useRef(0);
-  const clickTimerRef = useRef<number | null>(null);
+  const hasHeldRef = useRef(false);
 
   const completionStateRef = useRef<CompletionState>('idle');
   const undoTimerRef = useRef<number | null>(null);
@@ -108,8 +120,8 @@ export function StickyNote({
       const dx = e.clientX - dragStart.x;
       const dy = e.clientY - dragStart.y;
 
-      // 5px threshold to visually start drag
-      if (!hasMoved && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+      // 15px threshold to cancel hold and visually start drag
+      if (!hasMoved && (Math.abs(dx) > 15 || Math.abs(dy) > 15)) {
         hasMoved = true;
         isDraggingRef.current = true;
         // Direct DOM class manipulation — no React re-render
@@ -150,6 +162,9 @@ export function StickyNote({
         rafId = null;
       }
 
+      const t = todoRef.current;
+      const clicked = !hasMoved && !hasHeldRef.current;
+
       if (hasMoved) {
         const finalPos = livePosRef.current;
 
@@ -164,25 +179,20 @@ export function StickyNote({
 
         // Sync React state OPTIMISTICALLY
         setPos(finalPos);
-        onDragEndRef.current(todoRef.current.id, finalPos);
+        onDragEndRef.current(t.id, finalPos);
 
-        // Safely restore transitions AFTER layout commit
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (el) el.classList.remove("sticky-note--dragging");
-            isDraggingRef.current = false;
-          });
-        });
-
-         // Defer Rust hit-test regions update
+        // Defer Rust hit-test regions update
         setTimeout(async () => {
           let offsetX = 0;
           let offsetY = 0;
           try {
-            const { getCurrentWindow } = await import("@tauri-apps/api/window");
-            const winPos = await getCurrentWindow().outerPosition();
-            offsetX = winPos.x;
-            offsetY = winPos.y;
+            const { isTauri } = await import("../../../shared/utils/tauri");
+            if (isTauri()) {
+              const { getCurrentWindow } = await import("@tauri-apps/api/window");
+              const winPos = await getCurrentWindow().outerPosition();
+              offsetX = winPos.x;
+              offsetY = winPos.y;
+            }
           } catch (err) {
             console.error("Failed to get window position for hit test:", err);
           }
@@ -201,12 +211,17 @@ export function StickyNote({
           });
           sendStickyRegions(regions);
         }, 50);
-      } else {
-        isDraggingRef.current = false;
+      } else if (clicked) {
+        // Handle click (without drag or hold)
+        if (t.type === "numbered") {
+          onIncrementRef.current(t.id);
+        } else {
+          setExpanded(prev => !prev);
+        }
       }
 
-      // ALWAYS release drag mode on pointer up — for both drag and non-drag
-      invoke("set_sticky_drag_mode", { dragging: false }).catch(() => {});
+      // ALWAYS release drag mode on pointer up
+      safeInvoke("set_sticky_drag_mode", { dragging: false }).catch(() => {});
 
       cancelHold();
       dragStart = null;
@@ -216,8 +231,6 @@ export function StickyNote({
     };
 
     const onDown = (e: PointerEvent) => {
-      console.log("[StickyNote] pointerdown fired!", { button: e.button, completionState: completionStateRef.current, x: e.clientX, y: e.clientY });
-
       // Disable interaction if in purgatory or completing
       if (completionStateRef.current !== 'idle') return;
 
@@ -225,11 +238,9 @@ export function StickyNote({
       if (e.button !== 0) return;
 
       // IMMEDIATELY tell Rust to keep the overlay interactive for the
-      // entire duration of this pointer interaction. This MUST happen
-      // before any movement so the polling thread never toggles
-      // WS_EX_TRANSPARENT while we're tracking the pointer.
+      // entire duration of this pointer interaction.
       forceInteractive();
-      invoke("set_sticky_drag_mode", { dragging: true }).catch(() => {});
+      safeInvoke("set_sticky_drag_mode", { dragging: true }).catch(() => {});
 
       dragStart = {
         x: e.clientX,
@@ -239,47 +250,27 @@ export function StickyNote({
       };
       hasMoved = false;
 
-      // Use WINDOW-level listeners — pointer capture doesn't work in
-      // WebView2 transparent windows (WS_EX_TRANSPARENT blocks WM_POINTER*)
+      // Use WINDOW-level listeners
       window.addEventListener("pointermove", onMove, { passive: true });
       window.addEventListener("pointerup", onUp);
       window.addEventListener("pointercancel", onUp);
 
-      // ─── Double click detection ────────────────────
-      clickCountRef.current += 1;
-      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
-      clickTimerRef.current = window.setTimeout(() => {
-        clickCountRef.current = 0;
-      }, 400);
-
-      const isDoubleClick = clickCountRef.current >= 2;
+      // Start hold-to-complete detection for standard and numbered todos
       const t = todoRef.current;
+      hasHeldRef.current = false;
+      setIsHolding(true);
 
-      // Double click marks the task as complete
-      if (isDoubleClick) {
-        // Clean up the listeners we just attached — completion takes over
-        detachWindowListeners();
-        dragStart = null;
-        invoke("set_sticky_drag_mode", { dragging: false }).catch(() => {});
+      holdTimeoutRef.current = window.setTimeout(() => {
+        if (hasMoved) return; // drag/move cancels hold
+        hasHeldRef.current = true;
+        setIsHolding(false);
 
         if (t.type === "numbered") {
           triggerCompletion(() => onFullCompleteRef.current(t.id));
         } else {
           triggerCompletion(() => onCompleteRef.current(t.id));
         }
-        cancelHold();
-        return;
-      }
-
-      // ─── Hold detection (Only for Numbered Increment) ────────────────────
-      if (t.type === "numbered") {
-        setIsHolding(true);
-        holdTimeoutRef.current = window.setTimeout(() => {
-          if (hasMoved) return; // drag supersedes hold
-          onIncrementRef.current(t.id);
-          setIsHolding(false);
-        }, HOLD_DURATION);
-      }
+      }, HOLD_DURATION);
     };
 
     console.log("[StickyNote] Attaching pointerdown listener to:", el, "todo:", todo.id);
@@ -305,6 +296,11 @@ export function StickyNote({
     cancelHold();
     setCompState('completing');
 
+    const t = todoRef.current;
+    import("../../todos/services/todoService").then(({ addPendingCompletion }) => {
+      addPendingCompletion(t.id, t.type === 'numbered' ? t.numbered : undefined);
+    });
+
     if (fillTimerRef.current) clearTimeout(fillTimerRef.current);
     fillTimerRef.current = window.setTimeout(() => {
       if (completionStateRef.current !== 'completing') return;
@@ -318,6 +314,9 @@ export function StickyNote({
           
           if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
           exitTimerRef.current = window.setTimeout(() => {
+            import("../../todos/services/todoService").then(({ removePendingCompletion }) => {
+              removePendingCompletion(t.id);
+            });
             callback();
           }, 300); // wait for exit animation
         }
@@ -339,12 +338,17 @@ export function StickyNote({
       exitTimerRef.current = null;
     }
     setCompState('idle');
+
+    // Revert pending completion
+    const t = todoRef.current;
+    import("../../todos/services/todoService").then(({ removePendingCompletion }) => {
+      removePendingCompletion(t.id);
+    });
   };
 
   useEffect(() => {
     return () => {
       cancelHold();
-      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
       if (fillTimerRef.current) clearTimeout(fillTimerRef.current);
       if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
       if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
@@ -427,12 +431,28 @@ export function StickyNote({
       <div className={`sticky-note__content ${completionState === 'undoable' ? 'sticky-note__content--hidden' : ''}`}>
         <div className="sticky-note__header">
           <div className="sticky-note__checkbox" />
-          <div className="sticky-note__title">{todo.title}</div>
+          <div className="sticky-note__title" style={{ flex: 1 }}>{todo.title}</div>
+          {todo.description && (
+            <div style={{ color: "var(--text-muted)", display: "flex", alignItems: "center", marginLeft: "6px" }}>
+              <LucideIcon name={expanded ? "ChevronUp" : "ChevronDown"} size={12} />
+            </div>
+          )}
         </div>
 
-        {todo.description && (
-          <div className="sticky-note__description">{todo.description}</div>
-        )}
+        <AnimatePresence initial={false}>
+          {expanded && todo.description && (
+            <motion.div
+              className="sticky-note__description"
+              initial={{ height: 0, opacity: 0, marginTop: 0 }}
+              animate={{ height: "auto", opacity: 1, marginTop: 8 }}
+              exit={{ height: 0, opacity: 0, marginTop: 0 }}
+              transition={{ duration: 0.15, ease: "easeInOut" }}
+              style={{ overflow: "hidden" }}
+            >
+              {todo.description}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {todo.type === "numbered" && todo.numbered && (
            <div className="sticky-note__progress-footer">

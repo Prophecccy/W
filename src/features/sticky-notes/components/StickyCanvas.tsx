@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { isTauri } from "../../../shared/utils/tauri";
 import { db, doc, onSnapshot } from "../../../shared/config/firebase";
 import { useAuthContext } from "../../auth/context";
@@ -17,6 +15,17 @@ import {
   completeNumberedTodoFull,
 } from "../../todos/services/todoService";
 import "./StickyNote.css";
+
+async function safeInvoke(cmd: string, args?: any) {
+  if (isTauri()) {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke(cmd, args);
+    } catch (e) {
+      console.error(`safeInvoke failed for command ${cmd}:`, e);
+    }
+  }
+}
 
 // ─── Click-Through Architecture ─────────────────────────────────
 //
@@ -51,7 +60,7 @@ interface StickyRect {
 
 async function initHitTest() {
   try {
-    await invoke("start_sticky_hit_test");
+    await safeInvoke("start_sticky_hit_test");
   } catch (e) {
     console.warn("Failed to start sticky hit test:", e);
   }
@@ -63,7 +72,7 @@ async function initHitTest() {
  */
 export async function sendStickyRegions(regions: StickyRect[]) {
   try {
-    await invoke("update_sticky_regions", { regions });
+    await safeInvoke("update_sticky_regions", { regions });
   } catch {
     // Not running in Tauri
   }
@@ -75,7 +84,7 @@ export async function sendStickyRegions(regions: StickyRect[]) {
  */
 export async function forceInteractive() {
   try {
-    await invoke("force_sticky_interactive");
+    await safeInvoke("force_sticky_interactive");
   } catch {
     // Not running in Tauri
   }
@@ -90,44 +99,44 @@ export function StickyCanvas() {
   const initRef = useRef(false);
   const regionsTimerRef = useRef<number | null>(null);
 
-  // Redirect console logs to localDb log file for diagnostics
+  // Intercept close request to flush all pending completed todo writes
   useEffect(() => {
-    if (typeof window === "undefined" || !(window as any).__TAURI_INTERNALS__) return;
-    const originalLog = console.log;
-    const originalError = console.error;
-    const originalWarn = console.warn;
+    if (!isTauri()) return;
+    let unlistenClose: (() => void) | null = null;
+    let isClosed = false;
 
-    const logToLocalDb = async (level: string, args: any[]) => {
+    const setupCloseHandler = async () => {
       try {
-        const msg = args.map(a => typeof a === "object" ? JSON.stringify(a) : String(a)).join(" ");
-        const logLine = `[${new Date().toISOString()}] [StickyCanvas ${level}]: ${msg}`;
-        const { writeTextFile, readTextFile, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
-        const logFile = "w_localdb_sticky-overlay_debug.log";
-        let current = "";
-        if (await exists(logFile, { baseDir: BaseDirectory.AppData })) {
-          current = await readTextFile(logFile, { baseDir: BaseDirectory.AppData });
-        }
-        await writeTextFile(logFile, current + "\n" + logLine, { baseDir: BaseDirectory.AppData });
-      } catch {}
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const win = getCurrentWindow();
+        
+        unlistenClose = await win.onCloseRequested(async (event) => {
+          if (isClosed) return;
+          event.preventDefault(); // Stop window from closing instantly
+          isClosed = true;
+
+          try {
+            const { flushPendingCompletions } = await import("../../todos/services/todoService");
+            const { flushPendingSyncs } = await import("../services/positionStore");
+            await Promise.all([
+              flushPendingCompletions(),
+              flushPendingSyncs()
+            ]);
+          } catch (err) {
+            console.error("Failed to flush pending completions or positions on close:", err);
+          }
+
+          await win.destroy(); // Close window permanently
+        });
+      } catch (err) {
+        console.error("Failed to set up onCloseRequested handler:", err);
+      }
     };
 
-    console.log = (...args) => {
-      originalLog(...args);
-      logToLocalDb("INFO", args);
-    };
-    console.error = (...args) => {
-      originalError(...args);
-      logToLocalDb("ERROR", args);
-    };
-    console.warn = (...args) => {
-      originalWarn(...args);
-      logToLocalDb("WARN", args);
-    };
+    setupCloseHandler();
 
     return () => {
-      console.log = originalLog;
-      console.error = originalError;
-      console.warn = originalWarn;
+      if (unlistenClose) unlistenClose();
     };
   }, []);
 
@@ -140,6 +149,8 @@ export function StickyCanvas() {
   // Real-time accent color listener (mirrors useWidgetData pattern)
   // onSnapshot fires immediately with current data AND on every subsequent change.
   useEffect(() => {
+    const originalAccent = document.documentElement.style.getPropertyValue("--accent");
+
     if (!user) {
       setAccentReady(true);
       return;
@@ -160,15 +171,22 @@ export function StickyCanvas() {
     // Listen for realtime color preview from settings if running in Tauri
     let unlistenPromise: Promise<() => void> | null = null;
     if (isTauri()) {
-      unlistenPromise = listen<string>('color-preview', (event) => {
-        document.documentElement.style.setProperty('--accent', event.payload);
-      });
+      import("@tauri-apps/api/event").then(({ listen }) => {
+        unlistenPromise = listen<string>('color-preview', (event) => {
+          document.documentElement.style.setProperty('--accent', event.payload);
+        });
+      }).catch(() => {});
     }
 
     return () => {
       unsub();
       if (unlistenPromise) {
         unlistenPromise.then(u => u()).catch(() => {});
+      }
+      if (originalAccent) {
+        document.documentElement.style.setProperty("--accent", originalAccent);
+      } else {
+        document.documentElement.style.removeProperty("--accent");
       }
     };
   }, [user]);

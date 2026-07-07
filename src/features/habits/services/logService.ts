@@ -72,6 +72,14 @@ async function completeHabitImpl(
   skipLog = false
 ): Promise<Record<string, any> | null> {
   const userId = uid();
+
+  // Verify if app is frozen
+  const userRef = doc(db, "users", userId);
+  const userSnap = await getDoc(userRef);
+  if (userSnap.exists() && userSnap.data()?.freeze?.active === true) {
+    throw new Error("App is in freeze mode. Habit completion is disabled.");
+  }
+
   const today = getToday(undefined, resetTimeOverride);
   const ref = logRef(userId, today);
   const habitRef = doc(db, "users", userId, "habits", habitId);
@@ -348,6 +356,14 @@ async function uncompleteHabitImpl(
   skipLog = false
 ): Promise<Record<string, any> | null> {
   const userId = uid();
+
+  // Verify if app is frozen
+  const userRef = doc(db, "users", userId);
+  const userSnap = await getDoc(userRef);
+  if (userSnap.exists() && userSnap.data()?.freeze?.active === true) {
+    throw new Error("App is in freeze mode. Habit completion is disabled.");
+  }
+
   const today = getToday(undefined, resetTimeOverride);
   const ref = logRef(userId, today);
   const habitRef = doc(db, "users", userId, "habits", habitId);

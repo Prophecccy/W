@@ -15,3 +15,8 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <App />
   </React.StrictMode>,
 );
+
+// Prevent default browser context menu globally for a native app feel
+if (typeof window !== "undefined") {
+  window.addEventListener("contextmenu", (e) => e.preventDefault());
+}

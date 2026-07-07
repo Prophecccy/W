@@ -21,6 +21,7 @@ type LayoutMode = 'default' | 'grouped' | 'custom';
 export function HabitsPage() {
   const navigate = useNavigate();
   const { userDoc } = useOutletContext<{ userDoc: any }>();
+  const isAppFrozen = !!userDoc?.freeze?.active;
   const [loading, setLoading] = useState(true);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [groups, setGroups] = useState<HabitGroup[]>([]);
@@ -483,7 +484,7 @@ export function HabitsPage() {
             {(layoutMode === 'default' || layoutMode === 'custom') && (
               <div className="habits-grid">
                 {scheduled.map((h, index) => (
-                  <HabitCard 
+                  <HabitCard disabled={isAppFrozen} 
                     key={h.id} 
                     habit={h} 
                     isCompletedToday={false} 
@@ -516,7 +517,7 @@ export function HabitsPage() {
                     <HabitGroupHeader key={g.id} title={g.name} count={groupHabits.length}>
                       <div className="habits-grid">
                          {groupHabits.map((h) => (
-                           <HabitCard
+                           <HabitCard disabled={isAppFrozen}
                              key={h.id}
                              habit={h}
                              isCompletedToday={false}
@@ -550,7 +551,7 @@ export function HabitsPage() {
                       <HabitGroupHeader title="UNGROUPED" count={ungrouped.length}>
                         <div className="habits-grid">
                            {ungrouped.map((h) => (
-                             <HabitCard
+                             <HabitCard disabled={isAppFrozen}
                               key={h.id}
                               habit={h}
                               isCompletedToday={false}
@@ -594,7 +595,7 @@ export function HabitsPage() {
                         ? "RESTING"
                         : "NOT SCHEDULED TODAY";
                     return (
-                      <HabitCard 
+                      <HabitCard disabled={isAppFrozen} 
                         key={h.id} 
                         habit={h} 
                         isCompletedToday={false} 
@@ -627,7 +628,7 @@ export function HabitsPage() {
                 <h3 className="habits-section-title t-label" style={{ color: 'var(--strike-red)' }}>[ LIMITERS ]</h3>
                 <div className="habits-grid">
                   {limiters.map(h => (
-                    <HabitCard 
+                    <HabitCard disabled={isAppFrozen} 
                       key={h.id} 
                       habit={h} 
                       isCompletedToday={false} 
@@ -653,7 +654,7 @@ export function HabitsPage() {
               <HabitGroupHeader title="COMPLETED" count={completed.length} defaultExpanded={false}>
                 <div className="habits-grid">
                   {completed.map(h => (
-                    <HabitCard 
+                    <HabitCard disabled={isAppFrozen} 
                       key={h.id} 
                       habit={h} 
                       isCompletedToday={true} 

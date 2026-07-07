@@ -10,6 +10,8 @@ interface TodoCardProps {
   onComplete: () => void;
   onClick: () => void;
   onDelete?: () => void;
+  onEdit?: () => void;
+  onToggleExpand?: () => void;
   expanded?: boolean;
   dailyResetTime?: string;
 }
@@ -19,6 +21,8 @@ export function TodoCard({
   onComplete, 
   onClick, 
   onDelete, 
+  onEdit,
+  onToggleExpand,
   expanded = false,
   dailyResetTime
 }: TodoCardProps) {
@@ -78,8 +82,8 @@ export function TodoCard({
     const deltaX = Math.abs(e.clientX - pointerStartCoordsRef.current.x);
     const deltaY = Math.abs(e.clientY - pointerStartCoordsRef.current.y);
     
-    // If the pointer has drifted by more than 5px, cancel the hold immediately!
-    if (deltaX > 5 || deltaY > 5) {
+    // If the pointer has drifted by more than 15px, cancel the hold immediately!
+    if (deltaX > 15 || deltaY > 15) {
       cancelHold();
     }
   };
@@ -153,20 +157,70 @@ export function TodoCard({
               style={{ color: isCompleted ? "var(--text-muted)" : "var(--card-accent)" }}
             />
             <span className="todo-card__title t-body">{todo.title}</span>
+            {todo.description && todo.description.trim() !== "" && (
+              <button
+                type="button"
+                className="todo-card__expand-btn"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleExpand?.();
+                }}
+                title={expanded ? "Collapse description" : "Expand description"}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--text-muted)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "2px",
+                  marginLeft: "6px"
+                }}
+              >
+                <LucideIcon name={expanded ? "ChevronUp" : "ChevronDown"} size={14} />
+              </button>
+            )}
           </div>
-          {onDelete && (
-            <button
-              type="button"
-              className="todo-card__delete-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-              title="Delete Todo"
-            >
-              <LucideIcon name="Trash2" size={14} />
-            </button>
-          )}
+          <div className="todo-card__actions" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {onEdit && !isCompleted && (
+              <button
+                type="button"
+                className="todo-card__edit-btn"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+                title="Edit Todo"
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--text-muted)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "4px"
+                }}
+              >
+                <LucideIcon name="Pencil" size={14} />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                className="todo-card__delete-btn"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                title="Delete Todo"
+              >
+                <LucideIcon name="Trash2" size={14} />
+              </button>
+            )}
+          </div>
         </div>
 
         <AnimatePresence initial={false}>
