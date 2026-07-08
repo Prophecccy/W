@@ -43,128 +43,20 @@ pub fn get_hidden_owner() -> isize {
     })
 }
 
+/// Lightly lower the main process priority so Windows schedules it below
+/// normal foreground apps, but still well above IDLE — no power throttling,
+/// no child-process enumeration loop.  This avoids the severe UI lag that
+/// IDLE_PRIORITY_CLASS + EcoQoS power throttling caused.
 #[cfg(target_os = "windows")]
-fn get_child_pids(parent_pid: u32) -> Vec<u32> {
-    use windows::Win32::System::Diagnostics::ToolHelp::{
-        CreateToolhelp32Snapshot, Process32FirstW, Process32NextW,
-        PROCESSENTRY32W, TH32CS_SNAPPROCESS,
-    };
-    use windows::Win32::Foundation::CloseHandle;
-
-    let mut child_pids = Vec::new();
-    unsafe {
-        if let Ok(snapshot) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
-            let mut pe = PROCESSENTRY32W::default();
-            pe.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
-
-            if Process32FirstW(snapshot, &mut pe).is_ok() {
-                loop {
-                    if pe.th32ParentProcessID == parent_pid {
-                        child_pids.push(pe.th32ProcessID);
-                    }
-                    if Process32NextW(snapshot, &mut pe).is_err() {
-                        break;
-                    }
-                }
-            }
-            let _ = CloseHandle(snapshot);
-        }
-    }
-    child_pids
-}
-
-#[cfg(target_os = "windows")]
-fn get_all_descendant_pids(parent_pid: u32) -> Vec<u32> {
-    let mut descendants = Vec::new();
-    let mut to_process = vec![parent_pid];
-
-    while !to_process.is_empty() {
-        let mut next_generation = Vec::new();
-        for pid in to_process {
-            let children = get_child_pids(pid);
-            for child in children {
-                descendants.push(child);
-                next_generation.push(child);
-            }
-        }
-        to_process = next_generation;
-    }
-    descendants
-}
-
-#[cfg(target_os = "windows")]
-fn enable_efficiency_mode_for_pid(pid: u32) {
+pub fn apply_background_priority() {
     use windows::Win32::System::Threading::{
-        OpenProcess, SetPriorityClass, SetProcessInformation,
-        IDLE_PRIORITY_CLASS, PROCESS_POWER_THROTTLING_STATE,
-        PROCESS_POWER_THROTTLING_CURRENT_VERSION,
-        PROCESS_POWER_THROTTLING_EXECUTION_SPEED, ProcessPowerThrottling,
-        PROCESS_SET_INFORMATION,
-    };
-    use windows::Win32::Foundation::CloseHandle;
-
-    unsafe {
-        if let Ok(handle) = OpenProcess(PROCESS_SET_INFORMATION, false, pid) {
-            let _ = SetPriorityClass(handle, IDLE_PRIORITY_CLASS);
-
-            let throttling_state = PROCESS_POWER_THROTTLING_STATE {
-                Version: PROCESS_POWER_THROTTLING_CURRENT_VERSION,
-                ControlMask: PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
-                StateMask: PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
-            };
-
-            let _ = SetProcessInformation(
-                handle,
-                ProcessPowerThrottling,
-                &throttling_state as *const _ as *const _,
-                std::mem::size_of::<PROCESS_POWER_THROTTLING_STATE>() as u32,
-            );
-            let _ = CloseHandle(handle);
-        }
-    }
-}
-
-#[cfg(target_os = "windows")]
-pub fn enable_efficiency_mode() {
-    use windows::Win32::System::Threading::{
-        GetCurrentProcess, GetCurrentProcessId, SetPriorityClass, SetProcessInformation,
-        IDLE_PRIORITY_CLASS, PROCESS_POWER_THROTTLING_STATE,
-        PROCESS_POWER_THROTTLING_CURRENT_VERSION,
-        PROCESS_POWER_THROTTLING_EXECUTION_SPEED, ProcessPowerThrottling,
+        GetCurrentProcess, SetPriorityClass, BELOW_NORMAL_PRIORITY_CLASS,
     };
 
     unsafe {
         let handle = GetCurrentProcess();
-
-        // Lower priority to Idle
-        let _ = SetPriorityClass(handle, IDLE_PRIORITY_CLASS);
-
-        // Turn on power throttling (EcoQoS)
-        let throttling_state = PROCESS_POWER_THROTTLING_STATE {
-            Version: PROCESS_POWER_THROTTLING_CURRENT_VERSION,
-            ControlMask: PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
-            StateMask: PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
-        };
-
-        let _ = SetProcessInformation(
-            handle,
-            ProcessPowerThrottling,
-            &throttling_state as *const _ as *const _,
-            std::mem::size_of::<PROCESS_POWER_THROTTLING_STATE>() as u32,
-        );
+        let _ = SetPriorityClass(handle, BELOW_NORMAL_PRIORITY_CLASS);
     }
-
-    // Spawn a background thread to continually discover and apply EcoQoS to all child WebView2 processes
-    std::thread::spawn(move || {
-        let parent_pid = unsafe { GetCurrentProcessId() };
-        loop {
-            let descendants = get_all_descendant_pids(parent_pid);
-            for pid in descendants {
-                enable_efficiency_mode_for_pid(pid);
-            }
-            std::thread::sleep(std::time::Duration::from_secs(5));
-        }
-    });
 }
 
 #[tauri::command]
@@ -204,8 +96,8 @@ pub fn run() {
             println!("[W SETUP] Inside setup closure.");
             #[cfg(target_os = "windows")]
             {
-                println!("[W SETUP] Enabling Windows Efficiency Mode (EcoQoS)...");
-                enable_efficiency_mode();
+                println!("[W SETUP] Applying below-normal priority...");
+                apply_background_priority();
             }
             // ── Autolaunch (always locked in) ──────────────────────────────
             use tauri_plugin_autostart::ManagerExt;
