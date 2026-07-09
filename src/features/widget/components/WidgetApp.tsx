@@ -12,6 +12,12 @@ import { syncActiveLockdownState } from '../../lockdown/services/lockdownService
 import { processGap } from '../../strikes/services/gapProcessor';
 import './WidgetApp.css';
 
+// Pre-import for instant drag response (no async delay on first drag)
+let _cachedGetCurrentWindow: (() => any) | null = null;
+import("@tauri-apps/api/window")
+  .then(m => { _cachedGetCurrentWindow = m.getCurrentWindow; })
+  .catch(() => {});
+
 async function safeInvoke(cmd: string, args?: any) {
   if (isTauri()) {
     try {
@@ -103,41 +109,7 @@ export function WidgetApp() {
     }
   }, [loading, userDoc?.uid, userDoc?.lastActiveDate, today]);
 
-  // ── Z-Order Enforcer: Active Defense ───────────────────────
-  useEffect(() => {
-    let active = true;
-    let unsubPromise: Promise<() => void> | null = null;
-    async function setupZOrderDefense() {
-      try {
-        const { getCurrentWebviewWindow, WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
-        const currentWin = getCurrentWebviewWindow();
-        const unsub = await currentWin.onFocusChanged(async ({ payload: focused }) => {
-          if (!active) return;
-          if (focused) {
-            // Force main window back to top if open and not minimized
-            try {
-              const mainWin = await WebviewWindow.getByLabel("main");
-              if (mainWin) {
-                const isMin = await mainWin.isMinimized();
-                if (!isMin) await mainWin.setFocus();
-              }
-            } catch {}
-            // Push self back to bottom native layer
-            try { await safeInvoke("pin_widget_bottom"); } catch {}
-          }
-        });
-        return unsub;
-      } catch { /* Not in Tauri */ }
-      return () => {};
-    }
-    unsubPromise = setupZOrderDefense();
-    return () => {
-      active = false;
-      if (unsubPromise) {
-        unsubPromise.then((unsub) => unsub()).catch(() => {});
-      }
-    };
-  }, []);
+
 
   // ─── Manual Drag State ───────────────────────────────────
   // ALL drag handlers are synchronous — no awaits allowed in the drag path.
@@ -160,29 +132,19 @@ export function WidgetApp() {
     if (e.button !== 0) return;
 
     if (isTauri()) {
-      import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
-        getCurrentWindow().startDragging();
-      }).catch(() => {});
+      // Use pre-cached module for instant drag response
+      if (_cachedGetCurrentWindow) {
+        _cachedGetCurrentWindow().startDragging();
+      } else {
+        import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
+          _cachedGetCurrentWindow = getCurrentWindow;
+          getCurrentWindow().startDragging();
+        }).catch(() => {});
+      }
     }
   }, []);
 
-  const handlePointerUp = useCallback(() => {
-    // ── Z-Order Enforcer: only on TAP (no drag movement) ──
-    // Since startDragging intercepts mouse events during native drag,
-    // this handler is only reached on simple clicks/taps.
-    try {
-      safeInvoke("pin_widget_bottom");
-      import("@tauri-apps/api/webviewWindow").then(({ WebviewWindow }) => {
-        WebviewWindow.getByLabel("main").then(main => {
-          if (main) {
-            main.isMinimized().then(isMin => {
-              if (!isMin) main.setFocus();
-            });
-          }
-        });
-      });
-    } catch {}
-  }, []);
+
 
   // ─── Wallpaper ───────────────────────────────────────────
   const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(null);
@@ -499,31 +461,13 @@ export function WidgetApp() {
             throttleTimer = null;
             if (cleanup) return;
 
-            const targetX = lastPendingPositionRef.x;
-            const targetY = lastPendingPositionRef.y;
-
             saveWidgetPosition({
-              x: targetX,
-              y: targetY,
+              x: lastPendingPositionRef.x,
+              y: lastPendingPositionRef.y,
               width: currentSizeRef.current.width,
               height: currentSizeRef.current.height,
             });
-
-            try {
-              const monitor = await win.currentMonitor();
-              if (monitor && lastMonitorNameRef.current && monitor.name !== lastMonitorNameRef.current) {
-                console.log(`[WidgetApp] Monitor changed from ${lastMonitorNameRef.current} to ${monitor.name}. Flushing and reloading...`);
-                lastMonitorNameRef.current = monitor.name;
-                await flushWidgetPosition();
-                window.location.reload();
-                return;
-              } else if (monitor && !lastMonitorNameRef.current) {
-                lastMonitorNameRef.current = monitor.name;
-              }
-            } catch (err) {
-              console.warn("[WidgetApp] Failed to check monitor onMoved:", err);
-            }
-          }, 200); // 200ms throttle
+          }, 500); // 500ms throttle — saves position without heavy IPC during drag
         });
 
         const unlistenR = await win.onResized(async (size: any) => {
@@ -543,10 +487,16 @@ export function WidgetApp() {
           });
         });
 
+        let scaleReloadTimer: ReturnType<typeof setTimeout> | null = null;
         const unlistenS = await win.onScaleChanged(async () => {
           if (cleanup) return;
-          console.log("[WidgetApp] Scale factor changed. Reloading...");
-          window.location.reload();
+          // Debounce: wait 2s after last scale change before reloading
+          // to avoid mid-drag reload when crossing between monitors
+          if (scaleReloadTimer) clearTimeout(scaleReloadTimer);
+          scaleReloadTimer = setTimeout(() => {
+            console.log("[WidgetApp] Scale factor settled. Reloading...");
+            window.location.reload();
+          }, 2000);
         });
 
         return [unlistenM, unlistenR, unlistenS];
@@ -634,7 +584,6 @@ export function WidgetApp() {
     <div
       className={`widget-app ${isFrozen ? 'widget-app--frozen' : ''}`}
       onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
       style={wallpaperUrl ? {
         backgroundImage: `url(${wallpaperUrl})`,
         backgroundSize: 'cover',

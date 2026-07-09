@@ -4,7 +4,7 @@ use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
 };
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::OnceLock;
 
 mod workerw;
@@ -13,6 +13,14 @@ mod lockdown;
 
 static ALLOW_CLOSE: AtomicBool = AtomicBool::new(false);
 static HIDDEN_OWNER_HWND: OnceLock<isize> = OnceLock::new();
+
+/// Debounce timestamp (epoch millis) for SetWindowPos calls during drag.
+/// Prevents hundreds of Win32 calls per second when a window is being moved.
+static LAST_BOTTOM_PIN_MS: AtomicU64 = AtomicU64::new(0);
+
+/// Tracks the last Moved event timestamp (always updated, no debounce).
+/// Used by the Focused handler to detect if a drag is in progress.
+static LAST_MOVE_EVENT_MS: AtomicU64 = AtomicU64::new(0);
 
 #[cfg(target_os = "windows")]
 pub fn get_hidden_owner() -> isize {
@@ -43,20 +51,12 @@ pub fn get_hidden_owner() -> isize {
     })
 }
 
-/// Lightly lower the main process priority so Windows schedules it below
-/// normal foreground apps, but still well above IDLE — no power throttling,
-/// no child-process enumeration loop.  This avoids the severe UI lag that
-/// IDLE_PRIORITY_CLASS + EcoQoS power throttling caused.
-#[cfg(target_os = "windows")]
-pub fn apply_background_priority() {
-    use windows::Win32::System::Threading::{
-        GetCurrentProcess, SetPriorityClass, BELOW_NORMAL_PRIORITY_CLASS,
-    };
-
-    unsafe {
-        let handle = GetCurrentProcess();
-        let _ = SetPriorityClass(handle, BELOW_NORMAL_PRIORITY_CLASS);
-    }
+/// Returns current time in milliseconds since UNIX epoch.
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 #[tauri::command]
@@ -94,11 +94,6 @@ pub fn run() {
     builder
         .setup(|app| {
             println!("[W SETUP] Inside setup closure.");
-            #[cfg(target_os = "windows")]
-            {
-                println!("[W SETUP] Applying below-normal priority...");
-                apply_background_priority();
-            }
             // ── Autolaunch (always locked in) ──────────────────────────────
             use tauri_plugin_autostart::ManagerExt;
             println!("[W SETUP] Enabling autolaunch...");
@@ -234,22 +229,7 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Window Monitor Thread
-            let app_handle = app.handle().clone();
-            std::thread::spawn(move || {
-                loop {
-                    std::thread::sleep(std::time::Duration::from_secs(5));
-                    let windows = app_handle.webview_windows();
-                    println!("[W MONITOR] --- Window Status Report ---");
-                    for (label, win) in windows {
-                        let visible = win.is_visible();
-                        let pos = win.outer_position();
-                        let size = win.outer_size();
-                        let hwnd = win.hwnd();
-                        println!("[W MONITOR] Window '{}' -> Visible: {:?}, Position: {:?}, Size: {:?}, HWND: {:?}", label, visible, pos, size, hwnd);
-                    }
-                }
-            });
+
 
             Ok(())
         })
@@ -289,6 +269,50 @@ pub fn run() {
                 match event {
                     tauri::WindowEvent::Focused(focused) => {
                         if *focused {
+                            // Delay HWND_BOTTOM by 300ms so startDragging() has time
+                            // to fire first. If a Moved event fires during that window,
+                            // the user is dragging and we skip the pin.
+                            #[cfg(target_os = "windows")]
+                            {
+                                if let Ok(hwnd) = window.hwnd() {
+                                    let raw = hwnd.0 as isize;
+                                    let focus_time = now_ms();
+                                    std::thread::spawn(move || {
+                                        std::thread::sleep(std::time::Duration::from_millis(300));
+                                        // If a Moved event fired since we gained focus,
+                                        // the user is dragging — don't pin to bottom
+                                        let last_move = LAST_MOVE_EVENT_MS.load(Ordering::Relaxed);
+                                        if last_move >= focus_time {
+                                            return; // drag in progress, skip
+                                        }
+                                        use windows::Win32::UI::WindowsAndMessaging::{
+                                            SetWindowPos, SWP_NOSIZE, SWP_NOMOVE, SWP_NOACTIVATE, HWND_BOTTOM,
+                                        };
+                                        use windows::Win32::Foundation::HWND;
+                                        unsafe {
+                                            let target = HWND(raw as *mut _);
+                                            let _ = SetWindowPos(
+                                                target,
+                                                HWND_BOTTOM,
+                                                0, 0, 0, 0,
+                                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                                            );
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    tauri::WindowEvent::Moved(_) => {
+                        // Always record move timestamp (for drag detection)
+                        LAST_MOVE_EVENT_MS.store(now_ms(), Ordering::Relaxed);
+
+                        // Debounce: only call SetWindowPos at most once per 500ms
+                        // to prevent saturating the window manager during drag
+                        let now = now_ms();
+                        let last = LAST_BOTTOM_PIN_MS.load(Ordering::Relaxed);
+                        if now.saturating_sub(last) >= 500 {
+                            LAST_BOTTOM_PIN_MS.store(now, Ordering::Relaxed);
                             #[cfg(target_os = "windows")]
                             {
                                 use windows::Win32::UI::WindowsAndMessaging::{
@@ -305,26 +329,6 @@ pub fn run() {
                                             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
                                         );
                                     }
-                                }
-                            }
-                        }
-                    }
-                    tauri::WindowEvent::Moved(_) => {
-                        #[cfg(target_os = "windows")]
-                        {
-                            use windows::Win32::UI::WindowsAndMessaging::{
-                                SetWindowPos, SWP_NOSIZE, SWP_NOMOVE, SWP_NOACTIVATE, HWND_BOTTOM,
-                            };
-                            use windows::Win32::Foundation::HWND;
-                            if let Ok(hwnd) = window.hwnd() {
-                                unsafe {
-                                    let target = HWND(hwnd.0 as *mut _);
-                                    let _ = SetWindowPos(
-                                        target,
-                                        HWND_BOTTOM,
-                                        0, 0, 0, 0,
-                                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-                                    );
                                 }
                             }
                         }

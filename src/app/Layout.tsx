@@ -351,9 +351,15 @@ function LayoutInner() {
       try {
         const { getCurrentWindow } = await import("@tauri-apps/api/window");
         const win = getCurrentWindow();
+        let scaleDebounce: ReturnType<typeof setTimeout> | null = null;
         const unsub = await win.onScaleChanged(() => {
-          console.log("[Layout] Scale factor changed. Re-evaluating sticky overlay bounds...");
-          launchStickyOverlay();
+          // Debounce: dragging between monitors fires multiple scale events.
+          // Wait 1s after the last event before re-evaluating overlay bounds.
+          if (scaleDebounce) clearTimeout(scaleDebounce);
+          scaleDebounce = setTimeout(() => {
+            console.log("[Layout] Scale factor settled. Re-evaluating sticky overlay bounds...");
+            launchStickyOverlay();
+          }, 1000);
         });
         unlistenScale = unsub;
       } catch (err) {
@@ -386,7 +392,7 @@ function LayoutInner() {
       } catch (err) {
         // Ignored
       }
-    }, 3000);
+    }, 30000);
 
     // Listen for re-launch requests from settings/etc
     const handleWidgetRelaunch = () => launchWidget();
@@ -403,52 +409,7 @@ function LayoutInner() {
     };
   }, [phase]);
 
-  // Temporary database diagnostic logging
-  useEffect(() => {
-    let timer: any = null;
-    async function logDbDiagnostics() {
-      try {
-        const { get } = await import("idb-keyval");
-        const { auth } = await import("../shared/services/localDb");
-        const uid = auth.currentUser?.uid;
-        if (!uid) {
-          const { writeTextFile, readTextFile, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
-          const logFile = "w_localdb_main_debug.log";
-          let current = "";
-          if (await exists(logFile, { baseDir: BaseDirectory.AppData })) {
-            current = await readTextFile(logFile, { baseDir: BaseDirectory.AppData });
-          }
-          await writeTextFile(logFile, current + "\n" + `[DB DIAGNOSTICS] UID is null/undefined!\n`, { baseDir: BaseDirectory.AppData });
-          return;
-        }
-        const todos = await get(`w_col_users/${uid}/todos`);
-        const stickyNotes = await get(`w_col_users/${uid}/sticky-notes`);
-        const msg = `[DB DIAGNOSTICS] UID: ${uid}\nTODOS: ${JSON.stringify(todos)}\nSTICKY-NOTES: ${JSON.stringify(stickyNotes)}\n`;
-        
-        const { writeTextFile, readTextFile, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
-        const logFile = "w_localdb_main_debug.log";
-        let current = "";
-        if (await exists(logFile, { baseDir: BaseDirectory.AppData })) {
-          current = await readTextFile(logFile, { baseDir: BaseDirectory.AppData });
-        }
-        await writeTextFile(logFile, current + "\n" + msg, { baseDir: BaseDirectory.AppData });
-      } catch (err: any) {
-        try {
-          const { writeTextFile, readTextFile, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
-          const logFile = "w_localdb_main_debug.log";
-          let current = "";
-          if (await exists(logFile, { baseDir: BaseDirectory.AppData })) {
-            current = await readTextFile(logFile, { baseDir: BaseDirectory.AppData });
-          }
-          await writeTextFile(logFile, current + "\n" + `[DB DIAGNOSTICS] ERROR: ${err?.message || err}\n`, { baseDir: BaseDirectory.AppData });
-        } catch {}
-      }
-    }
-    
-    logDbDiagnostics();
-    timer = setInterval(logDbDiagnostics, 5000);
-    return () => clearInterval(timer);
-  }, []);
+
 
   // ─── Tauri: Handle widget-trigger-new-todo event ──────────────
   useEffect(() => {

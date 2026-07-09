@@ -3,6 +3,12 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useUpdateManager } from "../../../features/updater/hooks/useUpdateManager";
 import "./Topbar.css";
 
+// Pre-import so startDragging fires instantly on pointer-down (no async delay)
+let _getCurrentWindow: (() => any) | null = null;
+import("@tauri-apps/api/window")
+  .then(m => { _getCurrentWindow = m.getCurrentWindow; })
+  .catch(() => {});
+
 interface TopbarProps {
   onCommandPaletteOpen: () => void;
   isFrozen?: boolean;
@@ -56,13 +62,16 @@ export function Topbar({ onCommandPaletteOpen, isFrozen = false }: TopbarProps) 
   const isTauri = "__TAURI_INTERNALS__" in window;
   const currentTitle = TITLE_MAP[location.pathname] || "[ DASHBOARD ]";
 
-  const handleDrag = async (e: React.PointerEvent<HTMLElement>) => {
+  const handleDrag = (e: React.PointerEvent<HTMLElement>) => {
     if (e.target === e.currentTarget) {
-      try {
-        const { getCurrentWindow } = await import("@tauri-apps/api/window");
-        getCurrentWindow().startDragging();
-      } catch {
-        /* running in browser, no-op */
+      if (_getCurrentWindow) {
+        _getCurrentWindow().startDragging();
+      } else {
+        // Fallback: import hasn't resolved yet (unlikely after initial load)
+        import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
+          _getCurrentWindow = getCurrentWindow;
+          getCurrentWindow().startDragging();
+        }).catch(() => {});
       }
     }
   };
