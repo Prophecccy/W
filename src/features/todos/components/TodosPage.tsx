@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Todo } from "../types";
 import { Habit, HabitGroup } from "../../habits/types";
@@ -31,6 +31,7 @@ export function TodosPage() {
   const [todoToEdit, setTodoToEdit] = useState<Todo | undefined>(undefined);
   const [undoTodo, setUndoTodo] = useState<Todo | null>(null);
   const [showUndoToast, setShowUndoToast] = useState(false);
+  const skipNextRefresh = useRef(false);
 
   const loadData = async (isBackground = false) => {
     if (!isBackground) {
@@ -71,7 +72,9 @@ export function TodosPage() {
   // ── Custom event listener (N key / CommandPalette) ──
   useEffect(() => {
     const handleOpenForm = () => setIsFormOpen(true);
+    const handleSkipRefresh = () => { skipNextRefresh.current = true; };
     window.addEventListener("w:open-todo-form", handleOpenForm);
+    window.addEventListener("w:skip-todo-refresh", handleSkipRefresh);
 
     const searchParams = new URLSearchParams(window.location.search);
     if (searchParams.get("action") === "new") {
@@ -80,7 +83,10 @@ export function TodosPage() {
       window.history.replaceState({}, "", newUrl);
     }
 
-    return () => window.removeEventListener("w:open-todo-form", handleOpenForm);
+    return () => {
+      window.removeEventListener("w:open-todo-form", handleOpenForm);
+      window.removeEventListener("w:skip-todo-refresh", handleSkipRefresh);
+    };
   }, []);
 
   useEffect(() => {
@@ -99,7 +105,13 @@ export function TodosPage() {
           if (active) loadData(true);
         });
         const unsubTodo = await listen("widget-todo-updated", () => {
-          if (active) loadData(true);
+          if (active) {
+            if (skipNextRefresh.current) {
+              skipNextRefresh.current = false;
+              return;
+            }
+            loadData(true);
+          }
         });
 
         return [unsubHabit, unsubTodo];
@@ -135,6 +147,9 @@ export function TodosPage() {
         setActiveTodos(prev => prev.filter(t => t.id !== todoId));
         setCompletedTodos(prev => [{...completedTodo, status: "done", completedAt: Date.now()}, ...prev]);
         
+        // Skip the next Tauri event re-fetch since we initiated this change
+        skipNextRefresh.current = true;
+
         if (completedTodo.type === "numbered") {
            await completeNumberedTodoFull(todoId, completedTodo);
         } else {
@@ -147,6 +162,7 @@ export function TodosPage() {
       }
     } catch (e) {
       console.error(e);
+      skipNextRefresh.current = false;
       loadData(true); // revert silently or update
     }
   };
@@ -156,6 +172,7 @@ export function TodosPage() {
     try {
       const todoId = undoTodo.id;
       const { updateTodo } = await import("../services/todoService");
+      skipNextRefresh.current = true;
       await updateTodo(todoId, { status: "active", completedAt: null });
       
       setCompletedTodos(prev => prev.filter(t => t.id !== todoId));
@@ -165,6 +182,7 @@ export function TodosPage() {
       setShowUndoToast(false);
     } catch (e) {
       console.error("Failed to undo todo completion:", e);
+      skipNextRefresh.current = false;
     }
   };
 
@@ -172,12 +190,14 @@ export function TodosPage() {
     try {
       const todoId = todo.id;
       const { updateTodo } = await import("../services/todoService");
+      skipNextRefresh.current = true;
       await updateTodo(todoId, { status: "active", completedAt: null });
       
       setCompletedTodos(prev => prev.filter(t => t.id !== todoId));
       setActiveTodos(prev => [...prev, { ...todo, status: "active" }]);
     } catch (e) {
       console.error("Failed to reactivate completed todo:", e);
+      skipNextRefresh.current = false;
     }
   };
 
@@ -187,9 +207,11 @@ export function TodosPage() {
       try {
         // Optimistic delete
         setActiveTodos(prev => prev.filter(t => t.id !== todoId));
+        skipNextRefresh.current = true;
         await deleteTodo(todoId);
       } catch (e) {
         console.error(e);
+        skipNextRefresh.current = false;
         loadData(true);
       }
     }

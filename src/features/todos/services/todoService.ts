@@ -69,7 +69,7 @@ export async function getTodos(): Promise<Todo[]> {
   if (!auth.currentUser) return [];
   const q = query(todosRef(), where("status", "==", "active"), orderBy("order", "asc"));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => d.data() as Todo);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Todo));
 }
 
 /** 
@@ -85,7 +85,7 @@ export async function getCompletedTodos(): Promise<Todo[]> {
     limit(50)
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => d.data() as Todo);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Todo));
 }
 
 export async function updateTodo(todoId: string, updates: Partial<Todo>): Promise<void> {
@@ -105,7 +105,7 @@ export async function deleteTodo(todoId: string, skipLog = false): Promise<void>
     try {
       const snap = await getDoc(todoDoc(todoId));
       if (snap.exists()) {
-        finalTodo = snap.data() as Todo;
+        finalTodo = { id: snap.id, ...snap.data() } as Todo;
       }
     } catch (err) {
       console.warn("Failed to fetch todo before deletion:", err);
@@ -134,7 +134,7 @@ export async function completeTodo(todoId: string): Promise<void> {
   try {
     const snap = await getDoc(todoDoc(todoId));
     if (snap.exists()) {
-      const data = snap.data() as Todo;
+      const data = { id: snap.id, ...snap.data() } as Todo;
       title = data.title;
       numbered = data.numbered || null;
     }

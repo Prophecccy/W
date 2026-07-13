@@ -94,6 +94,9 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todo
         };
       }
 
+      // Signal parent to skip the next Tauri event re-fetch (onSuccess handles it)
+      window.dispatchEvent(new CustomEvent("w:skip-todo-refresh"));
+
       if (todoToEdit) {
         await updateTodo(todoToEdit.id, todoData);
       } else {

@@ -86,7 +86,14 @@ export const db = { type: "local-firestore" };
 
 // ─── Reference Constructors ───────────────────────────────────────
 
-export function doc(_dbInstance: any, ...pathSegments: string[]): DocumentReference {
+export function doc(dbOrCol: any, ...pathSegments: string[]): DocumentReference {
+  if (dbOrCol && dbOrCol.type === "collection") {
+    const id = typeof crypto !== "undefined" && crypto.randomUUID 
+      ? crypto.randomUUID() 
+      : Math.random().toString(36).substring(2) + Date.now().toString(36);
+    const path = `${dbOrCol.path}/${id}`;
+    return { type: "document", id, path };
+  }
   const path = pathSegments.filter(Boolean).join("/");
   const id = pathSegments[pathSegments.length - 1];
   return { type: "document", id, path };
@@ -120,12 +127,15 @@ export function limit(count: number): LimitConstraint {
 
 let localDbLogQueue: string[] = [];
 let isLocalDbFlushing = false;
+let localDbFlushTimer: ReturnType<typeof setTimeout> | null = null;
+const LOCAL_DB_LOG_MAX_BYTES = 100_000; // 100KB max log file size
+const LOCAL_DB_FLUSH_DELAY = 5_000; // 5 seconds debounce
 
 async function flushLocalDbLogQueue() {
   if (isLocalDbFlushing || localDbLogQueue.length === 0) return;
   isLocalDbFlushing = true;
   try {
-    const { writeTextFile, readTextFile, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+    const { writeTextFile, BaseDirectory } = await import("@tauri-apps/plugin-fs");
     let windowLabel = "unknown";
     try {
       windowLabel = (window as any).__TAURI_INTERNALS__?.metadata?.currentWindow?.label || "unknown";
@@ -133,40 +143,42 @@ async function flushLocalDbLogQueue() {
     const logFile = `w_localdb_${windowLabel}_debug.log`;
     const toWrite = localDbLogQueue.join("\n");
     localDbLogQueue = [];
-    
-    let currentLogs = "";
-    try {
-      if (await exists(logFile, { baseDir: BaseDirectory.AppData })) {
-        currentLogs = await readTextFile(logFile, { baseDir: BaseDirectory.AppData });
-      }
-    } catch (e) {}
-    
-    const newLogs = currentLogs + "\n" + toWrite;
-    await writeTextFile(logFile, newLogs, { baseDir: BaseDirectory.AppData });
+
+    // Always overwrite — logs are ephemeral debug data, not worth reading 160K lines
+    const trimmed = toWrite.length > LOCAL_DB_LOG_MAX_BYTES
+      ? toWrite.slice(-LOCAL_DB_LOG_MAX_BYTES)
+      : toWrite;
+    await writeTextFile(logFile, trimmed, { baseDir: BaseDirectory.AppData });
   } catch (e) {
-    console.error("Failed to flush localdb log queue:", e);
+    // Silently fail — logging should never block the app
   } finally {
     isLocalDbFlushing = false;
     if (localDbLogQueue.length > 0) {
-      flushLocalDbLogQueue().catch(() => {});
+      scheduleLogFlush();
     }
   }
 }
 
+function scheduleLogFlush() {
+  if (localDbFlushTimer) return; // already scheduled
+  localDbFlushTimer = setTimeout(() => {
+    localDbFlushTimer = null;
+    flushLocalDbLogQueue().catch(() => {});
+  }, LOCAL_DB_FLUSH_DELAY);
+}
+
 function localDbLogDebug(msg: string) {
-  console.log(`[localDb] ${msg}`);
   if (typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__) {
     const logLine = `[${new Date().toISOString()}] [localDb]: ${msg}`;
     localDbLogQueue.push(logLine);
-    flushLocalDbLogQueue().catch(() => {});
+    scheduleLogFlush();
   }
 }
 
 async function getCollectionMap(path: string): Promise<Record<string, any>> {
   const key = `w_col_${path}`;
-  await localDbLogDebug(`getCollectionMap start idbGet: ${key}`);
+  localDbLogDebug(`getCollectionMap idbGet: ${key}`);
   const val = await idbGet(key);
-  await localDbLogDebug(`getCollectionMap end idbGet: ${key}, exists: ${!!val}`);
   return val || {};
 }
 
@@ -178,12 +190,10 @@ async function saveCollectionMap(path: string, map: Record<string, any>): Promis
 }
 
 async function getDocumentData(path: string): Promise<any | null> {
-  await localDbLogDebug(`getDocumentData entry: ${path}`);
+  localDbLogDebug(`getDocumentData: ${path}`);
   if (path.startsWith("users/") && path.split("/").length === 2) {
     const key = `w_doc_${path}`;
-    await localDbLogDebug(`getDocumentData users start idbGet: ${key}`);
     const res = await idbGet(key);
-    await localDbLogDebug(`getDocumentData users end idbGet: ${key}, found: ${!!res}`);
     return res || null;
   }
 
@@ -191,13 +201,10 @@ async function getDocumentData(path: string): Promise<any | null> {
   if (parts.length === 4) {
     const [col, uid, subcol, docId] = parts;
     const parentPath = `${col}/${uid}/${subcol}`;
-    await localDbLogDebug(`getDocumentData collection entry: ${parentPath}, docId: ${docId}`);
     const map = await getCollectionMap(parentPath);
-    await localDbLogDebug(`getDocumentData collection end: ${parentPath}, docId: ${docId}, found: ${!!map[docId]}`);
     return map[docId] || null;
   }
 
-  await localDbLogDebug(`getDocumentData path not matched: ${path}`);
   return null;
 }
 
@@ -273,9 +280,8 @@ function setNestedField(obj: any, path: string, value: any) {
 // ─── Firestore Operations Implementation ──────────────────────────
 
 export async function getDoc(docRef: DocumentReference): Promise<DocumentSnapshot> {
-  await localDbLogDebug(`getDoc entry: ${docRef.path}`);
+  localDbLogDebug(`getDoc: ${docRef.path}`);
   const data = await getDocumentData(docRef.path);
-  await localDbLogDebug(`getDoc resolved: ${docRef.path}, exists: ${data !== null}`);
   return {
     id: docRef.id,
     exists: () => data !== null,
