@@ -6,12 +6,12 @@ on:
       version:
         description: 'Git release tag (e.g. Alpha.v.1.8.0) — the semver for the updater comes from tauri.conf.json, not this tag'
         required: true
-        default: 'Alpha.v.1.8.4'
+        default: 'Alpha.v.1.8.5'
       changelog:
         description: 'Release changelog / description'
         required: true
         default: |
-          Evolution Protocol — Version 1.8.4
+          Evolution Protocol — Version 1.8.5
 
           - Added drag-aware delayed Z-order bottom-pin enforcer for Widget & Sticky notes.
           - Resolved first-time drag latency by pre-loading Tauri window APIs.
