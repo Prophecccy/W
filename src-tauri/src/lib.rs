@@ -1,6 +1,6 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use tauri::{
-    Manager,
+    Manager, Emitter,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
 };
@@ -62,6 +62,11 @@ fn now_ms() -> u64 {
 #[tauri::command]
 fn allow_app_close() {
     ALLOW_CLOSE.store(true, Ordering::SeqCst);
+}
+
+#[tauri::command]
+fn exit_app(app: tauri::AppHandle) {
+    app.exit(0);
 }
 
 
@@ -208,7 +213,12 @@ pub fn run() {
                         }
                     }
                     "quit" => {
-                        app.exit(0);
+                        let _ = app.emit("w_quit_requested", ());
+                        let app_clone = app.clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_secs(4));
+                            app_clone.exit(0);
+                        });
                     }
                     _ => {}
                 })
@@ -249,7 +259,8 @@ pub fn run() {
             lockdown::test_lockdown_block,
             lockdown::kill_blocked_process,
             lockdown::update_lockdown_remaining,
-            allow_app_close
+            allow_app_close,
+            exit_app
         ])
         .on_window_event(|window, event| {
             let label = window.label().to_string();

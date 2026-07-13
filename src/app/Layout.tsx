@@ -445,6 +445,51 @@ function LayoutInner() {
     };
   }, [navigate]);
 
+  // ─── Tauri: Handle graceful quit/sync on w_quit_requested event ──
+  useEffect(() => {
+    let active = true;
+    let unsubPromise: Promise<() => void> | null = null;
+
+    async function setupQuitTrigger() {
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        if (!active) return () => {};
+        const unsub = await listen("w_quit_requested", async () => {
+          if (!active) return;
+          console.info("[Layout] Quit request received, forcing final state sync to Google Drive...");
+          
+          try {
+            const { syncToGoogleDrive } = await import("../shared/services/localDb");
+            await syncToGoogleDrive();
+            console.info("[Layout] Final state sync completed successfully.");
+          } catch (err) {
+            console.error("[Layout] Final state sync failed:", err);
+          }
+
+          try {
+            const { invoke } = await import("@tauri-apps/api/core");
+            await invoke("exit_app");
+          } catch (err) {
+            console.error("[Layout] Failed to trigger exit_app:", err);
+          }
+        });
+        return unsub;
+      } catch (err) {
+        console.warn("Tauri quit event listener not available:", err);
+        return () => {};
+      }
+    }
+
+    unsubPromise = setupQuitTrigger();
+
+    return () => {
+      active = false;
+      if (unsubPromise) {
+        unsubPromise.then(unsub => unsub()).catch(() => {});
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (phase !== "ready" || !user) return;
 

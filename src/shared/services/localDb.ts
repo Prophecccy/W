@@ -1,4 +1,4 @@
-import { get as idbGet, set as idbSet, del as idbDel } from "idb-keyval";
+import { get as idbGet, set as idbSet } from "idb-keyval";
 import { emit, listen } from "@tauri-apps/api/event";
 import { encryptNote, decryptNote } from "../utils/noteCrypto";
 import { 
@@ -232,7 +232,10 @@ async function saveDocumentData(path: string, data: any): Promise<void> {
 async function deleteDocumentData(path: string): Promise<void> {
   if (path.startsWith("users/") && path.split("/").length === 2) {
     const key = `w_doc_${path}`;
-    await idbDel(key);
+    const current = await idbGet(key);
+    if (current) {
+      await idbSet(key, { ...current, deleted: true, updatedAt: Date.now() });
+    }
     return;
   }
 
@@ -241,7 +244,11 @@ async function deleteDocumentData(path: string): Promise<void> {
     const [col, uid, subcol, docId] = parts;
     const parentPath = `${col}/${uid}/${subcol}`;
     const map = await getCollectionMap(parentPath);
-    delete map[docId];
+    map[docId] = {
+      ...(map[docId] || {}),
+      deleted: true,
+      updatedAt: Date.now()
+    };
     await saveCollectionMap(parentPath, map);
   }
 }
@@ -282,10 +289,11 @@ function setNestedField(obj: any, path: string, value: any) {
 export async function getDoc(docRef: DocumentReference): Promise<DocumentSnapshot> {
   localDbLogDebug(`getDoc: ${docRef.path}`);
   const data = await getDocumentData(docRef.path);
+  const exists = data !== null && !data.deleted;
   return {
     id: docRef.id,
-    exists: () => data !== null,
-    data: () => data,
+    exists: () => exists,
+    data: () => exists ? data : null,
     ref: docRef,
   };
 }
@@ -293,7 +301,9 @@ export async function getDoc(docRef: DocumentReference): Promise<DocumentSnapsho
 export async function getDocs(queryRef: Query | CollectionReference): Promise<QuerySnapshot> {
   const path = queryRef.type === "query" ? queryRef.collectionRef.path : queryRef.path;
   const map = await getCollectionMap(path);
-  let docs = Object.entries(map).map(([id, data]) => ({ id, ...(data as any) }));
+  let docs = Object.entries(map)
+    .map(([id, data]) => ({ id, ...(data as any) }))
+    .filter(docVal => !docVal.deleted);
 
   if (queryRef.type === "query") {
     for (const c of queryRef.constraints) {
@@ -473,15 +483,18 @@ async function fetchSnapshotData(path: string, isCollection: boolean, queryConst
   if (!isCollection) {
     const data = await getDocumentData(path);
     const docId = path.split("/").pop() || "";
+    const exists = data !== null && !data.deleted;
     return {
       id: docId,
-      exists: () => data !== null,
-      data: () => data,
+      exists: () => exists,
+      data: () => exists ? data : null,
       ref: { type: "document" as const, id: docId, path },
     };
   } else {
     const map = await getCollectionMap(path);
-    let docs = Object.entries(map).map(([id, data]) => ({ id, ...(data as any) }));
+    let docs = Object.entries(map)
+      .map(([id, data]) => ({ id, ...(data as any) }))
+      .filter(docVal => !docVal.deleted);
 
     if (queryConstraints) {
       for (const c of queryConstraints) {
@@ -735,7 +748,7 @@ export function triggerSync() {
   syncTimeout = window.setTimeout(async () => {
     syncTimeout = null;
     await syncToGoogleDrive();
-  }, 3000);
+  }, 1000);
 }
 
 export async function syncToGoogleDrive() {
