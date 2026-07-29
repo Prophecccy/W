@@ -155,18 +155,34 @@ async function signInWithGoogleWeb(): Promise<LocalUser> {
 
         const href = popup.location.href;
         if (href && href.startsWith(redirectUri)) {
-          clearInterval(checkInterval);
           const hash = popup.location.hash;
-          const params = new URLSearchParams(hash.substring(1));
-          const accessToken = params.get("access_token");
-          const expiresInStr = params.get("expires_in") || "3600";
+          const search = popup.location.search;
+          const hashParams = new URLSearchParams(hash.startsWith("#") ? hash.substring(1) : hash);
+          const searchParams = new URLSearchParams(search);
+
+          const accessToken = hashParams.get("access_token") || searchParams.get("access_token");
+          const error = hashParams.get("error") || searchParams.get("error");
+          const errorDesc = hashParams.get("error_description") || searchParams.get("error_description");
+
+          if (!accessToken && !error) {
+            // Popup is still on initial origin before navigating to Google OAuth, continue waiting
+            return;
+          }
+
+          clearInterval(checkInterval);
           popup.close();
+
+          if (error) {
+            reject(new Error(`Google OAuth Error: ${errorDesc || error}`));
+            return;
+          }
 
           if (!accessToken) {
             reject(new Error("No access token received from Google."));
             return;
           }
 
+          const expiresInStr = hashParams.get("expires_in") || searchParams.get("expires_in") || "3600";
           await saveOAuthTokens(accessToken, "", parseInt(expiresInStr, 10));
 
           const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
