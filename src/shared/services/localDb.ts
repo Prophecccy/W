@@ -86,6 +86,14 @@ export const db = { type: "local-firestore" };
 
 // ─── Reference Constructors ───────────────────────────────────────
 
+function cleanPathSegments(segments: (string | undefined | null)[]): string[] {
+  return segments
+    .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+    .flatMap((s) => s.replace(/\\/g, "/").split("/"))
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && s !== "." && s !== "..");
+}
+
 export function doc(dbOrCol: any, ...pathSegments: string[]): DocumentReference {
   if (dbOrCol && dbOrCol.type === "collection") {
     const id = typeof crypto !== "undefined" && crypto.randomUUID 
@@ -94,14 +102,16 @@ export function doc(dbOrCol: any, ...pathSegments: string[]): DocumentReference 
     const path = `${dbOrCol.path}/${id}`;
     return { type: "document", id, path };
   }
-  const path = pathSegments.filter(Boolean).join("/");
-  const id = pathSegments[pathSegments.length - 1];
+  const clean = cleanPathSegments(pathSegments);
+  const path = clean.join("/");
+  const id = clean[clean.length - 1] || "";
   return { type: "document", id, path };
 }
 
 export function collection(_dbInstance: any, ...pathSegments: string[]): CollectionReference {
-  const path = pathSegments.filter(Boolean).join("/");
-  const id = pathSegments[pathSegments.length - 1];
+  const clean = cleanPathSegments(pathSegments);
+  const path = clean.join("/");
+  const id = clean[clean.length - 1] || "";
   return { type: "collection", id, path };
 }
 

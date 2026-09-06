@@ -1,4 +1,4 @@
-import { Search, Minus, Square, X, Download, Snowflake } from "lucide-react";
+import { Search, Minus, Square, X, Download, Snowflake, HelpCircle } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useUpdateManager } from "../../../features/updater/hooks/useUpdateManager";
 import "./Topbar.css";
@@ -22,7 +22,8 @@ const TITLE_MAP: Record<string, string> = {
 
   "/analytics": "[ ANALYTICS ]",
   "/settings": "[ SETTINGS ]",
-  "/lockdown": "[ LOCKDOWN ]"
+  "/lockdown": "[ LOCKDOWN ]",
+  "/manual": "[ MANUAL ]"
 };
 
 export function Topbar({ onCommandPaletteOpen, isFrozen = false }: TopbarProps) {
@@ -79,14 +80,24 @@ export function Topbar({ onCommandPaletteOpen, isFrozen = false }: TopbarProps) 
   return (
     <header className="topbar" onPointerDown={handleDrag}>
       <div className="topbar__left">
-        <button
-          className="topbar__search-btn"
-          onClick={onCommandPaletteOpen}
-          title="Search (Ctrl+K)"
-        >
-          <Search size={14} strokeWidth={1.5} />
-          <span className="t-meta">CTRL+K</span>
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            className="topbar__search-btn"
+            onClick={onCommandPaletteOpen}
+            title="Search (Ctrl+K)"
+          >
+            <Search size={14} strokeWidth={1.5} />
+            <span className="t-meta">CTRL+K</span>
+          </button>
+          <button
+            className="topbar__search-btn topbar__help-btn"
+            onClick={() => navigate("/manual")}
+            title="Field Manual (Ctrl+/)"
+          >
+            <HelpCircle size={14} strokeWidth={1.5} />
+            <span className="t-meta">MANUAL</span>
+          </button>
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <span className="topbar__title">{currentTitle}</span>
           {isFrozen && (

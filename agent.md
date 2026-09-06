@@ -65,12 +65,21 @@ graph TD
 
 ### 4. [ Security_Quality_Auditor ]
 * **Role**: Guards system safety boundaries, validates input integrity, manages Firestore security rules, and enforces compilation/typing correctness.
-* **Domain/Tech Stack**: Firestore Security Rules (`firestore.rules`), Tauri Security Capabilities, TypeScript Compiler, Build Pipelines.
+* **Domain/Tech Stack**: Firestore Security Rules (`firestore.rules`), Tauri Security Capabilities, TypeScript Compiler, Build Pipelines, HTTP/Web Security Headers.
 * **Strict Operational Constraints**:
   - **Self-Lockout Safeguard**: System monitoring hooks must validate application process IDs and window titles to ensure the Command Center never blocks itself.
   - **Zero Default Trapping**: Validations on numeric and custom metrics must block submissions of uncalibrated or out-of-bounds metrics (e.g., habit targets must block values < 2 for metrics, and < 1 for limiters).
   - **Input Sanitization**: Reject any raw or unvalidated external parameters in IPC bridges.
   - **TypeScript Zero-Error Standard**: All changes must successfully pass typing checks (`tsc`) with zero errors in `tsconfig.json`.
+  - **Web & Transport Security Baseline (`vercel.json`)**: Production deployments must strictly enforce HTTP security headers: HSTS (`max-age=63072000; includeSubDomains; preload`) to mandate TLS, `X-Frame-Options: DENY` and `frame-ancestors 'none'` to block clickjacking, `X-Content-Type-Options: nosniff`, and a strict Content Security Policy (CSP). External connection domains in CSP are strictly restricted to Google Auth/APIs, Firebase, and GitHub releases.
+  - **XSS Defense & Input Sanitization Standard (`src/shared/utils/security.ts`)**: All user inputs (habit names, descriptions, todo titles, notes, group names) must be processed through `sanitizeText()` before persistence to strip non-printable control characters, script/iframe payloads, and inline event handlers while preserving valid unicode, emojis, and markdown. All external link invocations via `openExternalLink()` must pass `sanitizeUrl()` to strictly reject non-HTTP(S) schemes (`javascript:`, `data:`, `vbscript:`).
+  - **URL Path Protection & Safe Route Fallback (`src/app/routes.tsx`)**: All protected application views must be wrapped with `<AuthGuard>`. A wildcard catch-all route (`path: "*"`) is strictly required at the root router level to silently redirect manipulated, invalid, or unauthorized URL paths to `/` (and subsequently to `/login` if unauthenticated), eliminating unhandled routing exceptions and path manipulation probing.
+  - **5-Pillar Comprehensive Security Standard**:
+    1. **XSS Defense**: Zero `dangerouslySetInnerHTML`/`innerHTML`; all user inputs (habits, todos, groups, daily notes, lockdown items) pass through `sanitizeText()`; strict CSP in `vercel.json`; `openExternalLink()` strictly validates `sanitizeUrl()`.
+    2. **Token Theft & Account Takeover**: PKCE OAuth flow (RFC 7636) with zero embedded client secrets; tokens stored in OS `$APPDATA` on desktop and validated via `isValidTokenString()`; scoped exclusively to `drive.file`.
+    3. **API Scraping & Abuse Mitigation**: Client-side exponential backoff with jitter on Google Drive API calls (`fetchWithRetry`) to handle HTTP 429 and transient 5xx errors; debounced sync cycles.
+    4. **Input Injection & Bounds Validation**: Numeric parameters validated with `validateNumericRange()` (rejecting `NaN`, `Infinity`, negative bounds); calendar dates validated against ISO `validateIsoDate()`.
+    5. **Database & Storage Isolation**: Daily Notes encrypted at rest using AES-256-GCM (`noteCrypto.ts`); IndexedDB path traversal prevented by `cleanPathSegments()` in `localDb.ts`.
 
 ### 5. [ Lockout Penance & Difficulty System ]
 * **Zero-Bypass Form State**: Users cannot bypass the lockout overlay by clicking cancel on compensation forms. The forms (`HabitForm`, `TodoForm`) are securely embedded **inline** within the `PunishmentModal` overlay. Cancelling a form simply routes the user back to the primary penance choice menu without unlocking the viewport.
@@ -79,6 +88,8 @@ graph TD
   * **Metric Habits**: Raise target value by $+33\%$ (min $+1$).
   * **Limiter Habits**: Restrict/decrease target limit by $-33\%$ (min $-1$, clamped to a minimum target value of `1`).
 * **Wide Form Sizing on Icon Selection**: During Step 6 (Appearance / Icon Picker) of `HabitForm`, the modal and form width automatically expand to `1200px` (via `:has(.habit-form--wide)`) to utilize side screen space, increasing visible columns for 850 icons and minimizing vertical scrolling.
+* **Desktop Widget Lockout Shield**: During system lockout (5 strikes), the desktop widget must never remain transparent or expose active habits/metrics. It renders an opaque, frosted cyber lockout shield (`rgba(14, 4, 4, 0.96)`, `backdrop-filter: blur(16px)`), with a pulsing alert ring, `[ SYSTEM LOCKED ]`, status text, and a dedicated `[ RESOLVE LOCKOUT ]` button. All habit completions, undos, and todo creation buttons in the widget data layer are strictly suspended while `strikeCount >= 5`.
+* **Multi-Screen Window Dragging During Lockout**: Both the desktop widget and the main Command Center app must remain draggable across monitors even when in lockout. The background and non-interactive header regions of `LockoutOverlay`, `PunishmentModal`, and the widget's lockout shield must implement `startDragging()` / `data-tauri-drag-region` on pointer-down so the windows can be repositioned across multiple displays without unlocking the system.
 
 ---
 
@@ -87,13 +98,50 @@ graph TD
 1. **Feature Isolation**: Code is strictly grouped by feature under `src/features/`. Never import from another feature's internal modules; consume only through public entrypoints (`index.ts`).
 2. **Design System Adherence**: Consumption of typography classes (`.t-display`, `.t-body`, `.t-label`, `.t-meta`, `.t-data`) and CSS variables (`--bg-base`, `--bg-surface`, `--accent`, `--strike-red`) is mandatory.
 3. **Verification Standard**: Every implementation must be proven functional via targeted test checkpoints (terminal audits, console logs, or UI validation) to prevent "catfish code".
+4. **Weekly & Multi-Period Habit Analytics**:
+   - **Unit Completion Tracking**: Any day with a logged unit completion for a weekly or multi-period habit (`entry.completed`, `entry.completions.length > 0`, or `entry.value > 0`) must render as an active completed cell (`level-4`, accent fill) on the habit deep dive activity heatmap, irrespective of whether the cumulative weekly target was met.
+   - **Weekly Efficiency & Rate Calculation**: Completion rates for weekly habits evaluate adherence to the target per active week (`Math.min(completions, target) / target`), preventing the distortion of dividing by 7 days.
+   - **Time-of-Day Distribution**: All completion timestamps recorded across individual unit workouts feed into `timeOfDayDistribution` and `peakPeriod` calculations.
+5. **Dynamic Habit Group Reassignment**:
+   - **Configuration Reassignment**: Habit group membership can be changed at any time after creation via the `[ CONFIGURATION ]` section in `HabitDetail`.
+   - **Flexible Group Selection**: Supports selecting `[ NO GROUP / UNGROUPED ]`, any existing custom group, or creating a new group on-the-fly (`+ NEW GROUP...`).
+   - **Immediate State & Database Sync**: Creating a new group or switching groups instantly persists to IndexedDB (and queues for Google Drive cloud sync), updates the local `HabitGroup[]` and `Habit` state, activates the Save Edits button upon change, and immediately updates grouped layout views (`[ GROUPED ]`) without page reload.
+6. **Desktop Widget Layout & Scroll Polish**:
+   - **`safe center` Flex Alignment**: The habits scroll container (`.widget-app__habits-scroll`) must strictly use `justify-content: safe center;`. When habits are few (1–3), items center vertically; when habits overflow (7–9+), alignment safely switches to `flex-start` so `scrollTop = 0` displays the top card with zero clipping into negative scroll space.
+   - **Edge Breathing Room**: The scroll container enforces `padding: 4px 0 8px;` to guarantee cards never collide abruptly with the header or stats deck at scroll boundaries.
+   - **Calibrated Height Metrics**: Window auto-resize calculations in `WidgetApp.tsx` must accurately reflect actual rendered DOM dimensions (`HEADER_H: 44px`, `STATS_DECK_H: 78px`, `CLOCK_H: 72px`, `INSET: 32px`, max height clamp raised to `960px`) to prevent premature overflow on standard desktop monitors.
+7. **Comprehensive In-App Field Manual**:
+   - **Centralized Documentation Repository**: Complete instructions and feature specs are stored under `src/features/manual/data/manualContent.ts` across 10 tactical chapters covering every app subsystem.
+   - **Dual-Pane Interactive Reader**: Provides a terminal-style sidebar with live real-time topic and keyword search, jump-to-section anchor pills, high-contrast callouts (`[ INFO ]`, `[ TIP ]`, `[ WARNING ]`, `[ RULE ]`), and keyboard shortcut tags (`<kbd>`).
+   - **Multi-Point Navigation**: Accessible via the Sidebar navigation tab (`[ Manual ]`), Topbar quick button (`[ ? MANUAL ]`), Command Palette (`Ctrl+K`), and global hotkeys (`Ctrl+/` or `M` when not typing).
+8. **Circadian Evening Nudge & Incomplete Habit Guard**:
+   - **Bedtime-Anchored Timing**: Evening Nudge triggers exactly 2 hours before the user's configured SleepTube bedtime (`settings.bedTime`, defaulting to 23:00 → 21:00 / 9:00 PM), rather than `dailyResetTime` (04:00 AM → 02:00 AM), ensuring reminders arrive while the user is awake and active.
+   - **Incomplete Habits Guard**: The notification only dispatches if there are active scheduled habits that have not yet been marked complete or worked on today. If all protocols are satisfied, the nudge is silently skipped.
+   - **Calendar-Day Tracking**: Tracks `lastNudgeDate` against current date string to ensure it fires at most once per day and resets automatically across midnight without requiring an application reload.
+9. **Desktop Web App Download Callout & Mobile Suppression**:
+   - **Mobile Web Suppression**: The 'GET DESKTOP APP' action button in the sidebar must strictly never render on mobile browsers or small touch viewports. Mobile operating systems (Android/iOS) cannot install desktop Windows installers (.msi/.exe), and the button violently squishes within the 64px mobile rail.
+   - **Two-Layer Guard**:
+     - *Component Logic*: In `src/shared/utils/tauri.ts`, `isMobileWeb()` checks mobile user agents (`/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i`) and touch devices with screen width $\le 900\text{px}$. `Sidebar.tsx` gates button rendering with `!isTauri() && !isMobileWeb()`.
+     - *Responsive CSS*: In `src/shared/components/Sidebar/Sidebar.css`, `@media (max-width: 900px)` applies `display: none !important` to `.sidebar__download-wrapper` and `.sidebar__download-btn`, guaranteeing zero visual leakage even during browser window resizing.
+   - **Desktop Web Preservation**: Visitors accessing the web app on desktop browsers (>900px viewport, non-mobile UA) retain full visibility of the button linking directly to the latest GitHub releases.
+10. **Configurable Strike Discipline System (Enable / Disable)**:
+    - **User-Controlled Setting**: Located in `[ SETTINGS ] → [ SCHEDULE & TIME ] → [ DISCIPLINE & ACCOUNTABILITY ]` via `strikeSystemEnabled` (defaults to `true`).
+    - **Complete Engine Suppression**: When `strikeSystemEnabled === false`, `addStrike()`, `gapProcessor`, and deadline checks immediately skip strike accrual, history logging, and strike warning notifications. Uncompleted habits still calculate streaks normally.
+    - **Total UI Concealment**: When disabled, all strike UI vanishes across the entire application:
+      - The bottom-left `{strikeCount}/5` counter in `Sidebar.tsx` is completely excluded from the DOM.
+      - The `{strikeCount} STRIKES` indicator and divider in `StatsDeck.tsx` (desktop widget) are omitted.
+      - `<LockoutOverlay>`, `<PunishmentModal>`, and `<StrikeWarningToast>` in `Layout.tsx` are prevented from rendering.
+      - Master score calculations in `AnalyticsPage.tsx` zero out strike penalties, and `TimelineReview.tsx` hides the strike timeline.
+      - Exceeding a limiter habit displays `[ LIMIT EXCEEDED ] Logged!` instead of mentioning strikes.
+      - Strike-specific notification settings (`strikeWarnings`, `lockoutAlert`) in `NotificationsSection.tsx` are filtered out.
+    - **Non-Destructive & Instant Unlock**: Toggling the setting off immediately unlocks a locked system (`isLocked = false`). Historical strike records remain safe in the database and resume seamlessly if the user re-enables the system later.
 
 ---
 
 ## Modular File Map (Layout Structure)
 * `src/App.tsx` & `src/app/routes.tsx` — Application Router & shell navigation.
 * `src/app/Layout.tsx` — Phase-state loader UI (Loading → Processing → Ready).
-* `src/features/` — Feature modules: `dashboard`, `habits`, `todos`, `logs`, `analytics`, `strikes`, `sticky-notes`, `lockdown`, `widget`, `freeze`, `auth`, `settings`, `updater`, `wallpaper`.
+* `src/features/` — Feature modules: `dashboard`, `habits`, `todos`, `logs`, `analytics`, `manual`, `strikes`, `sticky-notes`, `lockdown`, `widget`, `freeze`, `auth`, `settings`, `updater`, `wallpaper`.
 * `src/shared/` — Reusable components, utility providers, and generic hooks.
 
 ---

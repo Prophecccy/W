@@ -2,6 +2,7 @@ import { useState } from "react";
 import { IconPicker } from "../../../../shared/components/IconPicker/IconPicker";
 import { HabitPeriod, HabitType, HabitMetric, HabitDuration, HabitGroup } from "../../types";
 import { getToday, addDays } from "../../../../shared/utils/dateUtils";
+import { sanitizeText } from "../../../../shared/utils/security";
 import { DatePicker } from "../../../../shared/components/DatePicker/DatePicker";
 import "./HabitForm.css";
 
@@ -148,7 +149,9 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
     try {
       await onSubmit({
         ...data,
-        newGroupName: isCreatingGroup && newGroupName.trim() ? newGroupName.trim() : undefined,
+        title: sanitizeText(data.title, 100),
+        description: data.description ? sanitizeText(data.description, 500) : "",
+        newGroupName: isCreatingGroup && newGroupName.trim() ? sanitizeText(newGroupName, 50) : undefined,
       });
     } catch (err) {
       console.error("Submission failed:", err);

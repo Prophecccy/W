@@ -7,6 +7,7 @@ import {
   isEncryptedRecord,
   type EncryptedPayload,
 } from "../../../shared/utils/noteCrypto";
+import { sanitizeText } from "../../../shared/utils/security";
 
 const NOTE_KEY_PREFIX = "note_record_";
 
@@ -30,7 +31,8 @@ async function buildEncryptedRecord(
   content: string,
   syncPending: boolean
 ): Promise<LocalNoteRecord> {
-  const payload = await encryptNote(content);
+  const cleanContent = sanitizeText(content);
+  const payload = await encryptNote(cleanContent);
 
   if (payload) {
     // Encrypted: store ciphertext in `encrypted`, blank out `notes`

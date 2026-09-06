@@ -176,6 +176,12 @@ export async function clearOAuthTokens(): Promise<void> {
   window.dispatchEvent(new CustomEvent("w:gdrive-unlinked"));
 }
 
+function isValidTokenString(token: unknown): boolean {
+  if (typeof token !== "string") return false;
+  const t = token.trim();
+  return t.length >= 10 && t.length <= 4096 && /^[A-Za-z0-9\-_.~+/=]+$/.test(t);
+}
+
 /**
  * Retrieves a valid, unexpired access token. Automatically refreshes it if needed.
  */
@@ -184,14 +190,14 @@ export async function getValidAccessToken(): Promise<string | null> {
   const accessToken = session?.accessToken;
   const expiresAt = session?.expiresAt || 0;
 
-  // If token is valid for at least 60 seconds, return it immediately
-  if (accessToken && expiresAt > Date.now() + 60000) {
+  // If token is valid and structurally sound for at least 60 seconds, return it immediately
+  if (accessToken && isValidTokenString(accessToken) && expiresAt > Date.now() + 60000) {
     return accessToken;
   }
 
   // Otherwise, we need a refresh token to request a new access token
   const refreshToken = session?.refreshToken;
-  if (!refreshToken) {
+  if (!refreshToken || !isValidTokenString(refreshToken)) {
     console.warn("[GDrive Service] Access token is expired/missing and no refresh token found.");
     // Only automatically clear the OAuth state if running on Tauri desktop app.
     // On web, since client-side popup does not provide a refresh token, we allow 
@@ -275,6 +281,41 @@ export async function getValidAccessToken(): Promise<string | null> {
   }
 }
 
+/**
+ * Safe fetch wrapper with exponential backoff and jitter for Google Drive API requests.
+ * Automatically retries on HTTP 429 (Rate Limit / Too Many Requests) and 5xx errors.
+ */
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3
+): Promise<Response> {
+  let attempt = 0;
+  let delay = 1000;
+
+  while (attempt < maxRetries) {
+    try {
+      const response = await fetch(url, options);
+      if (response.status === 429 || (response.status >= 500 && response.status < 600)) {
+        attempt++;
+        if (attempt >= maxRetries) return response;
+        const jitter = Math.random() * 250;
+        console.warn(`[GDrive Rate/Server Guard] Status ${response.status}. Retrying attempt ${attempt}/${maxRetries} in ${Math.round(delay + jitter)}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delay + jitter));
+        delay *= 2;
+        continue;
+      }
+      return response;
+    } catch (err) {
+      attempt++;
+      if (attempt >= maxRetries) throw err;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      delay *= 2;
+    }
+  }
+  return fetch(url, options);
+}
+
 interface GDriveFile {
   id: string;
   name: string;
@@ -299,7 +340,7 @@ async function listGoogleDriveFiles(
       url += `&pageToken=${encodeURIComponent(nextPageToken)}`;
     }
 
-    const res = await fetch(url, {
+    const res = await fetchWithRetry(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -322,7 +363,7 @@ async function listGoogleDriveFiles(
  */
 async function deleteFileOrFolder(accessToken: string, fileId: string): Promise<void> {
   const url = `https://www.googleapis.com/drive/v3/files/${fileId}`;
-  const res = await fetch(url, {
+  const res = await fetchWithRetry(url, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -448,7 +489,7 @@ async function createFolder(accessToken: string, folderName: string, parentId?: 
     body.parents = [parentId];
   }
 
-  const res = await fetch(url, {
+  const res = await fetchWithRetry(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -485,7 +526,7 @@ async function createEmptyFile(accessToken: string, fileName: string, parentId: 
     mimeType: fileName.endsWith(".json") ? "application/json" : "text/markdown",
   };
 
-  const res = await fetch(url, {
+  const res = await fetchWithRetry(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -514,7 +555,7 @@ async function uploadFileContent(
 ): Promise<string> {
   const url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=modifiedTime`;
   
-  const res = await fetch(url, {
+  const res = await fetchWithRetry(url, {
     method: "PATCH",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -568,7 +609,7 @@ export async function downloadStateFromDrive(accessToken: string): Promise<{ con
     
     // Download file content
     const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-    const res = await fetch(url, {
+    const res = await fetchWithRetry(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!res.ok) {
@@ -578,7 +619,7 @@ export async function downloadStateFromDrive(accessToken: string): Promise<{ con
     
     // Get file metadata to get modifiedTime
     const metaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`;
-    const metaRes = await fetch(metaUrl, {
+    const metaRes = await fetchWithRetry(metaUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     let modifiedTime = "";

@@ -137,7 +137,11 @@ export function useRiskEngine(
 
         const nudge = getRandomNudge(scenario, habit.title);
 
-        if (userDoc.settings.notifications && userDoc.settings.predictiveWarnings !== false) {
+        if (
+          userDoc.settings.notifications && 
+          userDoc.settings.predictiveWarnings !== false &&
+          userDoc.settings.strikeSystemEnabled !== false
+        ) {
           sendNotification("[ W: STRIKE RISK ]", nudge).catch(() => {}); // non-critical
         }
       }

@@ -47,8 +47,9 @@ export function WidgetApp() {
     weeklyCompletions,
   } = useWidgetData();
 
+  const strikeSystemEnabled = userDoc?.settings?.strikeSystemEnabled ?? true;
   const strikeCount = userDoc?.strikes?.current ?? 0;
-  const isLocked = strikeCount >= 5;
+  const isLocked = strikeSystemEnabled && strikeCount >= 5;
   const isFrozen = userDoc?.freeze?.active === true;
 
   // ─── Real-Time Clock ─────────────────────────────────────
@@ -120,12 +121,11 @@ export function WidgetApp() {
   const currentSizeRef = useRef({ width: 400, height: 580 });
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    // Skip interactive children — but NOT the scroll container itself
+    // Skip interactive children — but NOT the scroll container or lockout shield itself
     if (e.target instanceof Element && (
       e.target.closest('.widget-habit-card') ||
       e.target.closest('button') ||
-      e.target.closest('a') ||
-      e.target.closest('.widget-app__lockout')
+      e.target.closest('a')
     )) return;
 
     // Only primary button (left click)
@@ -261,11 +261,11 @@ export function WidgetApp() {
   // ─── Precise height memoization for auto-scaling ──────────
   const targetLogicalHeight = useMemo(() => {
     // CSS Pixel-Matched Metrics
-    const HEADER_H     = 34;  // .widget-app__header height + padding
+    const HEADER_H     = 44;  // .widget-app__header height + padding (actual DOM: 42.4px)
     const PANEL_GAP    = 12;  // .widget-app__right-panel gaps
-    const STATS_DECK_H = 80;  // Actual height of stats deck
-    const CLOCK_H      = 72;  // .widget-app__clock-container height (enlarged clock)
-    const INSET        = 48;  // Window absolute offset (16px) + content padding (32px)
+    const STATS_DECK_H = 78;  // Actual height of stats deck (actual DOM: 78.8px)
+    const CLOCK_H      = 72;  // .widget-app__clock-container height
+    const INSET        = 32;  // Window content padding (16px top + 16px bottom = 32px)
     const EMPTY_H      = 60;  // Height of empty habits state
     const CARD_GAP     = 12;  // Card margin-bottom
 
@@ -344,7 +344,7 @@ export function WidgetApp() {
     // Apply an additional 24px rendering safety buffer
     const targetLogicalWithBuffer = targetLogical + 24;
 
-    return Math.max(300, Math.min(800, targetLogicalWithBuffer));
+    return Math.max(300, Math.min(960, targetLogicalWithBuffer));
   }, [scheduledHabits, scheduledLimiters, habits, todayLog, periodLogs, today, userDoc?.settings?.weeklyResetDay, heightTrigger]);
 
   // ─── Auto-resize window height to fit habit count ─────────
@@ -633,6 +633,8 @@ export function WidgetApp() {
             <button
               className="widget-app__add-todo t-meta"
               onPointerDown={handleCreateTodoClick}
+              disabled={isLocked}
+              style={isLocked ? { opacity: 0.3, pointerEvents: 'none' } : undefined}
             >
               [ + TODO ]
             </button>
@@ -649,6 +651,7 @@ export function WidgetApp() {
               onComplete={completeHabit}
               onUndo={undoHabit}
               isFrozen={isFrozen}
+              isLocked={isLocked}
             />
           </div>
 
@@ -657,6 +660,7 @@ export function WidgetApp() {
               completedCount={completedCount}
               totalScheduled={totalScheduled}
               strikeCount={strikeCount}
+              strikeSystemEnabled={strikeSystemEnabled}
               globalStreak={globalStreak}
               weeklyCompletions={weeklyCompletions}
             />
@@ -669,33 +673,56 @@ export function WidgetApp() {
       </div>
 
       {isLocked && (
-        <div className="widget-app__lockout" onClick={async () => {
-          try {
-            const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
-            const main = await WebviewWindow.getByLabel('main');
-            if (main) {
-              await main.show();
-              await main.setFocus();
-            } else {
-              // Recreate the main window if it has been closed
-              const newMain = new WebviewWindow('main', {
-                url: '/',
-                decorations: false,
-                title: 'W Command Center',
-                width: 1024,
-                height: 768,
-                minWidth: 800,
-                minHeight: 600,
-              });
-              await newMain.show();
-              await newMain.setFocus();
-            }
-          } catch (e) {
-            console.error('Failed to restore or recreate main window:', e);
-          }
-        }}>
-          <ShieldAlert size={32} />
-          <span className="t-label">[ LOCKED — OPEN APP ]</span>
+        <div 
+          className="widget-app__lockout"
+          data-tauri-drag-region
+        >
+          <div className="widget-app__lockout-vignette" />
+          <div className="widget-app__lockout-body">
+            <div className="widget-app__lockout-icon-ring">
+              <ShieldAlert size={34} strokeWidth={2} />
+            </div>
+            <div className="widget-app__lockout-title t-display">
+              [ SYSTEM LOCKED ]
+            </div>
+            <div className="widget-app__lockout-status t-label">
+              5/5 STRIKES ACCRUED
+            </div>
+            <div className="widget-app__lockout-desc t-meta">
+              ALL HABIT TRACKING IS SUSPENDED UNTIL YOU RESOLVE THIS LOCKOUT.
+            </div>
+            <button
+              type="button"
+              className="widget-app__lockout-btn t-label"
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+                  const main = await WebviewWindow.getByLabel('main');
+                  if (main) {
+                    await main.show();
+                    await main.setFocus();
+                  } else {
+                    const newMain = new WebviewWindow('main', {
+                      url: '/',
+                      decorations: false,
+                      title: 'W Command Center',
+                      width: 1024,
+                      height: 768,
+                      minWidth: 800,
+                      minHeight: 600,
+                    });
+                    await newMain.show();
+                    await newMain.setFocus();
+                  }
+                } catch (err) {
+                  console.error('Failed to restore or recreate main window:', err);
+                }
+              }}
+            >
+              [ RESOLVE LOCKOUT ]
+            </button>
+          </div>
         </div>
       )}
     </div>

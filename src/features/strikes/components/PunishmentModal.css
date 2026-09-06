@@ -8,6 +8,11 @@
   background: var(--z-overlay);
   backdrop-filter: blur(8px);
   animation: fadeIn var(--transition-fast) ease-out forwards;
+  cursor: grab;
+}
+
+.punishment-overlay:active {
+  cursor: grabbing;
 }
 
 .punishment-modal {
@@ -22,6 +27,7 @@
   gap: 28px;
   animation: modalSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   transition: max-width 0.3s ease, width 0.3s ease;
+  cursor: default;
 }
 
 .punishment-modal:has(.habit-form--wide),

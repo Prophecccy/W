@@ -4,6 +4,7 @@ import { createTodo, updateTodo } from "../../services/todoService";
 import { HabitGroup } from "../../../habits/types";
 import { createGroup, sanitizeGroupName } from "../../../habits/services/groupService";
 import { getToday } from "../../../../shared/utils/dateUtils";
+import { sanitizeText } from "../../../../shared/utils/security";
 import { DatePicker } from "../../../../shared/components/DatePicker/DatePicker";
 import "./TodoForm.css";
 
@@ -71,8 +72,8 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todo
       }
 
       const todoData: any = {
-        title: title.trim(),
-        description: description.trim(),
+        title: sanitizeText(title, 200),
+        description: description ? sanitizeText(description, 2000) : "",
         color: color,
         deadline: deadlineVal,
         future: hasFutureDate && futureDate ? futureDate : null,

@@ -1,4 +1,5 @@
 import { db, auth, collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, where, orderBy, writeBatch } from "../../../shared/config/firebase";
+import { sanitizeText } from "../../../shared/utils/security";
 import { HabitGroup } from "../types";
 
 function uid(): string {
@@ -12,9 +13,9 @@ function groupsRef(userId: string) {
 }
 
 export function sanitizeGroupName(name: string): string {
-  let cleaned = name.trim();
+  let cleaned = sanitizeText(name, 50);
   while (cleaned.startsWith("[") && cleaned.endsWith("]")) {
-    cleaned = cleaned.substring(1, cleaned.length - 1).trim();
+    cleaned = sanitizeText(cleaned.substring(1, cleaned.length - 1), 50);
   }
   return cleaned;
 }

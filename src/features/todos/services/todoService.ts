@@ -1,4 +1,5 @@
 import { db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, orderBy, updateDoc, deleteDoc, limit, writeBatch } from "../../../shared/config/firebase";
+import { sanitizeText } from "../../../shared/utils/security";
 import { Todo } from "../types";
 import { isTauri } from "../../../shared/utils/tauri";
 
@@ -33,8 +34,12 @@ export async function createTodo(
   todoData: Omit<Todo, "id" | "uid" | "createdAt" | "status" | "completedAt">
 ): Promise<string> {
   const newRef = doc(todosRef());
+  const sanitizedTitle = sanitizeText(todoData.title, 200);
+  const sanitizedDescription = todoData.description ? sanitizeText(todoData.description, 2000) : "";
   const todo: Todo = {
     ...todoData,
+    title: sanitizedTitle,
+    description: sanitizedDescription,
     id: newRef.id,
     uid: uid(),
     status: "active",
@@ -93,7 +98,14 @@ export async function updateTodo(todoId: string, updates: Partial<Todo>): Promis
   const safeUpdates = { ...updates };
   delete safeUpdates.id;
   delete safeUpdates.uid;
+  if (typeof safeUpdates.title === "string") {
+    safeUpdates.title = sanitizeText(safeUpdates.title, 200);
+  }
+  if (typeof safeUpdates.description === "string") {
+    safeUpdates.description = sanitizeText(safeUpdates.description, 2000);
+  }
   delete safeUpdates.type; // Type is locked per rules
+  delete safeUpdates.createdAt;
 
   await updateDoc(todoDoc(todoId), safeUpdates);
   await notifyTodoUpdated();

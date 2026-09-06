@@ -13,15 +13,17 @@ import {
   Shield,
   Lock,
   BookOpen,
+  HelpCircle,
 } from "lucide-react";
 import { FlameIcon } from "../FlameIcon/FlameIcon";
-import { isTauri } from "../../utils/tauri";
+import { isTauri, isMobileWeb } from "../../utils/tauri";
 import { useAuthContext } from "../../../features/auth/context";
 import { GoogleDriveIcon } from "../GoogleDriveIcon/GoogleDriveIcon";
 import "./Sidebar.css";
 
 interface SidebarProps {
   strikeCount?: number;
+  strikeSystemEnabled?: boolean;
   globalStreak?: number;
   isLockdownActive?: boolean;
   habitsCount?: number;
@@ -31,6 +33,7 @@ interface SidebarProps {
 
 export function Sidebar({ 
   strikeCount = 0, 
+  strikeSystemEnabled = true,
   globalStreak = 0, 
   isLockdownActive = false,
   habitsCount = 0,
@@ -63,6 +66,7 @@ export function Sidebar({
       { to: "/lockdown", icon: Shield, label: "Lockdown" }
     ] : []),
     { to: "/analytics", icon: BarChart3, label: "Analytics" },
+    { to: "/manual", icon: HelpCircle, label: "Manual" },
     { to: "/settings", icon: Settings, label: "Settings" },
   ];
   return (
@@ -109,10 +113,12 @@ export function Sidebar({
           <FlameIcon streak={globalStreak} />
           <span className="t-data">{globalStreak}</span>
         </div>
-        <div className={`sidebar__stat sidebar__stat--strikes${isWarning ? ' sidebar__stat--warning' : ''}${isLocked ? ' sidebar__stat--locked' : ''}`}>
-          <AlertTriangle size={14} strokeWidth={1.5} />
-          <span className="t-data">{strikeCount}/5</span>
-        </div>
+        {strikeSystemEnabled && (
+          <div className={`sidebar__stat sidebar__stat--strikes${isWarning ? ' sidebar__stat--warning' : ''}${isLocked ? ' sidebar__stat--locked' : ''}`}>
+            <AlertTriangle size={14} strokeWidth={1.5} />
+            <span className="t-data">{strikeCount}/5</span>
+          </div>
+        )}
         <div className="sidebar__stat" title="Active Habits">
           <Target size={14} strokeWidth={1.5} style={{ color: "var(--accent)" }} />
           <span className="t-data">{habitsCount} <span className="sidebar__stat-text">Habits</span></span>
@@ -134,8 +140,8 @@ export function Sidebar({
 
       {isLockdownActive && <div className="sidebar__divider" />}
 
-      {!isTauri() && (
-        <div style={{ padding: "0 10px 16px 10px" }}>
+      {!isTauri() && !isMobileWeb() && (
+        <div className="sidebar__download-wrapper" style={{ padding: "0 10px 16px 10px" }}>
           <a 
             href="https://github.com/Prophecccy/W/releases/latest"
             target="_blank"

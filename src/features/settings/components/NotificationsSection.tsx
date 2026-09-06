@@ -22,6 +22,7 @@ interface NotificationsSectionProps {
 
 export function NotificationsSection({ settings, onUpdate }: NotificationsSectionProps) {
   const masterEnabled = settings.notifications;
+  const strikeSystemEnabled = settings.strikeSystemEnabled ?? true;
 
   const handleMasterToggle = () => {
     onUpdate({ notifications: !masterEnabled });
@@ -31,6 +32,13 @@ export function NotificationsSection({ settings, onUpdate }: NotificationsSectio
     if (!masterEnabled) return;
     onUpdate({ [key]: !settings[key] });
   };
+
+  const visibleToggles = TOGGLES.filter(t => {
+    if (!strikeSystemEnabled && (t.key === "strikeWarnings" || t.key === "lockoutAlert")) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <div className="settings-section" id="settings-notifications">
@@ -58,7 +66,7 @@ export function NotificationsSection({ settings, onUpdate }: NotificationsSectio
 
         {/* Sub-toggles */}
         <div className={`settings-notif-sub ${!masterEnabled ? "settings-notif-sub--disabled" : ""}`}>
-          {TOGGLES.map((t) => (
+          {visibleToggles.map((t) => (
             <div key={t.key} className="settings-row">
               <div className="settings-row__label">
                 {t.icon}

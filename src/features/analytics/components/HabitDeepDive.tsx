@@ -6,6 +6,7 @@ import { generateHabitAnalytics } from "../services/analyticsService";
 import { ActivityHeatmap } from "./ActivityHeatmap";
 import { getLogRange } from "../../habits/services/logService";
 import { getToday, formatDate } from "../../../shared/utils/dateUtils";
+import { useUserStore } from "../../../shared/stores/userStore";
 import { motion } from "framer-motion";
 import "./HabitDeepDive.css";
 
@@ -16,27 +17,31 @@ interface Props {
 
 export const HabitDeepDive: React.FC<Props> = ({ habit, onClose }) => {
   const [stats, setStats] = useState<HabitAnalytics | null>(null);
+  const { userDoc } = useUserStore();
+  const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
 
   useEffect(() => {
     async function load() {
       const endDate = getToday();
       
-      // Load logs from the habit's creation date, or at least the last 90 days
+      // Load logs from the habit's creation date (or startDate), or at least the last 90 days
       const creationDate = new Date(habit.createdAt);
+      const habitStartDate = habit.startDate ? new Date(habit.startDate + "T00:00:00") : creationDate;
+      const earliestHabitDate = habitStartDate < creationDate ? habitStartDate : creationDate;
       const ninetyDaysAgo = new Date();
       ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-      const startD = creationDate < ninetyDaysAgo ? creationDate : ninetyDaysAgo;
+      const startD = earliestHabitDate < ninetyDaysAgo ? earliestHabitDate : ninetyDaysAgo;
       
       const logs = await getLogRange(
         formatDate(startD),
         endDate
       );
 
-      const computed = generateHabitAnalytics(habit, logs);
+      const computed = generateHabitAnalytics(habit, logs, weeklyResetDay);
       setStats(computed);
     }
     load();
-  }, [habit]);
+  }, [habit, weeklyResetDay]);
 
   if (!stats) return <div className="habit-deep-dive loading">Analyzing...</div>;
 
@@ -83,7 +88,7 @@ export const HabitDeepDive: React.FC<Props> = ({ habit, onClose }) => {
 
         <div className="analytics-card heatmap-wrapper">
           <h3 className="t-label">[ ACTIVITY HISTORY ]</h3>
-          <ActivityHeatmap habitId={habit.id} />
+          <ActivityHeatmap habit={habit} habitId={habit.id} />
         </div>
 
         <div className="analytics-card tod-chart">

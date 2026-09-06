@@ -149,11 +149,11 @@
 }
 
 .widget-app__habits-scroll {
-  padding: 0;
+  padding: 4px 0 8px;
   display: flex;
   flex-direction: column;
   flex: 1;
-  justify-content: center;
+  justify-content: safe center;
   overflow-y: auto;
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
@@ -191,40 +191,118 @@
 .widget-app__lockout {
   position: absolute;
   inset: 0;
-  z-index: 100;
+  z-index: 1000;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  background: transparent;
-  cursor: pointer;
+  background: rgba(14, 4, 4, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(232, 115, 108, 0.4);
   border-radius: 12px;
-  /* Removed solid border for Ghost Elevation */
-  border: none;
-  box-shadow: none;
-  animation: lockoutPulse 3s ease-in-out infinite;
+  box-shadow: inset 0 0 50px rgba(232, 115, 108, 0.15), 0 8px 32px rgba(0, 0, 0, 0.85);
+  padding: 24px;
+  cursor: grab;
+  user-select: none;
 }
 
-.widget-app__lockout svg {
-  color: var(--strike-red);
-  filter: drop-shadow(0 0 10px rgba(232, 115, 108, 0.5));
+.widget-app__lockout:active {
+  cursor: grabbing;
 }
 
-.widget-app__lockout .t-label {
+.widget-app__lockout-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 12px;
+  background: radial-gradient(ellipse at center, transparent 35%, rgba(232, 115, 108, 0.12) 100%);
+}
+
+.widget-app__lockout-body {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  width: 100%;
+  pointer-events: none; /* Passes pointer events to .widget-app__lockout for dragging */
+}
+
+.widget-app__lockout-icon-ring {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: 2px solid var(--strike-red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--strike-red);
+  background: rgba(232, 115, 108, 0.08);
+  box-shadow: 0 0 20px rgba(232, 115, 108, 0.35), inset 0 0 12px rgba(232, 115, 108, 0.2);
+  animation: lockoutRingPulse 2.5s ease-in-out infinite;
+}
+
+.widget-app__lockout-title {
+  color: var(--strike-red);
+  letter-spacing: 3px;
+  font-size: 17px;
+  text-shadow: 0 0 14px rgba(232, 115, 108, 0.6);
+  margin-top: 4px;
+}
+
+.widget-app__lockout-status {
+  color: var(--strike-red);
+  font-size: 11px;
   letter-spacing: 2px;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.8), 0 0 20px rgba(232, 115, 108, 0.5);
+  opacity: 0.95;
 }
 
-@keyframes lockoutPulse {
-  0%, 100% { 
-    border-color: rgba(232, 115, 108, 0.2);
-    box-shadow: inset 0 0 15px rgba(232, 115, 108, 0.05);
+.widget-app__lockout-desc {
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 1px;
+  max-width: 260px;
+  line-height: 1.6;
+}
+
+.widget-app__lockout-btn {
+  margin-top: 8px;
+  pointer-events: auto; /* Clickable button */
+  padding: 10px 22px;
+  background: rgba(232, 115, 108, 0.12);
+  border: 1px solid var(--strike-red);
+  color: var(--strike-red);
+  border-radius: 6px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  font-size: 11px;
+  font-family: inherit;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 14px rgba(232, 115, 108, 0.2);
+}
+
+.widget-app__lockout-btn:hover {
+  background: var(--strike-red);
+  color: #000000;
+  box-shadow: 0 0 24px rgba(232, 115, 108, 0.65);
+  transform: translateY(-1px);
+}
+
+.widget-app__lockout-btn:active {
+  transform: translateY(0);
+}
+
+@keyframes lockoutRingPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 16px rgba(232, 115, 108, 0.3);
   }
-  50% { 
-    border-color: rgba(232, 115, 108, 0.4);
-    box-shadow: inset 0 0 30px rgba(232, 115, 108, 0.15);
+  50% {
+    transform: scale(1.06);
+    box-shadow: 0 0 28px rgba(232, 115, 108, 0.65);
   }
 }
 

@@ -10,6 +10,67 @@ import { isHabitScheduledToday } from "../../habits/utils/scheduleEngine";
 
 import { getToday, formatDate, addDays } from "../../../shared/utils/dateUtils";
 
+function getWeekStartLocal(dateStr: string, weekStartDay: number = 1): string {
+  const d = new Date(dateStr + "T12:00:00");
+  if (isNaN(d.getTime())) return dateStr;
+  let safety = 0;
+  while (d.getDay() !== weekStartDay && safety < 10) {
+    d.setDate(d.getDate() - 1);
+    safety++;
+  }
+  return formatDate(d);
+}
+
+function getWeeklyHabitCompletionRate(
+  logs: HabitLog[],
+  habit: Habit,
+  startDateStr: string,
+  endDateStr: string,
+  weeklyResetDay: number = 1,
+): number {
+  const logMap: Record<string, HabitLog> = {};
+  for (const log of logs) logMap[log.date] = log;
+
+  const target = habit.type === "standard" ? (habit.frequency || 1) : (habit.metric?.targetValue ?? 1);
+  const todayStr = getToday();
+
+  // Group active days by week key
+  const weekMap: Record<string, { completions: number; daysCount: number }> = {};
+
+  let current = new Date(startDateStr + "T00:00:00");
+  const end = new Date(endDateStr + "T00:00:00");
+
+  while (current <= end) {
+    const dStr = formatDate(current);
+    if (dStr > todayStr) break;
+
+    const weekAnchor = getWeekStartLocal(dStr, weeklyResetDay);
+    if (!weekMap[weekAnchor]) {
+      weekMap[weekAnchor] = { completions: 0, daysCount: 0 };
+    }
+    weekMap[weekAnchor].daysCount += 1;
+
+    const log = logMap[dStr];
+    const entry = log?.habits?.[habit.id];
+    if (entry && (entry.completed || (entry.completions?.length ?? 0) > 0 || (entry.value ?? 0) > 0)) {
+      weekMap[weekAnchor].completions += 1;
+    }
+
+    current.setDate(current.getDate() + 1);
+  }
+
+  let totalScheduledUnits = 0;
+  let totalCompletedUnits = 0;
+
+  for (const week of Object.values(weekMap)) {
+    const expected = week.daysCount >= 7 ? target : Math.max(1, Math.round((target * week.daysCount) / 7));
+    totalScheduledUnits += expected;
+    totalCompletedUnits += Math.min(week.completions, expected);
+  }
+
+  return totalScheduledUnits === 0 ? 0 : Math.round((totalCompletedUnits / totalScheduledUnits) * 100);
+}
+
 export function getCompletionRate(
   logs: HabitLog[],
   habits: Habit[],
@@ -18,6 +79,13 @@ export function getCompletionRate(
   habitId?: string,
   weeklyResetDay?: number,
 ): number {
+  if (habitId) {
+    const targetHabit = habits.find((h) => h.id === habitId);
+    if (targetHabit?.period === "weekly") {
+      return getWeeklyHabitCompletionRate(logs, targetHabit, startDateStr, endDateStr, weeklyResetDay);
+    }
+  }
+
   const logMap: Record<string, HabitLog> = {};
   for (const log of logs) logMap[log.date] = log;
 
@@ -39,18 +107,31 @@ export function getCompletionRate(
       ? habits.filter((h) => h.id === habitId && isHabitScheduledToday(h, dStr, weeklyResetDay))
       : habits.filter((h) => isHabitScheduledToday(h, dStr, weeklyResetDay));
 
-    const dayScheduled = scheduledHabits.length;
+    let dayScheduled = scheduledHabits.length;
     let dayCompleted = 0;
 
     const log = logMap[dStr];
     if (log) {
       if (habitId) {
-        if (log.habits[habitId]?.completed) dayCompleted = 1;
+        const entry = log.habits?.[habitId];
+        const hasActivity = Boolean(
+          entry && (entry.completed || (entry.completions?.length ?? 0) > 0 || (entry.value ?? 0) > 0)
+        );
+        if (hasActivity) {
+          dayCompleted = 1;
+        }
       } else {
-        dayCompleted = scheduledHabits.filter(
-          (h) => log.habits[h.id]?.completed,
-        ).length;
+        dayCompleted = scheduledHabits.filter((h) => {
+          const entry = log.habits?.[h.id];
+          if (!entry) return false;
+          if (entry.completed) return true;
+          return (entry.value ?? 0) > 0 || ((entry.completions?.length ?? 0) > 0);
+        }).length;
       }
+    }
+
+    if (dayCompleted > dayScheduled) {
+      dayScheduled = dayCompleted;
     }
 
     scheduled += dayScheduled;
@@ -88,7 +169,14 @@ export function getBestWorstDays(
     dayStats[day].scheduled += scheduledHabits.length;
 
     for (const h of scheduledHabits) {
-      if (log.habits[h.id]?.completed) dayStats[day].completed += 1;
+      const entry = log.habits[h.id];
+      const isMulti = h.period === "weekly" || h.period === "monthly";
+      const hasActivity = Boolean(
+        entry && ((entry.completions?.length ?? 0) > 0 || (entry.value ?? 0) > 0)
+      );
+      if (entry && (entry.completed || (isMulti && hasActivity))) {
+        dayStats[day].completed += 1;
+      }
     }
   }
 
@@ -234,14 +322,24 @@ function processDayActivities(
     const scheduledHabits = habits.filter((h) =>
       isHabitScheduledToday(h, dStr, weeklyResetDay),
     );
-    const scheduled = scheduledHabits.length;
+    let scheduled = scheduledHabits.length;
     let completed = 0;
 
     const log = logMap[dStr];
     if (log) {
-      completed = scheduledHabits.filter(
-        (h) => log.habits[h.id]?.completed,
-      ).length;
+      completed = scheduledHabits.filter((h) => {
+        const entry = log.habits[h.id];
+        if (!entry) return false;
+        if (entry.completed) return true;
+        if (h.period === "weekly" || h.period === "monthly") {
+          return (entry.value ?? 0) > 0 || ((entry.completions?.length ?? 0) > 0);
+        }
+        return false;
+      }).length;
+    }
+
+    if (completed > scheduled) {
+      scheduled = completed;
     }
 
     result.push({
@@ -345,9 +443,12 @@ export function generateHabitAnalytics(
   const timeOfDayDistribution = new Array(24).fill(0);
 
   for (const log of logs) {
-    const entry = log.habits[habit.id];
-    if (entry && entry.completed) {
-      for (const comp of (entry.completions ?? [])) {
+    const entry = log.habits?.[habit.id];
+    const hasActivity = Boolean(
+      entry && (entry.completed || (entry.value ?? 0) > 0 || (entry.completions?.length ?? 0) > 0)
+    );
+    if (hasActivity) {
+      for (const comp of (entry?.completions ?? [])) {
         const d = new Date(comp.timestamp);
         const hour = d.getHours();
         timeOfDayDistribution[hour] += 1;

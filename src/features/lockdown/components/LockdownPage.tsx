@@ -6,6 +6,7 @@ import { useLockdown } from "../../lockdown/hooks/useLockdown";
 import { LOCKDOWN_PRESETS, LOCKDOWN_DURATIONS } from "../../lockdown/types";
 import { LockdownLogo } from "./LockdownLogo";
 import { TimeInput } from "../../../shared/components/RadialTimePicker/TimeInput";
+import { sanitizeText } from "../../../shared/utils/security";
 import "./LockdownPage.css";
 
 function getAppIcon(appName: string) {
@@ -452,14 +453,15 @@ export function LockdownPage() {
   };
 
   const handleSaveSchedule = async () => {
-    if (!scheduleName.trim()) return;
+    const cleanName = sanitizeText(scheduleName, 100);
+    if (!cleanName) return;
 
-    // Combine preset items and custom items
-    const blocklist = Array.from(new Set([...scheduleApps, ...scheduleCustoms]));
+    // Combine preset items and custom items, sanitizing each item
+    const blocklist = Array.from(new Set([...scheduleApps, ...scheduleCustoms])).map((item) => sanitizeText(item, 100));
 
     const newSchedule = {
       id: Math.random().toString(36).substring(2, 9),
-      name: scheduleName.trim(),
+      name: cleanName,
       enabled: true,
       startTime: scheduleStartTime,
       endTime: scheduleEndTime,

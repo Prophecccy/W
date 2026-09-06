@@ -53,6 +53,7 @@ const DEFAULT_SETTINGS: Settings = {
   wakeUpTime: "07:00",
   bedTime: "23:00",
   emptyTubeText: "DEPLETED",
+  strikeSystemEnabled: true,
 };
 
 const DEFAULT_AESTHETICS: Aesthetics = {

@@ -206,6 +206,11 @@ export function useWidgetData(): WidgetData {
       console.warn("Widget is frozen. Habit completion is disabled.");
       return;
     }
+    const strikeSystemEnabled = userDoc?.settings?.strikeSystemEnabled ?? true;
+    if (strikeSystemEnabled && (userDoc?.strikes?.current ?? 0) >= 5) {
+      console.warn("Widget is locked. Habit completion is suspended.");
+      return;
+    }
     try {
       await completeHabitLog(habitId, 1, undefined, "", userDoc?.settings?.dailyResetTime);
       if (isTauri()) {
@@ -221,6 +226,11 @@ export function useWidgetData(): WidgetData {
     if (!user) return;
     if (userDoc?.freeze?.active) {
       console.warn("Widget is frozen. Habit undo is disabled.");
+      return;
+    }
+    const strikeSystemEnabled = userDoc?.settings?.strikeSystemEnabled ?? true;
+    if (strikeSystemEnabled && (userDoc?.strikes?.current ?? 0) >= 5) {
+      console.warn("Widget is locked. Habit undo is suspended.");
       return;
     }
     try {

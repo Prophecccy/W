@@ -4,6 +4,7 @@ interface StatsDeckProps {
   completedCount: number;
   totalScheduled: number;
   strikeCount: number;
+  strikeSystemEnabled?: boolean;
   globalStreak: number;
   weeklyCompletions: number;
 }
@@ -12,6 +13,7 @@ export function StatsDeck({
   completedCount,
   totalScheduled,
   strikeCount,
+  strikeSystemEnabled = true,
   globalStreak,
   weeklyCompletions,
 }: StatsDeckProps) {
@@ -47,10 +49,14 @@ export function StatsDeck({
         <span className="stats-deck__status">STREAK {globalStreak}D</span>
         <div className="stats-deck__divider">|</div>
         <span className="stats-deck__status">WEEKLY {weeklyCompletions}</span>
-        <div className="stats-deck__divider">|</div>
-        <span className={`stats-deck__strikes ${strikeCount > 0 ? 'stats-deck__strikes--active' : ''}`}>
-          {strikeCount > 0 ? `${strikeCount} STRIKES` : '0 STRIKES'}
-        </span>
+        {strikeSystemEnabled && (
+          <>
+            <div className="stats-deck__divider">|</div>
+            <span className={`stats-deck__strikes ${strikeCount > 0 ? 'stats-deck__strikes--active' : ''}`}>
+              {strikeCount > 0 ? `${strikeCount} STRIKES` : '0 STRIKES'}
+            </span>
+          </>
+        )}
       </div>
     </div>
   );

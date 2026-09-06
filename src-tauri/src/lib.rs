@@ -89,8 +89,21 @@ pub fn run() {
             println!("[W RUN] Single instance trigger. Args: {:?}, Cwd: {:?}", args, cwd);
             if let Some(main_window) = app.get_webview_window("main") {
                 println!("[W RUN] Showing main window due to single instance trigger.");
+                let _ = main_window.unminimize();
                 let _ = main_window.show();
                 let _ = main_window.set_focus();
+
+                #[cfg(target_os = "windows")]
+                if let Ok(hwnd) = main_window.hwnd() {
+                    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SetForegroundWindow, SW_RESTORE, SW_SHOW};
+                    use windows::Win32::Foundation::HWND;
+                    unsafe {
+                        let h = HWND(hwnd.0 as *mut _);
+                        let _ = ShowWindow(h, SW_RESTORE);
+                        let _ = ShowWindow(h, SW_SHOW);
+                        let _ = SetForegroundWindow(h);
+                    }
+                }
             }
         }));
 
@@ -112,10 +125,38 @@ pub fn run() {
             if !is_hidden_startup {
                 if let Some(main_window) = app.get_webview_window("main") {
                     println!("[W SETUP] Found main window. Visibility: {:?}", main_window.is_visible());
+                    let _ = main_window.unminimize();
                     let res = main_window.show();
                     println!("[W SETUP] main_window.show() result: {:?}", res);
                     let res_focus = main_window.set_focus();
                     println!("[W SETUP] main_window.set_focus() result: {:?}", res_focus);
+
+                    #[cfg(target_os = "windows")]
+                    if let Ok(hwnd) = main_window.hwnd() {
+                        use windows::Win32::UI::WindowsAndMessaging::{
+                            GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, ShowWindow, SetForegroundWindow,
+                            GWL_EXSTYLE, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW, SWP_NOMOVE, SWP_NOSIZE,
+                            SW_RESTORE, SW_SHOW, HWND_TOP, GetWindowRect
+                        };
+                        use windows::Win32::Foundation::{HWND, RECT};
+                        unsafe {
+                            let h = HWND(hwnd.0 as *mut _);
+
+                            // Force WS_EX_APPWINDOW so Windows Taskbar registers the app window
+                            let ex_style = GetWindowLongPtrW(h, GWL_EXSTYLE);
+                            let new_style = (ex_style as u32 | WS_EX_APPWINDOW.0) & !WS_EX_TOOLWINDOW.0;
+                            SetWindowLongPtrW(h, GWL_EXSTYLE, new_style as isize);
+
+                            let mut r = RECT::default();
+                            let _ = GetWindowRect(h, &mut r);
+                            println!("[W SETUP] HWND: {:?}, Rect: ({}, {}) -> ({}, {})", h, r.left, r.top, r.right, r.bottom);
+
+                            let _ = ShowWindow(h, SW_RESTORE);
+                            let _ = ShowWindow(h, SW_SHOW);
+                            let _ = SetWindowPos(h, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+                            let _ = SetForegroundWindow(h);
+                        }
+                    }
                 } else {
                     println!("[W SETUP] ERROR: main window NOT found!");
                 }
@@ -180,7 +221,7 @@ pub fn run() {
                 }
             };
 
-            let _tray = TrayIconBuilder::new()
+            let _tray = TrayIconBuilder::with_id("main-tray")
                 .menu(&tray_menu)
                 .show_menu_on_left_click(false)     // left-click shows window, right-click opens menu
                 .icon(icon)

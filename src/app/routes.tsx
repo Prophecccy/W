@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import { Layout } from "./Layout";
 import { DashboardPage } from "../features/dashboard/components/DashboardPage";
 import { HabitsPage } from "../features/habits/components/HabitsPage";
@@ -13,6 +13,7 @@ import { WidgetApp } from "../features/widget/components/WidgetApp";
 import { LogbookPage } from "../features/logs/components/LogbookPage";
 import { BlockOverlay } from "../features/lockdown/components/BlockOverlay";
 import { TodoCreatorPage } from "../features/todos/components/TodoCreatorPage";
+import { ManualPage } from "../features/manual";
 
 
 export const router = createBrowserRouter([
@@ -88,7 +89,15 @@ export const router = createBrowserRouter([
         path: "lockdown",
         element: <LockdownPage />,
       },
+      {
+        path: "manual",
+        element: <ManualPage />,
+      },
     ],
+  },
+  {
+    path: "*",
+    element: <Navigate to="/" replace />,
   },
 ]);
 

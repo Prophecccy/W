@@ -835,6 +835,7 @@ function LayoutInner() {
       <div inert={isLocked ? true : undefined} style={{ display: "contents" }}>
         <Sidebar
           strikeCount={strikes.current}
+          strikeSystemEnabled={userDoc?.settings?.strikeSystemEnabled ?? true}
           globalStreak={globalStreak}
           isLockdownActive={isLockdownActive}
           habitsCount={paletteHabits.length}
@@ -868,13 +869,15 @@ function LayoutInner() {
         />
       )}
 
-      <StrikeWarningToast strikes={strikes} />
+      {(userDoc?.settings?.strikeSystemEnabled ?? true) && (
+        <StrikeWarningToast strikes={strikes} />
+      )}
 
-      {isLocked && !showPunishment && (
+      {(userDoc?.settings?.strikeSystemEnabled ?? true) && isLocked && !showPunishment && (
         <LockoutOverlay onResolve={() => setShowPunishment(true)} />
       )}
 
-      {showPunishment && (
+      {(userDoc?.settings?.strikeSystemEnabled ?? true) && showPunishment && (
         <PunishmentModal
           onConfirm={handlePunishment}
           onCancel={() => setShowPunishment(false)}

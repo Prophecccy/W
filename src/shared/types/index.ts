@@ -15,6 +15,7 @@ export interface Settings {
   wakeUpTime: string; // e.g. "07:00"
   bedTime: string; // e.g. "23:00"
   emptyTubeText: string;
+  strikeSystemEnabled?: boolean;
 }
 
 export interface Aesthetics {

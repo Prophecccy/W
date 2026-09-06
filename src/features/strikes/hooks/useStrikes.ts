@@ -7,6 +7,7 @@ import { useAuthContext } from "../../auth/context";
 interface UseStrikesReturn {
   strikes: StrikeState;
   isLocked: boolean;
+  strikeSystemEnabled: boolean;
   loading: boolean;
   addStrike: (
     habitId: string,
@@ -26,11 +27,13 @@ const DEFAULT_STATE: StrikeState = {
 export function useStrikes(): UseStrikesReturn {
   const { user } = useAuthContext();
   const [strikes, setStrikes] = useState<StrikeState>(DEFAULT_STATE);
+  const [strikeSystemEnabled, setStrikeSystemEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) {
       setStrikes(DEFAULT_STATE);
+      setStrikeSystemEnabled(true);
       setLoading(false);
       return;
     }
@@ -40,6 +43,7 @@ export function useStrikes(): UseStrikesReturn {
       if (snap.exists()) {
         const data = snap.data();
         setStrikes((data.strikes ?? DEFAULT_STATE) as StrikeState);
+        setStrikeSystemEnabled(data.settings?.strikeSystemEnabled ?? true);
       }
       setLoading(false);
     });
@@ -63,7 +67,8 @@ export function useStrikes(): UseStrikesReturn {
 
   return {
     strikes,
-    isLocked: strikes.current >= MAX_STRIKES,
+    isLocked: strikeSystemEnabled && strikes.current >= MAX_STRIKES,
+    strikeSystemEnabled,
     loading,
     addStrike: handleAddStrike,
     resolve: handleResolve,

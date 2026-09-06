@@ -8,6 +8,7 @@ import { playCompletionSound } from "../../../../shared/services/completionSound
 import { FlameIcon } from "../../../../shared/components/FlameIcon/FlameIcon";
 import { LevelBadge } from "../../../../shared/components/LevelBadge/LevelBadge";
 import { ConfettiParticles } from "../../../../shared/components/ConfettiParticles/ConfettiParticles";
+import { useUserStore } from "../../../../shared/stores/userStore";
 import "./HabitCard.css";
 import "./HabitCardTiers.css";
 
@@ -73,6 +74,8 @@ export function HabitCard({
   onKeyDown,
   disabled = false,
 }: HabitCardProps) {
+  const { userDoc } = useUserStore();
+  const strikeSystemEnabled = userDoc?.settings?.strikeSystemEnabled ?? true;
   const { showToast } = useToast();
   const [isHolding, setIsHolding] = useState(false);
   const [completeTriggered, setCompleteTriggered] = useState(false);
@@ -94,8 +97,8 @@ export function HabitCard({
 
   // ─── Interaction Handlers ───────────────────────────────────────
   const startHold = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (disabled) return;
-    // Keep track of the initial touch coordinate to prevent scroll/drag completion collisions
+    // Keep track of the initial touch coordinate to prevent scroll/drag collisions
+    // and allow clicking to view details even when completion is disabled/frozen
     pointerStartCoordsRef.current = { x: e.clientX, y: e.clientY };
     hasHeldRef.current = false;
 
@@ -105,7 +108,7 @@ export function HabitCard({
       holdTimeoutRef.current = null;
     }
 
-    if (isResting || upcomingStatus) return;
+    if (disabled || isResting || upcomingStatus) return;
     
     setIsHolding(true);
     setCompleteTriggered(false);
@@ -126,7 +129,7 @@ export function HabitCard({
         const isExceeded = isLimiter && (currentValue + 1) > target;
         const toastMessage = isLimiter
           ? isExceeded
-            ? `[ LIMIT EXCEEDED ] Strike added!`
+            ? (strikeSystemEnabled ? `[ LIMIT EXCEEDED ] Strike added!` : `[ LIMIT EXCEEDED ] Logged!`)
             : `Logged ${habit.title}`
           : `Completed ${habit.title}`;
 
@@ -168,7 +171,6 @@ export function HabitCard({
   const progressPercent = Math.min(100, (currentValue / target) * 100);
 
   const handlePointerUp = () => {
-    if (disabled) return;
     const shouldClick = !hasHeldRef.current && pointerStartCoordsRef.current !== null;
     cancelHold();
     if (shouldClick) {
@@ -188,6 +190,11 @@ export function HabitCard({
       onPointerMove={handlePointerMove}
       onPointerLeave={cancelHold}
       onPointerCancel={cancelHold}
+      onClick={() => {
+        if (!hasHeldRef.current) {
+          onClick();
+        }
+      }}
       onContextMenu={(e) => {
          // Prevent right click menu on touch hold
          e.preventDefault();

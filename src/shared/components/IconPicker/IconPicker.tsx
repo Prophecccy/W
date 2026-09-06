@@ -32,12 +32,15 @@ export function IconPicker({ selectedIcon, onSelect }: IconPickerProps) {
     );
   }, [search]);
 
+  const isSelected = (id: string) => 
+    selectedIcon === id || (Boolean(selectedIcon) && selectedIcon.replace(/^Lucide/, "") === id);
+
   return (
     <div className="icon-picker">
       <input
         type="text"
         className="icon-picker__search t-data"
-        placeholder="Search 300+ icons (e.g. 'gym', 'code', 'wallet')..."
+        placeholder="Search 900+ icons (e.g. 'gym', 'code', 'wallet')..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
@@ -54,7 +57,7 @@ export function IconPicker({ selectedIcon, onSelect }: IconPickerProps) {
                     <button
                       key={item.id}
                       type="button"
-                      className={`icon-picker__btn ${selectedIcon === item.id ? "icon-picker__btn--active" : ""}`}
+                      className={`icon-picker__btn ${isSelected(item.id) ? "icon-picker__btn--active" : ""}`}
                       onClick={() => onSelect(item.id)}
                       title={item.id}
                     >
@@ -84,7 +87,7 @@ export function IconPicker({ selectedIcon, onSelect }: IconPickerProps) {
                         <button
                           key={item.id}
                           type="button"
-                          className={`icon-picker__btn ${selectedIcon === item.id ? "icon-picker__btn--active" : ""}`}
+                          className={`icon-picker__btn ${isSelected(item.id) ? "icon-picker__btn--active" : ""}`}
                           onClick={() => onSelect(item.id)}
                           title={item.id}
                         >

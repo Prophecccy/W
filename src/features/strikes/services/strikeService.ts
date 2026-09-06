@@ -96,15 +96,21 @@ export async function addStrike(
       if (!snap.exists()) throw new Error("User doc not found");
       
       const userData = snap.data();
-      const resetTime = userData.settings?.dailyResetTime;
-      const today = getToday(undefined, resetTime);
-
+      const strikeSystemEnabled = userData.settings?.strikeSystemEnabled ?? true;
       const current = (userData.strikes ?? {
         current: 0,
         total: 0,
         lastStrikeDate: null,
         history: [],
       }) as StrikeState;
+
+      // If user disabled the strike system in settings, never accrue strikes
+      if (!strikeSystemEnabled) {
+        return current;
+      }
+
+      const resetTime = userData.settings?.dailyResetTime;
+      const today = getToday(undefined, resetTime);
 
       // Don't exceed max — they're already locked
       if (current.current >= MAX_STRIKES) return current;

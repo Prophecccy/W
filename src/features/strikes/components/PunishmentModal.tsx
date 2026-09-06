@@ -7,6 +7,7 @@ import { getGroups } from "../../habits/services/groupService";
 import { resetStrikes } from "../services/strikeService";
 import { HabitForm } from "../../habits/components/HabitForm/HabitForm";
 import { TodoForm } from "../../todos/components/TodoForm/TodoForm";
+import { isTauri } from "../../../shared/utils/tauri";
 import "./PunishmentModal.css";
 
 const getProposedDelta = (habit: Habit) => {
@@ -71,6 +72,24 @@ export function PunishmentModal({ onConfirm, onCancel }: PunishmentModalProps) {
   const [step, setStep] = useState<PunishmentStep>("select_penance");
   const [selected, setSelected] = useState<PunishmentChoice | null>(null);
   const [confirming, setConfirming] = useState(false);
+
+  const handleDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    if (e.target instanceof Element && (
+      e.target.closest("button") ||
+      e.target.closest("input") ||
+      e.target.closest("textarea") ||
+      e.target.closest("select") ||
+      e.target.closest("a") ||
+      e.target.closest(".punishment-card")
+    )) return;
+
+    if (isTauri()) {
+      import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
+        getCurrentWindow().startDragging();
+      }).catch(() => {});
+    }
+  };
 
   // Difficulty Increase Selection
   const [habits, setHabits] = useState<Habit[]>([]);
@@ -187,7 +206,7 @@ export function PunishmentModal({ onConfirm, onCancel }: PunishmentModalProps) {
   // ── Render: Habit Form Step ─────────────────────────────────────
   if (step === "habit_form") {
     return (
-      <div className="punishment-overlay">
+      <div className="punishment-overlay" onPointerDown={handleDrag} data-tauri-drag-region>
         <div className="punishment-modal punishment-modal--form" onClick={(e) => e.stopPropagation()}>
           <HabitForm
             groups={groups}
@@ -202,7 +221,7 @@ export function PunishmentModal({ onConfirm, onCancel }: PunishmentModalProps) {
   // ── Render: Todo Form Step ──────────────────────────────────────
   if (step === "todo_form") {
     return (
-      <div className="punishment-overlay">
+      <div className="punishment-overlay" onPointerDown={handleDrag} data-tauri-drag-region>
         <div className="punishment-modal punishment-modal--form" onClick={(e) => e.stopPropagation()}>
           <TodoForm
             groups={groups}
@@ -216,11 +235,11 @@ export function PunishmentModal({ onConfirm, onCancel }: PunishmentModalProps) {
 
   // ── Render: Selection Step ──────────────────────────────────────
   return (
-    <div className="punishment-overlay" onClick={onCancel}>
+    <div className="punishment-overlay" onClick={onCancel} onPointerDown={handleDrag} data-tauri-drag-region>
       <div className="punishment-modal" onClick={(e) => e.stopPropagation()}>
         {step === "select_penance" ? (
           <>
-            <div className="punishment-modal__header">
+            <div className="punishment-modal__header" onPointerDown={handleDrag} data-tauri-drag-region style={{ cursor: "grab" }}>
               <h2 className="t-display">[ CHOOSE YOUR PENANCE ]</h2>
               <p className="t-body" style={{ color: "var(--text-muted)", marginTop: 8 }}>
                 Select one option to resolve your lockout and reset strikes to 0.
@@ -267,7 +286,7 @@ export function PunishmentModal({ onConfirm, onCancel }: PunishmentModalProps) {
           </>
         ) : (
           <>
-            <div className="punishment-modal__header">
+            <div className="punishment-modal__header" onPointerDown={handleDrag} data-tauri-drag-region style={{ cursor: "grab" }}>
               <h2 className="t-display">[ SELECT TARGET HABIT ]</h2>
               <p className="t-body" style={{ color: "var(--text-muted)", marginTop: 8 }}>
                 Select an active habit to adjust its difficulty.

@@ -699,6 +699,8 @@ export function HabitsPage() {
           habit={habits.find(h => h.id === selectedHabitId)!}
           onClose={() => setSelectedHabitId(null)}
           userResetTime={userDoc?.settings?.dailyResetTime}
+          groups={groups}
+          onGroupCreated={(newG) => setGroups(prev => [...prev, newG])}
           onUpdate={(updated) => {
             if (updated.isArchived) {
               setHabits(prev => prev.filter(h => h.id !== updated.id));

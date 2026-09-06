@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { HabitLog } from "../../habits/types";
+import { Habit, HabitLog } from "../../habits/types";
 import { getLogRange } from "../../habits/services/logService";
 import { getHabits } from "../../habits/services/habitService";
 import { isHabitScheduledToday } from "../../habits/utils/scheduleEngine";
@@ -8,10 +8,12 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getToday, formatDate } from "../../../shared/utils/dateUtils";
 import { useUserStore } from "../../../shared/stores/userStore";
+import { getCompletionRate } from "../services/analyticsService";
 import "./ActivityHeatmap.css";
 
 interface Props {
   habitId?: string; // If passed, show heatmap for specific habit
+  habit?: Habit;    // If passed, use habit object directly
 }
 
 interface Cell {
@@ -30,7 +32,8 @@ interface MonthData {
   efficiency: number;
 }
 
-export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
+export const ActivityHeatmap: React.FC<Props> = ({ habitId: propHabitId, habit }) => {
+  const habitId = habit?.id || propHabitId;
   const { user } = useAuth();
   const { userDoc } = useUserStore();
   const [monthsData, setMonthsData] = useState<MonthData[]>([]);
@@ -93,10 +96,21 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
 
       const todayStr = getToday();
 
+      const targetHabit = habit || (habitId ? habits.find((h) => h.id === habitId) : null);
+
       let oldestHabitDateStr = todayStr;
-      if (habits.length > 0) {
+      if (targetHabit) {
+        let habitStart = targetHabit.startDate || formatDate(new Date(targetHabit.createdAt));
+        for (const log of logs) {
+          const entry = log.habits?.[targetHabit.id];
+          if (entry && (entry.completed || (entry.completions?.length ?? 0) > 0 || (entry.value ?? 0) > 0)) {
+            if (log.date < habitStart) habitStart = log.date;
+          }
+        }
+        oldestHabitDateStr = habitStart;
+      } else if (habits.length > 0) {
         oldestHabitDateStr = habits.reduce((min, h) => {
-          const d = formatDate(new Date(h.createdAt));
+          const d = h.startDate || formatDate(new Date(h.createdAt));
           return d < min ? d : min;
         }, todayStr);
       }
@@ -138,19 +152,36 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
               )
             : habits.filter((h) => isHabitScheduledToday(h, dateStr, weeklyResetDay));
 
-          const scheduled = scheduledHabits.length;
+          let scheduled = scheduledHabits.length;
           let completed = 0;
 
           const log = logMap[dateStr];
           if (log) {
             if (habitId) {
               const entry = log.habits?.[habitId];
-              if (entry && entry.completed) completed = 1;
+              const hasActivity = Boolean(
+                entry && (entry.completed || (entry.completions?.length ?? 0) > 0 || (entry.value ?? 0) > 0)
+              );
+              if (hasActivity) {
+                completed = 1;
+              }
             } else {
-              completed = Object.values(log.habits || {}).filter(
-                (h) => h.completed,
-              ).length;
+              completed = habits.filter((h) => {
+                const entry = log.habits?.[h.id];
+                if (!entry) return false;
+                if (entry.completed) return true;
+                if (h.period === "weekly" || h.period === "monthly") {
+                  return (entry.value ?? 0) > 0 || ((entry.completions?.length ?? 0) > 0);
+                }
+                return false;
+              }).length;
             }
+          }
+
+          // If completed on an otherwise unscheduled day (e.g. flexible weekly workout),
+          // adjust scheduled to at least match completed so rate evaluates to 100%
+          if (completed > scheduled) {
+            scheduled = completed;
           }
 
           totalScheduled += scheduled;
@@ -193,8 +224,12 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
           }
         }
 
-        const efficiency =
-          totalScheduled === 0
+        const monthStartStr = formatDate(new Date(mYear, mMonth, 1));
+        const monthEndStr = formatDate(new Date(mYear, mMonth, daysInMonth));
+
+        const efficiency = targetHabit?.period === "weekly"
+          ? getCompletionRate(logs, [targetHabit], monthStartStr, monthEndStr, targetHabit.id, weeklyResetDay)
+          : totalScheduled === 0
             ? 0
             : Math.round((totalCompleted / totalScheduled) * 100);
 
@@ -356,11 +391,13 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
 
                         let level = 0;
                         if (habitId) {
-                          // Single habit heatmap: based on completion percentage
-                          if (c.rate > 0) level = 1;
-                          if (c.rate >= 33) level = 2;
-                          if (c.rate >= 66) level = 3;
-                          if (c.rate >= 100) level = 4;
+                          // Single habit heatmap: based on completion percentage or active unit
+                          if (c.completedCount > 0 || c.rate > 0) {
+                            if (c.rate >= 100 || c.completedCount > 0) level = 4;
+                            else if (c.rate >= 66) level = 3;
+                            else if (c.rate >= 33) level = 2;
+                            else level = 1;
+                          }
                         } else {
                           // Global heatmap: based on absolute completed count relative to maxCompletions
                           if (c.completedCount > 0) {
@@ -376,7 +413,9 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId }) => {
 
                         const dayNum = parseInt(c.date.split("-")[2], 10);
                         const tooltipText = habitId
-                          ? `${c.date}: ${c.rate}% completed`
+                          ? c.completedCount > 0
+                            ? `${c.date}: Completed`
+                            : `${c.date}: ${c.rate}% completed`
                           : `${c.date}: ${c.completedCount} habit(s) completed`;
 
                         return (

@@ -16,6 +16,7 @@ import {
   Clock,
   Bell,
   HardDrive,
+  HelpCircle,
   type LucideIcon as LucideIconType,
 } from "lucide-react";
 import { LucideIcon } from "../IconPicker/LucideIcon";
@@ -109,6 +110,14 @@ export function CommandPalette({
         category: "pages",
         action: () => { navigate("/analytics"); onClose(); },
         keywords: ["analytics", "stats", "charts", "insights", "data"],
+      },
+      {
+        id: "page-manual",
+        label: "Field Manual",
+        icon: HelpCircle,
+        category: "pages",
+        action: () => { navigate("/manual"); onClose(); },
+        keywords: ["manual", "help", "guide", "instructions", "docs", "features", "rules", "shortcuts", "info"],
       },
       {
         id: "page-settings",

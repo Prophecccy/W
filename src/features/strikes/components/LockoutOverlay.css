@@ -5,9 +5,52 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(20, 6, 6, 0.92);
-  backdrop-filter: blur(12px);
+  background: rgba(20, 6, 6, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   animation: lockoutFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  cursor: grab;
+  user-select: none;
+}
+
+.lockout-overlay:active {
+  cursor: grabbing;
+}
+
+.lockout-overlay__window-controls {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 10001;
+}
+
+.lockout-overlay__win-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lockout-overlay__win-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.lockout-overlay__win-btn--close:hover {
+  background: rgba(232, 115, 108, 0.2);
+  color: var(--strike-red);
+  border-color: var(--strike-red);
 }
 
 .lockout-overlay__vignette {

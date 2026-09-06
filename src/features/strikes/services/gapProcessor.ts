@@ -146,9 +146,10 @@ export async function processGap(
     return result;
   }
 
-  // Fetch user settings to respect custom weeklyResetDay and dailyResetTime
+  // Fetch user settings to respect custom weeklyResetDay, dailyResetTime, and strikeSystemEnabled
   let weeklyResetDay = 1;
   let dailyResetTime: string | undefined;
+  let strikeSystemEnabled = true;
   const u = auth.currentUser;
   if (u) {
     try {
@@ -160,6 +161,9 @@ export async function processGap(
       }
       if (userD?.settings?.dailyResetTime !== undefined) {
         dailyResetTime = userD.settings.dailyResetTime;
+      }
+      if (userD?.settings?.strikeSystemEnabled !== undefined) {
+        strikeSystemEnabled = userD.settings.strikeSystemEnabled;
       }
     } catch (e: any) {
       logDebug(`Failed to fetch user doc for settings: ${e?.message || e}`);
@@ -454,13 +458,15 @@ export async function processGap(
 
       // ── MISSED / LIMITER EXCEEDED: add a strike ──
       result.missedCount++;
-      try {
-        // BUG 7: Pass "limiter_exceeded" reason for limiter habits so they can be undone
-        const strikeReason = habit.type === "limiter" ? "limiter_exceeded" : "missed";
-        await addStrike(habit.id, habit.title, strikeReason);
-        result.strikesAdded++;
-      } catch {
-        // If strikes are already at max (locked out), addStrike is a no-op
+      if (strikeSystemEnabled) {
+        try {
+          // BUG 7: Pass "limiter_exceeded" reason for limiter habits so they can be undone
+          const strikeReason = habit.type === "limiter" ? "limiter_exceeded" : "missed";
+          await addStrike(habit.id, habit.title, strikeReason);
+          result.strikesAdded++;
+        } catch {
+          // If strikes are already at max (locked out), addStrike is a no-op
+        }
       }
 
       // Reset streak for missed standard/metric habits (daily, weekly, monthly, interval)

@@ -256,6 +256,11 @@
     white-space: nowrap !important;
     font-size: 7px !important;
   }
+
+  .sidebar__download-wrapper,
+  .sidebar__download-btn {
+    display: none !important;
+  }
 }
 
 /* ─── Sidebar Frozen State Styles ────────────────────────────────── */

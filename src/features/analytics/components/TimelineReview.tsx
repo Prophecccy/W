@@ -5,7 +5,7 @@ import "./TimelineReview.css";
 export const TimelineReview: React.FC = () => {
   const { userDoc } = useUserStore();
   
-  if (!userDoc) return null;
+  if (!userDoc || userDoc.settings?.strikeSystemEnabled === false) return null;
 
   const strikes = userDoc.strikes?.history || [];
 

@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
-import { Habit, HabitLog } from "../../types";
+import { Habit, HabitLog, HabitGroup } from "../../types";
 import { getLogRange } from "../../services/logService";
 import { getToday, subtractDays } from "../../../../shared/utils/dateUtils";
 import { LucideIcon } from "../../../../shared/components/IconPicker/LucideIcon";
 import { useToast } from "../../../../shared/components/Toast/Toast";
 import { updateHabit, archiveHabit } from "../../services/habitService";
+import { getGroups, createGroup } from "../../services/groupService";
 import { isHabitScheduledToday } from "../../utils/scheduleEngine";
 import { useUserStore } from "../../../../shared/stores/userStore";
 import { confirmDialog } from "../../../../shared/utils/tauri";
@@ -16,9 +17,19 @@ interface HabitDetailProps {
   onUpdate: (updated: Habit) => void;
   onDeleteRequest: (habit: Habit) => void;
   userResetTime?: string;
+  groups?: HabitGroup[];
+  onGroupCreated?: (group: HabitGroup) => void;
 }
 
-export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest, userResetTime }: HabitDetailProps) {
+export function HabitDetail({
+  habit,
+  onClose,
+  onUpdate,
+  onDeleteRequest,
+  userResetTime,
+  groups: propGroups,
+  onGroupCreated,
+}: HabitDetailProps) {
   const { userDoc } = useUserStore();
   const [logs, setLogs] = useState<HabitLog[]>([]);
   const { showToast } = useToast();
@@ -26,7 +37,29 @@ export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest, userRes
   // Edit states
   const [title, setTitle] = useState(habit.title);
   const [desc, setDesc] = useState(habit.description);
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(habit.group || null);
+  const [isCreatingNewGroup, setIsCreatingNewGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [groups, setGroups] = useState<HabitGroup[]>(propGroups || []);
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (propGroups) {
+      setGroups(propGroups);
+    } else {
+      getGroups()
+        .then(setGroups)
+        .catch((err) => console.error("Failed to load groups in HabitDetail", err));
+    }
+  }, [propGroups]);
+
+  useEffect(() => {
+    setTitle(habit.title);
+    setDesc(habit.description);
+    setSelectedGroup(habit.group || null);
+    setIsCreatingNewGroup(false);
+    setNewGroupName("");
+  }, [habit]);
 
   const today = getToday(undefined, userResetTime);
   const past28Days = subtractDays(today, 27);
@@ -51,14 +84,19 @@ export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest, userRes
       const d = subtractDays(today, i);
       const dayLog = logs.find((l) => l.date === d);
       const isScheduled = isHabitScheduledToday(habit, d, weeklyResetDay);
+      const entry = dayLog?.habits?.[habit.id];
+      const hasActivity = Boolean(
+        entry && ((entry.completions?.length ?? 0) > 0 || (entry.value ?? 0) > 0)
+      );
       let isCompleted = false;
-      if (isScheduled) {
-        if (habit.type === "limiter") {
-          const entry = dayLog?.habits?.[habit.id];
+      if (habit.type === "limiter") {
+        if (isScheduled) {
           isCompleted = entry ? entry.value <= entry.target : true;
-        } else {
-          isCompleted = dayLog?.habits?.[habit.id]?.completed || false;
         }
+      } else if (habit.period === "weekly" || habit.period === "monthly") {
+        isCompleted = Boolean(entry?.completed || hasActivity);
+      } else {
+        isCompleted = Boolean(entry?.completed || (hasActivity && isScheduled));
       }
       cells.push({ date: d, isCompleted });
     }
@@ -90,11 +128,45 @@ export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest, userRes
     return { points, polyline: svgPoints.join(" "), max };
   }, [logs, habit.id, today, habit]);
 
+  const hasChanges =
+    title !== habit.title ||
+    desc !== habit.description ||
+    selectedGroup !== (habit.group || null) ||
+    (isCreatingNewGroup && newGroupName.trim().length > 0);
+
   async function handleSave() {
     setIsSaving(true);
     try {
-      const updated = { ...habit, title, description: desc };
-      await updateHabit(habit.id, { title, description: desc });
+      let finalGroupId = selectedGroup;
+
+      if (isCreatingNewGroup && newGroupName.trim()) {
+        try {
+          const created = await createGroup(newGroupName.trim(), groups.length);
+          finalGroupId = created.id;
+          setGroups((prev) => [...prev, created]);
+          onGroupCreated?.(created);
+          setIsCreatingNewGroup(false);
+          setNewGroupName("");
+          setSelectedGroup(created.id);
+        } catch (groupErr: any) {
+          console.error("Failed to create new group:", groupErr);
+          showToast(groupErr?.message ? `[ ${groupErr.message.toUpperCase()} ]` : "[ GROUP CREATION FAILED ]");
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      const updated: Habit = {
+        ...habit,
+        title,
+        description: desc,
+        group: finalGroupId,
+      };
+      await updateHabit(habit.id, {
+        title,
+        description: desc,
+        group: finalGroupId,
+      });
       onUpdate(updated);
       showToast("[ HABIT UPDATED ]");
     } catch (err) {
@@ -251,6 +323,45 @@ export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest, userRes
                 />
               </div>
 
+              <div className="form-group">
+                <label className="t-meta">GROUP</label>
+                <div className="habit-detail__group-selector">
+                  <select
+                    className="habit-detail__group-select t-body"
+                    value={isCreatingNewGroup ? "__NEW__" : (selectedGroup || "")}
+                    onChange={(e) => {
+                      if (e.target.value === "__NEW__") {
+                        setIsCreatingNewGroup(true);
+                      } else {
+                        setIsCreatingNewGroup(false);
+                        setSelectedGroup(e.target.value ? e.target.value : null);
+                      }
+                    }}
+                  >
+                    <option value="">[ NO GROUP / UNGROUPED ]</option>
+                    {groups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name.toUpperCase()}
+                      </option>
+                    ))}
+                    <option value="__NEW__">+ NEW GROUP...</option>
+                  </select>
+
+                  {isCreatingNewGroup && (
+                    <div className="habit-detail__new-group-input-wrap">
+                      <input
+                        type="text"
+                        className="habit-detail__new-group-input t-body"
+                        placeholder="ENTER NEW GROUP NAME"
+                        value={newGroupName}
+                        onChange={(e) => setNewGroupName(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="habit-detail__locked-props">
                 <div className="locked-prop">
                   <LucideIcon name="Lock" size={12} />
@@ -272,8 +383,8 @@ export function HabitDetail({ habit, onClose, onUpdate, onDeleteRequest, userRes
                 <button 
                   className="btn-save t-label" 
                   onClick={handleSave} 
-                  disabled={isSaving || (title === habit.title && desc === habit.description)}
-                  style={{ color: title !== habit.title || desc !== habit.description ? habit.color : 'inherit' }}
+                  disabled={isSaving || !hasChanges}
+                  style={{ color: hasChanges ? habit.color : 'inherit' }}
                 >
                   {isSaving ? "[ SAVING... ]" : "[ SAVE EDITS ]"}
                 </button>

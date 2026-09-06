@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Todo } from "../types";
-import { Habit, HabitGroup } from "../../habits/types";
+import { HabitGroup } from "../../habits/types";
 import { getTodos, getCompletedTodos, completeTodo, completeNumberedTodoFull, incrementNumberedTodo, deleteTodo } from "../services/todoService";
-import { getHabits } from "../../habits/services/habitService";
 import { getGroups } from "../../habits/services/groupService";
 import { HabitGroupHeader } from "../../habits/components/HabitGroupHeader/HabitGroupHeader";
-import { getNextDueDate } from "../../habits/utils/scheduleEngine";
 import { TodoCard } from "./TodoCard/TodoCard";
 import { TodoForm } from "./TodoForm/TodoForm";
 import { getToday } from "../../../shared/utils/dateUtils";
@@ -20,7 +18,6 @@ export function TodosPage() {
   const { userDoc } = useOutletContext<{ userDoc: any }>();
   const [activeTodos, setActiveTodos] = useState<Todo[]>([]);
   const [completedTodos, setCompletedTodos] = useState<Todo[]>([]);
-  const [intervalHabits, setIntervalHabits] = useState<(Habit & { nextDue: string })[]>([]);
   const [groups, setGroups] = useState<HabitGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -38,24 +35,15 @@ export function TodosPage() {
       setIsLoading(true);
     }
     try {
-      const [todos, completed, habits, fetchedGroups] = await Promise.all([
+      const [todos, completed, fetchedGroups] = await Promise.all([
         getTodos(),
         getCompletedTodos(),
-        getHabits(),
         getGroups(),
       ]);
-
-      const today = getToday(undefined, userDoc?.settings?.dailyResetTime);
 
       setActiveTodos(todos);
       setCompletedTodos(completed);
       setGroups(fetchedGroups);
-      const upcomingIntervals = habits
-        .filter(h => h.period === "interval")
-        .map(h => ({ ...h, nextDue: getNextDueDate(h) || "" }))
-        .filter(h => h.nextDue && h.nextDue > today);
-        
-      setIntervalHabits(upcomingIntervals);
     } catch (e) {
       console.error(e);
     } finally {
@@ -429,7 +417,7 @@ export function TodosPage() {
                 </section>
  
                 <div style={{ display: "flex", flexDirection: "column", gap: "32px", marginTop: "32px" }}>
-                  {(futureTodos.length > 0 || intervalHabits.length > 0) && (
+                  {futureTodos.length > 0 && (
                     <section>
                        <h2 className="t-label" style={{ color: "var(--text-muted)", marginBottom: "16px" }}>[ UPCOMING ]</h2>
                        <div style={{ display: "flex", flexDirection: "column", gap: "12px", opacity: 0.6 }}>
@@ -445,14 +433,6 @@ export function TodosPage() {
                              expanded={!!expandedTodoIds[todo.id]}
                              dailyResetTime={userDoc?.settings?.dailyResetTime}
                            />
-                         ))}
-                         
-                         {intervalHabits.map(habit => (
-                           <div key={habit.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "16px", border: "1px solid var(--border-default)", borderRadius: "4px", background: "var(--bg-elevated)" }}>
-                              <LucideIcon name={habit.icon} size={20} style={{ color: habit.color }} />
-                              <span className="t-body">{habit.title}</span>
-                              <span className="badge t-meta" style={{ marginLeft: "auto" }}>[ DUE {habit.nextDue} ]</span>
-                           </div>
                          ))}
                        </div>
                     </section>

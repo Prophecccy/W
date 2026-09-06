@@ -1,4 +1,5 @@
 import { db, auth, collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, query, where, orderBy, writeBatch } from "../../../shared/config/firebase";
+import { sanitizeText } from "../../../shared/utils/security";
 import { Habit } from "../types";
 
 function uid(): string {
@@ -18,12 +19,17 @@ export async function createHabit(
 ): Promise<Habit> {
   const userId = uid();
   const createdAt = Date.now();
-  const ref = await addDoc(habitsRef(userId), {
+  const sanitizedData = {
     ...habitData,
+    title: sanitizeText(habitData.title, 100),
+    description: habitData.description ? sanitizeText(habitData.description, 500) : undefined,
+  };
+  const ref = await addDoc(habitsRef(userId), {
+    ...sanitizedData,
     uid: userId,
     createdAt,
   });
-  return { ...habitData, id: ref.id, uid: userId, createdAt } as Habit;
+  return { ...sanitizedData, id: ref.id, uid: userId, createdAt } as Habit;
 }
 
 // ─── Read ────────────────────────────────────────────────────────
@@ -64,7 +70,14 @@ export async function updateHabit(
 ): Promise<void> {
   const userId = uid();
   const docRef = doc(db, "users", userId, "habits", habitId);
-  await updateDoc(docRef, updates as { [x: string]: any });
+  const sanitizedUpdates = { ...updates };
+  if (typeof sanitizedUpdates.title === "string") {
+    sanitizedUpdates.title = sanitizeText(sanitizedUpdates.title, 100);
+  }
+  if (typeof sanitizedUpdates.description === "string") {
+    sanitizedUpdates.description = sanitizeText(sanitizedUpdates.description, 500);
+  }
+  await updateDoc(docRef, sanitizedUpdates as { [x: string]: any });
 }
 
 // ─── Archive ─────────────────────────────────────────────────────

@@ -138,7 +138,8 @@ export const AnalyticsPage: React.FC = () => {
 
   const masterScore = useMemo(() => {
     const rate = monthSummary?.completionRate || 0;
-    const strikesCount = userDoc?.strikes?.current || 0;
+    const strikeSystemEnabled = userDoc?.settings?.strikeSystemEnabled ?? true;
+    const strikesCount = strikeSystemEnabled ? (userDoc?.strikes?.current || 0) : 0;
     
     // Base score is completion rate
     let score = rate;
@@ -156,7 +157,7 @@ export const AnalyticsPage: React.FC = () => {
     }
 
     return Math.max(0, Math.min(100, Math.round(score)));
-  }, [monthSummary?.completionRate, userDoc?.strikes?.current, habits]);
+  }, [monthSummary?.completionRate, userDoc?.strikes?.current, userDoc?.settings?.strikeSystemEnabled, habits]);
 
   return (
     <div className="analytics-page">

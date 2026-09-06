@@ -56,6 +56,13 @@ export function useKeyboardShortcuts(
         return;
       }
 
+      // Ctrl+/ → Field Manual
+      if ((e.ctrlKey || e.metaKey) && (e.key === "/" || e.key === "?")) {
+        e.preventDefault();
+        navigate("/manual");
+        return;
+      }
+
       // Skip single-key shortcuts if user is typing
       if (isTyping()) return;
 
@@ -71,6 +78,9 @@ export function useKeyboardShortcuts(
           break;
         case "s":
           navigate("/settings");
+          break;
+        case "m":
+          navigate("/manual");
           break;
         case "n":
           e.preventDefault();

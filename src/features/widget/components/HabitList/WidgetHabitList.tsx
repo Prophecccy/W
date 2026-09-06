@@ -12,9 +12,10 @@ interface WidgetHabitListProps {
   onComplete: (habitId: string, increment?: number) => void;
   onUndo: (habitId: string) => void;
   isFrozen?: boolean;
+  isLocked?: boolean;
 }
 
-export function WidgetHabitList({ today, scheduledHabits, scheduledLimiters, todayLog, periodLogs, weeklyResetDay, onComplete, onUndo, isFrozen = false }: WidgetHabitListProps) {
+export function WidgetHabitList({ today, scheduledHabits, scheduledLimiters, todayLog, periodLogs, weeklyResetDay, onComplete, onUndo, isFrozen = false, isLocked = false }: WidgetHabitListProps) {
   const getTotalInRange = (habitId: string, startDate: string) => {
     let total = 0;
     for (const log of periodLogs) {
@@ -74,7 +75,7 @@ export function WidgetHabitList({ today, scheduledHabits, scheduledLimiters, tod
             completions={completions}
             onComplete={onComplete}
             onUndo={onUndo}
-            disabled={isFrozen}
+            disabled={isFrozen || isLocked}
           />
         );
       })}
