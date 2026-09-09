@@ -100,3 +100,31 @@
 .sic-sub {
   color: var(--text-secondary);
 }
+
+@media (max-width: 768px) {
+  .smart-insight-card {
+    min-width: 0 !important;
+    padding: 0.65rem 0.6rem !important;
+    gap: 0.35rem !important;
+    border-radius: 6px !important;
+    border-left-width: 3px !important;
+  }
+
+  .smart-insight-card .sic-title {
+    font-size: 0.58rem !important;
+    letter-spacing: 0.04em !important;
+  }
+
+  .smart-insight-card .sic-icon {
+    width: 14px !important;
+    height: 14px !important;
+  }
+
+  .smart-insight-card .sic-value {
+    font-size: 0.9rem !important;
+  }
+
+  .smart-insight-card .sic-sub {
+    font-size: 0.6rem !important;
+  }
+}

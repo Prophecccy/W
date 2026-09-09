@@ -58,3 +58,26 @@
 .timeline-event:last-child::before {
   display: none;
 }
+
+@media (max-width: 768px) {
+  .timeline-review {
+    grid-column: span 1 !important;
+  }
+
+  .timeline-container {
+    scrollbar-width: none !important;
+    padding-bottom: 0.5rem;
+  }
+
+  .timeline-container::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .timeline-track {
+    gap: 1.25rem;
+  }
+
+  .timeline-event {
+    min-width: 120px;
+  }
+}

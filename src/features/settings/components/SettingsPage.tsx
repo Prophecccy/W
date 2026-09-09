@@ -23,17 +23,18 @@ type TabId = "account" | "appearance" | "desktop" | "sleep-tube" | "schedule" | 
 interface TabConfig {
   id: TabId;
   label: string;
+  shortLabel: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
 }
 
 const TABS: TabConfig[] = [
-  { id: "account", label: "ACCOUNT", icon: User },
-  { id: "appearance", label: "APPEARANCE", icon: Palette },
-  { id: "desktop", label: "DESKTOP", icon: Monitor },
-  { id: "sleep-tube", label: "SLEEP TUBE", icon: Clock },
-  { id: "schedule", label: "SCHEDULE & TIME", icon: Clock },
-  { id: "notifications", label: "NOTIFICATIONS", icon: Bell },
-  { id: "data", label: "DATA & SYSTEM", icon: HardDrive }
+  { id: "account", label: "ACCOUNT", shortLabel: "ACCOUNT", icon: User },
+  { id: "appearance", label: "APPEARANCE", shortLabel: "THEME", icon: Palette },
+  { id: "desktop", label: "DESKTOP", shortLabel: "DESK", icon: Monitor },
+  { id: "sleep-tube", label: "SLEEP TUBE", shortLabel: "TUBE", icon: Clock },
+  { id: "schedule", label: "SCHEDULE & TIME", shortLabel: "TIME", icon: Clock },
+  { id: "notifications", label: "NOTIFICATIONS", shortLabel: "NOTIF", icon: Bell },
+  { id: "data", label: "DATA & SYSTEM", shortLabel: "DATA", icon: HardDrive }
 ];
 
 const DEFAULT_SETTINGS: Settings = {
@@ -311,7 +312,7 @@ export function SettingsPage() {
     <div className="settings-page">
       <div className="settings-page__layout">
         <div className="settings-sidebar">
-          {TABS.map(({ id, label, icon: Icon }) => (
+          {TABS.map(({ id, label, shortLabel, icon: Icon }) => (
             <button
               key={id}
               className={`settings-tab ${activeTab === id ? "active" : ""}`}
@@ -326,7 +327,8 @@ export function SettingsPage() {
               }}
             >
               <Icon size={16} className="settings-tab__icon" />
-              <span>{label}</span>
+              <span className="settings-tab__label settings-tab__label--desktop">{label}</span>
+              <span className="settings-tab__label settings-tab__label--mobile">{shortLabel}</span>
             </button>
           ))}
           
@@ -344,7 +346,8 @@ export function SettingsPage() {
             }}
           >
             <LogOut size={16} className="settings-tab__icon" style={{ color: "var(--strike-red)" }} />
-            <span>[ LOG OUT ]</span>
+            <span className="settings-tab__label settings-tab__label--desktop">[ LOG OUT ]</span>
+            <span className="settings-tab__label settings-tab__label--mobile">EXIT</span>
           </button>
         </div>
 

@@ -49,13 +49,16 @@ export function SleepTube({ settings: propsSettings, isWidget }: SleepTubeProps)
         ))}
         <div 
           className={`sleep-tube__fill ${isSleeping ? 'is-sleeping' : ''}`}
-          style={{ height: `${percent}%` }}
+          style={{ height: `${percent}%`, '--fill-level': `${percent}%` } as React.CSSProperties}
         />
         {isEmpty && !isWidget && (
           <div className="sleep-tube__empty-text t-data">
             {emptyText}
           </div>
         )}
+      </div>
+      <div className="sleep-tube__mobile-percent t-data">
+        {Math.round(percent)}%
       </div>
     </div>
   );

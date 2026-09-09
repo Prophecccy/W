@@ -69,3 +69,15 @@
 .daily-note-archive-btn:hover {
   color: var(--text-primary);
 }
+
+@media (max-width: 768px) {
+  .daily-note-container {
+    padding: 12px;
+    margin-top: 12px;
+  }
+
+  .daily-note-input {
+    min-height: 72px;
+    font-size: 12px;
+  }
+}

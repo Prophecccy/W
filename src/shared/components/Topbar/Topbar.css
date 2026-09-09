@@ -20,6 +20,24 @@
   gap: 32px;
 }
 
+.topbar__title-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbar__title-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
 .topbar__title {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -31,6 +49,52 @@
   transform: none;
   color: var(--text-primary);
   opacity: 0.8;
+}
+
+.topbar__title-chevron {
+  display: none;
+}
+
+.topbar__nav-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: rgba(18, 19, 23, 0.98);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 150px;
+  z-index: 1000;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.9);
+}
+
+.topbar__nav-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: all 0.12s ease;
+}
+
+.topbar__nav-dropdown-item:hover,
+.topbar__nav-dropdown-item--active {
+  background: var(--bg-elevated);
+  color: var(--accent);
 }
 
 .topbar__search-btn {
@@ -133,4 +197,54 @@
 @keyframes topbar-pulse {
   0%, 100% { opacity: 0.8; }
   50% { opacity: 1; }
+}
+
+@media (min-width: 769px) and (max-width: 900px) {
+  .topbar {
+    left: 64px;
+  }
+}
+
+@media (max-width: 768px) {
+  .topbar {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    width: 100%;
+    flex-shrink: 0;
+    padding: 0 16px;
+    height: calc(44px + var(--safe-area-top));
+    padding-top: var(--safe-area-top);
+    z-index: 100;
+  }
+
+  .topbar__left {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .topbar__title {
+    font-size: 10px;
+    letter-spacing: 2px;
+  }
+
+  .topbar__search-meta {
+    display: none;
+  }
+
+  .topbar__help-btn {
+    display: none;
+  }
+
+  .topbar__title-chevron {
+    display: inline-block;
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+  }
+
+  .topbar__title-chevron--open {
+    transform: rotate(180deg);
+  }
 }

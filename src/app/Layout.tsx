@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Sidebar } from "../shared/components/Sidebar/Sidebar";
 import { Topbar } from "../shared/components/Topbar/Topbar";
+import { MobileNav } from "../shared/components/MobileNav/MobileNav";
 import { CommandPalette } from "../shared/components/CommandPalette/CommandPalette";
 import { LockoutOverlay } from "../features/strikes/components/LockoutOverlay";
 import { PunishmentModal } from "../features/strikes/components/PunishmentModal";
@@ -857,6 +858,14 @@ function LayoutInner() {
             </motion.div>
           </AnimatePresence>
         </main>
+        <MobileNav
+          strikeCount={strikes.current}
+          strikeSystemEnabled={userDoc?.settings?.strikeSystemEnabled ?? true}
+          habitsCount={paletteHabits.length}
+          todosCount={paletteTodos.length}
+          isLocked={isLocked}
+          isFrozen={!!userDoc?.freeze?.active}
+        />
       </div>
       {commandPaletteOpen && (
         <CommandPalette

@@ -47,6 +47,16 @@ graph TD
   - **Zero Utility Bloat**: Do not introduce utility classes or CSS-in-JS. All styling must consume variables defined in `src/index.css`.
   - **Endfield Aesthetic**: Every page and section header must strictly adhere to the bracketed uppercase title format: `[ NAME ]`.
   - **No React Namespace Imports**: Never use `import React from 'react'`. Always import hooks and types directly (`import { useState } from 'react'`).
+  - **Mobile Web Architecture (`<= 768px`)**:
+    - **3-Tier Docked Flex Shell (`Layout.css`)**: Layout converts to a viewport-locked flex column (`position: fixed; inset: 0; display: flex; flex-direction: column; overflow: hidden;`). Topbar is `flex: none`, Content is `flex: 1 1 0; min-height: 0; overflow-y: auto;`, and `<MobileNav />` is `flex: none` permanently docked at the container base with safe-area padding. This mathematically guarantees that the bottom navigation cannot be pushed below the fold on any screen height.
+    - **Dual Navigation Redundancy**: In addition to the bottom `<MobileNav />`, the mobile Topbar features an interactive section switcher dropdown when tapping the page title (`[ DASHBOARD ] v`, `[ HABITS ] v`), providing instant 1-tap switching from either the top or bottom of the screen.
+    - **Safe Area Inset Standard**: All shell containers and docked bars consume `--safe-area-top` and `--safe-area-bottom` (`env(safe-area-inset-*)`) to accommodate device cutouts and gesture bars.
+    - **Scrollbar Suppression**: Touch viewports suppress visible scrollbars globally (`scrollbar-width: none; ::-webkit-scrollbar { display: none; }`) while preserving fluid inertial touch scrolling.
+    - **Mobile Dashboard Fuel Strip**: `SleepTube` automatically switches from a vertical pillar to an ergonomic horizontal fuel gauge with live numerical percentage on mobile, preventing vertical scroll starvation.
+    - **Tactile Segment Switcher**: The mobile Dashboard renders category tabs (`[ ALL ]`, `[ HABITS ]`, `[ LIMITERS ]`, `[ TODOS ]`) with minimum touch heights and zero squashing to allow focused single-handed task triage.
+    - **Settings Tactical Tile Grid**: The Settings page replaces the vertical sidebar with a compact 4-column tactical tile grid (`repeat(4, 1fr)`), fitting all 8 sub-navigation items in 2 rows without horizontal scroll.
+    - **Mobile Analytics Architecture**: Smart Insights collapse into a high-density $2 \times 2$ grid (`repeat(2, 1fr)`). The Activity Heatmap carousel suppresses peripheral blurred months (`offset-1`, `offset-2`), centers the active month, and decouples navigation chevrons to outer margins to prevent touch collisions. Lower comparison charts scale dynamically without horizontal overflow.
+    - **Responsive Controls & Single-Column Grid**: Habit and Todo grids collapse to single-column full-width cards (`1fr`), while action headers wrap cleanly to avoid viewport blowout.
 
 ### 3. [ Data_State_Engineer ]
 * **Role**: Orchestrates database connections, localized state providers, daily cycle calculations, local caching, and real-time cross-webview synchronization.
@@ -123,7 +133,6 @@ graph TD
    - **Two-Layer Guard**:
      - *Component Logic*: In `src/shared/utils/tauri.ts`, `isMobileWeb()` checks mobile user agents (`/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i`) and touch devices with screen width $\le 900\text{px}$. `Sidebar.tsx` gates button rendering with `!isTauri() && !isMobileWeb()`.
      - *Responsive CSS*: In `src/shared/components/Sidebar/Sidebar.css`, `@media (max-width: 900px)` applies `display: none !important` to `.sidebar__download-wrapper` and `.sidebar__download-btn`, guaranteeing zero visual leakage even during browser window resizing.
-   - **Desktop Web Preservation**: Visitors accessing the web app on desktop browsers (>900px viewport, non-mobile UA) retain full visibility of the button linking directly to the latest GitHub releases.
 10. **Configurable Strike Discipline System (Enable / Disable)**:
     - **User-Controlled Setting**: Located in `[ SETTINGS ] → [ SCHEDULE & TIME ] → [ DISCIPLINE & ACCOUNTABILITY ]` via `strikeSystemEnabled` (defaults to `true`).
     - **Complete Engine Suppression**: When `strikeSystemEnabled === false`, `addStrike()`, `gapProcessor`, and deadline checks immediately skip strike accrual, history logging, and strike warning notifications. Uncompleted habits still calculate streaks normally.
@@ -134,7 +143,10 @@ graph TD
       - Master score calculations in `AnalyticsPage.tsx` zero out strike penalties, and `TimelineReview.tsx` hides the strike timeline.
       - Exceeding a limiter habit displays `[ LIMIT EXCEEDED ] Logged!` instead of mentioning strikes.
       - Strike-specific notification settings (`strikeWarnings`, `lockoutAlert`) in `NotificationsSection.tsx` are filtered out.
-    - **Non-Destructive & Instant Unlock**: Toggling the setting off immediately unlocks a locked system (`isLocked = false`). Historical strike records remain safe in the database and resume seamlessly if the user re-enables the system later.
+11. **Activity Heatmap Layout Containment & Compact Month Card Sizing**:
+    - **Strict Container Bounds**: `ActivityHeatmap.css` (`.activity-heatmap-container` & `.heatmap-carousel-wrapper`) and `AnalyticsPage.css` (`.heatmap-card`) enforce `overflow: hidden;`, guaranteeing carousel cards and scaling transformations remain cleanly bounded within the `[ ACTIVITY HEATMAP ]` card.
+    - **Proportional Spacing**: `.month-card` padding is calibrated to `14px 16px` with a `10px` gap and `230px` width, leaving clean vertical breathing room below the `[ ACTIVITY HEATMAP ]` header and above the `LESS ... MORE` legend.
+    - **Nav Arrow Positioning**: Carousel navigation buttons are anchored at `left: 20px;` and `right: 20px;`, preventing arrow overlays from colliding with outer card boundaries.
 
 ---
 

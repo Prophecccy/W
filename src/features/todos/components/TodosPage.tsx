@@ -11,6 +11,7 @@ import { getToday } from "../../../shared/utils/dateUtils";
 import { LucideIcon } from "../../../shared/components/IconPicker/LucideIcon";
 import { GroupManager } from "../../habits/components/GroupManager/GroupManager";
 import "../../habits/components/HabitsPage.css";
+import "./TodosPage.css";
 
 type LayoutMode = 'default' | 'grouped';
 
@@ -277,16 +278,7 @@ export function TodosPage() {
       alignItems: "stretch",
       overflow: "hidden" 
     }}>
-      <header className="habits-page__controls" style={{ 
-        display: "flex",
-        justifyContent: 'flex-end', 
-        alignItems: 'flex-start',
-        gap: '16px',
-        width: '100%',
-        padding: "0 24px",
-        marginBottom: '24px',
-        flexShrink: 0
-      }}>
+      <header className="todos-page__header">
         <div className="habits-page__layout-toggle">
           <button 
             className={`t-label preset-btn ${layoutMode === 'default' ? 'preset-btn--active' : ''}`}
@@ -302,26 +294,20 @@ export function TodosPage() {
           </button>
         </div>
         <button 
-          className="btn-action btn-action--secondary" 
+          className="btn-action btn-action--secondary todos-page__action-btn" 
           onClick={() => setIsGroupManagerOpen(true)}
         >
           [ GROUPS ]
         </button>
         <button 
-          className="btn-action btn-action--primary" 
+          className="btn-action btn-action--primary todos-page__action-btn" 
           onClick={() => setIsFormOpen(true)}
         >
           [ + NEW TODO ]
         </button>
       </header>
 
-      <div className="habits-page__content" style={{ 
-        flex: 1, 
-        display: "flex", 
-        flexDirection: "column",
-        overflowY: "auto",
-        padding: "0 24px 24px 24px"
-      }}>
+      <div className="todos-page__content">
         {isLoading ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <div className="t-meta" style={{ color: "var(--text-muted)" }}>...</div>

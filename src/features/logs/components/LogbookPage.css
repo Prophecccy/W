@@ -274,3 +274,21 @@
   font-family: var(--font-mono);
   letter-spacing: 0.5px;
 }
+
+@media (max-width: 768px) {
+  .logbook-header {
+    padding: 12px 14px;
+  }
+
+  .logbook-timeline-container {
+    padding: 12px 4px;
+  }
+
+  .logbook-timeline {
+    gap: 16px;
+  }
+
+  .logbook-entry {
+    padding: 12px 10px;
+  }
+}

@@ -30,6 +30,7 @@ export function DashboardPage() {
   const [periodLogs, setPeriodLogs] = useState<HabitLog[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [mobileTab, setMobileTab] = useState<'all' | 'habits' | 'limiters' | 'todos'>('all');
   
   const [today, setToday] = useState(() => getToday(undefined, userDoc?.settings?.dailyResetTime));
 
@@ -431,13 +432,41 @@ export function DashboardPage() {
             <span className="t-meta" style={{ color: 'var(--accent)' }}>CONFIGURE &rarr;</span>
           </div>
         )}
+        <div className="dashboard-mobile-tabs" role="tablist">
+          <button 
+            className={`dashboard-mobile-tab ${mobileTab === 'all' ? 'dashboard-mobile-tab--active' : ''}`}
+            onClick={() => setMobileTab('all')}
+          >
+            [ ALL ]
+          </button>
+          <button 
+            className={`dashboard-mobile-tab ${mobileTab === 'habits' ? 'dashboard-mobile-tab--active' : ''}`}
+            onClick={() => setMobileTab('habits')}
+          >
+            [ HABITS ({scheduledHabits.length}) ]
+          </button>
+          {scheduledLimiters.length > 0 && (
+            <button 
+              className={`dashboard-mobile-tab ${mobileTab === 'limiters' ? 'dashboard-mobile-tab--active' : ''}`}
+              onClick={() => setMobileTab('limiters')}
+            >
+              [ LIMITERS ({scheduledLimiters.length}) ]
+            </button>
+          )}
+          <button 
+            className={`dashboard-mobile-tab ${mobileTab === 'todos' ? 'dashboard-mobile-tab--active' : ''}`}
+            onClick={() => setMobileTab('todos')}
+          >
+            [ TODOS ({currentTodos.length}) ]
+          </button>
+        </div>
         <div className="dashboard-grid">
           
           {/* COLUMN 1: SLEEP TUBE */}
           <SleepTube settings={userDoc?.settings} />
 
           {/* COLUMN 2: HABITS */}
-          <div className="dashboard-column">
+          <div className={`dashboard-column ${mobileTab !== 'all' && mobileTab !== 'habits' ? 'dashboard-column--mobile-hidden' : ''}`}>
             <div className="dashboard-column__header">
               <h2 className="t-label" title="[ TODAY'S HABITS ]">[ TODAY'S HABITS ]</h2>
               <button 
@@ -488,7 +517,7 @@ export function DashboardPage() {
           </div>
 
           {/* COLUMN 2.5: LIMITERS */}
-          <div className="dashboard-column">
+          <div className={`dashboard-column ${mobileTab !== 'all' && mobileTab !== 'limiters' ? 'dashboard-column--mobile-hidden' : ''}`}>
             <div className="dashboard-column__header">
               <h2 className="t-label" title="[ LIMITERS ]" style={{ color: "var(--strike-red)" }}>[ LIMITERS ]</h2>
               <button 
@@ -530,7 +559,7 @@ export function DashboardPage() {
           </div>
 
           {/* COLUMN 3: TODOS */}
-          <div className="dashboard-column">
+          <div className={`dashboard-column ${mobileTab !== 'all' && mobileTab !== 'todos' ? 'dashboard-column--mobile-hidden' : ''}`}>
             <div className="dashboard-column__header">
               <h2 className="t-label" title="[ ACTIVE TODOS ]">[ ACTIVE TODOS ]</h2>
               <button 

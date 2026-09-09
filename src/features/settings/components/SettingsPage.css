@@ -42,6 +42,10 @@
   gap: 12px;
 }
 
+.settings-tab__label--mobile {
+  display: none;
+}
+
 .settings-tab__icon {
   color: var(--text-muted);
   transition: color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -391,6 +395,8 @@
     padding-bottom: 8px;
     gap: 10px;
     scrollbar-width: none; /* Firefox */
+    flex: none;
+    height: auto;
   }
 
   .settings-sidebar::-webkit-scrollbar {
@@ -432,30 +438,93 @@
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .settings-page {
-    padding: 16px 12px;
+    padding: 0 2px 16px 2px;
+  }
+
+  .settings-page__layout {
+    gap: 14px;
+  }
+
+  .settings-tab__label--desktop {
+    display: none;
+  }
+
+  .settings-tab__label--mobile {
+    display: inline;
   }
 
   .settings-sidebar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
     gap: 6px;
+    width: 100%;
+    height: auto !important;
+    min-height: auto !important;
+    flex: none !important;
+    margin-right: 0;
+    margin-bottom: 12px;
+    padding-bottom: 0;
+    overflow: visible;
   }
 
   .settings-tab {
-    padding: 6px 10px;
-    font-size: 9px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 2px;
+    min-height: 48px;
+    height: auto;
+    font-size: 8px;
+    letter-spacing: 0.5px;
+    gap: 4px;
+    text-align: center;
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    background: var(--bg-surface);
+    white-space: nowrap;
+    flex: none;
+  }
+
+  .settings-tab:hover {
+    background: var(--bg-elevated);
+  }
+
+  .settings-tab.active {
+    border: 1px solid var(--accent);
+    border-bottom: 2px solid var(--accent);
+    background: var(--bg-elevated);
+    border-radius: 4px;
+  }
+
+  .settings-tab--logout {
+    grid-column: span 1;
+    margin-top: 0;
+    margin-left: 0;
+    border-color: rgba(232, 115, 108, 0.3);
+  }
+
+  .settings-content {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .settings-card {
+    padding: 16px 14px;
   }
 
   .settings-row {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: 10px;
   }
 
   .settings-row__action {
     margin-left: 0;
     width: 100%;
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
   }
 }

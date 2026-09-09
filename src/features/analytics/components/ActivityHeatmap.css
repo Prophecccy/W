@@ -3,17 +3,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding-top: 0;
-  margin-top: -8px;
+  gap: 8px;
+  padding: 4px 0;
+  overflow: hidden;
 }
 
 .heatmap-global-header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 8px;
+  gap: 2px;
+  margin-bottom: 4px;
 }
 
 .heatmap-global-header h2 {
@@ -24,8 +24,8 @@
   display: flex;
   gap: 8px;
   font-family: monospace;
-  font-size: 0.85rem;
-  letter-spacing: 0.25em;
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
 }
 
 .heatmap-carousel-wrapper {
@@ -34,6 +34,8 @@
   align-items: center;
   justify-content: center;
   width: 100%;
+  overflow: hidden;
+  padding: 4px 0;
 }
 
 .carousel-nav-btn {
@@ -47,7 +49,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px;
+  padding: 8px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 100;
   box-shadow: none !important;
@@ -55,11 +57,11 @@
 }
 
 .carousel-nav-btn:first-of-type {
-  left: 100px;
+  left: 20px;
 }
 
 .carousel-nav-btn:last-of-type {
-  right: 100px;
+  right: 20px;
 }
 
 .carousel-nav-btn:hover:not(:disabled) {
@@ -82,9 +84,10 @@
   align-items: center;
   justify-content: center;
   gap: 0;
-  max-width: calc(100% - 100px);
+  width: 100%;
+  max-width: 100%;
   overflow: visible;
-  padding: 16px 0;
+  padding: 8px 0;
   position: relative;
 }
 
@@ -97,7 +100,7 @@
 
 .month-block.offset-0 {
   z-index: 3;
-  margin: 0 20px;
+  margin: 0 12px;
 }
 
 .month-block.offset-0 .month-card {
@@ -107,7 +110,7 @@
 
 .month-block.offset-1 {
   z-index: 2;
-  margin: 0 -20px;
+  margin: 0 -24px;
 }
 
 .month-block.offset-2 {
@@ -118,12 +121,12 @@
 .month-card {
   background-color: transparent;
   border: 1px solid rgba(255, 255, 255, 0.05);
-  padding: 24px 24px;
-  border-radius: 4px;
-  width: 250px;
+  padding: 14px 16px;
+  border-radius: 6px;
+  width: 230px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 10px;
   background: var(--bg-primary);
   /* Ensure smooth rendering during scaling */
   backface-visibility: hidden;
@@ -257,5 +260,106 @@
   width: 14px;
   height: 14px;
   border-radius: 2px;
+}
+
+@media (max-width: 768px) {
+  .activity-heatmap-container {
+    width: 100%;
+    overflow: hidden;
+    gap: 8px;
+    margin-top: 0;
+  }
+
+  .heatmap-global-header {
+    margin-bottom: 4px;
+  }
+
+  .heatmap-dynamic-title {
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+  }
+
+  .heatmap-carousel-wrapper {
+    width: 100%;
+    justify-content: center;
+    position: relative;
+    padding: 0 20px !important;
+    box-sizing: border-box !important;
+  }
+
+  .month-block.offset-1,
+  .month-block.offset-2 {
+    display: none !important;
+  }
+
+  .month-block.offset-0 {
+    margin: 0 auto !important;
+    width: 100% !important;
+    display: flex;
+    justify-content: center;
+  }
+
+  .carousel-nav-btn {
+    padding: 6px !important;
+    z-index: 10;
+  }
+
+  .carousel-nav-btn:first-of-type {
+    left: -6px !important;
+  }
+
+  .carousel-nav-btn:last-of-type {
+    right: -6px !important;
+  }
+
+  .heatmap-carousel {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 4px 0 !important;
+    justify-content: center !important;
+  }
+
+  .month-card {
+    width: 100% !important;
+    max-width: 255px !important;
+    padding: 12px 10px !important;
+    gap: 10px !important;
+    border-radius: 6px !important;
+  }
+
+  .month-card-header {
+    padding-bottom: 8px !important;
+    font-size: 0.65rem !important;
+  }
+
+  .month-card-weekdays {
+    gap: 2px !important;
+    font-size: 0.55rem !important;
+    margin-bottom: 2px !important;
+  }
+
+  .activity-heatmap {
+    gap: 3px !important;
+  }
+
+  .cell-date {
+    font-size: 0.48rem !important;
+  }
+
+  .heatmap-legend {
+    padding: 8px 8px !important;
+    gap: 12px !important;
+    font-size: 0.6rem !important;
+    letter-spacing: 0.1em !important;
+  }
+
+  .legend-items-container {
+    gap: 4px !important;
+  }
+
+  .legend-items-container .heatmap-cell {
+    width: 10px !important;
+    height: 10px !important;
+  }
 }
 

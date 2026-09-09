@@ -195,3 +195,67 @@
 .habits-modal-content::-webkit-scrollbar-thumb {
   background: var(--border-subtle);
 }
+
+@media (max-width: 768px) {
+  .habits-page__header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .habits-page__controls {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .habits-page__layout-toggle {
+    flex: 1 1 auto;
+    justify-content: space-around;
+  }
+
+  .preset-btn {
+    padding: 6px 8px;
+    font-size: 8px;
+  }
+
+  .habits-page__add-btn,
+  .habits-page__secondary-btn {
+    padding: 8px 12px;
+    font-size: 8px;
+  }
+
+  .habits-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .habits-page__content {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .habits-page__content::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  .habits-modal-overlay {
+    padding: 12px;
+  }
+
+  .habits-modal-content {
+    max-height: calc(100dvh - 24px);
+    width: 100%;
+    margin: 0;
+  }
+
+  .habits-modal-content:has(.habit-form--wide) {
+    width: 100%;
+    max-width: 100%;
+  }
+}

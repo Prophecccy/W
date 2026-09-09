@@ -175,7 +175,13 @@
   user-select: none;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
+  .sidebar {
+    display: none !important;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 900px) {
   .sidebar {
     width: 64px;
   }

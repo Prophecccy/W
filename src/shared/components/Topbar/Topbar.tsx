@@ -1,4 +1,5 @@
-import { Search, Minus, Square, X, Download, Snowflake, HelpCircle } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Search, Minus, Square, X, Download, Snowflake, HelpCircle, ChevronDown, LayoutDashboard, Target, ListChecks, BookOpen, Settings } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useUpdateManager } from "../../../features/updater/hooks/useUpdateManager";
 import "./Topbar.css";
@@ -30,6 +31,24 @@ export function Topbar({ onCommandPaletteOpen, isFrozen = false }: TopbarProps) 
   const { phase, startUpdate } = useUpdateManager();
   const location = useLocation();
   const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    if (menuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpen]);
 
   const handleMinimize = async () => {
     try {
@@ -87,7 +106,7 @@ export function Topbar({ onCommandPaletteOpen, isFrozen = false }: TopbarProps) 
             title="Search (Ctrl+K)"
           >
             <Search size={14} strokeWidth={1.5} />
-            <span className="t-meta">CTRL+K</span>
+            <span className="t-meta topbar__search-meta">CTRL+K</span>
           </button>
           <button
             className="topbar__search-btn topbar__help-btn"
@@ -98,8 +117,16 @@ export function Topbar({ onCommandPaletteOpen, isFrozen = false }: TopbarProps) 
             <span className="t-meta">MANUAL</span>
           </button>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <span className="topbar__title">{currentTitle}</span>
+        <div className="topbar__title-wrapper" ref={dropdownRef}>
+          <button 
+            className="topbar__title-btn" 
+            onClick={() => setMenuOpen(prev => !prev)}
+            type="button"
+            title="Switch section"
+          >
+            <span className="topbar__title">{currentTitle}</span>
+            <ChevronDown size={11} className={`topbar__title-chevron ${menuOpen ? 'topbar__title-chevron--open' : ''}`} />
+          </button>
           {isFrozen && (
             <button
               className="topbar__freeze-indicator"
@@ -109,6 +136,46 @@ export function Topbar({ onCommandPaletteOpen, isFrozen = false }: TopbarProps) 
               <Snowflake size={11} strokeWidth={2} />
               <span>FROZEN</span>
             </button>
+          )}
+
+          {menuOpen && (
+            <div className="topbar__nav-dropdown animate-pulse">
+              <button
+                className={`topbar__nav-dropdown-item ${location.pathname === '/' ? 'topbar__nav-dropdown-item--active' : ''}`}
+                onClick={() => { navigate('/'); setMenuOpen(false); }}
+              >
+                <LayoutDashboard size={14} />
+                <span>[ DASHBOARD ]</span>
+              </button>
+              <button
+                className={`topbar__nav-dropdown-item ${location.pathname === '/habits' ? 'topbar__nav-dropdown-item--active' : ''}`}
+                onClick={() => { navigate('/habits'); setMenuOpen(false); }}
+              >
+                <Target size={14} />
+                <span>[ HABITS ]</span>
+              </button>
+              <button
+                className={`topbar__nav-dropdown-item ${location.pathname === '/todos' ? 'topbar__nav-dropdown-item--active' : ''}`}
+                onClick={() => { navigate('/todos'); setMenuOpen(false); }}
+              >
+                <ListChecks size={14} />
+                <span>[ TODOS ]</span>
+              </button>
+              <button
+                className={`topbar__nav-dropdown-item ${location.pathname === '/logbook' ? 'topbar__nav-dropdown-item--active' : ''}`}
+                onClick={() => { navigate('/logbook'); setMenuOpen(false); }}
+              >
+                <BookOpen size={14} />
+                <span>[ LOGBOOK ]</span>
+              </button>
+              <button
+                className={`topbar__nav-dropdown-item ${location.pathname === '/settings' ? 'topbar__nav-dropdown-item--active' : ''}`}
+                onClick={() => { navigate('/settings'); setMenuOpen(false); }}
+              >
+                <Settings size={14} />
+                <span>[ SETTINGS ]</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
