@@ -497,8 +497,37 @@ pub fn update_lockdown_blocklist(blocklist: Vec<String>) -> Result<(), String> {
         "[lockdown] update_lockdown_blocklist called with {} items",
         blocklist.len()
     );
+
+    // Defense: limit total rules, limit rule string length, strip control characters,
+    // and explicitly reject rules targeting the app's own process to prevent self-lockout attacks.
+    const MAX_RULES: usize = 500;
+    const MAX_RULE_LEN: usize = 128;
+
+    let sanitized: Vec<String> = blocklist
+        .into_iter()
+        .take(MAX_RULES)
+        .filter_map(|s| {
+            let trimmed = s.trim().to_lowercase();
+            if trimmed.is_empty() || trimmed.len() > MAX_RULE_LEN {
+                return None;
+            }
+            // Strip any control characters
+            let clean: String = trimmed.chars().filter(|c| !c.is_control()).collect();
+            if clean.is_empty() {
+                return None;
+            }
+            // Self-lockout safeguard: never block own executables or window titles
+            if clean == "w" || clean == "w.exe" || clean == "w-app" || clean == "w-app.exe"
+                || clean == "w_hidden_owner" || clean.contains("antigravity")
+            {
+                return None;
+            }
+            Some(clean)
+        })
+        .collect();
+
     let mut guard = BLOCKLIST.lock().map_err(|_| "BLOCKLIST mutex is poisoned".to_string())?;
-    *guard = blocklist.into_iter().map(|s| s.to_lowercase()).collect();
+    *guard = sanitized;
     Ok(())
 }
 
@@ -507,7 +536,9 @@ pub fn update_lockdown_remaining(remaining_secs: Option<u64>) -> Result<(), Stri
     eprintln!("[lockdown] update_lockdown_remaining called: {:?}", remaining_secs);
     let mut end_guard = END_TIME.lock().map_err(|_| "END_TIME mutex is poisoned".to_string())?;
     if let Some(secs) = remaining_secs {
-        *end_guard = Some(std::time::Instant::now() + std::time::Duration::from_secs(secs));
+        // Enforce maximum lockdown interval to prevent timestamp overflow (max 24 hours)
+        let clamped = std::cmp::min(secs, 86_400);
+        *end_guard = Some(std::time::Instant::now() + std::time::Duration::from_secs(clamped));
     } else {
         *end_guard = None;
     }

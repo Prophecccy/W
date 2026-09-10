@@ -592,7 +592,13 @@ export async function getLogRange(
     orderBy("date", "asc")
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => d.data() as HabitLog);
+  return snap.docs.map((d) => {
+    const data = d.data() as HabitLog;
+    return {
+      ...data,
+      date: data?.date || d.id,
+    };
+  });
 }
 
 // ─── SECURITY: updateNote() and getNoteHistory() DELETED ─────────

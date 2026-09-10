@@ -598,7 +598,7 @@ export function DashboardPage() {
       </div>
 
       <div className="dashboard-page__footer">
-        <DailyNote initialNote={log?.notes || ''} />
+        <DailyNote initialNote={log?.notes || ''} dailyResetTime={userDoc?.settings?.dailyResetTime} date={today} />
       </div>
     </div>
   );

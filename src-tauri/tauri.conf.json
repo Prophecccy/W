@@ -76,6 +76,7 @@
     ],
 
     "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https: data:; font-src 'self' data:; connect-src 'self' https://accounts.google.com https://www.googleapis.com https://oauth2.googleapis.com https://github.com https://api.github.com;",
       "assetProtocol": {
         "enable": true,
         "scope": ["$APPDATA/**", "$RESOURCE/**"]

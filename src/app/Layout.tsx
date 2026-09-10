@@ -165,6 +165,15 @@ function LayoutInner() {
     // Initialize the updater once globally
     initUpdater();
 
+    // Request persistent storage in Chromium / WebView2 to prevent cache eviction
+    if (typeof navigator !== "undefined" && navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().then((persistent) => {
+        if (persistent) {
+          console.info("[Storage] Persistent storage granted.");
+        }
+      }).catch(() => {});
+    }
+
     const handleGlobalToast = (e: Event) => {
       const customEvent = e as CustomEvent<string>;
       if (customEvent.detail) {
@@ -511,9 +520,15 @@ function LayoutInner() {
         console.error("[Sync Engine] Encryption key init failed (notes will use graceful degradation):", err);
       }
 
-
-
       if (isUnmounted) return;
+
+      // 1.1. In Tauri: Reconcile notes on disk ($APPDATA/notes/) with IndexedDB
+      try {
+        const { getLocalNoteHistory } = await import("../features/logs/services/localLogService");
+        await getLocalNoteHistory();
+      } catch (err) {
+        console.warn("[Sync Engine] Initial note history load/reconciliation failed:", err);
+      }
 
       // 1.2. Flush pending offline strikes (non-blocking)
       try {

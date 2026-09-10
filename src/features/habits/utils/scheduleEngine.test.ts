@@ -111,6 +111,28 @@ describe("isHabitScheduledToday", () => {
     expect(isHabitScheduledToday(completedHabit, "2026-04-05")).toBe(true);
   });
 
+  it("interval habit past dates before lastCompletedDate are not blocked by future cooldown", () => {
+    const habit = makeHabit({
+      period: "interval",
+      intervalDays: 3,
+      startDate: "2026-07-15",
+      lastCompletedDate: "2026-09-07",
+    });
+
+    // Dates in July and August prior to lastCompletedDate should not be blocked
+    expect(isHabitScheduledToday(habit, "2026-07-25")).toBe(true);
+    expect(isHabitScheduledToday(habit, "2026-08-05")).toBe(true);
+    expect(isHabitScheduledToday(habit, "2026-09-06")).toBe(true);
+
+    // Day of completion and subsequent cooldown days are resting
+    expect(isHabitScheduledToday(habit, "2026-09-07")).toBe(false);
+    expect(isHabitScheduledToday(habit, "2026-09-08")).toBe(false);
+    expect(isHabitScheduledToday(habit, "2026-09-09")).toBe(false);
+
+    // Next active date is scheduled
+    expect(isHabitScheduledToday(habit, "2026-09-10")).toBe(true);
+  });
+
   it("interval habit with 0 intervalDays returns false", () => {
     const habit = makeHabit({
       period: "interval",

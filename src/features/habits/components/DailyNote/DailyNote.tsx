@@ -10,16 +10,22 @@ import "./DailyNote.css";
 
 interface DailyNoteProps {
   initialNote: string;
+  dailyResetTime?: string;
+  date?: string;
 }
 
 const MAX_CHARS = 5000;
 const DEBOUNCE_MS = 500;
 
-export function DailyNote({ initialNote }: DailyNoteProps) {
+export function DailyNote({ initialNote, dailyResetTime, date }: DailyNoteProps) {
   const { isDriveLinked } = useAuthContext();
+  const today = date || getToday(undefined, dailyResetTime);
+  const activeDateRef = useRef(today);
+
   const [note, setNote] = useState(initialNote);
   const latestNoteRef = useRef(initialNote);
   const hasUnsavedChangesRef = useRef(false);
+  const isLoadedRef = useRef(false);
   
   // Keep latestNoteRef in sync
   latestNoteRef.current = note;
@@ -29,14 +35,38 @@ export function DailyNote({ initialNote }: DailyNoteProps) {
   const { showToast } = useToast();
   const navigate = useNavigate();
 
-  const today = getToday();
-  const activeDateRef = useRef(today);
-
-  // Sync initial prop if it changes externally (e.g. initial load)
+  // Load note directly from IndexedDB on boot/date change to avoid relying on stale props
   useEffect(() => {
-    setNote(initialNote);
-    latestNoteRef.current = initialNote;
-    hasUnsavedChangesRef.current = false;
+    let active = true;
+    async function loadActiveNote() {
+      try {
+        const record = await getLocalNoteRecord(today);
+        if (!active) return;
+        if (record && typeof record.notes === "string") {
+          setNote(record.notes);
+          latestNoteRef.current = record.notes;
+          isLoadedRef.current = true;
+        } else if (initialNote && !isLoadedRef.current) {
+          setNote(initialNote);
+          latestNoteRef.current = initialNote;
+        }
+      } catch (e) {
+        if (initialNote && !isLoadedRef.current) {
+          setNote(initialNote);
+          latestNoteRef.current = initialNote;
+        }
+      }
+    }
+    loadActiveNote();
+    return () => { active = false; };
+  }, [today]);
+
+  // Sync initial prop only if user has not typed and local record was empty
+  useEffect(() => {
+    if (!hasUnsavedChangesRef.current && initialNote && initialNote !== latestNoteRef.current && !isLoadedRef.current) {
+      setNote(initialNote);
+      latestNoteRef.current = initialNote;
+    }
   }, [initialNote]);
 
   // Determine initial sync status from IndexedDB record on boot

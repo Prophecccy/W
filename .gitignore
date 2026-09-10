@@ -31,13 +31,17 @@ build
 out
 .vercel
 
-# Environment
-.env
-.env.production
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Environment & Secrets Defense
+.env*
+!.env.example
+*.env
+*.pem
+*.key
+*.p12
+*.pfx
+*secret*
+*credential*
+*service-account*.json
 *.local
 
 # Editor directories and files

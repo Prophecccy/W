@@ -320,7 +320,7 @@ export async function getDocs(queryRef: Query | CollectionReference): Promise<Qu
       if (c.type === "where") {
         const { field, op, value } = c;
         docs = docs.filter(docVal => {
-          const val = docVal[field];
+          const val = docVal[field] !== undefined ? docVal[field] : (field === "date" ? docVal.id : undefined);
           if (op === "==") return val === value;
           if (op === "!=") return val !== value;
           if (op === ">") return val > value;
@@ -336,8 +336,8 @@ export async function getDocs(queryRef: Query | CollectionReference): Promise<Qu
       if (c.type === "orderBy") {
         const { field, dir } = c;
         docs.sort((a, b) => {
-          const valA = a[field];
-          const valB = b[field];
+          const valA = a[field] !== undefined ? a[field] : (field === "date" ? a.id : undefined);
+          const valB = b[field] !== undefined ? b[field] : (field === "date" ? b.id : undefined);
           if (valA === valB) return 0;
           if (valA == null) return 1;
           if (valB == null) return -1;
@@ -359,6 +359,9 @@ export async function getDocs(queryRef: Query | CollectionReference): Promise<Qu
 
   const resultDocs = docs.map(docData => {
     const originalData = { ...docData };
+    if (originalData.date === undefined && path.includes("/logs")) {
+      originalData.date = docData.id;
+    }
     delete originalData.id;
     const docRefPath = `${path}/${docData.id}`;
     return {
@@ -379,9 +382,66 @@ export async function getDocs(queryRef: Query | CollectionReference): Promise<Qu
   };
 }
 
+// ─── Data Access Layer Storage Validation Gate ───────────────────
+
+export function validateDocumentPayload<T = any>(data: unknown, path: string): T {
+  if (!path || typeof path !== "string" || path.trim().length === 0) {
+    throw new Error("[localDb Security] Write rejected: Empty document path.");
+  }
+  if (path.includes("..") || path.includes("\\")) {
+    throw new Error(`[localDb Security] Write rejected: Path traversal sequence detected in "${path}".`);
+  }
+  if (path.length > 300) {
+    throw new Error(`[localDb Security] Write rejected: Path exceeds maximum length (300 chars): "${path}".`);
+  }
+  if (data == null || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error(`[localDb Security] Write rejected at "${path}": Payload must be a non-null plain object.`);
+  }
+
+  // Recursive prototype pollution defense & key validation
+  function sanitizeDeep(current: any, depth = 0): any {
+    if (depth > 20) {
+      throw new Error(`[localDb Security] Write rejected at "${path}": Nesting depth exceeds maximum (20).`);
+    }
+    if (current == null || typeof current !== "object") return current;
+    if (current instanceof ArrayUnionFieldValue) return current;
+    if (Array.isArray(current)) {
+      return current.map(item => sanitizeDeep(item, depth + 1));
+    }
+    const clean: Record<string, any> = {};
+    for (const [key, value] of Object.entries(current)) {
+      if (key === "__proto__" || key === "constructor" || key === "prototype") {
+        console.warn(`[localDb Security] Prototype pollution key "${key}" neutralized at path "${path}".`);
+        continue;
+      }
+      clean[key] = sanitizeDeep(value, depth + 1);
+    }
+    return clean;
+  }
+
+  const cleanData = sanitizeDeep(data);
+
+  // Size boundary check to prevent IndexedDB storage exhaustion DoS
+  const isLargeEntity = path.includes("notes") || path.includes("log") || path.includes("backup");
+  const MAX_BYTES = isLargeEntity ? 5_000_000 : 500_000;
+  
+  try {
+    const serialized = JSON.stringify(cleanData);
+    if (serialized.length > MAX_BYTES) {
+      throw new Error(`[localDb Security] Write rejected: Payload size (${serialized.length} bytes) exceeds limit (${MAX_BYTES} bytes) at "${path}".`);
+    }
+  } catch (e: any) {
+    if (e.message?.includes("exceeds limit")) throw e;
+    throw new Error(`[localDb Security] Write rejected at "${path}": Non-serializable payload (circular reference detected).`);
+  }
+
+  return cleanData as T;
+}
+
 export async function setDoc(docRef: DocumentReference, data: any, options?: { merge?: boolean }): Promise<void> {
+  const validated = validateDocumentPayload(data, docRef.path);
   const now = Date.now();
-  const dataWithTime = { ...data, updatedAt: now };
+  const dataWithTime = { ...validated, updatedAt: now };
 
   if (options?.merge) {
     const current = await getDocumentData(docRef.path) || {};
@@ -395,11 +455,12 @@ export async function setDoc(docRef: DocumentReference, data: any, options?: { m
 }
 
 export async function updateDoc(docRef: DocumentReference, updates: Record<string, any>): Promise<void> {
+  const validated = validateDocumentPayload(updates, docRef.path);
   const now = Date.now();
   const currentData = await getDocumentData(docRef.path) || {};
   const updatedData = { ...currentData, updatedAt: now };
 
-  for (const [key, value] of Object.entries(updates)) {
+  for (const [key, value] of Object.entries(validated)) {
     if (key.includes(".")) {
       setNestedField(updatedData, key, value);
     } else {
@@ -511,7 +572,7 @@ async function fetchSnapshotData(path: string, isCollection: boolean, queryConst
         if (c.type === "where") {
           const { field, op, value } = c;
           docs = docs.filter(docVal => {
-            const val = docVal[field];
+            const val = docVal[field] !== undefined ? docVal[field] : (field === "date" ? docVal.id : undefined);
             if (op === "==") return val === value;
             if (op === "!=") return val !== value;
             if (op === ">") return val > value;
@@ -527,8 +588,8 @@ async function fetchSnapshotData(path: string, isCollection: boolean, queryConst
         if (c.type === "orderBy") {
           const { field, dir } = c;
           docs.sort((a, b) => {
-            const valA = a[field];
-            const valB = b[field];
+            const valA = a[field] !== undefined ? a[field] : (field === "date" ? a.id : undefined);
+            const valB = b[field] !== undefined ? b[field] : (field === "date" ? b.id : undefined);
             if (valA === valB) return 0;
             if (valA == null) return 1;
             if (valB == null) return -1;
@@ -550,6 +611,9 @@ async function fetchSnapshotData(path: string, isCollection: boolean, queryConst
 
     const resultDocs = docs.map(docData => {
       const originalData = { ...docData };
+      if (originalData.date === undefined && path.includes("/logs")) {
+        originalData.date = docData.id;
+      }
       delete originalData.id;
       const docRefPath = `${path}/${docData.id}`;
       return {

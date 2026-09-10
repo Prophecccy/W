@@ -4,7 +4,9 @@ import { getLocalNoteHistory } from "../services/localLogService";
 import { HabitLog } from "../../habits/types";
 import { useAuthContext } from "../../auth/context";
 import { getToday } from "../../../shared/utils/dateUtils";
-import { Archive, FolderOpen, Lock } from "lucide-react";
+import { initEncryptionKey } from "../../../shared/utils/noteCrypto";
+import { syncDownLogbookNotes } from "../../../shared/services/googleDriveService";
+import { Archive, FolderOpen, Lock, RefreshCw } from "lucide-react";
 import { GDriveLockout } from "../../lockdown/components/GDriveLockout";
 import "./LogbookPage.css";
 
@@ -84,16 +86,34 @@ export function LogbookPage() {
   
   const [groupedLogs, setGroupedLogs] = useState<GroupedMonthEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const resetTime = userDoc?.settings?.dailyResetTime || "04:00";
+  const getLogicalToday = () => getToday(undefined, resetTime);
+
+  const handleManualSync = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      await syncDownLogbookNotes();
+      const history = await getLocalNoteHistory();
+      const currentToday = getLogicalToday();
+      const pastLogs = history.filter((log) => log.date !== currentToday);
+      setGroupedLogs(groupNotesByMonthAndDate(pastLogs));
+    } catch (err) {
+      console.error("Manual sync from Drive failed:", err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
-    const getLogicalToday = () => getToday(undefined, resetTime);
 
     async function loadLogs() {
       setIsLoading(true);
       try {
+        await initEncryptionKey();
         const history = await getLocalNoteHistory();
         if (!isMounted) return;
         const currentToday = getLogicalToday();
@@ -103,6 +123,13 @@ export function LogbookPage() {
         
         const grouped = groupNotesByMonthAndDate(pastLogs);
         setGroupedLogs(grouped);
+
+        // Auto background sync-down from Google Drive if linked
+        if (isDriveLinked) {
+          syncDownLogbookNotes().catch((err) => {
+            console.warn("Background Drive sync-down failed:", err);
+          });
+        }
       } catch (err) {
         if (isMounted) console.error("Failed to load logbook history:", err);
       } finally {
@@ -132,7 +159,7 @@ export function LogbookPage() {
       window.removeEventListener("w:note-saved", handleSyncUpdate);
       window.removeEventListener("w:note-synced", handleSyncUpdate);
     };
-  }, [user, resetTime]);
+  }, [user, resetTime, isDriveLinked]);
 
   if (!isDriveLinked) {
     return <GDriveLockout mode="page" />;
@@ -150,9 +177,23 @@ export function LogbookPage() {
     <div className="logbook-page">
       {/* HEADER SECTION */}
       <header className="logbook-header">
-        <div className="logbook-header__title-area">
-          <Archive size={20} className="accent-text" />
-          <h1 className="t-display">[ LOGBOOK ARCHIVE ]</h1>
+        <div className="logbook-header__top">
+          <div className="logbook-header__title-area">
+            <Archive size={20} className="accent-text" />
+            <h1 className="t-display">[ LOGBOOK ARCHIVE ]</h1>
+          </div>
+          <div className="logbook-header__actions">
+            <button
+              type="button"
+              className="logbook-sync-btn"
+              onClick={handleManualSync}
+              disabled={isSyncing}
+              title="Pull latest historical daily notes from Google Drive"
+            >
+              <RefreshCw size={13} className={isSyncing ? "animate-spin" : ""} />
+              <span className="t-label">{isSyncing ? "[ SYNCING... ]" : "[ SYNC FROM DRIVE ]"}</span>
+            </button>
+          </div>
         </div>
         <div className="logbook-header__meta t-meta">
           <span>HISTORICAL RECORD DIRECTORY // READ-ONLY</span>

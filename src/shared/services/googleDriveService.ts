@@ -716,8 +716,8 @@ export async function pullNotesFromDrive(accessToken: string): Promise<void> {
       cache.yearFolderIds[yearName] = yearFolderId;
       await saveFolderCache(cache);
 
-      // 3. List all markdown files inside this Year folder
-      const noteQuery = `'${yearFolderId}' in parents and mimeType = 'text/markdown' and trashed = false`;
+      // 3. List all markdown files inside this Year folder (broadened to catch text/markdown, text/plain, and .md files)
+      const noteQuery = `'${yearFolderId}' in parents and trashed = false and (mimeType = 'text/markdown' or mimeType = 'text/plain' or name contains '.md')`;
       const files = await listGoogleDriveFiles(accessToken, noteQuery, "id,name,modifiedTime");
       console.info(`[GDrive Service] Year ${yearName}: Found ${files.length} markdown notes.`);
 
@@ -767,10 +767,24 @@ export async function pullNotesFromDrive(accessToken: string): Promise<void> {
     }
 
     console.info("[GDrive Service] Historical daily notes sync-down completed successfully.");
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("w:note-synced"));
+    }
   } catch (err) {
     console.error("[GDrive Service] Failed to pull notes from Drive:", err);
     throw err;
   }
+}
+
+/**
+ * Convenience helper to pull down notes from Google Drive on demand.
+ * Obtains a valid access token and calls pullNotesFromDrive.
+ */
+export async function syncDownLogbookNotes(): Promise<boolean> {
+  const accessToken = await getValidAccessToken();
+  if (!accessToken) return false;
+  await pullNotesFromDrive(accessToken);
+  return true;
 }
 
 const SYNC_LOCK_KEY = "w_gdrive_sync_lock";

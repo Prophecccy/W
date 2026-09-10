@@ -71,6 +71,53 @@ function getWeeklyHabitCompletionRate(
   return totalScheduledUnits === 0 ? 0 : Math.round((totalCompletedUnits / totalScheduledUnits) * 100);
 }
 
+export function getIntervalHabitCompletionRate(
+  logs: HabitLog[],
+  habit: Habit,
+  startDateStr: string,
+  endDateStr: string,
+): number {
+  const logMap: Record<string, HabitLog> = {};
+  for (const log of logs) {
+    if (log.date) logMap[log.date] = log;
+  }
+
+  const habitStart = habit.startDate || formatDate(new Date(habit.createdAt));
+  const todayStr = getToday();
+
+  // Active start is the later of range start and habit activation date
+  const effectiveStart = startDateStr > habitStart ? startDateStr : habitStart;
+  // Active end is capped at today and range end
+  const effectiveEnd = endDateStr < todayStr ? endDateStr : todayStr;
+
+  if (effectiveStart > effectiveEnd) return 0;
+
+  const startD = new Date(effectiveStart + "T12:00:00");
+  const endD = new Date(effectiveEnd + "T12:00:00");
+  const diffTime = endD.getTime() - startD.getTime();
+  const elapsedDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+  const intervalDays = Math.max(1, habit.intervalDays || 1);
+  const expectedCompletions = Math.max(1, Math.round(elapsedDays / intervalDays));
+
+  let actualCompletions = 0;
+  const current = new Date(startD);
+  while (current <= endD) {
+    const dStr = formatDate(current);
+    const log = logMap[dStr];
+    const entry = log?.habits?.[habit.id];
+    const hasActivity = Boolean(
+      entry && (entry.completed || (entry.completions?.length ?? 0) > 0 || (entry.value ?? 0) > 0)
+    );
+    if (hasActivity) {
+      actualCompletions += 1;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  return Math.min(100, Math.round((actualCompletions / expectedCompletions) * 100));
+}
+
 export function getCompletionRate(
   logs: HabitLog[],
   habits: Habit[],
@@ -83,6 +130,9 @@ export function getCompletionRate(
     const targetHabit = habits.find((h) => h.id === habitId);
     if (targetHabit?.period === "weekly") {
       return getWeeklyHabitCompletionRate(logs, targetHabit, startDateStr, endDateStr, weeklyResetDay);
+    }
+    if (targetHabit?.period === "interval") {
+      return getIntervalHabitCompletionRate(logs, targetHabit, startDateStr, endDateStr);
     }
   }
 
@@ -170,7 +220,7 @@ export function getBestWorstDays(
 
     for (const h of scheduledHabits) {
       const entry = log.habits[h.id];
-      const isMulti = h.period === "weekly" || h.period === "monthly";
+      const isMulti = h.period === "weekly" || h.period === "monthly" || h.period === "interval";
       const hasActivity = Boolean(
         entry && ((entry.completions?.length ?? 0) > 0 || (entry.value ?? 0) > 0)
       );
@@ -331,7 +381,7 @@ function processDayActivities(
         const entry = log.habits[h.id];
         if (!entry) return false;
         if (entry.completed) return true;
-        if (h.period === "weekly" || h.period === "monthly") {
+        if (h.period === "weekly" || h.period === "monthly" || h.period === "interval") {
           return (entry.value ?? 0) > 0 || ((entry.completions?.length ?? 0) > 0);
         }
         return false;
@@ -457,7 +507,13 @@ export function generateHabitAnalytics(
   }
 
   // Define date ranges for All Time, Current Month, Prev Month
-  const creationDateStr = formatDate(new Date(habit.createdAt));
+  let habitStartStr = habit.startDate || formatDate(new Date(habit.createdAt));
+  for (const log of logs) {
+    const entry = log.habits?.[habit.id];
+    if (entry && (entry.completed || (entry.value ?? 0) > 0 || (entry.completions?.length ?? 0) > 0)) {
+      if (log.date && log.date < habitStartStr) habitStartStr = log.date;
+    }
+  }
   const todayStr = getToday();
 
   const todayDate = new Date(todayStr + "T12:00:00");
@@ -479,7 +535,7 @@ export function generateHabitAnalytics(
     completionRateAllTime: getCompletionRate(
       logs,
       [habit],
-      creationDateStr,
+      habitStartStr,
       todayStr,
       habit.id,
       weeklyResetDay,

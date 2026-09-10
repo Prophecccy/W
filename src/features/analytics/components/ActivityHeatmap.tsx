@@ -170,7 +170,7 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId: propHabitId, habit }
                 const entry = log.habits?.[h.id];
                 if (!entry) return false;
                 if (entry.completed) return true;
-                if (h.period === "weekly" || h.period === "monthly") {
+                if (h.period === "weekly" || h.period === "monthly" || h.period === "interval") {
                   return (entry.value ?? 0) > 0 || ((entry.completions?.length ?? 0) > 0);
                 }
                 return false;
@@ -188,7 +188,7 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId: propHabitId, habit }
           totalCompleted += completed;
 
           let rate = 0;
-          if (dateStr > todayStr || dateStr < oldestHabitDateStr) {
+          if (dateStr > todayStr || (dateStr < oldestHabitDateStr && completed === 0)) {
             // Ghost day: ignore in efficiency calculation
             rate = 0;
             totalScheduled -= scheduled;
@@ -203,7 +203,7 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId: propHabitId, habit }
             rate,
             completedCount: completed,
             scheduledCount: scheduled,
-            isGhost: dateStr < oldestHabitDateStr || dateStr > todayStr,
+            isGhost: (dateStr < oldestHabitDateStr && completed === 0) || dateStr > todayStr,
             isEmpty: false,
           });
         }
@@ -227,7 +227,7 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId: propHabitId, habit }
         const monthStartStr = formatDate(new Date(mYear, mMonth, 1));
         const monthEndStr = formatDate(new Date(mYear, mMonth, daysInMonth));
 
-        const efficiency = targetHabit?.period === "weekly"
+        const efficiency = (targetHabit?.period === "weekly" || targetHabit?.period === "interval")
           ? getCompletionRate(logs, [targetHabit], monthStartStr, monthEndStr, targetHabit.id, weeklyResetDay)
           : totalScheduled === 0
             ? 0

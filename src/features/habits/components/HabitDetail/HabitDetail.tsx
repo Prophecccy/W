@@ -93,7 +93,7 @@ export function HabitDetail({
         if (isScheduled) {
           isCompleted = entry ? entry.value <= entry.target : true;
         }
-      } else if (habit.period === "weekly" || habit.period === "monthly") {
+      } else if (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval") {
         isCompleted = Boolean(entry?.completed || hasActivity);
       } else {
         isCompleted = Boolean(entry?.completed || (hasActivity && isScheduled));

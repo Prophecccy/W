@@ -102,7 +102,7 @@ export function isHabitScheduledToday(
       if (habit.intervalDays <= 0) return false;
       if (habit.lastCompletedDate) {
         const nextActiveDate = addDays(habit.lastCompletedDate, habit.intervalDays);
-        if (today < nextActiveDate) {
+        if (today >= habit.lastCompletedDate && today < nextActiveDate) {
           return false; // resting cooldown
         }
       }

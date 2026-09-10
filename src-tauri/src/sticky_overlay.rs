@@ -263,13 +263,29 @@ pub fn stop_sticky_hit_test() -> Result<(), String> {
 /// Coordinates must be in physical (screen) pixels.
 #[tauri::command]
 pub fn update_sticky_regions(regions: Vec<JsRect>) -> Result<(), String> {
+    // Defense: limit regions to prevent memory exhaustion and validate coordinate geometry
+    const MAX_REGIONS: usize = 50;
+    const MAX_COORD: i32 = 10_000;
+    const MIN_COORD: i32 = -10_000;
+
     let rects: Vec<StickyRect> = regions
         .into_iter()
-        .map(|r| StickyRect {
-            left: r.left,
-            top: r.top,
-            right: r.right,
-            bottom: r.bottom,
+        .take(MAX_REGIONS)
+        .filter_map(|r| {
+            // Validate bounding box: left <= right and top <= bottom
+            if r.left <= r.right && r.top <= r.bottom
+                && r.left >= MIN_COORD && r.right <= MAX_COORD
+                && r.top >= MIN_COORD && r.bottom <= MAX_COORD
+            {
+                Some(StickyRect {
+                    left: r.left,
+                    top: r.top,
+                    right: r.right,
+                    bottom: r.bottom,
+                })
+            } else {
+                None
+            }
         })
         .collect();
     if let Ok(mut guard) = REGIONS.lock() {

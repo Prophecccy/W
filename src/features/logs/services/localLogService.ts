@@ -2,14 +2,80 @@ import { get, set, keys, getMany } from "idb-keyval";
 import { auth } from "../../../shared/config/firebase";
 import { HabitLog } from "../../habits/types";
 import {
+  initEncryptionKey,
   encryptNote,
   decryptNote,
   isEncryptedRecord,
   type EncryptedPayload,
 } from "../../../shared/utils/noteCrypto";
 import { sanitizeText } from "../../../shared/utils/security";
+import { isTauri } from "../../../shared/utils/tauri";
 
 const NOTE_KEY_PREFIX = "note_record_";
+const NOTES_DIR = "notes";
+
+// ─── Native Disk Helpers (Tauri $APPDATA/notes/) ───────────────
+
+async function saveNoteToDisk(date: string, record: LocalNoteRecord): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    const { writeTextFile, mkdir, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+    const dirExists = await exists(NOTES_DIR, { baseDir: BaseDirectory.AppData });
+    if (!dirExists) {
+      await mkdir(NOTES_DIR, { baseDir: BaseDirectory.AppData, recursive: true });
+    }
+    const filePath = `${NOTES_DIR}/${date}.json`;
+    await writeTextFile(filePath, JSON.stringify(record), { baseDir: BaseDirectory.AppData });
+  } catch (err) {
+    console.warn(`[localLogService] Failed to mirror note ${date} to disk:`, err);
+  }
+}
+
+async function readNoteFromDisk(date: string): Promise<LocalNoteRecord | null> {
+  if (!isTauri()) return null;
+  try {
+    const { readTextFile, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+    const filePath = `${NOTES_DIR}/${date}.json`;
+    if (await exists(filePath, { baseDir: BaseDirectory.AppData })) {
+      const content = await readTextFile(filePath, { baseDir: BaseDirectory.AppData });
+      return JSON.parse(content) as LocalNoteRecord;
+    }
+  } catch (err) {
+    console.warn(`[localLogService] Failed to read note ${date} from disk:`, err);
+  }
+  return null;
+}
+
+async function readAllNotesFromDisk(): Promise<LocalNoteRecord[]> {
+  if (!isTauri()) return [];
+  try {
+    const { readDir, readTextFile, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+    const dirExists = await exists(NOTES_DIR, { baseDir: BaseDirectory.AppData });
+    if (!dirExists) return [];
+
+    const entries = await readDir(NOTES_DIR, { baseDir: BaseDirectory.AppData });
+    const records: LocalNoteRecord[] = [];
+
+    for (const entry of entries) {
+      if (entry.name && entry.name.endsWith(".json")) {
+        try {
+          const filePath = `${NOTES_DIR}/${entry.name}`;
+          const content = await readTextFile(filePath, { baseDir: BaseDirectory.AppData });
+          const parsed = JSON.parse(content) as LocalNoteRecord;
+          if (parsed && parsed.date) {
+            records.push(parsed);
+          }
+        } catch (e) {
+          console.warn(`[localLogService] Corrupted disk note file ${entry.name}:`, e);
+        }
+      }
+    }
+    return records;
+  } catch (err) {
+    console.warn("[localLogService] Failed to scan disk notes directory:", err);
+    return [];
+  }
+}
 
 export interface LocalNoteRecord {
   date: string;          // YYYY-MM-DD
@@ -31,6 +97,7 @@ async function buildEncryptedRecord(
   content: string,
   syncPending: boolean
 ): Promise<LocalNoteRecord> {
+  await initEncryptionKey().catch(() => {});
   const cleanContent = sanitizeText(content);
   const payload = await encryptNote(cleanContent);
 
@@ -64,7 +131,18 @@ async function buildEncryptedRecord(
 async function readAndDecryptRecord(
   key: string
 ): Promise<LocalNoteRecord | null> {
-  const raw = await get<LocalNoteRecord>(key);
+  await initEncryptionKey().catch(() => {});
+  let raw: LocalNoteRecord | null | undefined = await get<LocalNoteRecord>(key);
+
+  // Fallback to native OS disk ($APPDATA/notes/) if not found in IndexedDB (e.g. after app update)
+  if (!raw && isTauri()) {
+    const date = key.replace(NOTE_KEY_PREFIX, "");
+    raw = await readNoteFromDisk(date);
+    if (raw) {
+      await set(key, raw).catch(() => {});
+    }
+  }
+
   if (!raw) return null;
 
   // Case 1: Encrypted record
@@ -73,8 +151,10 @@ async function readAndDecryptRecord(
     if (plaintext !== null) {
       return { ...raw, notes: plaintext };
     }
-    // Decryption failed — key may have changed. Return empty to avoid
-    // exposing garbage. The Drive copy can restore the note.
+    // Decryption failed — check if raw.notes contains plaintext fallback
+    if (raw.notes && raw.notes.trim() !== "") {
+      return raw;
+    }
     console.warn(`[localLogService] Decryption failed for ${key}. Note is unrecoverable locally.`);
     return { ...raw, notes: "" };
   }
@@ -107,13 +187,14 @@ async function reEncryptLegacyRecord(
     encrypted: payload,
   };
   await set(key, updated);
+  saveNoteToDisk(record.date, updated).catch(() => {});
   console.info(`[localLogService] Re-encrypted legacy record: ${key}`);
 }
 
 // ─── Public API (unchanged signatures) ──────────────────────────
 
 /**
- * Saves a daily note locally to IndexedDB, returning immediately to guarantee zero-latency.
+ * Saves a daily note locally to IndexedDB and mirrors to $APPDATA/notes/ on disk.
  * Marks the note as pending sync.
  * LAYER 6: Note content is AES-256-GCM encrypted before storage.
  */
@@ -122,16 +203,20 @@ export async function saveLocalNote(date: string, content: string): Promise<void
   const record = await buildEncryptedRecord(date, content, true);
 
   await set(key, record);
+  saveNoteToDisk(date, record).catch(() => {});
 
-  window.dispatchEvent(
-    new CustomEvent("w:note-saved", {
-      detail: { date, notes: content, sync_pending: true },
-    })
-  );
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("w:note-saved", {
+        detail: { date, notes: content, sync_pending: true },
+      })
+    );
+  }
 }
 
 /**
  * Saves a daily note downloaded from Google Drive, with sync_pending = false.
+ * Mirrors to $APPDATA/notes/ on disk.
  * LAYER 6: Note content is AES-256-GCM encrypted before storage.
  */
 export async function saveDownloadedNote(date: string, content: string): Promise<void> {
@@ -139,12 +224,15 @@ export async function saveDownloadedNote(date: string, content: string): Promise
   const record = await buildEncryptedRecord(date, content, false);
 
   await set(key, record);
+  saveNoteToDisk(date, record).catch(() => {});
 
-  window.dispatchEvent(
-    new CustomEvent("w:note-saved", {
-      detail: { date, notes: content, sync_pending: false },
-    })
-  );
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("w:note-saved", {
+        detail: { date, notes: content, sync_pending: false },
+      })
+    );
+  }
 }
 
 /**
@@ -213,6 +301,7 @@ export async function clearSyncPending(
     record.sync_pending = false;
     record.updatedAt = serverModifiedTimeMs;
     await set(key, record);
+    saveNoteToDisk(date, record).catch(() => {});
 
     // Broadcast status change — decrypt for event consumers
     let plaintext = record.notes;
@@ -220,11 +309,13 @@ export async function clearSyncPending(
       plaintext = (await decryptNote(record.encrypted!)) ?? "";
     }
 
-    window.dispatchEvent(
-      new CustomEvent("w:note-saved", {
-        detail: { date, notes: plaintext, sync_pending: false },
-      })
-    );
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("w:note-saved", {
+          detail: { date, notes: plaintext, sync_pending: false },
+        })
+      );
+    }
   }
 }
 
@@ -247,13 +338,38 @@ function isSystemPlaceholder(notes: string): boolean {
  * sorted chronologically with the newest note first.
  * Excludes system-generated placeholder entries (e.g. retroactive auto-freeze logs).
  * LAYER 6: Transparently decrypts all records.
+ * Resilient against app updates: Reconciles $APPDATA/notes/ on disk with IndexedDB.
  */
 export async function getLocalNoteHistory(): Promise<HabitLog[]> {
+  await initEncryptionKey().catch(() => {});
   const allKeys = await keys();
   const noteKeys = allKeys.filter((k) => typeof k === "string" && k.startsWith(NOTE_KEY_PREFIX));
-  if (noteKeys.length === 0) return [];
+  const rawRecords = noteKeys.length > 0 ? await getMany<LocalNoteRecord>(noteKeys) : [];
 
-  const rawRecords = await getMany<LocalNoteRecord>(noteKeys);
+  // In Tauri: Reconcile with OS filesystem ($APPDATA/notes/) to recover notes after updates
+  if (isTauri()) {
+    try {
+      const diskRecords = await readAllNotesFromDisk();
+      for (const diskRecord of diskRecords) {
+        if (!diskRecord || !diskRecord.date) continue;
+        const existsInIdb = rawRecords.some((r) => r && r.date === diskRecord.date);
+        if (!existsInIdb) {
+          const idbKey = `${NOTE_KEY_PREFIX}${diskRecord.date}`;
+          await set(idbKey, diskRecord).catch(() => {});
+          rawRecords.push(diskRecord);
+        }
+      }
+      // Mirror any IDB notes to disk that might not be on disk yet
+      for (const r of rawRecords) {
+        if (r && r.date) {
+          saveNoteToDisk(r.date, r).catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.warn("[localLogService] Disk notes reconciliation failed:", err);
+    }
+  }
+
   const decrypted: LocalNoteRecord[] = [];
 
   for (const raw of rawRecords) {
@@ -263,6 +379,8 @@ export async function getLocalNoteHistory(): Promise<HabitLog[]> {
       const plaintext = await decryptNote(raw.encrypted!);
       if (plaintext !== null && plaintext.trim() !== "" && !isSystemPlaceholder(plaintext)) {
         decrypted.push({ ...raw, notes: plaintext });
+      } else if (raw.notes && raw.notes.trim() !== "" && !isSystemPlaceholder(raw.notes)) {
+        decrypted.push(raw);
       }
     } else if (raw.notes && raw.notes.trim() !== "" && !isSystemPlaceholder(raw.notes)) {
       decrypted.push(raw);
@@ -270,6 +388,34 @@ export async function getLocalNoteHistory(): Promise<HabitLog[]> {
   }
 
   const userId = auth.currentUser?.uid || "local_user";
+
+  // Recover any legacy notes from w_col_users/${userId}/logs that haven't been stored under note_record_
+  try {
+    const logsMap = await get<Record<string, any>>(`w_col_users/${userId}/logs`);
+    if (logsMap) {
+      for (const [date, logEntry] of Object.entries(logsMap)) {
+        if (
+          logEntry?.notes &&
+          typeof logEntry.notes === "string" &&
+          logEntry.notes.trim() !== "" &&
+          !isSystemPlaceholder(logEntry.notes)
+        ) {
+          if (!decrypted.some((d) => d.date === date)) {
+            decrypted.push({
+              date,
+              notes: logEntry.notes,
+              sync_pending: false,
+              updatedAt: logEntry.updatedAt || Date.now(),
+            });
+            // Auto-save into note_record_ so future loads are instantaneous
+            saveDownloadedNote(date, logEntry.notes).catch(() => {});
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[localLogService] Could not check legacy logs map:", e);
+  }
 
   const logs: HabitLog[] = decrypted.map((r) => ({
     date: r.date,
@@ -282,6 +428,28 @@ export async function getLocalNoteHistory(): Promise<HabitLog[]> {
 
   // Sort descending: YYYY-MM-DD
   return logs.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/**
+ * Flushes all local notes to disk in $APPDATA/notes/ immediately.
+ * Called before application updater restarts or reboots.
+ */
+export async function flushAllNotesToDisk(): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    const allKeys = await keys();
+    const noteKeys = allKeys.filter((k) => typeof k === "string" && k.startsWith(NOTE_KEY_PREFIX));
+    if (noteKeys.length === 0) return;
+    const records = await getMany<LocalNoteRecord>(noteKeys);
+    for (const r of records) {
+      if (r && r.date) {
+        await saveNoteToDisk(r.date, r);
+      }
+    }
+    console.info(`[localLogService] Successfully flushed ${records.length} notes to disk.`);
+  } catch (err) {
+    console.error("[localLogService] Failed to flush notes to disk:", err);
+  }
 }
 
 // ─── SECURITY: migrateNotesFromFirestore() DELETED ──────────────

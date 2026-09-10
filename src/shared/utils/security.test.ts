@@ -134,3 +134,85 @@ describe("security utility - validateIsoDate", () => {
     expect(validateIsoDate(12345678)).toBe(false);
   });
 });
+
+import { validateDocumentPayload } from "../services/localDb";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+describe("DAL Storage Gate - validateDocumentPayload", () => {
+  it("accepts valid plain document objects", () => {
+    const payload = { title: "Daily Workout", target: 5, frequency: "daily" };
+    const validated = validateDocumentPayload(payload, "users/test-uid/habits/h1");
+    expect(validated.title).toBe("Daily Workout");
+    expect(validated.target).toBe(5);
+  });
+
+  it("rejects non-object and array payloads", () => {
+    expect(() => validateDocumentPayload(null, "users/uid/habits/h1")).toThrow("plain object");
+    expect(() => validateDocumentPayload("string-payload", "users/uid/habits/h1")).toThrow("plain object");
+    expect(() => validateDocumentPayload([1, 2, 3], "users/uid/habits/h1")).toThrow("plain object");
+  });
+
+  it("neutralizes prototype pollution keys (__proto__, constructor, prototype)", () => {
+    const malicious = JSON.parse('{"title":"Legit","__proto__":{"admin":true},"constructor":{"polluted":true}}');
+    const cleaned: any = validateDocumentPayload(malicious, "users/uid/habits/h1");
+    expect(cleaned.title).toBe("Legit");
+    expect(cleaned.__proto__.admin).toBeUndefined();
+    expect(cleaned.constructor.polluted).toBeUndefined();
+  });
+
+  it("rejects path traversal attempts", () => {
+    expect(() => validateDocumentPayload({ title: "Bad" }, "users/../secret")).toThrow("Path traversal");
+    expect(() => validateDocumentPayload({ title: "Bad" }, "users\\system\\root")).toThrow("Path traversal");
+  });
+
+  it("rejects payloads exceeding size limits", () => {
+    const hugePayload = { data: "x".repeat(600_000) };
+    expect(() => validateDocumentPayload(hugePayload, "users/uid/habits/h1")).toThrow("exceeds limit");
+  });
+});
+
+describe("Secrets Management - Static Secret Scanning", () => {
+  it("verifies .env.example contains only placeholders, no real secrets", () => {
+    const envExamplePath = path.resolve(__dirname, "../../../.env.example");
+    if (fs.existsSync(envExamplePath)) {
+      const content = fs.readFileSync(envExamplePath, "utf-8");
+      expect(content).not.toMatch(/AIzaSy[A-Za-z0-9_-]{33}/);
+      expect(content).not.toContain("GOCSPX-");
+      expect(content).toContain("your-client-id-here");
+    }
+  });
+
+  it("verifies authService reads Google secrets from environment variables, not hardcoded strings", () => {
+    const authServicePath = path.resolve(__dirname, "../../features/auth/services/authService.ts");
+    const content = fs.readFileSync(authServicePath, "utf-8");
+    expect(content).toContain("import.meta.env.VITE_GOOGLE_CLIENT_ID");
+    expect(content).not.toMatch(/client_id:\s*["'][0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com["']/);
+  });
+
+  it("verifies src-tauri/tauri.conf.json does not contain private keys and enforces desktop CSP", () => {
+    const tauriConfPath = path.resolve(__dirname, "../../../src-tauri/tauri.conf.json");
+    const content = fs.readFileSync(tauriConfPath, "utf-8");
+    expect(content).not.toContain("BEGIN PRIVATE KEY");
+    expect(content).not.toContain("tauri.key");
+
+    const parsed = JSON.parse(content);
+    expect(parsed.app.security.csp).toBeDefined();
+    expect(parsed.app.security.csp).toContain("default-src 'self'");
+    expect(parsed.app.security.csp).toContain("https://accounts.google.com");
+  });
+
+  it("verifies src-tauri/Cargo.toml configures native binary obfuscation and symbol stripping", () => {
+    const cargoTomlPath = path.resolve(__dirname, "../../../src-tauri/Cargo.toml");
+    const content = fs.readFileSync(cargoTomlPath, "utf-8");
+    expect(content).toContain("[profile.release]");
+    expect(content).toContain("strip = true");
+    expect(content).toContain("lto = true");
+    expect(content).toContain('panic = "abort"');
+    expect(content).toContain("codegen-units = 1");
+  });
+});

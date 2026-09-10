@@ -3,17 +3,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 4px 0;
-  overflow: hidden;
+  gap: 12px;
+  padding-top: 0;
+  margin-top: -8px;
 }
 
 .heatmap-global-header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  margin-bottom: 4px;
+  gap: 4px;
+  margin-bottom: 8px;
 }
 
 .heatmap-global-header h2 {
@@ -24,8 +24,8 @@
   display: flex;
   gap: 8px;
   font-family: monospace;
-  font-size: 0.8rem;
-  letter-spacing: 0.2em;
+  font-size: 0.85rem;
+  letter-spacing: 0.25em;
 }
 
 .heatmap-carousel-wrapper {
@@ -34,8 +34,6 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  overflow: hidden;
-  padding: 4px 0;
 }
 
 .carousel-nav-btn {
@@ -49,7 +47,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
+  padding: 12px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 100;
   box-shadow: none !important;
@@ -57,11 +55,11 @@
 }
 
 .carousel-nav-btn:first-of-type {
-  left: 20px;
+  left: 100px;
 }
 
 .carousel-nav-btn:last-of-type {
-  right: 20px;
+  right: 100px;
 }
 
 .carousel-nav-btn:hover:not(:disabled) {
@@ -84,10 +82,9 @@
   align-items: center;
   justify-content: center;
   gap: 0;
-  width: 100%;
-  max-width: 100%;
+  max-width: calc(100% - 100px);
   overflow: visible;
-  padding: 8px 0;
+  padding: 16px 0;
   position: relative;
 }
 
@@ -100,7 +97,7 @@
 
 .month-block.offset-0 {
   z-index: 3;
-  margin: 0 12px;
+  margin: 0 20px;
 }
 
 .month-block.offset-0 .month-card {
@@ -110,7 +107,7 @@
 
 .month-block.offset-1 {
   z-index: 2;
-  margin: 0 -24px;
+  margin: 0 -20px;
 }
 
 .month-block.offset-2 {
@@ -121,12 +118,12 @@
 .month-card {
   background-color: transparent;
   border: 1px solid rgba(255, 255, 255, 0.05);
-  padding: 14px 16px;
-  border-radius: 6px;
-  width: 230px;
+  padding: 24px 24px;
+  border-radius: 4px;
+  width: 250px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 20px;
   background: var(--bg-primary);
   /* Ensure smooth rendering during scaling */
   backface-visibility: hidden;

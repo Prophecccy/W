@@ -23,19 +23,23 @@ export interface EncryptedPayload {
 
 // ─── Module State ───────────────────────────────────────────────
 
+import { get as idbGet, set as idbSet } from "idb-keyval";
+
 const KEY_FILE = "note_key.json";
+const WEB_KEY_STORE = "w_note_crypto_key";
 let cachedKey: CryptoKey | null = null;
 let initPromise: Promise<void> | null = null;
 
 // ─── Initialisation ─────────────────────────────────────────────
 
 /**
- * Must be called once during app startup (after auth resolves).
+ * Must be called once during app startup (after auth resolves), or automatically
+ * lazily-invoked before any encrypt/decrypt operation.
  * Generates or loads the per-device AES-256-GCM key.
  *
  * - Tauri: persists the key as JWK in `$APPDATA/note_key.json`.
- * - Web:  generates an ephemeral in-memory key per session (IndexedDB
- *         is already sandboxed per-origin in browsers).
+ * - Web:   persists the key as JWK in IndexedDB (`w_note_crypto_key`)
+ *          with localStorage backup, so notes persist across page reloads.
  */
 export function initEncryptionKey(): Promise<void> {
   if (initPromise) return initPromise;
@@ -45,13 +49,7 @@ export function initEncryptionKey(): Promise<void> {
       if (isTauri()) {
         cachedKey = await loadOrCreateTauriKey();
       } else {
-        // Web fallback: ephemeral key (browser same-origin policy already
-        // isolates IndexedDB, so encryption at rest is less critical).
-        cachedKey = await crypto.subtle.generateKey(
-          { name: "AES-GCM", length: 256 },
-          false, // non-extractable — lives only in memory
-          ["encrypt", "decrypt"]
-        );
+        cachedKey = await loadOrCreateWebKey();
       }
       console.info("[noteCrypto] Encryption key initialised.");
     } catch (err) {
@@ -65,6 +63,12 @@ export function initEncryptionKey(): Promise<void> {
   return initPromise;
 }
 
+async function ensureKey(): Promise<CryptoKey | null> {
+  if (cachedKey) return cachedKey;
+  await initEncryptionKey();
+  return cachedKey;
+}
+
 // ─── Encrypt / Decrypt ──────────────────────────────────────────
 
 /**
@@ -74,14 +78,15 @@ export function initEncryptionKey(): Promise<void> {
 export async function encryptNote(
   plaintext: string
 ): Promise<EncryptedPayload | null> {
-  if (!cachedKey) return null;
+  const key = await ensureKey();
+  if (!key) return null;
 
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encoded = new TextEncoder().encode(plaintext);
 
   const cipherBuffer = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv },
-    cachedKey,
+    key,
     encoded
   );
 
@@ -98,7 +103,8 @@ export async function encryptNote(
 export async function decryptNote(
   payload: EncryptedPayload
 ): Promise<string | null> {
-  if (!cachedKey) return null;
+  const key = await ensureKey();
+  if (!key) return null;
 
   try {
     const iv = base64ToUint8(payload.iv);
@@ -106,7 +112,7 @@ export async function decryptNote(
 
     const plainBuffer = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv },
-      cachedKey,
+      key,
       ct
     );
 
@@ -162,6 +168,52 @@ async function loadOrCreateTauriKey(): Promise<CryptoKey> {
   });
 
   console.info("[noteCrypto] New encryption key generated and saved to $APPDATA.");
+  return key;
+}
+
+// ─── Web Key Persistence ────────────────────────────────────────
+
+async function loadOrCreateWebKey(): Promise<CryptoKey> {
+  // 1. Try loading existing key from IndexedDB or localStorage
+  try {
+    let jwk = await idbGet<JsonWebKey>(WEB_KEY_STORE);
+    if (!jwk && typeof localStorage !== "undefined") {
+      const stored = localStorage.getItem(WEB_KEY_STORE);
+      if (stored) {
+        try {
+          jwk = JSON.parse(stored) as JsonWebKey;
+        } catch {}
+      }
+    }
+
+    if (jwk) {
+      return await crypto.subtle.importKey("jwk", jwk, "AES-GCM", true, [
+        "encrypt",
+        "decrypt",
+      ]);
+    }
+  } catch (err) {
+    console.warn("[noteCrypto] Failed to load existing Web encryption key, generating fresh:", err);
+  }
+
+  // 2. First run on Web — generate and persist key
+  const key = await crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    true, // extractable so we can export to JWK
+    ["encrypt", "decrypt"]
+  );
+
+  try {
+    const jwk = await crypto.subtle.exportKey("jwk", key);
+    await idbSet(WEB_KEY_STORE, jwk);
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(WEB_KEY_STORE, JSON.stringify(jwk));
+    }
+    console.info("[noteCrypto] New Web encryption key generated and persisted.");
+  } catch (err) {
+    console.error("[noteCrypto] Failed to persist Web encryption key:", err);
+  }
+
   return key;
 }
 

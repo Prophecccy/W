@@ -84,6 +84,21 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     if (!updateRef || phase !== 'available') return;
 
     try {
+      // Safety flush: ensure all notes are saved to $APPDATA disk and GDrive before updating
+      try {
+        const { flushAllNotesToDisk } = await import('../../logs/services/localLogService');
+        await flushAllNotesToDisk();
+      } catch (err) {
+        console.warn('[Evolution Protocol] Pre-update notes flush to disk failed:', err);
+      }
+
+      try {
+        const { runBackgroundSync } = await import('../../../shared/services/googleDriveService');
+        await runBackgroundSync();
+      } catch (err) {
+        console.warn('[Evolution Protocol] Pre-update GDrive sync failed:', err);
+      }
+
       // Tell Rust to allow window closing so the installer can close W
       try {
         const { invoke } = await import('@tauri-apps/api/core');
@@ -131,6 +146,13 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
 
   reboot: async () => {
     try {
+      try {
+        const { flushAllNotesToDisk } = await import('../../logs/services/localLogService');
+        await flushAllNotesToDisk();
+      } catch (err) {
+        console.warn('[Evolution Protocol] Pre-reboot notes flush failed:', err);
+      }
+
       const { relaunch } = await import('@tauri-apps/plugin-process');
       await relaunch();
     } catch (err) {
