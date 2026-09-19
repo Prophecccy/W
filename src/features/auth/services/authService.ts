@@ -126,6 +126,43 @@ export async function signInWithGoogle(): Promise<LocalUser> {
   return signInWithGoogleWeb();
 }
 
+export async function processGoogleOAuthToken(
+  accessToken: string,
+  expiresIn?: number,
+  refreshToken?: string,
+  idToken?: string
+): Promise<LocalUser> {
+  const expiresInSeconds = expiresIn && !isNaN(expiresIn) ? expiresIn : 3600;
+  await saveOAuthTokens(accessToken, refreshToken || "", expiresInSeconds);
+
+  const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!userInfoRes.ok) {
+    throw new Error(`Failed to fetch user info from Google (HTTP ${userInfoRes.status})`);
+  }
+  const userInfo = await userInfoRes.json();
+
+  await migrateFirestoreToLocal(userInfo.sub, accessToken, idToken);
+
+  const mockUser: LocalUser = {
+    uid: userInfo.sub,
+    email: userInfo.email || null,
+    displayName: userInfo.name || null,
+    photoURL: userInfo.picture || null,
+    metadata: {
+      lastSignInTime: new Date().toISOString(),
+      creationTime: new Date().toISOString(),
+    },
+    getIdToken: async () => "mock-token",
+  };
+
+  localStorage.setItem("w_auth_user", JSON.stringify(mockUser));
+  window.dispatchEvent(new CustomEvent("w:gdrive-linked"));
+  triggerAuthChange();
+  return mockUser;
+}
+
 async function signInWithGoogleWeb(): Promise<LocalUser> {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   if (!clientId) {
@@ -141,77 +178,140 @@ async function signInWithGoogleWeb(): Promise<LocalUser> {
   authUrl.searchParams.set("state", state);
   authUrl.searchParams.set("prompt", "consent select_account");
 
+  // Clean any stale oauth responses before opening popup
+  try {
+    localStorage.removeItem("w_oauth_response");
+  } catch {
+    /* ignore storage errors */
+  }
+
   const popup = window.open(authUrl.toString(), "google-login", "width=500,height=600");
   if (!popup) throw new Error("Popup blocked by browser.");
 
   return new Promise<LocalUser>((resolve, reject) => {
-    const checkInterval = setInterval(async () => {
-      try {
-        if (popup.closed) {
-          clearInterval(checkInterval);
-          reject(new Error("Login popup closed by user."));
-          return;
-        }
+    let resolved = false;
+    let checkInterval: NodeJS.Timeout | null = null;
 
-        const href = popup.location.href;
-        if (href && href.startsWith(redirectUri)) {
-          const hash = popup.location.hash;
-          const search = popup.location.search;
+    const cleanup = () => {
+      resolved = true;
+      window.removeEventListener("message", onMessage);
+      window.removeEventListener("storage", onStorage);
+      if (checkInterval) clearInterval(checkInterval);
+      try {
+        localStorage.removeItem("w_oauth_response");
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const handlePayload = async (data: any) => {
+      if (resolved) return;
+      cleanup();
+
+      if (popup && !popup.closed) {
+        try {
+          popup.close();
+        } catch {
+          /* ignore close errors */
+        }
+      }
+
+      if (data.error) {
+        reject(new Error(`Google OAuth Error: ${data.errorDescription || data.error}`));
+        return;
+      }
+
+      if (!data.accessToken) {
+        reject(new Error("No access token received from Google."));
+        return;
+      }
+
+      try {
+        const user = await processGoogleOAuthToken(data.accessToken, data.expiresIn);
+        resolve(user);
+      } catch (err) {
+        reject(err instanceof Error ? err : new Error(String(err)));
+      }
+    };
+
+    // Channel 1: postMessage listener (instant in same-origin popup)
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === "w:google-oauth-callback") {
+        handlePayload(event.data);
+      }
+    };
+    window.addEventListener("message", onMessage);
+
+    // Channel 2: Storage event listener (fires across tabs/popups sharing localStorage)
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === "w_oauth_response" && event.newValue) {
+        try {
+          const parsed = JSON.parse(event.newValue);
+          if (parsed?.type === "w:google-oauth-callback") {
+            handlePayload(parsed);
+          }
+        } catch {
+          /* ignore JSON parse errors */
+        }
+      }
+    };
+    window.addEventListener("storage", onStorage);
+
+    // Channel 3: Polling interval (fallback and popup.closed detector)
+    checkInterval = setInterval(async () => {
+      if (resolved) return;
+
+      // 3a. Check if response was stored in localStorage
+      try {
+        const stored = localStorage.getItem("w_oauth_response");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.type === "w:google-oauth-callback") {
+            handlePayload(parsed);
+            return;
+          }
+        }
+      } catch {
+        /* ignore storage read error */
+      }
+
+      // 3b. Direct location check on popup if accessible
+      try {
+        if (!popup.closed && popup.location?.href?.startsWith(redirectUri)) {
+          const hash = popup.location.hash || "";
+          const search = popup.location.search || "";
           const hashParams = new URLSearchParams(hash.startsWith("#") ? hash.substring(1) : hash);
           const searchParams = new URLSearchParams(search);
 
           const accessToken = hashParams.get("access_token") || searchParams.get("access_token");
           const error = hashParams.get("error") || searchParams.get("error");
           const errorDesc = hashParams.get("error_description") || searchParams.get("error_description");
+          const expiresIn = hashParams.get("expires_in") || searchParams.get("expires_in");
 
-          if (!accessToken && !error) {
-            // Popup is still on initial origin before navigating to Google OAuth, continue waiting
+          if (accessToken || error) {
+            handlePayload({
+              accessToken,
+              expiresIn: expiresIn ? parseInt(expiresIn, 10) : 3600,
+              error,
+              errorDescription: errorDesc,
+            });
             return;
           }
-
-          clearInterval(checkInterval);
-          popup.close();
-
-          if (error) {
-            reject(new Error(`Google OAuth Error: ${errorDesc || error}`));
-            return;
-          }
-
-          if (!accessToken) {
-            reject(new Error("No access token received from Google."));
-            return;
-          }
-
-          const expiresInStr = hashParams.get("expires_in") || searchParams.get("expires_in") || "3600";
-          await saveOAuthTokens(accessToken, "", parseInt(expiresInStr, 10));
-
-          const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          });
-          const userInfo = await userInfoRes.json();
-
-          await migrateFirestoreToLocal(userInfo.sub, accessToken);
-
-          const mockUser: LocalUser = {
-            uid: userInfo.sub,
-            email: userInfo.email || null,
-            displayName: userInfo.name || null,
-            photoURL: userInfo.picture || null,
-            metadata: { lastSignInTime: new Date().toISOString() },
-            getIdToken: async () => "mock-token",
-          };
-
-          localStorage.setItem("w_auth_user", JSON.stringify(mockUser));
-          window.dispatchEvent(new CustomEvent("w:gdrive-linked"));
-          triggerAuthChange();
-          resolve(mockUser);
         }
-      } catch (e) {
-        // Cross-origin checks fail until redirect, safe to ignore
+      } catch {
+        // Cross-origin checks fail while popup is on Google's domains; safe to ignore
+      }
+
+      // 3c. Detect user closing the popup manually without completing auth
+      if (popup.closed) {
+        cleanup();
+        reject(new Error("Login popup closed by user."));
       }
     }, 500);
   });
 }
+
 
 async function signInWithGoogleDesktop(): Promise<LocalUser> {
   console.info("[W Auth] Starting desktop OAuth flow...");
@@ -313,31 +413,7 @@ async function signInWithGoogleDesktop(): Promise<LocalUser> {
     throw new Error("Missing access_token in token exchange response.");
   }
 
-  await saveOAuthTokens(accessToken, refreshToken || "", expiresIn);
-
-  const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  const userInfo = await userInfoRes.json();
-
-  await migrateFirestoreToLocal(userInfo.sub, accessToken, idToken);
-
-  const mockUser: LocalUser = {
-    uid: userInfo.sub,
-    email: userInfo.email || null,
-    displayName: userInfo.name || null,
-    photoURL: userInfo.picture || null,
-    metadata: {
-      lastSignInTime: new Date().toISOString(),
-      creationTime: new Date().toISOString(),
-    },
-    getIdToken: async () => "mock-token",
-  };
-
-  localStorage.setItem("w_auth_user", JSON.stringify(mockUser));
-  window.dispatchEvent(new CustomEvent("w:gdrive-linked"));
-  triggerAuthChange();
-  return mockUser;
+  return processGoogleOAuthToken(accessToken, expiresIn, refreshToken || "", idToken);
 }
 
 function generateCodeVerifier(): string {

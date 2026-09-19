@@ -216,3 +216,83 @@ describe("Secrets Management - Static Secret Scanning", () => {
     expect(content).toContain("codegen-units = 1");
   });
 });
+
+describe("OAuth Flow & Token Relay Architecture", () => {
+  it("verifies main.tsx implements early OAuth popup interception before mounting React Router", () => {
+    const mainPath = path.resolve(__dirname, "../../main.tsx");
+    const content = fs.readFileSync(mainPath, "utf-8");
+    expect(content).toContain("handleEarlyOAuthCallback");
+    expect(content).toContain("w:google-oauth-callback");
+    expect(content).toContain("w_oauth_response");
+    expect(content).toContain("window.close()");
+    expect(content).toContain("!handleEarlyOAuthCallback()");
+  });
+
+  it("verifies authService exports processGoogleOAuthToken and implements tri-channel message/storage/polling listeners", () => {
+    const authServicePath = path.resolve(__dirname, "../../features/auth/services/authService.ts");
+    const content = fs.readFileSync(authServicePath, "utf-8");
+    expect(content).toContain("export async function processGoogleOAuthToken");
+    expect(content).toContain('addEventListener("message"');
+    expect(content).toContain('addEventListener("storage"');
+    expect(content).toContain("w:google-oauth-callback");
+    expect(content).toContain("w_oauth_response");
+  });
+
+  it("verifies AuthGuard guards against premature redirect to /login when access_token is in URL hash", () => {
+    const authGuardPath = path.resolve(__dirname, "../../features/auth/components/AuthGuard.tsx");
+    const content = fs.readFileSync(authGuardPath, "utf-8");
+    expect(content).toContain("hasPendingOAuthToken");
+    expect(content).toContain('window.location.hash.includes("access_token=")');
+  });
+
+  it("verifies useAuth provides direct same-window OAuth redirect handling", () => {
+    const useAuthPath = path.resolve(__dirname, "../../features/auth/hooks/useAuth.ts");
+    const content = fs.readFileSync(useAuthPath, "utf-8");
+    expect(content).toContain('hash.includes("access_token=")');
+    expect(content).toContain("processGoogleOAuthToken");
+    expect(content).toContain("window.history.replaceState");
+  });
+});
+
+describe("Real-Time Cross-Device Google Drive Sync Architecture", () => {
+  it("verifies localDb.ts uploads state as clean cross-device JSON and supports legacy envelopes", () => {
+    const localDbPath = path.resolve(__dirname, "../services/localDb.ts");
+    const content = fs.readFileSync(localDbPath, "utf-8");
+    expect(content).toContain("JSON.stringify(statePayload, null, 2)");
+    expect(content).toContain("parsedEnvelope.encrypted");
+    expect(content).toContain("parsedEnvelope.habits !== undefined");
+  });
+
+  it("verifies localDb.ts registers 10s fast polling, window focus, and visibilitychange sync triggers", () => {
+    const localDbPath = path.resolve(__dirname, "../services/localDb.ts");
+    const content = fs.readFileSync(localDbPath, "utf-8");
+    expect(content).toContain("10_000");
+    expect(content).toContain('addEventListener("focus"');
+    expect(content).toContain('addEventListener("visibilitychange"');
+  });
+
+  it("verifies googleDriveService.ts restores Web sessions with empty refresh tokens and exports flushAndPullAll", () => {
+    const gdrivePath = path.resolve(__dirname, "../services/googleDriveService.ts");
+    const content = fs.readFileSync(gdrivePath, "utf-8");
+    expect(content).toContain("if (accessToken && expiresAtStr)");
+    expect(content).toContain("export async function flushAndPullAll");
+    expect(content).toContain("await pullNotesFromDrive(accessToken)");
+  });
+
+  it("verifies DailyNote.tsx updates note content when w:note-synced event is captured", () => {
+    const dailyNotePath = path.resolve(__dirname, "../../features/habits/components/DailyNote/DailyNote.tsx");
+    const content = fs.readFileSync(dailyNotePath, "utf-8");
+    expect(content).toContain("getLocalNoteRecord(today)");
+    expect(content).toContain("record.notes !== latestNoteRef.current");
+  });
+
+  it("verifies Layout.tsx implements 15s heartbeat and eager focus/visibility sync", () => {
+    const layoutPath = path.resolve(__dirname, "../../app/Layout.tsx");
+    const content = fs.readFileSync(layoutPath, "utf-8");
+    expect(content).toContain("15000");
+    expect(content).toContain('addEventListener("focus", triggerImmediateSync)');
+    expect(content).toContain('document.addEventListener("visibilitychange", handleVisibilityChange)');
+  });
+});
+
+

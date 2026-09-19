@@ -135,3 +135,16 @@ export function isMultiDayMetric(habit: { type: string; period: string }): boole
   return (habit.type === "metric" || habit.type === "limiter") && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
 }
 
+export function getTotalInRange(
+  logs: { date: string; habits?: Record<string, { value?: number } | any> }[],
+  habitId: string,
+  startDate: string
+): number {
+  let total = 0;
+  for (const log of logs) {
+    if (log.date < startDate) continue;
+    total += log.habits?.[habitId]?.value ?? 0;
+  }
+  return total;
+}
+

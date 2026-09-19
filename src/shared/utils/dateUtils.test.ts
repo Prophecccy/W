@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { getToday, formatDate, subtractDays, isBeforeResetTime } from "./dateUtils";
+import { getToday, formatDate, subtractDays, isBeforeResetTime, getTotalInRange } from "./dateUtils";
 
 // Mock localStorage for Node test environment
 if (typeof localStorage === "undefined") {
@@ -120,5 +120,30 @@ describe("getToday", () => {
     expect(getToday(testDate, "05:00")).toBe("2026-05-18");
     // Since 05:30 is BEFORE 06:00 override, it should return yesterday
     expect(getToday(testDate, "06:00")).toBe("2026-05-17");
+  });
+});
+
+describe("getTotalInRange", () => {
+  it("sums habit values in range strictly >= startDate", () => {
+    const logs = [
+      { date: "2026-09-08", habits: { "h1": { value: 1 } } }, // Tuesday
+      { date: "2026-09-10", habits: { "h1": { value: 1 } } }, // Thursday
+      { date: "2026-09-11", habits: { "h1": { value: 1 } } }, // Friday
+      { date: "2026-09-01", habits: { "h1": { value: 5 } } }, // Prior week (before start)
+    ];
+
+    const weekStart = "2026-09-07";
+    expect(getTotalInRange(logs, "h1", weekStart)).toBe(3);
+  });
+
+  it("handles missing habits or undefined values safely", () => {
+    const logs = [
+      { date: "2026-09-08", habits: {} },
+      { date: "2026-09-10" },
+      { date: "2026-09-11", habits: { "h2": { value: 2 } } },
+    ];
+
+    expect(getTotalInRange(logs, "h1", "2026-09-07")).toBe(0);
+    expect(getTotalInRange(logs, "h2", "2026-09-07")).toBe(2);
   });
 });

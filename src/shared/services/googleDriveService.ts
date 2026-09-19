@@ -54,10 +54,10 @@ async function ensureSessionInitialized(): Promise<void> {
       const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
       const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
       const expiresAtStr = localStorage.getItem(EXPIRES_AT_KEY);
-      if (accessToken && refreshToken && expiresAtStr) {
+      if (accessToken && expiresAtStr) {
         cachedSession = {
           accessToken,
-          refreshToken,
+          refreshToken: refreshToken || "",
           expiresAt: parseInt(expiresAtStr, 10),
         };
         console.info("[GDrive Service] OAuth session loaded from localStorage fallback.");
@@ -597,7 +597,10 @@ export async function uploadStateToDrive(accessToken: string, content: string): 
  * Downloads consolidated W_state.json from Google Drive.
  * Returns file content string or null if not found.
  */
-export async function downloadStateFromDrive(accessToken: string): Promise<{ content: string; modifiedTime: string } | null> {
+export async function downloadStateFromDrive(
+  accessToken: string,
+  ifModifiedSince?: string
+): Promise<{ content: string; modifiedTime: string; notModified?: boolean } | null> {
   const fileName = "W_state.json";
   try {
     const rootFolderId = await resolveAndConsolidateRootFolder(accessToken);
@@ -606,8 +609,24 @@ export async function downloadStateFromDrive(accessToken: string): Promise<{ con
       console.info("[GDrive Service] W_state.json not found on Drive.");
       return null;
     }
-    
-    // Download file content
+
+    // 1. Get file metadata first to compare modifiedTime
+    const metaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`;
+    const metaRes = await fetchWithRetry(metaUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    let modifiedTime = "";
+    if (metaRes.ok) {
+      const meta = await metaRes.json();
+      modifiedTime = meta.modifiedTime || "";
+    }
+
+    const checkTimestamp = ifModifiedSince || (typeof localStorage !== "undefined" ? localStorage.getItem("w_gdrive_state_modified_time") : null);
+    if (checkTimestamp && modifiedTime && checkTimestamp === modifiedTime) {
+      return { content: "", modifiedTime, notModified: true };
+    }
+
+    // 2. Download file media content only if modified
     const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
     const res = await fetchWithRetry(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -616,18 +635,7 @@ export async function downloadStateFromDrive(accessToken: string): Promise<{ con
       throw new Error(`Failed to download W_state.json: ${res.statusText}`);
     }
     const content = await res.text();
-    
-    // Get file metadata to get modifiedTime
-    const metaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`;
-    const metaRes = await fetchWithRetry(metaUrl, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    let modifiedTime = "";
-    if (metaRes.ok) {
-      const meta = await metaRes.json();
-      modifiedTime = meta.modifiedTime;
-    }
-    
+
     return { content, modifiedTime };
   } catch (err) {
     console.error("[GDrive Service] W_state.json download failed:", err);
@@ -845,7 +853,12 @@ export async function runBackgroundSync(): Promise<void> {
 
     const pendingNotes = await getPendingSyncNotes();
     if (pendingNotes.length === 0) {
-      console.info("[GDrive Service] No pending sync items found.");
+      console.info("[GDrive Service] No pending sync items found. Pulling down remote notes...");
+      try {
+        await pullNotesFromDrive(accessToken);
+      } catch (pullErr) {
+        console.warn("[GDrive Service] Error pulling remote notes:", pullErr);
+      }
       return;
     }
 
@@ -879,6 +892,13 @@ export async function runBackgroundSync(): Promise<void> {
       }
     }
 
+    // Pull down any remote notes after local flush
+    try {
+      await pullNotesFromDrive(accessToken);
+    } catch (pullErr) {
+      console.warn("[GDrive Service] Error pulling remote notes after push:", pullErr);
+    }
+
     const remainingPending = await getPendingSyncNotes();
     if (remainingPending.length > 0) {
       console.info(`[GDrive Service] ${remainingPending.length} pending notes remaining. Scheduling follow-up sync in 5 seconds.`);
@@ -896,3 +916,24 @@ export async function runBackgroundSync(): Promise<void> {
     console.info("[GDrive Service] Background sync worker completed cycle.");
   }
 }
+
+/**
+ * Triggers an immediate, comprehensive sync cycle:
+ * 1. Pushes pending local notes and pulls missing remote notes from Drive.
+ * 2. Pulls and merges consolidated W_state.json from Drive.
+ */
+export async function flushAndPullAll(): Promise<void> {
+  try {
+    await runBackgroundSync();
+  } catch (err) {
+    console.error("[GDrive Service] Background note sync failed during flush:", err);
+  }
+
+  try {
+    const { pullAndMergeFromGoogleDrive } = await import("./localDb");
+    await pullAndMergeFromGoogleDrive();
+  } catch (err) {
+    console.error("[GDrive Service] State pull/merge failed during flush:", err);
+  }
+}
+

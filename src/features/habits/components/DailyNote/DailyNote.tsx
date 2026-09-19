@@ -105,10 +105,23 @@ export function DailyNote({ initialNote, dailyResetTime, date }: DailyNoteProps)
       }
     };
 
-    const handleSynced = (e: Event) => {
+    const handleSynced = async (e: Event) => {
       const customEvent = e as CustomEvent;
-      if (customEvent.detail === today) {
+      const syncedDate = typeof customEvent.detail === "string" ? customEvent.detail : customEvent.detail?.date;
+      if (syncedDate === today) {
         setSyncStatus("synced");
+        // If user is not currently typing, reload the newly synced note from IndexedDB
+        if (!hasUnsavedChangesRef.current) {
+          try {
+            const record = await getLocalNoteRecord(today);
+            if (record && typeof record.notes === "string" && record.notes !== latestNoteRef.current) {
+              setNote(record.notes);
+              latestNoteRef.current = record.notes;
+            }
+          } catch (err) {
+            console.error("[DailyNote] Failed to refresh synced note:", err);
+          }
+        }
       }
     };
 

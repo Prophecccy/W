@@ -10,6 +10,7 @@ import { SleepTube } from '../../dashboard/components/SleepTube';
 import { ProgressCircle } from '../../../shared/components/ProgressCircle/ProgressCircle';
 import { syncActiveLockdownState } from '../../lockdown/services/lockdownService';
 import { processGap } from '../../strikes/services/gapProcessor';
+import { getTotalInRange, getPeriodStart, isMultiDayMetric } from '../../../shared/utils/dateUtils';
 import './WidgetApp.css';
 
 // Pre-import for instant drag response (no async delay on first drag)
@@ -271,16 +272,6 @@ export function WidgetApp() {
 
     const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
 
-    // Helper to calculate total value logged in a period
-    const getTotalInRange = (habitId: string, startDate: string) => {
-      let total = 0;
-      for (const log of periodLogs) {
-        if (log.date < startDate) continue;
-        total += log.habits?.[habitId]?.value ?? 0;
-      }
-      return total;
-    };
-
     // Helper to calculate height of a single habit card
     const getHabitCardHeight = (habit: any) => {
       let cardHeight = 52; // Default height
@@ -300,10 +291,10 @@ export function WidgetApp() {
       if (isMultiDayMetric(habit)) {
         const target = habit.metric?.targetValue ?? 0;
         const start = getPeriodStart(habit, today, weeklyResetDay);
-        const periodCompleted = target > 0 ? getTotalInRange(habit.id, start) >= target : false;
+        const periodCompleted = target > 0 ? getTotalInRange(periodLogs, habit.id, start) >= target : false;
         
         // If interacted today but period is not fully completed, show "✓ DONE TODAY" second line (+15px)
-        const isCompletedToday = periodCompleted;
+        const isCompletedToday = periodCompleted && interactedToday;
         const doneToday = interactedToday && !periodCompleted;
         const isCompleted = isCompletedToday || justCompleted;
         const isDoneToday = doneToday && !isCompleted;
@@ -727,52 +718,6 @@ export function WidgetApp() {
       )}
     </div>
   );
-}
-
-// ─── Precise Height Helper Functions ─────────────────────────
-function formatDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function getWeekStart(dateStr: string, weekStartDay: number): string {
-  const d = new Date(dateStr + "T12:00:00");
-  if (isNaN(d.getTime())) return dateStr;
-  let safety = 0;
-  while (d.getDay() !== weekStartDay && safety < 10) {
-    d.setDate(d.getDate() - 1);
-    safety++;
-  }
-  return formatDate(d);
-}
-
-function getMonthStart(dateStr: string): string {
-  return `${dateStr.slice(0, 7)}-01`;
-}
-
-function getIntervalStart(habit: any, todayStr: string): string {
-  if (habit.period !== "interval" || habit.intervalDays <= 0) return todayStr;
-  const created = new Date(habit.createdAt);
-  created.setHours(12, 0, 0, 0);
-  const today = new Date(todayStr + "T12:00:00");
-  const diffDays = Math.floor((today.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays <= 0) return formatDate(created);
-  const segmentStart = diffDays - (diffDays % habit.intervalDays);
-  created.setDate(created.getDate() + segmentStart);
-  return formatDate(created);
-}
-
-function getPeriodStart(habit: any, todayStr: string, weekStartDay: number): string {
-  if (habit.period === "weekly") return getWeekStart(todayStr, weekStartDay);
-  if (habit.period === "monthly") return getMonthStart(todayStr);
-  if (habit.period === "interval") return getIntervalStart(habit, todayStr);
-  return todayStr;
-}
-
-function isMultiDayMetric(habit: any): boolean {
-  return (habit.type === "metric" || habit.type === "limiter") && (habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval");
 }
 
 function parseColorToRgb(color: string): string | null {

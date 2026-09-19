@@ -9,16 +9,16 @@ import { ScheduleSection } from "./ScheduleSection";
 import { SleepTubeSection } from "./SleepTubeSection";
 import { NotificationsSection } from "./NotificationsSection";
 import { DataSection } from "./DataSection";
-import { ManualFreezeToggle } from "../../freeze/components/ManualFreezeToggle";
+import { DisciplineSection } from "./DisciplineSection";
 import { UndoHistory } from "./UndoHistory/UndoHistory";
 import { WallpaperPicker } from "../../wallpaper/components/WallpaperPicker/WallpaperPicker";
-import { Save, RotateCcw, User, Palette, Monitor, Clock, Bell, HardDrive, LogOut } from "lucide-react";
+import { Save, RotateCcw, User, Palette, Monitor, Clock, Bell, HardDrive, LogOut, AlertTriangle } from "lucide-react";
 
 import { useAuthContext } from "../../auth/context";
 
 import "./SettingsPage.css";
 
-type TabId = "account" | "appearance" | "desktop" | "sleep-tube" | "schedule" | "notifications" | "data";
+type TabId = "account" | "appearance" | "desktop" | "sleep-tube" | "schedule" | "discipline" | "notifications" | "data";
 
 interface TabConfig {
   id: TabId;
@@ -33,6 +33,7 @@ const TABS: TabConfig[] = [
   { id: "desktop", label: "DESKTOP", shortLabel: "DESK", icon: Monitor },
   { id: "sleep-tube", label: "SLEEP TUBE", shortLabel: "TUBE", icon: Clock },
   { id: "schedule", label: "SCHEDULE & TIME", shortLabel: "TIME", icon: Clock },
+  { id: "discipline", label: "DISCIPLINE", shortLabel: "STRIKES", icon: AlertTriangle },
   { id: "notifications", label: "NOTIFICATIONS", shortLabel: "NOTIF", icon: Bell },
   { id: "data", label: "DATA & SYSTEM", shortLabel: "DATA", icon: HardDrive }
 ];
@@ -75,7 +76,7 @@ export function SettingsPage() {
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const tabParam = searchParams.get("tab") as TabId;
-    if (tabParam && ["account", "appearance", "desktop", "sleep-tube", "schedule", "notifications", "data"].includes(tabParam)) {
+    if (tabParam && ["account", "appearance", "desktop", "sleep-tube", "schedule", "discipline", "notifications", "data"].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [location.search]);
@@ -286,6 +287,8 @@ export function SettingsPage() {
         return <SleepTubeSection settings={draftSettings} onUpdate={handleUpdateDraft} />;
       case "schedule":
         return <ScheduleSection settings={draftSettings} onUpdate={handleUpdateDraft} />;
+      case "discipline":
+        return <DisciplineSection settings={draftSettings} onUpdate={handleUpdateDraft} />;
       case "notifications":
         return <NotificationsSection settings={draftSettings} onUpdate={handleUpdateDraft} />;
       case "data":
@@ -293,12 +296,6 @@ export function SettingsPage() {
           <>
             <DataSection />
             <div className="settings-column">
-              <div className="settings-section" id="settings-freeze">
-                <h2 className="settings-section__header t-label">[ FREEZE ]</h2>
-                <div className="settings-section__content">
-                  <ManualFreezeToggle />
-                </div>
-              </div>
               <UndoHistory />
             </div>
           </>

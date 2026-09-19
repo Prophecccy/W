@@ -1,6 +1,6 @@
 import { get as idbGet, set as idbSet } from "idb-keyval";
 import { emit, listen } from "@tauri-apps/api/event";
-import { encryptNote, decryptNote } from "../utils/noteCrypto";
+import { decryptNote } from "../utils/noteCrypto";
 import { 
   getValidAccessToken, 
   uploadStateToDrive, 
@@ -866,15 +866,7 @@ export async function syncToGoogleDrive() {
       updatedAt: Date.now(),
     };
 
-    const plaintext = JSON.stringify(statePayload);
-    const encrypted = await encryptNote(plaintext);
-    if (!encrypted) {
-      console.warn("[LocalDB] Encryption failed during sync upload.");
-      isSyncing = false;
-      return;
-    }
-
-    const uploadContent = JSON.stringify({ encrypted });
+    const uploadContent = JSON.stringify(statePayload, null, 2);
     const modifiedTime = await uploadStateToDrive(accessToken, uploadContent);
 
     localStorage.setItem("w_gdrive_state_last_sync", Date.now().toString());
@@ -918,21 +910,31 @@ export async function pullAndMergeFromGoogleDrive() {
       return;
     }
 
+    let remoteState: any = null;
     const parsedEnvelope = JSON.parse(content);
-    if (!parsedEnvelope.encrypted) {
-      console.error("[LocalDB] Invalid remote state format (missing encrypted payload).");
+    if (parsedEnvelope && parsedEnvelope.encrypted) {
+      const decryptedText = await decryptNote(parsedEnvelope.encrypted);
+      if (decryptedText) {
+        try {
+          remoteState = JSON.parse(decryptedText);
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    if (!remoteState && parsedEnvelope && typeof parsedEnvelope === "object") {
+      remoteState = (parsedEnvelope.habits !== undefined || parsedEnvelope.todos !== undefined || parsedEnvelope.user !== undefined)
+        ? parsedEnvelope
+        : (parsedEnvelope.state || null);
+    }
+
+    if (!remoteState) {
+      console.warn("[LocalDB] Unrecognized remote state format or decryption failed.");
       isSyncing = false;
       return;
     }
 
-    const decryptedText = await decryptNote(parsedEnvelope.encrypted);
-    if (!decryptedText) {
-      console.error("[LocalDB] Decryption failed during sync pull.");
-      isSyncing = false;
-      return;
-    }
-
-    const remoteState = JSON.parse(decryptedText);
     const uid = user.uid;
 
     const localUserDoc = await idbGet(`w_doc_users/${uid}`);
@@ -1011,7 +1013,21 @@ if (typeof window !== "undefined") {
     pullAndMergeFromGoogleDrive();
   });
 
+  // Fast polling heartbeat: check for remote updates every 10 seconds
   window.setInterval(() => {
     pullAndMergeFromGoogleDrive();
-  }, 120_000); // Check for remote updates every 2 minutes
+  }, 10_000);
+
+  // Eager sync on window focus (e.g. switching from desktop app to browser or vice versa)
+  window.addEventListener("focus", () => {
+    pullAndMergeFromGoogleDrive();
+  });
+
+  // Eager sync on tab visibility change
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      pullAndMergeFromGoogleDrive();
+    }
+  });
 }
+

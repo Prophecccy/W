@@ -599,21 +599,39 @@ function LayoutInner() {
           console.error("[Sync Engine] Reconnection sync execution failed:", err);
         }
       };
-      window.addEventListener("online", handleOnline);
-
-      // 4. Setup periodic 5-minute heartbeat interval (300,000 milliseconds)
-      heartbeatInterval = setInterval(async () => {
-        console.info("[Sync Engine] Running periodic 5-minute background sync heartbeat...");
+      const triggerImmediateSync = async () => {
         try {
           const { runBackgroundSync } = await import("../shared/services/googleDriveService");
           await runBackgroundSync();
         } catch (err) {
-          console.error("[Sync Engine] Heartbeat sync execution failed:", err);
+          console.error("[Sync Engine] Eager note sync failed:", err);
         }
-      }, 300000);
+        try {
+          const { pullAndMergeFromGoogleDrive } = await import("../shared/services/localDb");
+          await pullAndMergeFromGoogleDrive();
+        } catch (err) {
+          console.error("[Sync Engine] Eager state sync failed:", err);
+        }
+      };
+
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === "visible") {
+          triggerImmediateSync();
+        }
+      };
+
+      window.addEventListener("focus", triggerImmediateSync);
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+
+      // 4. Setup active 15-second heartbeat interval (15,000 milliseconds)
+      heartbeatInterval = setInterval(async () => {
+        triggerImmediateSync();
+      }, 15000);
 
       return () => {
         window.removeEventListener("online", handleOnline);
+        window.removeEventListener("focus", triggerImmediateSync);
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
       };
     }
 

@@ -302,7 +302,7 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
         subsections: [
           {
             title: "Where to Toggle",
-            description: "Navigate to [ SETTINGS ] → [ SCHEDULE & TIME ] → [ DISCIPLINE & ACCOUNTABILITY ] and toggle 'Strike System Discipline'."
+            description: "Navigate to [ SETTINGS ] → [ DISCIPLINE ] → [ STRIKE SYSTEM DISCIPLINE ] and toggle 'Strike System Discipline'."
           },
           {
             title: "Tactical Discipline Mode (Enabled — Default)",

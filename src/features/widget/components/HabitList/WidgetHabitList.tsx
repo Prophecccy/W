@@ -1,6 +1,6 @@
 import { Habit, HabitLog } from '../../../habits/types';
 import { WidgetHabitCard } from './WidgetHabitCard';
-import { getPeriodStart, isMultiDayMetric } from '../../../../shared/utils/dateUtils';
+import { getPeriodStart, isMultiDayMetric, getTotalInRange } from '../../../../shared/utils/dateUtils';
 
 interface WidgetHabitListProps {
   today: string;
@@ -16,15 +16,6 @@ interface WidgetHabitListProps {
 }
 
 export function WidgetHabitList({ today, scheduledHabits, scheduledLimiters, todayLog, periodLogs, weeklyResetDay, onComplete, onUndo, isFrozen = false, isLocked = false }: WidgetHabitListProps) {
-  const getTotalInRange = (habitId: string, startDate: string) => {
-    let total = 0;
-    for (const log of periodLogs) {
-      if (log.date < startDate) continue;
-      total += log.habits?.[habitId]?.value ?? 0;
-    }
-    return total;
-  };
-
   const getTarget = (habit: Habit) => {
     return habit.metric?.targetValue ?? 0;
   };
@@ -36,9 +27,10 @@ export function WidgetHabitList({ today, scheduledHabits, scheduledLimiters, tod
     if (isMultiDayMetric(habit)) {
       const target = getTarget(habit);
       const start = getPeriodStart(habit, today, weeklyResetDay);
-      const periodCompleted = target > 0 ? getTotalInRange(habit.id, start) >= target : false;
-      const sortBucket = periodCompleted ? 2 : interactedToday ? 1 : 0;
-      return { sortBucket, isCompletedToday: periodCompleted, doneToday: interactedToday && !periodCompleted };
+      const periodCompleted = target > 0 ? getTotalInRange(periodLogs, habit.id, start) >= target : false;
+      const isCompletedToday = periodCompleted && interactedToday;
+      const sortBucket = isCompletedToday ? 2 : interactedToday ? 1 : 0;
+      return { sortBucket, isCompletedToday, doneToday: interactedToday && !periodCompleted };
     }
 
     const completedToday = entry?.completed === true;
@@ -62,7 +54,7 @@ export function WidgetHabitList({ today, scheduledHabits, scheduledLimiters, tod
         const isMulti = habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval";
         const start = getPeriodStart(habit, today, weeklyResetDay);
         const currentValue = isMulti
-          ? getTotalInRange(habit.id, start)
+          ? getTotalInRange(periodLogs, habit.id, start)
           : (todayLog?.habits?.[habit.id]?.value || 0);
         const completions = todayLog?.habits?.[habit.id]?.completions || [];
         return (
@@ -106,7 +98,7 @@ export function WidgetHabitList({ today, scheduledHabits, scheduledLimiters, tod
               const isMulti = habit.period === "weekly" || habit.period === "monthly" || habit.period === "interval";
               const start = getPeriodStart(habit, today, weeklyResetDay);
               const currentValue = isMulti
-                ? getTotalInRange(habit.id, start)
+                ? getTotalInRange(periodLogs, habit.id, start)
                 : (todayLog?.habits?.[habit.id]?.value || 0);
               const completions = todayLog?.habits?.[habit.id]?.completions || [];
               

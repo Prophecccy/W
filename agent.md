@@ -75,6 +75,15 @@ graph TD
   - **Google Drive Integration Lockout**: The `isDriveLinked` reactive status in `AuthContext` governs feature lockdowns. If `isDriveLinked` is false, access to the `Daily Note` input editor and the historical `Logbook Archive` timeline page is strictly blocked and replaced by a pulsing, high-fidelity `<GDriveLockout>` interceptor card/page, urging the user to securely activate cloud sync inside settings to prevent local data loss.
   - **Event-Driven OAuth Reactivity**: Synchronize the `isDriveLinked` state between the non-react background Google Drive token caching service (`googleDriveService.ts`) and the React hook (`useAuth.ts`) via standard window events `w:gdrive-linked` and `w:gdrive-unlinked`. The hook reactively captures these events to toggle `isDriveLinked` in sub-milliseconds and updates the persistent `driveLinked` state in `localStorage` synchronously.
   - **Secure Desktop OAuth Flow (PKCE)**: Desktop integrations must strictly avoid embedding client secrets. The Tauri client implements Proof Key for Code Exchange (PKCE) flow compliant with RFC 7636. Prior to system browser redirection, a cryptographically secure high-entropy random verifier string (`[A-Za-z0-9\-._~]`) is generated alongside its SHA-256 hashed and Base64url-encoded code challenge (`code_challenge_method=S256`). This code challenge is sent to Google, and the unhashed code verifier is securely presented during the POST token exchange request to fetch the access/refresh credentials without exposing any secrets.
+  - **Tri-Channel Web OAuth & Early Interceptor Architecture (`src/main.tsx`, `authService.ts`)**: To prevent OAuth redirect race conditions (where React Router mounts inside a popup and wipes the URL `#access_token` before the parent window reads it):
+    1. **Early Popup Interceptor (`src/main.tsx`)**: Before React mounts, the application inspects `window.location.hash` and `search` for OAuth credentials (`access_token` / `error`). If present in a popup (`window.opener` or `window.name === "google-login"`), it immediately relays credentials via `postMessage` (Channel 1) and writes a timestamped payload to `localStorage.setItem("w_oauth_response", ...)` (Channel 2), displays a minimal Endfield closing banner, triggers `window.close()`, and halts application mounting so React Router never wipes the hash or renders `/login` in the popup.
+    2. **Tri-Channel Receiver (`authService.ts`)**: `signInWithGoogleWeb()` coordinates credential capture using 3 redundant channels: Channel 1 (`message` event listener for sub-millisecond postMessage capture), Channel 2 (`storage` event listener across windows/tabs sharing origin), and Channel 3 (polling interval checking `localStorage` and watching `popup.closed`).
+    3. **Route & Direct Callback Protection (`AuthGuard.tsx`, `useAuth.ts`)**: `<AuthGuard>` inspects `window.location.hash` and holds on navigating to `/login` if `access_token=` is detected. For single-tab or popup-blocked mobile browsers, `useAuth.ts` directly parses the token on startup, invokes `processGoogleOAuthToken()`, and purges credentials from browser history using `window.history.replaceState()`.
+  - **Real-Time Cross-Device Google Drive Sync Engine (`src/shared/services/localDb.ts`, `googleDriveService.ts`)**:
+    - **Cross-Device Plain State Format**: `W_state.json` is persisted directly as standard formatted JSON in Google Drive (with backward-compatible support for legacy AES-GCM envelopes). This eliminates device-locked encryption barriers where random keys generated on desktop could not be decrypted on web.
+    - **Web OAuth Session Persistence**: Web client sessions persist access tokens across reloads without requiring non-existent refresh tokens, allowing continuous sync on web browsers.
+    - **Multi-Trigger Eager Synchronization**: Sync is driven by: (1) an active 10s state polling heartbeat and 15s note heartbeat, (2) immediate synchronization on `window.addEventListener("focus")` and `document.addEventListener("visibilitychange")` when switching between desktop and web tabs, (3) instant 1s debounced push on local mutations (`setDoc`, `updateDoc`, `deleteDoc`), and (4) continuous background sync-down of remote Daily Notes (`pullNotesFromDrive()`).
+    - **Reactive Note UI Refresh (`DailyNote.tsx`)**: When `w:note-synced` fires, active notes are automatically re-read from IndexedDB into editor state if the user is not actively typing, ensuring multi-device notes reflect immediately without manual page reload.
   - **Interval Habit Scheduling & Heatmap Analytics**: Interval habits (due once every $N$ days) enter cooldown strictly between `lastCompletedDate` and `lastCompletedDate + intervalDays`. Historical dates prior to `lastCompletedDate` are never retroactively blacked out by future cooldowns. In single-habit and global heatmaps, any completed interval habit entry renders unconditionally as an active level-4 cell (never marked as a faded ghost cell). Interval completion rates and monthly efficiency are calculated using cycle intervals ($\max(1, \text{round}(\text{elapsedDays} / \text{intervalDays}))$).
 
 
@@ -516,7 +525,46 @@ Permanently solved the issue of daily notes disappearing after Tauri desktop app
    - In `src/app/Layout.tsx`, invoked `navigator.storage?.persist()` during app initialization to request Chromium persistent storage status, preventing automatic browser eviction.
    - Added startup reconciliation in `initializeSync()` to re-hydrate disk notes immediately on boot.
 5. **Pre-Update Safety Flush**:
-   - In `src/features/updater/hooks/useUpdateManager.ts`, exported `flushAllNotesToDisk()` from `localLogService.ts` and wired it into `startUpdate()` and `reboot()` alongside `runBackgroundSync()`, ensuring all notes are saved to disk and pushed to Google Drive before the app closes for reboot.
+   - In `src/features/updater/hooks/useUpdateManager.ts`, exported `flushAllNotesToDisk()` from `localLogService.ts` and wired it into `startUpdate()` and `reboot()` alongside `runBackgroundSync()`, ensuring all notes are saved to disk and pushed to Google Drive before the app closes for reboot.---
 
+## Batch 45 — Multi-Day Metric Habit Scheduling & Completion Alignment in Desktop Widget
 
+Resolved the issue where multi-day metric habits (e.g. "Gym" 3 times a week) completed on a prior day (e.g. Friday) continued to appear on subsequent days (e.g. Saturday) in the desktop widget with a false green checkmark:
 
+1. **Centralized Period Range Aggregation**:
+   - In `src/shared/utils/dateUtils.ts`, exported `getTotalInRange(logs, habitId, startDate)` for standardized period-level value aggregation across all features.
+2. **Prior-Day Period-Completed Habit Omission in Widget**:
+   - In `src/features/widget/hooks/useWidgetData.ts`, updated `scheduledHabits` filter to check `isMultiDayMetric(h)`. If a multi-day habit has reached its period target (`total >= target`) and the user has not logged an interaction today (`!interactedToday`), it is excluded from `scheduledHabits`.
+   - Updated `completedCount` to only count habits completed/interacted today, aligning with `totalScheduled`.
+3. **Accurate "Completed Today" Status**:
+   - In `src/features/widget/components/HabitList/WidgetHabitList.tsx`, updated `getStatus` so that for multi-day metric habits, `isCompletedToday = periodCompleted && interactedToday`. Habits finished on previous days are not flagged as completed today.
+   - Wired `getTotalInRange` from `dateUtils.ts` into both scheduled habits and limiters.
+4. **Window Auto-Sizing & Layout Synchronization**:
+   - In `src/features/widget/components/WidgetApp.tsx`, updated `getHabitCardHeight` to use `isCompletedToday = periodCompleted && interactedToday` and imported `getTotalInRange` from `dateUtils.ts`, removing duplicate local implementations.
+   - The desktop widget window auto-scales its logical height down cleanly on subsequent days when finished multi-day habits are excluded.
+5. **Comprehensive Verification**:
+   - Added unit test suite in `src/features/widget/hooks/useWidgetDataLogic.test.ts` verifying the Tuesday/Thursday/Friday gym sequence, Saturday omission, and Monday period reset.
+   - Added unit tests in `src/shared/utils/dateUtils.test.ts` for `getTotalInRange`.
+   - Verified that all 10 test suites (102 tests) pass and production build (`npm run build`) compiles cleanly with zero errors.
+
+---
+
+## Batch 46 — Dedicated Discipline & Accountability Settings Section
+
+Relocated the Strike System toggle out of the Schedule & Time section and established a dedicated `DISCIPLINE` section in Settings:
+
+1. **Dedicated Discipline Section Component**:
+   - Created `src/features/settings/components/DisciplineSection.tsx` containing:
+     - `[ STRIKE SYSTEM DISCIPLINE ]`: Master enable/disable toggle for strikes, lockouts, and strike counters with active/zen descriptions.
+     - `[ FREEZE PROTOCOL ]`: The emergency freeze toggle (`ManualFreezeToggle`), grouped into its logical home with strikes.
+2. **Schedule Section Refinement**:
+   - In `src/features/settings/components/ScheduleSection.tsx`, removed the strike toggle and `AlertTriangle` icon, keeping the tab 100% focused on temporal calibration (Daily Reset Time, Weekly Reset Day, and Timezone).
+3. **Settings Navigation & Routing Integration**:
+   - In `src/features/settings/components/SettingsPage.tsx`, added `"discipline"` to `TabId` and `TABS` with the `AlertTriangle` icon (shortLabel: `"STRIKES"`).
+   - Added `"discipline"` to URL query parameter routing (`?tab=discipline`).
+   - Removed `ManualFreezeToggle` from the `data` tab to avoid duplication.
+4. **Field Manual Documentation Sync**:
+   - In `src/features/manual/data/manualContent.ts`, updated navigation paths under "Discipline Modes: Enabling & Disabling Strikes" to reflect `[ SETTINGS ] → [ DISCIPLINE ] → [ STRIKE SYSTEM DISCIPLINE ]`.
+5. **Verification**:
+   - All 10 test suites (102 tests) pass with zero errors.
+   - Production build (`npm run build`) passes cleanly.

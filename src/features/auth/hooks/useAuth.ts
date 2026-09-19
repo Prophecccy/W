@@ -50,6 +50,39 @@ export function useAuth() {
     };
   }, []);
 
+  // Direct same-window OAuth callback handler (e.g. mobile browsers or popup-blocked navigation)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash || "";
+    if (!hash || !hash.includes("access_token=")) return;
+
+    // OAuth popups are intercepted and closed immediately by main.tsx
+    if (window.opener || window.name === "google-login") return;
+
+    const handleDirectCallback = async () => {
+      try {
+        const hashParams = new URLSearchParams(hash.startsWith("#") ? hash.substring(1) : hash);
+        const accessToken = hashParams.get("access_token");
+        const expiresIn = hashParams.get("expires_in");
+        if (accessToken) {
+          setSigningIn(true);
+          const { processGoogleOAuthToken } = await import("../services/authService");
+          await processGoogleOAuthToken(accessToken, expiresIn ? parseInt(expiresIn, 10) : undefined);
+          setIsDriveLinked(true);
+          // Scrub access token from URL history cleanly without reloading
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        }
+      } catch (err) {
+        console.error("[W Auth Hook] Direct OAuth hash handling failed:", err);
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setSigningIn(false);
+      }
+    };
+
+    handleDirectCallback();
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged((firebaseUser: any) => {
       setUser(firebaseUser);

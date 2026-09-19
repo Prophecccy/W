@@ -3,7 +3,7 @@ import { db, collection, query, where, onSnapshot, doc, orderBy } from '../../..
 import { useAuthContext } from '../../auth/context';
 import { Habit, HabitLog } from '../../habits/types';
 import { User } from '../../../shared/types';
-import { getToday, getWeekStart, getPeriodStart, isMultiDayMetric } from '../../../shared/utils/dateUtils';
+import { getToday, getWeekStart, getPeriodStart, isMultiDayMetric, getTotalInRange } from '../../../shared/utils/dateUtils';
 import { completeHabit as completeHabitLog, uncompleteHabit as uncompleteHabitLog } from '../../habits/services/logService';
 import { isHabitScheduledToday, isHabitResting } from '../../habits/utils/scheduleEngine';
 import { isTauri } from '../../../shared/utils/tauri';
@@ -160,9 +160,26 @@ export function useWidgetData(): WidgetData {
   
   const scheduledHabits = habits.filter(h => {
     const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
-    return isHabitScheduledToday(h, today, weeklyResetDay) && 
-      !isHabitResting(h, userDoc?.settings?.dailyResetTime) &&
-      h.type !== 'limiter';
+    if (!isHabitScheduledToday(h, today, weeklyResetDay)) return false;
+    if (isHabitResting(h, userDoc?.settings?.dailyResetTime)) return false;
+    if (h.type === 'limiter') return false;
+
+    // For multi-day metric habits (weekly, monthly, interval with metric target):
+    // If period target was already reached on a prior day and no interaction occurred today,
+    // omit from today's scheduled protocols.
+    if (isMultiDayMetric(h) && h.metric) {
+      const target = h.metric.targetValue;
+      const start = getPeriodStart(h, today, weeklyResetDay);
+      const total = getTotalInRange(periodLogs, h.id, start);
+      const periodCompleted = target > 0 && total >= target;
+      const entry = todayLog?.habits?.[h.id];
+      const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
+      if (periodCompleted && !interactedToday) {
+        return false;
+      }
+    }
+
+    return true;
   });
 
   const scheduledLimiters = habits.filter(h => {
