@@ -108,7 +108,7 @@ export function DailyNote({ initialNote, dailyResetTime, date }: DailyNoteProps)
     const handleSynced = async (e: Event) => {
       const customEvent = e as CustomEvent;
       const syncedDate = typeof customEvent.detail === "string" ? customEvent.detail : customEvent.detail?.date;
-      if (syncedDate === today) {
+      if (!syncedDate || syncedDate === today) {
         setSyncStatus("synced");
         // If user is not currently typing, reload the newly synced note from IndexedDB
         if (!hasUnsavedChangesRef.current) {

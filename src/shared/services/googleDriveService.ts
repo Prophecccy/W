@@ -871,8 +871,8 @@ export async function runBackgroundSync(): Promise<void> {
     for (const note of pendingNotes) {
       if (note.date === today) {
         const lastEditAge = Date.now() - (note.updatedAt || 0);
-        // If edited within the last 15 seconds, defer to avoid constant API spamming during typing
-        if (lastEditAge < 15000) {
+        // If edited within the last 2 seconds, defer briefly to avoid spamming during active typing
+        if (lastEditAge < 2000) {
           console.info(`[GDrive Service] Deferring sync of today's note (${note.date}) - active editing detected.`);
           continue;
         }
