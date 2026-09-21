@@ -163,6 +163,32 @@ export async function processGoogleOAuthToken(
   return mockUser;
 }
 
+function generateCodeVerifier(): string {
+  const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+  const array = new Uint8Array(96);
+  crypto.getRandomValues(array);
+  let verifier = "";
+  for (let i = 0; i < array.length; i++) {
+    verifier += charset[array[i] % charset.length];
+  }
+  return verifier;
+}
+
+async function generateCodeChallenge(verifier: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  const bytes = new Uint8Array(hash);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
 async function signInWithGoogleWeb(): Promise<LocalUser> {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   if (!clientId) {
@@ -170,13 +196,19 @@ async function signInWithGoogleWeb(): Promise<LocalUser> {
   }
   const redirectUri = window.location.origin;
   const state = crypto.randomUUID();
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = await generateCodeChallenge(codeVerifier);
+
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.searchParams.set("client_id", clientId);
   authUrl.searchParams.set("redirect_uri", redirectUri);
-  authUrl.searchParams.set("response_type", "token");
+  authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("scope", "openid email profile https://www.googleapis.com/auth/drive.file");
   authUrl.searchParams.set("state", state);
+  authUrl.searchParams.set("access_type", "offline");
   authUrl.searchParams.set("prompt", "consent select_account");
+  authUrl.searchParams.set("code_challenge", codeChallenge);
+  authUrl.searchParams.set("code_challenge_method", "S256");
 
   // Clean any stale oauth responses before opening popup
   try {
@@ -221,17 +253,65 @@ async function signInWithGoogleWeb(): Promise<LocalUser> {
         return;
       }
 
-      if (!data.accessToken) {
-        reject(new Error("No access token received from Google."));
+      // If we received an authorization code, exchange it for tokens (including refresh_token)
+      if (data.code) {
+        try {
+          const tokenParams: Record<string, string> = {
+            client_id: clientId,
+            redirect_uri: redirectUri,
+            code: data.code,
+            code_verifier: codeVerifier,
+            grant_type: "authorization_code",
+          };
+
+          const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET;
+          if (clientSecret) {
+            tokenParams.client_secret = clientSecret;
+          }
+
+          const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams(tokenParams),
+          });
+
+          if (!tokenRes.ok) {
+            const errorText = await tokenRes.text();
+            throw new Error(`Token exchange failed (HTTP ${tokenRes.status}): ${errorText || "Unknown error"}`);
+          }
+
+          const tokenData = await tokenRes.json();
+          const accessToken = tokenData.access_token;
+          const refreshToken = tokenData.refresh_token;
+          const idToken = tokenData.id_token;
+          const expiresIn = tokenData.expires_in || 3600;
+
+          if (!accessToken) {
+            throw new Error("Missing access_token in token exchange response.");
+          }
+
+          const user = await processGoogleOAuthToken(accessToken, expiresIn, refreshToken || "", idToken);
+          resolve(user);
+          return;
+        } catch (exchangeErr) {
+          reject(exchangeErr instanceof Error ? exchangeErr : new Error(String(exchangeErr)));
+          return;
+        }
+      }
+
+      if (data.accessToken) {
+        try {
+          const user = await processGoogleOAuthToken(data.accessToken, data.expiresIn);
+          resolve(user);
+        } catch (err) {
+          reject(err instanceof Error ? err : new Error(String(err)));
+        }
         return;
       }
 
-      try {
-        const user = await processGoogleOAuthToken(data.accessToken, data.expiresIn);
-        resolve(user);
-      } catch (err) {
-        reject(err instanceof Error ? err : new Error(String(err)));
-      }
+      reject(new Error("No authorization code or access token received from Google."));
     };
 
     // Channel 1: postMessage listener (instant in same-origin popup)
@@ -284,13 +364,15 @@ async function signInWithGoogleWeb(): Promise<LocalUser> {
           const hashParams = new URLSearchParams(hash.startsWith("#") ? hash.substring(1) : hash);
           const searchParams = new URLSearchParams(search);
 
+          const code = searchParams.get("code") || hashParams.get("code");
           const accessToken = hashParams.get("access_token") || searchParams.get("access_token");
           const error = hashParams.get("error") || searchParams.get("error");
           const errorDesc = hashParams.get("error_description") || searchParams.get("error_description");
           const expiresIn = hashParams.get("expires_in") || searchParams.get("expires_in");
 
-          if (accessToken || error) {
+          if (code || accessToken || error) {
             handlePayload({
+              code,
               accessToken,
               expiresIn: expiresIn ? parseInt(expiresIn, 10) : 3600,
               error,
@@ -414,32 +496,6 @@ async function signInWithGoogleDesktop(): Promise<LocalUser> {
   }
 
   return processGoogleOAuthToken(accessToken, expiresIn, refreshToken || "", idToken);
-}
-
-function generateCodeVerifier(): string {
-  const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
-  const array = new Uint8Array(96);
-  crypto.getRandomValues(array);
-  let verifier = "";
-  for (let i = 0; i < array.length; i++) {
-    verifier += charset[array[i] % charset.length];
-  }
-  return verifier;
-}
-
-async function generateCodeChallenge(verifier: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(verifier);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  const bytes = new Uint8Array(hash);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
 }
 
 function extractCode(url: string, expectedState: string): string | null {

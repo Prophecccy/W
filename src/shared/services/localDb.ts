@@ -879,35 +879,44 @@ export async function syncToGoogleDrive() {
   }
 }
 
-export async function pullAndMergeFromGoogleDrive() {
-  if (isSyncing) return;
+export async function pullAndMergeFromGoogleDrive(force = false): Promise<boolean> {
+  if (isSyncing) return false;
   const user = auth.currentUser;
-  if (!user) return;
+  if (!user) return false;
 
   const isLinked = localStorage.getItem("driveLinked") === "true";
-  if (!isLinked) return;
+  if (!isLinked) return false;
 
   isSyncing = true;
   try {
     const accessToken = await getValidAccessToken();
     if (!accessToken) {
       isSyncing = false;
-      return;
+      return false;
     }
 
-    const remoteData = await downloadStateFromDrive(accessToken);
-    if (!remoteData) {
+    const uid = user.uid;
+    const localUserDoc = await idbGet(`w_doc_users/${uid}`);
+    const isLocallyLocked = localUserDoc?.strikes?.current >= 5;
+
+    // If force is true or user is currently locked out locally, bypass modifiedTime check
+    const ifModifiedSince = (force || isLocallyLocked)
+      ? undefined
+      : (localStorage.getItem("w_gdrive_state_modified_time") || undefined);
+
+    const remoteData = await downloadStateFromDrive(accessToken, ifModifiedSince);
+    if (!remoteData || remoteData.notModified) {
       isSyncing = false;
-      return;
+      return false;
     }
 
     const { content, modifiedTime } = remoteData;
     const lastRemoteModifiedTime = localStorage.getItem("w_gdrive_state_modified_time");
 
-    if (lastRemoteModifiedTime && lastRemoteModifiedTime === modifiedTime) {
+    if (!force && !isLocallyLocked && lastRemoteModifiedTime && lastRemoteModifiedTime === modifiedTime) {
       console.info("[LocalDB] Google Drive state is already in sync. Skipping pull.");
       isSyncing = false;
-      return;
+      return false;
     }
 
     let remoteState: any = null;
@@ -932,12 +941,9 @@ export async function pullAndMergeFromGoogleDrive() {
     if (!remoteState) {
       console.warn("[LocalDB] Unrecognized remote state format or decryption failed.");
       isSyncing = false;
-      return;
+      return false;
     }
 
-    const uid = user.uid;
-
-    const localUserDoc = await idbGet(`w_doc_users/${uid}`);
     const localGroups = await idbGet(`w_col_users/${uid}/groups`) || {};
     const localHabits = await idbGet(`w_col_users/${uid}/habits`) || {};
     const localLogs = await idbGet(`w_col_users/${uid}/logs`) || {};
@@ -967,8 +973,10 @@ export async function pullAndMergeFromGoogleDrive() {
 
     console.info("[LocalDB] Google Drive state pulled and merged successfully.");
     notifyDataChanged(uid);
+    return true;
   } catch (err) {
     console.error("[LocalDB] Background state pull/merge failed:", err);
+    return false;
   } finally {
     isSyncing = false;
   }
@@ -993,6 +1001,9 @@ function mergeObject(local: any, remote: any): any {
       ...merged.strikes,
       current: 0,
     };
+    if (remote.lastActiveDate) {
+      merged.lastActiveDate = remote.lastActiveDate;
+    }
   }
 
   return merged;

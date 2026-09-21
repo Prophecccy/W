@@ -215,7 +215,21 @@ export async function processGap(
     logMap.set(log.date, log);
   }
 
-  // 6. Track interval habit strike dates to enforce single-strike-per-due-date
+  // 6. Track existing strikes to prevent duplicate penalties
+  const existingStrikeKeys = new Set<string>(); // "habitId:date"
+  if (u) {
+    try {
+      const userD = await getUserDoc(u.uid);
+      const history = userD?.strikes?.history || [];
+      for (const h of history) {
+        if (h.habitId && h.date) {
+          existingStrikeKeys.add(`${h.habitId}:${h.date}`);
+        }
+      }
+    } catch {}
+  }
+
+  // Track interval habit strike dates to enforce single-strike-per-due-date
   const intervalStrikeTracker = new Set<string>(); // "habitId:date"
 
   // 6.5 Fetch active and recently completed todos once before the day-by-day loop
@@ -449,11 +463,18 @@ export async function processGap(
         }
       }
 
+      // Strike deduplication guard: never accrue duplicate strikes for the same habit on the same day
+      const strikeKey = `${habit.id}:${dateStr}`;
+      if (existingStrikeKeys.has(strikeKey)) {
+        logDebug(`Strike already recorded for ${habit.title} on ${dateStr}, skipping duplicate.`);
+        continue;
+      }
+      existingStrikeKeys.add(strikeKey);
+
       // Interval strike guard: one strike per due date per habit
       if (habit.period === "interval") {
-        const key = `${habit.id}:${dateStr}`;
-        if (intervalStrikeTracker.has(key)) continue;
-        intervalStrikeTracker.add(key);
+        if (intervalStrikeTracker.has(strikeKey)) continue;
+        intervalStrikeTracker.add(strikeKey);
       }
 
       // ── MISSED / LIMITER EXCEEDED: add a strike ──
@@ -462,7 +483,7 @@ export async function processGap(
         try {
           // BUG 7: Pass "limiter_exceeded" reason for limiter habits so they can be undone
           const strikeReason = habit.type === "limiter" ? "limiter_exceeded" : "missed";
-          await addStrike(habit.id, habit.title, strikeReason);
+          await addStrike(habit.id, habit.title, strikeReason, dateStr);
           result.strikesAdded++;
         } catch {
           // If strikes are already at max (locked out), addStrike is a no-op

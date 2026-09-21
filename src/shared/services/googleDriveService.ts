@@ -199,9 +199,10 @@ export async function getValidAccessToken(): Promise<string | null> {
   const refreshToken = session?.refreshToken;
   if (!refreshToken || !isValidTokenString(refreshToken)) {
     console.warn("[GDrive Service] Access token is expired/missing and no refresh token found.");
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("w:gdrive-session-expired"));
+    }
     // Only automatically clear the OAuth state if running on Tauri desktop app.
-    // On web, since client-side popup does not provide a refresh token, we allow 
-    // the user to remain linked so they are not blocked by the GDriveLockout page.
     if (isDriveAuthenticated() && isTauri()) {
       console.warn("[GDrive Service] Session is marked as authenticated but session file/token is missing. Clearing OAuth state.");
       await clearOAuthTokens();

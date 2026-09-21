@@ -85,7 +85,8 @@ export async function flushOfflineStrikes(): Promise<void> {
 export async function addStrike(
   habitId: string,
   habitTitle: string,
-  reason: "missed" | "manual" | "lockdown_violation" | "snoozed_high_stakes" | "limiter_exceeded" = "missed"
+  reason: "missed" | "manual" | "lockdown_violation" | "snoozed_high_stakes" | "limiter_exceeded" = "missed",
+  strikeDate?: string
 ): Promise<StrikeState> {
   const userId = uid();
   const ref = userRef(userId);
@@ -111,6 +112,7 @@ export async function addStrike(
 
       const resetTime = userData.settings?.dailyResetTime;
       const today = getToday(undefined, resetTime);
+      const dateToRecord = strikeDate || today;
 
       // Don't exceed max — they're already locked
       if (current.current >= MAX_STRIKES) return current;
@@ -119,7 +121,7 @@ export async function addStrike(
         habitId,
         habitTitle,
         reason,
-        date: today,
+        date: dateToRecord,
         timestamp: Date.now(),
       };
 
@@ -162,7 +164,7 @@ export async function addStrike(
     console.error("[strikeService] addStrike transaction failed, checking offline status:", err);
     if (!navigator.onLine || err.code === "unavailable" || err.message?.includes("offline")) {
       const today = getToday();
-      queueOfflineStrike({ habitId, habitTitle, reason, date: today });
+      queueOfflineStrike({ habitId, habitTitle, reason, date: strikeDate || today });
     }
     throw err;
   }
@@ -172,8 +174,14 @@ export async function addStrike(
 
 export async function resetStrikes(): Promise<void> {
   const userId = uid();
+  const snap = await getDoc(userRef(userId));
+  const userData = snap.exists() ? snap.data() : null;
+  const resetTime = userData?.settings?.dailyResetTime;
+  const today = getToday(undefined, resetTime);
+
   await updateDoc(userRef(userId), {
     "strikes.current": 0,
+    "lastActiveDate": today,
   });
 }
 

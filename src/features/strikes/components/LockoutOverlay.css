@@ -112,9 +112,18 @@
   box-shadow: 0 0 8px rgba(232, 115, 108, 0.4);
 }
 
-.lockout-overlay__resolve {
+.lockout-overlay__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 320px;
   margin-top: 16px;
-  padding: 14px 32px;
+}
+
+.lockout-overlay__resolve {
+  width: 100%;
+  padding: 14px 24px;
   background: transparent;
   border: 1px solid var(--strike-red);
   color: var(--strike-red);
@@ -128,6 +137,36 @@
   background: var(--strike-red);
   color: #000;
   box-shadow: 0 0 24px rgba(232, 115, 108, 0.3);
+}
+
+.lockout-overlay__sync {
+  width: 100%;
+  padding: 12px 24px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 1.5px;
+  transition: all var(--transition-fast);
+}
+
+.lockout-overlay__sync:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.lockout-overlay__sync:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.lockout-overlay__sync-status {
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 1px;
+  margin-top: -8px;
 }
 
 @keyframes lockoutFadeIn {

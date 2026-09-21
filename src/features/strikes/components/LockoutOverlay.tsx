@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { LucideIcon } from "../../../shared/components/IconPicker/LucideIcon";
 import { isTauri } from "../../../shared/utils/tauri";
 import "./LockoutOverlay.css";
@@ -7,6 +8,44 @@ interface LockoutOverlayProps {
 }
 
 export function LockoutOverlay({ onResolve }: LockoutOverlayProps) {
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+
+  const handleSyncFromDrive = async () => {
+    setSyncing(true);
+    setSyncStatus("[ CONNECTING TO GOOGLE DRIVE... ]");
+    try {
+      const { getValidAccessToken } = await import("../../../shared/services/googleDriveService");
+      let token = await getValidAccessToken();
+      if (!token) {
+        setSyncStatus("[ AUTHENTICATING... ]");
+        const { signInWithGoogle } = await import("../../auth/services/authService");
+        await signInWithGoogle();
+        token = await getValidAccessToken();
+      }
+
+      if (!token) {
+        setSyncStatus("[ SYNC FAILED: RE-AUTH REQUIRED ]");
+        return;
+      }
+
+      setSyncStatus("[ CHECKING CLOUD STATE... ]");
+      const { pullAndMergeFromGoogleDrive } = await import("../../../shared/services/localDb");
+      const pulled = await pullAndMergeFromGoogleDrive(true);
+      if (pulled) {
+        setSyncStatus("[ SYNC COMPLETE: UPDATING... ]");
+      } else {
+        setSyncStatus("[ UP TO DATE ]");
+      }
+    } catch (err: any) {
+      console.error("[LockoutOverlay] Cloud sync failed:", err);
+      setSyncStatus(`[ SYNC ERROR: ${err?.message || "CHECK CONNECTION"} ]`);
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncStatus(null), 4000);
+    }
+  };
+
   const handleDrag = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     if (e.target instanceof Element && (
@@ -84,9 +123,21 @@ export function LockoutOverlay({ onResolve }: LockoutOverlayProps) {
           ))}
         </div>
 
-        <button className="lockout-overlay__resolve t-label" onClick={onResolve}>
-          [ RESOLVE LOCKOUT ]
-        </button>
+        <div className="lockout-overlay__actions">
+          <button className="lockout-overlay__resolve t-label" onClick={onResolve}>
+            [ RESOLVE LOCKOUT ]
+          </button>
+          <button 
+            className="lockout-overlay__sync t-label" 
+            onClick={handleSyncFromDrive}
+            disabled={syncing}
+          >
+            {syncing ? (syncStatus || "[ SYNCING... ]") : "[ SYNC FROM GOOGLE DRIVE ]"}
+          </button>
+        </div>
+        {syncStatus && !syncing && (
+          <div className="lockout-overlay__sync-status t-meta">{syncStatus}</div>
+        )}
       </div>
     </div>
   );

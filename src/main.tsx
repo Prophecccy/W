@@ -18,10 +18,11 @@ function handleEarlyOAuthCallback(): boolean {
 
   const hash = window.location.hash || "";
   const search = window.location.search || "";
+  const hasCode = search.includes("code=") || hash.includes("code=");
   const hasToken = hash.includes("access_token=") || search.includes("access_token=");
   const hasError = hash.includes("error=") || search.includes("error=");
 
-  if (!hasToken && !hasError) return false;
+  if (!hasCode && !hasToken && !hasError) return false;
 
   const isPopup = Boolean(window.opener || window.name === "google-login");
   if (!isPopup) return false;
@@ -31,6 +32,7 @@ function handleEarlyOAuthCallback(): boolean {
     const params = new URLSearchParams(rawParams);
     const searchParams = new URLSearchParams(search);
 
+    const code = params.get("code") || searchParams.get("code");
     const accessToken = params.get("access_token") || searchParams.get("access_token");
     const error = params.get("error") || searchParams.get("error");
     const errorDesc = params.get("error_description") || searchParams.get("error_description");
@@ -39,6 +41,7 @@ function handleEarlyOAuthCallback(): boolean {
 
     const payload = {
       type: "w:google-oauth-callback",
+      code: code || null,
       accessToken: accessToken || null,
       expiresIn: expiresIn ? parseInt(expiresIn, 10) : 3600,
       error: error || null,
