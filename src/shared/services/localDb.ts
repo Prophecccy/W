@@ -981,10 +981,21 @@ function mergeObject(local: any, remote: any): any {
   const localTime = local.updatedAt || local.createdAt || 0;
   const remoteTime = remote.updatedAt || remote.createdAt || 0;
 
-  if (remoteTime > localTime) {
-    return { ...local, ...remote };
+  const merged = remoteTime > localTime
+    ? { ...local, ...remote }
+    : { ...remote, ...local };
+
+  // If remote shows the lockout was cleared (strikes.current === 0),
+  // prevent a stale local gap run from re-locking the account
+  if (remote.strikes && remote.strikes.current === 0 && merged.strikes && merged.strikes.current > 0) {
+    console.info("[LocalDB] Remote lockout resolution detected. Resetting current strikes to 0.");
+    merged.strikes = {
+      ...merged.strikes,
+      current: 0,
+    };
   }
-  return { ...remote, ...local };
+
+  return merged;
 }
 
 function mergeCollection(local: Record<string, any>, remote: Record<string, any>): Record<string, any> {

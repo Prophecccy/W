@@ -205,11 +205,27 @@ function LayoutInner() {
 
     async function runGapProcessor() {
       try {
-        const currentUserDoc = userDocRef.current;
+        let currentUserDoc = userDocRef.current;
         if (!currentUserDoc) {
           console.warn("[Layout] No userDoc available for gap processor");
           setPhase("ready");
           return;
+        }
+
+        // Eagerly pull and merge from Google Drive before calculating missed days
+        const isLinked = localStorage.getItem("driveLinked") === "true";
+        if (isLinked) {
+          try {
+            const { pullAndMergeFromGoogleDrive } = await import("../shared/services/localDb");
+            await pullAndMergeFromGoogleDrive();
+            await userStore.reload();
+            if (userStore.userDoc) {
+              currentUserDoc = userStore.userDoc;
+              setUserDoc(currentUserDoc);
+            }
+          } catch (syncErr) {
+            console.warn("[Layout] Pre-gap Google Drive sync failed (proceeding with local state):", syncErr);
+          }
         }
 
         const dailyResetTime = currentUserDoc.settings?.dailyResetTime;
