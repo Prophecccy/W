@@ -1,7 +1,6 @@
 import { isTauri } from "../../../shared/utils/tauri";
 import { saveOAuthTokens } from "../../../shared/services/googleDriveService";
 import { LocalUser, auth, onAuthStateChanged as localOnAuthStateChanged, signOut as localSignOut } from "../../../shared/services/localDb";
-import { set as idbSet } from "idb-keyval";
 
 const AUTH_SUCCESS_HTML = `
 <!DOCTYPE html>
@@ -130,7 +129,7 @@ export async function processGoogleOAuthToken(
   accessToken: string,
   expiresIn?: number,
   refreshToken?: string,
-  idToken?: string
+  _idToken?: string
 ): Promise<LocalUser> {
   const expiresInSeconds = expiresIn && !isNaN(expiresIn) ? expiresIn : 3600;
   await saveOAuthTokens(accessToken, refreshToken || "", expiresInSeconds);
@@ -143,7 +142,12 @@ export async function processGoogleOAuthToken(
   }
   const userInfo = await userInfoRes.json();
 
-  await migrateFirestoreToLocal(userInfo.sub, accessToken, idToken);
+  try {
+    const { pullAndMergeFromGoogleDrive } = await import("../../../shared/services/localDb");
+    await pullAndMergeFromGoogleDrive(true);
+  } catch (syncErr) {
+    console.warn("[Auth] Initial pull from Google Drive failed:", syncErr);
+  }
 
   const mockUser: LocalUser = {
     uid: userInfo.sub,
@@ -582,185 +586,13 @@ export function onAuthStateChanged(
   };
 }
 
-function parseFirestoreValue(val: any): any {
-  if (val === null || val === undefined) return null;
-  if (typeof val !== "object") return val;
-
-  if ("stringValue" in val) return val.stringValue;
-  if ("integerValue" in val) return parseInt(val.integerValue, 10);
-  if ("doubleValue" in val) return parseFloat(val.doubleValue);
-  if ("booleanValue" in val) return val.booleanValue;
-  if ("nullValue" in val) return null;
-  if ("timestampValue" in val) return new Date(val.timestampValue).getTime();
-  
-  if ("arrayValue" in val) {
-    const list = val.arrayValue.values || [];
-    return list.map((item: any) => parseFirestoreValue(item));
-  }
-  if ("mapValue" in val) {
-    const fields = val.mapValue.fields || {};
-    const obj: any = {};
-    for (const [k, v] of Object.entries(fields)) {
-      obj[k] = parseFirestoreValue(v);
-    }
-    return obj;
-  }
-  if ("fields" in val) {
-    const fields = val.fields || {};
-    const obj: any = {};
-    for (const [k, v] of Object.entries(fields)) {
-      obj[k] = parseFirestoreValue(v);
-    }
-    return obj;
-  }
-
-  const obj: any = {};
-  for (const [k, v] of Object.entries(val)) {
-    obj[k] = parseFirestoreValue(v);
-  }
-  return obj;
-}
-
-interface FirebaseTokenResponse {
-  idToken: string;
-  firebaseUid: string;
-}
-
-async function getFirebaseIdToken(googleAccessToken: string, googleIdToken?: string): Promise<FirebaseTokenResponse | null> {
-  const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
-  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
-  if (!apiKey || !projectId) return null;
-
-  try {
-    const postBody = googleIdToken 
-      ? `id_token=${googleIdToken}&providerId=google.com` 
-      : `access_token=${googleAccessToken}&providerId=google.com`;
-
-    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        requestUri: window.location.origin,
-        postBody: postBody,
-        returnSecureToken: true
-      })
-    });
-
-    if (!res.ok) {
-      console.warn("[Migration] Firebase Auth token exchange failed:", await res.text());
-      return null;
-    }
-
-    const data = await res.json();
-    if (!data.idToken || !data.localId) return null;
-
-    return {
-      idToken: data.idToken,
-      firebaseUid: data.localId
-    };
-  } catch (err) {
-    console.error("[Migration] Failed to get Firebase ID Token:", err);
-    return null;
-  }
-}
-
-async function fetchFirestoreCollection(
-  projectId: string,
-  uid: string,
-  collectionName: string,
-  idToken: string
-): Promise<Record<string, any>> {
-  try {
-    const res = await fetch(
-      `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${uid}/${collectionName}?pageSize=100`,
-      {
-        headers: { Authorization: `Bearer ${idToken}` }
-      }
-    );
-    if (!res.ok) {
-      return {};
-    }
-    const data = await res.json();
-    const documents = data.documents || [];
-    const record: Record<string, any> = {};
-    for (const doc of documents) {
-      const docId = doc.name.split("/").pop();
-      if (docId) {
-        record[docId] = parseFirestoreValue(doc);
-      }
-    }
-    return record;
-  } catch (err) {
-    console.error(`[Migration] Failed to fetch subcollection ${collectionName}:`, err);
-    return {};
-  }
-}
-
 export async function migrateFirestoreToLocal(
   uid: string,
-  googleAccessToken: string,
-  googleIdToken?: string
+  _googleAccessToken?: string,
+  _googleIdToken?: string
 ): Promise<void> {
-  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
-  if (!projectId) return;
-
+  // Legacy Firestore migration is permanently disabled.
+  // Google Drive (W_state.json) is the sovereign state repository.
   const migratedKey = `w_migrated_v2_${uid}`;
-  if (localStorage.getItem(migratedKey) === "true") {
-    return;
-  }
-
-  console.info("[Migration] Starting one-time Firestore to Local IndexedDB migration for user:", uid);
-
-  const tokenResp = await getFirebaseIdToken(googleAccessToken, googleIdToken);
-  if (!tokenResp) {
-    console.warn("[Migration] Could not obtain Firebase ID Token. Migration aborted.");
-    return;
-  }
-
-  const { idToken, firebaseUid } = tokenResp;
-  console.info("[Migration] Resolved Firebase Auth UID:", firebaseUid);
-
-  try {
-    const res = await fetch(
-      `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${firebaseUid}`,
-      {
-        headers: { Authorization: `Bearer ${idToken}` }
-      }
-    );
-
-    if (!res.ok) {
-      console.info("[Migration] No existing user doc found in Firestore. Skipping subcollections.");
-      localStorage.setItem(migratedKey, "true");
-      return;
-    }
-
-    const rawUserDoc = await res.json();
-    const parsedUserDoc = parseFirestoreValue(rawUserDoc);
-    if (!parsedUserDoc) return;
-
-    // Remap downloaded user doc uid to match Google ID for local session consistency
-    parsedUserDoc.uid = uid;
-
-    const subcols = ["groups", "habits", "logs", "todos", "sticky-notes", "undoHistory"];
-    const [groups, habits, logs, todos, stickyNotes, undoHistory] = await Promise.all(
-      subcols.map(col => fetchFirestoreCollection(projectId, firebaseUid, col, idToken))
-    );
-
-    await idbSet(`w_doc_users/${uid}`, parsedUserDoc);
-    await idbSet(`w_col_users/${uid}/groups`, groups);
-    await idbSet(`w_col_users/${uid}/habits`, habits);
-    await idbSet(`w_col_users/${uid}/logs`, logs);
-    await idbSet(`w_col_users/${uid}/todos`, todos);
-    await idbSet(`w_col_users/${uid}/sticky-notes`, stickyNotes);
-    await idbSet(`w_col_users/${uid}/undoHistory`, undoHistory);
-
-    console.info("[Migration] One-time Firestore migration completed successfully!");
-    localStorage.setItem(migratedKey, "true");
-
-    const { triggerSync, notifyDataChanged } = await import("../../../shared/services/localDb");
-    notifyDataChanged(uid);
-    triggerSync();
-  } catch (err) {
-    console.error("[Migration] Firestore migration failed:", err);
-  }
+  localStorage.setItem(migratedKey, "true");
 }

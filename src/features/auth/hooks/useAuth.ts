@@ -28,12 +28,12 @@ export function useAuth() {
         const { getValidAccessToken, pullNotesFromDrive } = await import("../../../shared/services/googleDriveService");
         const accessToken = await getValidAccessToken();
         if (accessToken && auth.currentUser) {
-          const { migrateFirestoreToLocal } = await import("../services/authService");
-          await migrateFirestoreToLocal(auth.currentUser.uid, accessToken);
+          const { pullAndMergeFromGoogleDrive } = await import("../../../shared/services/localDb");
+          await pullAndMergeFromGoogleDrive(true);
           await pullNotesFromDrive(accessToken);
         }
       } catch (err) {
-        console.error("[W Auth Hook] Failed to migrate/pull on link:", err);
+        console.error("[W Auth Hook] Failed to pull from Google Drive on link:", err);
       }
     };
     const handleUnlinked = () => {
@@ -89,24 +89,17 @@ export function useAuth() {
       setLoading(false);
 
       if (firebaseUser) {
-        const runMigrationIfRequired = async () => {
+        const syncDriveIfLinked = async () => {
           const isLinked = localStorage.getItem("driveLinked") === "true";
-          const migratedKey = `w_migrated_v2_${firebaseUser.uid}`;
-          if (!isLinked || localStorage.getItem(migratedKey) === "true") return;
-
-          console.info("[W Auth Hook] User logged in but v2 migration not completed. Auto-migrating legacy Firestore data...");
+          if (!isLinked) return;
           try {
-            const { getValidAccessToken } = await import("../../../shared/services/googleDriveService");
-            const accessToken = await getValidAccessToken();
-            if (accessToken) {
-              const { migrateFirestoreToLocal } = await import("../services/authService");
-              await migrateFirestoreToLocal(firebaseUser.uid, accessToken);
-            }
+            const { pullAndMergeFromGoogleDrive } = await import("../../../shared/services/localDb");
+            await pullAndMergeFromGoogleDrive();
           } catch (err) {
-            console.error("[W Auth Hook] Failed to run auto-migration on startup:", err);
+            console.error("[W Auth Hook] Failed to sync from Google Drive on login:", err);
           }
         };
-        runMigrationIfRequired();
+        syncDriveIfLinked();
       }
     });
 

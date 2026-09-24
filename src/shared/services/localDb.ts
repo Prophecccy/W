@@ -954,7 +954,7 @@ export async function pullAndMergeFromGoogleDrive(force = false): Promise<boolea
     const mergedUser = mergeObject(localUserDoc, remoteState.user);
     const mergedGroups = mergeCollection(localGroups, remoteState.groups);
     const mergedHabits = mergeCollection(localHabits, remoteState.habits);
-    const mergedLogs = mergeCollection(localLogs, remoteState.logs);
+    const mergedLogs = mergeLogsCollection(localLogs, remoteState.logs);
     const mergedTodos = mergeCollection(localTodos, remoteState.todos);
     const mergedStickyNotes = mergeCollection(localStickyNotes, remoteState.stickyNotes);
     const mergedUndoHistory = mergeCollection(localUndoHistory, remoteState.undoHistory);
@@ -1009,6 +1009,71 @@ function mergeObject(local: any, remote: any): any {
   return merged;
 }
 
+function mergeDailyLog(localLog: any, remoteLog: any): any {
+  if (!localLog) return remoteLog;
+  if (!remoteLog) return localLog;
+
+  const mergedHabits: Record<string, any> = { ...(localLog.habits || {}) };
+
+  // Deep merge every habit completion entry
+  for (const [habitId, remoteHabitEntry] of Object.entries(remoteLog.habits || {})) {
+    const localHabitEntry = mergedHabits[habitId];
+    if (!localHabitEntry) {
+      mergedHabits[habitId] = remoteHabitEntry;
+    } else {
+      // If either side marked it completed, preserve the completion!
+      const isCompleted = Boolean((localHabitEntry as any).completed || (remoteHabitEntry as any).completed);
+      const localVal = Number((localHabitEntry as any).value ?? 0);
+      const remoteVal = Number((remoteHabitEntry as any).value ?? 0);
+      const maxVal = Math.max(localVal, remoteVal);
+
+      const localTime = (localHabitEntry as any).timestamp || 0;
+      const remoteTime = (remoteHabitEntry as any).timestamp || 0;
+      const base = remoteTime > localTime ? remoteHabitEntry : localHabitEntry;
+
+      // Merge completion timestamps if available
+      const localComps: any[] = Array.isArray((localHabitEntry as any).completions) ? (localHabitEntry as any).completions : [];
+      const remoteComps: any[] = Array.isArray((remoteHabitEntry as any).completions) ? (remoteHabitEntry as any).completions : [];
+      const compMap = new Map<number, any>();
+      for (const c of [...localComps, ...remoteComps]) {
+        if (c && c.timestamp) compMap.set(c.timestamp, c);
+      }
+
+      mergedHabits[habitId] = {
+        ...base,
+        completed: isCompleted,
+        value: maxVal > 0 ? maxVal : (base as any).value,
+        completions: compMap.size > 0 ? Array.from(compMap.values()) : (base as any).completions,
+      };
+    }
+  }
+
+  const localTime = localLog.updatedAt || 0;
+  const remoteTime = remoteLog.updatedAt || 0;
+
+  return {
+    ...(remoteTime > localTime ? localLog : remoteLog),
+    ...(remoteTime > localTime ? remoteLog : localLog),
+    habits: mergedHabits,
+    updatedAt: Math.max(localTime, remoteTime),
+  };
+}
+
+function mergeLogsCollection(local: Record<string, any>, remote: Record<string, any>): Record<string, any> {
+  const merged: Record<string, any> = { ...local };
+  if (!remote) return merged;
+
+  for (const [dateKey, remoteLog] of Object.entries(remote)) {
+    const localLog = local[dateKey];
+    if (!localLog) {
+      merged[dateKey] = remoteLog;
+    } else {
+      merged[dateKey] = mergeDailyLog(localLog, remoteLog);
+    }
+  }
+  return merged;
+}
+
 function mergeCollection(local: Record<string, any>, remote: Record<string, any>): Record<string, any> {
   const merged: Record<string, any> = { ...local };
   if (!remote) return merged;
@@ -1020,8 +1085,29 @@ function mergeCollection(local: Record<string, any>, remote: Record<string, any>
     } else {
       const localTime = localItem.updatedAt || localItem.createdAt || localItem.timestamp || 0;
       const remoteTime = remoteItem.updatedAt || remoteItem.createdAt || remoteItem.timestamp || 0;
-      if (remoteTime > localTime) {
-        merged[id] = remoteItem;
+
+      // Tombstone defense: preserve deleted state across devices
+      const isLocalDeleted = localItem.deleted === true;
+      const isRemoteDeleted = remoteItem.deleted === true;
+
+      if (isLocalDeleted && !isRemoteDeleted) {
+        // Local was deleted: only resurrect if remote was explicitly modified AFTER local deletion
+        if (remoteTime > localTime) {
+          merged[id] = remoteItem;
+        } else {
+          merged[id] = { ...remoteItem, deleted: true, updatedAt: localTime };
+        }
+      } else if (isRemoteDeleted && !isLocalDeleted) {
+        // Remote was deleted: only resurrect if local was explicitly modified AFTER remote deletion
+        if (localTime > remoteTime) {
+          merged[id] = localItem;
+        } else {
+          merged[id] = { ...localItem, deleted: true, updatedAt: remoteTime };
+        }
+      } else {
+        if (remoteTime > localTime) {
+          merged[id] = remoteItem;
+        }
       }
     }
   }
