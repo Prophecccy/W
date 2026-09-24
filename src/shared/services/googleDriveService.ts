@@ -218,68 +218,96 @@ export async function getValidAccessToken(): Promise<string | null> {
     return null;
   }
 
-  // Pure public client PKCE refresh — client secret is optional and not checked/required
-  const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET;
-  if (!clientSecret) {
-    console.info("[GDrive Service] VITE_GOOGLE_CLIENT_SECRET is missing. Running public client token refresh.");
-  }
+  let data: any = null;
 
-  const refreshParams: Record<string, string> = {
-    client_id: clientId,
-    refresh_token: refreshToken,
-    grant_type: "refresh_token",
-  };
+  // On Web, proxy through /api/token to use server-side GOOGLE_CLIENT_SECRET
+  if (!isTauri()) {
+    try {
+      const proxyRes = await fetch("/api/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          grant_type: "refresh_token",
+          refresh_token: refreshToken,
+        }),
+      });
 
-  if (clientSecret) {
-    refreshParams.client_secret = clientSecret;
-  }
-
-  try {
-    const response = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams(refreshParams),
-    });
-
-    if (!response.ok) {
-      let isInvalidGrant = false;
-      try {
-        const errorText = await response.text();
-        console.error(`[GDrive Service] Token refresh failed: ${response.status}`, errorText);
-        try {
-          const parsed = JSON.parse(errorText);
-          if (parsed.error === "invalid_grant") {
-            isInvalidGrant = true;
-          }
-        } catch {
-          if (errorText.includes("invalid_grant")) {
-            isInvalidGrant = true;
-          }
+      if (proxyRes.ok) {
+        data = await proxyRes.json();
+      } else {
+        const errorText = await proxyRes.text();
+        console.warn(`[GDrive Service] /api/token refresh failed (${proxyRes.status}):`, errorText);
+        if (errorText.includes("invalid_grant")) {
+          await clearOAuthTokens();
+          return null;
         }
-      } catch (e) {
-        console.error("[GDrive Service] Failed to read token refresh error response:", e);
       }
+    } catch (proxyErr) {
+      console.warn("[GDrive Service] /api/token proxy call unreachable, attempting direct fallback:", proxyErr);
+    }
+  }
 
-      if (isInvalidGrant) {
-        await clearOAuthTokens();
-      }
-      return null;
+  // Direct call fallback (used on Tauri desktop or if clientSecret is inlined)
+  if (!data) {
+    const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET;
+    const refreshParams: Record<string, string> = {
+      client_id: clientId,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    };
+
+    if (clientSecret) {
+      refreshParams.client_secret = clientSecret;
     }
 
-    const data = await response.json();
-    const newAccessToken = data.access_token;
-    const newExpiresIn = data.expires_in || 3600;
+    try {
+      const response = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams(refreshParams),
+      });
 
-    await saveOAuthTokens(newAccessToken, data.refresh_token || refreshToken, newExpiresIn);
+      if (!response.ok) {
+        let isInvalidGrant = false;
+        try {
+          const errorText = await response.text();
+          console.error(`[GDrive Service] Token refresh failed: ${response.status}`, errorText);
+          try {
+            const parsed = JSON.parse(errorText);
+            if (parsed.error === "invalid_grant") {
+              isInvalidGrant = true;
+            }
+          } catch {
+            if (errorText.includes("invalid_grant")) {
+              isInvalidGrant = true;
+            }
+          }
+        } catch (e) {
+          console.error("[GDrive Service] Failed to read token refresh error response:", e);
+        }
 
-    console.info("[GDrive Service] Access token refreshed successfully.");
-    return newAccessToken;
-  } catch (err) {
-    console.error("[GDrive Service] Network error during token refresh:", err);
-    return null;
+        if (isInvalidGrant) {
+          await clearOAuthTokens();
+        }
+        return null;
+      }
+
+      data = await response.json();
+    } catch (err) {
+      console.error("[GDrive Service] Network error during direct token refresh:", err);
+      return null;
+    }
   }
+
+  const newAccessToken = data.access_token;
+  const newExpiresIn = data.expires_in || 3600;
+
+  await saveOAuthTokens(newAccessToken, data.refresh_token || refreshToken, newExpiresIn);
+
+  console.info("[GDrive Service] Access token refreshed successfully.");
+  return newAccessToken;
 }
 
 /**

@@ -256,33 +256,67 @@ async function signInWithGoogleWeb(): Promise<LocalUser> {
       // If we received an authorization code, exchange it for tokens (including refresh_token)
       if (data.code) {
         try {
-          const tokenParams: Record<string, string> = {
-            client_id: clientId,
-            redirect_uri: redirectUri,
-            code: data.code,
-            code_verifier: codeVerifier,
-            grant_type: "authorization_code",
-          };
+          let tokenData: any = null;
 
-          const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET;
-          if (clientSecret) {
-            tokenParams.client_secret = clientSecret;
+          // Attempt 1: Call Vercel Serverless Token Proxy (/api/token) to keep client_secret secure
+          try {
+            const proxyRes = await fetch("/api/token", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                code: data.code,
+                code_verifier: codeVerifier,
+                redirect_uri: redirectUri,
+                grant_type: "authorization_code",
+              }),
+            });
+
+            if (proxyRes.ok) {
+              tokenData = await proxyRes.json();
+            } else {
+              const errPayload = await proxyRes.json().catch(() => ({}));
+              console.warn("[Auth] /api/token responded with status:", proxyRes.status, errPayload);
+            }
+          } catch (proxyErr) {
+            console.warn("[Auth] /api/token proxy call unreachable, attempting local fallback:", proxyErr);
           }
 
-          const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
-            body: new URLSearchParams(tokenParams),
-          });
+          // Attempt 2: Direct call fallback (used in local development or when clientSecret is inlined)
+          if (!tokenData) {
+            const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET;
+            const tokenParams: Record<string, string> = {
+              client_id: clientId,
+              redirect_uri: redirectUri,
+              code: data.code,
+              code_verifier: codeVerifier,
+              grant_type: "authorization_code",
+            };
 
-          if (!tokenRes.ok) {
-            const errorText = await tokenRes.text();
-            throw new Error(`Token exchange failed (HTTP ${tokenRes.status}): ${errorText || "Unknown error"}`);
+            if (clientSecret) {
+              tokenParams.client_secret = clientSecret;
+            }
+
+            const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+              },
+              body: new URLSearchParams(tokenParams),
+            });
+
+            if (!tokenRes.ok) {
+              const errorText = await tokenRes.text();
+              let parsedErr: any = null;
+              try { parsedErr = JSON.parse(errorText); } catch {}
+              if (parsedErr?.error_description?.includes("client_secret is missing")) {
+                throw new Error("Missing GOOGLE_CLIENT_SECRET in Vercel. Please add GOOGLE_CLIENT_SECRET in Vercel Project Settings > Environment Variables.");
+              }
+              throw new Error(`Token exchange failed (HTTP ${tokenRes.status}): ${errorText || "Unknown error"}`);
+            }
+
+            tokenData = await tokenRes.json();
           }
 
-          const tokenData = await tokenRes.json();
           const accessToken = tokenData.access_token;
           const refreshToken = tokenData.refresh_token;
           const idToken = tokenData.id_token;

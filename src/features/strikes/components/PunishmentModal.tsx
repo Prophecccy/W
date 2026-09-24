@@ -64,11 +64,12 @@ const HabitPenanceCard = memo(function HabitPenanceCard({
 interface PunishmentModalProps {
   onConfirm: (choice: PunishmentChoice, habitId?: string, completedInline?: boolean) => void;
   onCancel: () => void;
+  userResetTime?: string;
 }
 
 type PunishmentStep = "select_penance" | "select_habit" | "habit_form" | "todo_form";
 
-export function PunishmentModal({ onConfirm, onCancel }: PunishmentModalProps) {
+export function PunishmentModal({ onConfirm, onCancel, userResetTime }: PunishmentModalProps) {
   const [step, setStep] = useState<PunishmentStep>("select_penance");
   const [selected, setSelected] = useState<PunishmentChoice | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -212,6 +213,7 @@ export function PunishmentModal({ onConfirm, onCancel }: PunishmentModalProps) {
             groups={groups}
             onSubmit={handleHabitSubmit}
             onCancel={() => setStep("select_penance")}
+            userResetTime={userResetTime}
           />
         </div>
       </div>
@@ -227,6 +229,7 @@ export function PunishmentModal({ onConfirm, onCancel }: PunishmentModalProps) {
             groups={groups}
             onClose={() => setStep("select_penance")}
             onSuccess={handleTodoSuccess}
+            dailyResetTime={userResetTime}
           />
         </div>
       </div>

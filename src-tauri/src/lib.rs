@@ -13,6 +13,7 @@ mod lockdown;
 
 static ALLOW_CLOSE: AtomicBool = AtomicBool::new(false);
 static HIDDEN_OWNER_HWND: OnceLock<isize> = OnceLock::new();
+static APP_MUTEX_HANDLE: OnceLock<isize> = OnceLock::new();
 
 /// Debounce timestamp (epoch millis) for SetWindowPos calls during drag.
 /// Prevents hundreds of Win32 calls per second when a window is being moved.
@@ -73,6 +74,72 @@ fn exit_app(app: tauri::AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     println!("[W RUN] Starting pub fn run()...");
+
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::System::Threading::CreateMutexW;
+        use windows::Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS};
+        use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, SendMessageW, ShowWindow, SetForegroundWindow, SW_RESTORE, SW_SHOW, WM_COPYDATA};
+        use windows::Win32::System::DataExchange::COPYDATASTRUCT;
+        use windows::core::w;
+
+        // Named mutex held for process lifetime to strictly prevent concurrent instances
+        let mutex = unsafe { CreateMutexW(None, true, w!("Global\\com.wapp.desktop-primary-guard")) };
+        if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+            println!("[W RUN] Another instance of W is already running. Forwarding signal & terminating duplicate process immediately.");
+            
+            // Poll for up to 1500ms to deliver WM_COPYDATA to the existing instance or bring main window to front
+            let sic_class: Vec<u16> = "com.wapp.desktop-sic\0".encode_utf16().collect();
+            let sic_win: Vec<u16> = "com.wapp.desktop-siw\0".encode_utf16().collect();
+            let main_win_title: Vec<u16> = "W\0".encode_utf16().collect();
+
+            for _ in 0..15 {
+                // Try finding tauri-plugin-single-instance target window first
+                if let Ok(sic_hwnd) = unsafe { FindWindowW(windows::core::PCWSTR(sic_class.as_ptr()), windows::core::PCWSTR(sic_win.as_ptr())) } {
+                    if !sic_hwnd.0.is_null() {
+                        let cwd = std::env::current_dir().unwrap_or_default();
+                        let cwd_str = cwd.to_str().unwrap_or_default();
+                        let args = std::env::args().collect::<Vec<String>>().join("|");
+                        let data = format!("{cwd_str}|{args}\0");
+                        let bytes = data.as_bytes();
+                        let cds = COPYDATASTRUCT {
+                            dwData: 1542, // WMCOPYDATA_SINGLE_INSTANCE_DATA
+                            cbData: bytes.len() as u32,
+                            lpData: bytes.as_ptr() as *mut _,
+                        };
+                        use windows::Win32::Foundation::{WPARAM, LPARAM};
+                        unsafe {
+                            let _ = SendMessageW(sic_hwnd, WM_COPYDATA, WPARAM(0), LPARAM(&cds as *const _ as isize));
+                        }
+                        break;
+                    }
+                }
+
+                // Also try finding main window by title
+                if let Ok(main_h) = unsafe { FindWindowW(None, windows::core::PCWSTR(main_win_title.as_ptr())) } {
+                    if !main_h.0.is_null() {
+                        unsafe {
+                            let _ = ShowWindow(main_h, SW_RESTORE);
+                            let _ = ShowWindow(main_h, SW_SHOW);
+                            let _ = SetForegroundWindow(main_h);
+                        }
+                        break;
+                    }
+                }
+
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+
+            // Unconditionally terminate secondary process so two instances never run concurrently
+            std::process::exit(0);
+        }
+
+        // Store the mutex handle so it remains locked until this process completely exits
+        if let Ok(h) = mutex {
+            let _ = APP_MUTEX_HANDLE.set(h.0 as isize);
+        }
+    }
+
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())

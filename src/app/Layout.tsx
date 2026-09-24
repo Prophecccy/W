@@ -284,7 +284,12 @@ function LayoutInner() {
         const width = maxX - minX;
         const height = maxY - minY;
 
-        const existing = await WebviewWindow.getByLabel("sticky-overlay");
+        let existing = await WebviewWindow.getByLabel("sticky-overlay");
+        for (let i = 0; i < 5 && !existing; i++) {
+          await new Promise((r) => setTimeout(r, 100));
+          existing = await WebviewWindow.getByLabel("sticky-overlay");
+        }
+
         if (existing) {
           try {
             await existing.setPosition(new PhysicalPosition(minX, minY));
@@ -301,6 +306,7 @@ function LayoutInner() {
           url: "/sticky-canvas",
           decorations: false,
           transparent: true,
+          shadow: false,
           maximized: false,
           skipTaskbar: true,
           visible: false,
@@ -330,7 +336,12 @@ function LayoutInner() {
     async function launchWidget() {
       try {
         const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
-        const existing = await WebviewWindow.getByLabel("widget");
+        let existing = await WebviewWindow.getByLabel("widget");
+        for (let i = 0; i < 5 && !existing; i++) {
+          await new Promise((r) => setTimeout(r, 100));
+          existing = await WebviewWindow.getByLabel("widget");
+        }
+
         if (existing) {
           await existing.show();
         } else {
@@ -339,8 +350,13 @@ function LayoutInner() {
             url: "/widget",
             decorations: false,
             transparent: true,
-            width: 400,
-            height: 580,
+            shadow: false,
+            width: 460,
+            height: 620,
+            minWidth: 300,
+            minHeight: 400,
+            maxWidth: 800,
+            maxHeight: 900,
             skipTaskbar: true,
             visible: true,
             parent: null as any,
@@ -939,6 +955,7 @@ function LayoutInner() {
         <PunishmentModal
           onConfirm={handlePunishment}
           onCancel={() => setShowPunishment(false)}
+          userResetTime={userDoc?.settings?.dailyResetTime}
         />
       )}
 

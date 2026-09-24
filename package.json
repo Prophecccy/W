@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build:app": "tauri build --no-bundle"
   },
   "dependencies": {
     "@fabianlars/tauri-plugin-oauth": "^2.0.0",

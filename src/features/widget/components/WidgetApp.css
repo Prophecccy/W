@@ -70,6 +70,8 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   gap: 12px;
 }
 
@@ -152,9 +154,11 @@
   padding: 4px 0 8px;
   display: flex;
   flex-direction: column;
-  flex: 1;
-  justify-content: safe center;
+  flex: 1 1 auto;
+  min-height: 0;
+  justify-content: flex-start;
   overflow-y: auto;
+  overscroll-behavior: contain;
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }

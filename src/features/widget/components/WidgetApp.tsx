@@ -119,7 +119,7 @@ export function WidgetApp() {
   // Z-Order defense is DEFERRED to pointerUp (tap-only) so it doesn't
   // steal focus or push the window behind others mid-drag.
   const lastMonitorNameRef = useRef<string | null>(null);
-  const currentSizeRef = useRef({ width: 400, height: 580 });
+  const currentSizeRef = useRef({ width: 460, height: 620 });
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     // Skip interactive children — but NOT the scroll container or lockout shield itself
@@ -306,21 +306,24 @@ export function WidgetApp() {
       return cardHeight;
     };
 
-    let habitAreaHeight = 0;
-    const n = scheduledHabits.length;
-    if (n > 0) {
-      scheduledHabits.forEach(habit => {
-        habitAreaHeight += getHabitCardHeight(habit) + CARD_GAP;
-      });
-    } else {
-      habitAreaHeight += EMPTY_H;
-    }
+    const MAX_VISIBLE_WIDGET_HABITS = 8;
+    const allHabitItems = [...scheduledHabits, ...(scheduledLimiters || [])];
 
-    if (scheduledLimiters && scheduledLimiters.length > 0) {
-      habitAreaHeight += 24; // Section Title "[ LIMITERS ]" + margin
-      scheduledLimiters.forEach(habit => {
+    let habitAreaHeight = 0;
+    if (allHabitItems.length === 0) {
+      habitAreaHeight = EMPTY_H;
+    } else {
+      // Show at most 8 habits simultaneously; remaining habits are accessed via scrolling
+      const visibleItems = allHabitItems.slice(0, MAX_VISIBLE_WIDGET_HABITS);
+      visibleItems.forEach(habit => {
         habitAreaHeight += getHabitCardHeight(habit) + CARD_GAP;
       });
+
+      // If any of the visible habits are limiters, account for the limiter section title
+      const hasVisibleLimiter = visibleItems.some(item => scheduledLimiters?.some(l => l.id === item.id));
+      if (hasVisibleLimiter) {
+        habitAreaHeight += 24;
+      }
     }
 
     // Calculate Right Panel: 4 components with 3 vertical gaps
@@ -335,14 +338,13 @@ export function WidgetApp() {
     // Apply an additional 24px rendering safety buffer
     const targetLogicalWithBuffer = targetLogical + 24;
 
-    return Math.max(300, Math.min(960, targetLogicalWithBuffer));
+    return Math.max(300, Math.min(820, targetLogicalWithBuffer));
   }, [scheduledHabits, scheduledLimiters, habits, todayLog, periodLogs, today, userDoc?.settings?.weeklyResetDay, heightTrigger]);
 
   // ─── Auto-resize window height to fit habit count ─────────
   useEffect(() => {
     async function resizeToContent() {
       if (!isPositionInitialized) return;
-      if (userManualHeightRef.current !== null) return; // Respect manual resize adjustments
       try {
         const { getCurrentWindow } = await import("@tauri-apps/api/window");
         const { PhysicalSize } = await import("@tauri-apps/api/dpi");
@@ -350,11 +352,19 @@ export function WidgetApp() {
         const scaleFactor = await win.scaleFactor();
         const targetPhysical = Math.round(targetLogicalHeight * scaleFactor);
 
+        // If manual height was previously saved or set larger than the max 8-habit threshold, reset it
+        if (userManualHeightRef.current !== null && userManualHeightRef.current > targetPhysical) {
+          userManualHeightRef.current = null;
+        }
+        if (userManualHeightRef.current !== null) return; // Respect manual resize adjustments
+
         const currentSize = await win.innerSize();
         if (Math.abs(currentSize.height - targetPhysical) > 2) {
           isAutoResizingRef.current = true;
           await win.setSize(new PhysicalSize(currentSize.width, targetPhysical));
-          isAutoResizingRef.current = false;
+          setTimeout(() => {
+            isAutoResizingRef.current = false;
+          }, 100);
 
           const pos = await win.outerPosition();
           saveWidgetPosition({
@@ -432,8 +442,12 @@ export function WidgetApp() {
           lastMonitorNameRef.current = currentMon.name;
         }
 
+        isAutoResizingRef.current = true;
         await win.setPosition(new PhysicalPosition(saved.x, saved.y));
         await win.setSize(new PhysicalSize(saved.width, saved.height));
+        setTimeout(() => {
+          isAutoResizingRef.current = false;
+        }, 150);
 
         setIsPositionInitialized(true);
 

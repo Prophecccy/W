@@ -10,8 +10,8 @@ const POSITION_FILE = 'widget_position.json';
 const DEFAULT_POSITION: WidgetPosition = {
   x: 100,
   y: 100,
-  width: 400,
-  height: 580,
+  width: 460,
+  height: 620,
 };
 
 const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__;
