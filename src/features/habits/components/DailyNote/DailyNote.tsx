@@ -26,6 +26,8 @@ export function DailyNote({ initialNote, dailyResetTime, date }: DailyNoteProps)
   const latestNoteRef = useRef(initialNote);
   const hasUnsavedChangesRef = useRef(false);
   const isLoadedRef = useRef(false);
+  const isFocusedRef = useRef(false);
+  const lastLocalEditTimeRef = useRef(0);
   
   // Keep latestNoteRef in sync
   latestNoteRef.current = note;
@@ -107,21 +109,52 @@ export function DailyNote({ initialNote, dailyResetTime, date }: DailyNoteProps)
 
     const handleSynced = async (e: Event) => {
       const customEvent = e as CustomEvent;
-      const syncedDate = typeof customEvent.detail === "string" ? customEvent.detail : customEvent.detail?.date;
-      if (!syncedDate || syncedDate === today) {
-        setSyncStatus("synced");
-        // If user is not currently typing, reload the newly synced note from IndexedDB
-        if (!hasUnsavedChangesRef.current) {
-          try {
-            const record = await getLocalNoteRecord(today);
-            if (record && typeof record.notes === "string" && record.notes !== latestNoteRef.current) {
-              setNote(record.notes);
-              latestNoteRef.current = record.notes;
-            }
-          } catch (err) {
-            console.error("[DailyNote] Failed to refresh synced note:", err);
+      const detail = customEvent.detail;
+      const syncedDate = typeof detail === "string" ? detail : detail?.date;
+      const source = typeof detail === "object" ? detail?.source : undefined;
+
+      try {
+        const record = await getLocalNoteRecord(today);
+        if (record) {
+          if (!navigator.onLine && record.sync_pending) {
+            setSyncStatus("offline");
+          } else if (record.sync_pending) {
+            setSyncStatus("pending");
+          } else {
+            setSyncStatus("synced");
           }
         }
+      } catch (err) {
+        console.error("[DailyNote] Failed to check status in handleSynced:", err);
+      }
+
+      // If this was an upload triggered by this device, do not reload editor content
+      if (source === "upload") return;
+
+      // Only proceed with remote note reload if the event applies to today
+      if (syncedDate && syncedDate !== today) return;
+
+      // Guard: Never overwrite if user is focused, has unsaved edits, active debounce, or recently edited
+      if (
+        isFocusedRef.current ||
+        hasUnsavedChangesRef.current ||
+        debounceTimer.current !== null ||
+        Date.now() - lastLocalEditTimeRef.current < 5000
+      ) {
+        return;
+      }
+
+      try {
+        const record = await getLocalNoteRecord(today);
+        // If local record has unsynced changes, never overwrite with remote
+        if (record?.sync_pending) return;
+
+        if (record && typeof record.notes === "string" && record.notes !== latestNoteRef.current) {
+          setNote(record.notes);
+          latestNoteRef.current = record.notes;
+        }
+      } catch (err) {
+        console.error("[DailyNote] Failed to refresh synced note:", err);
       }
     };
 
@@ -222,6 +255,7 @@ export function DailyNote({ initialNote, dailyResetTime, date }: DailyNoteProps)
       showToast("[ TEXT TRUNCATED TO 5000 CHARS ]");
     }
     
+    lastLocalEditTimeRef.current = Date.now();
     setNote(newVal);
     latestNoteRef.current = newVal;
     hasUnsavedChangesRef.current = true;
@@ -240,7 +274,10 @@ export function DailyNote({ initialNote, dailyResetTime, date }: DailyNoteProps)
   const saveNote = async (content: string) => {
     try {
       await saveLocalNote(activeDateRef.current, content);
-      hasUnsavedChangesRef.current = false;
+      // Only clear unsaved flag if user hasn't continued typing while async save was in-flight
+      if (latestNoteRef.current === content) {
+        hasUnsavedChangesRef.current = false;
+      }
       
       // Auto-trigger GDrive background sync worker instantly to back up the note
       import("../../../../shared/services/googleDriveService")
@@ -303,7 +340,11 @@ export function DailyNote({ initialNote, dailyResetTime, date }: DailyNoteProps)
         placeholder="Thoughts on today..."
         value={note}
         onChange={handleChange}
+        onFocus={() => {
+          isFocusedRef.current = true;
+        }}
         onBlur={() => {
+          isFocusedRef.current = false;
           if (debounceTimer.current) {
             clearTimeout(debounceTimer.current);
             debounceTimer.current = null;

@@ -95,11 +95,13 @@ export interface LocalNoteRecord {
 async function buildEncryptedRecord(
   date: string,
   content: string,
-  syncPending: boolean
+  syncPending: boolean,
+  updatedAtMs?: number
 ): Promise<LocalNoteRecord> {
   await initEncryptionKey().catch(() => {});
   const cleanContent = sanitizeText(content);
   const payload = await encryptNote(cleanContent);
+  const timestamp = updatedAtMs || Date.now();
 
   if (payload) {
     // Encrypted: store ciphertext in `encrypted`, blank out `notes`
@@ -107,7 +109,7 @@ async function buildEncryptedRecord(
       date,
       notes: "",
       sync_pending: syncPending,
-      updatedAt: Date.now(),
+      updatedAt: timestamp,
       encrypted: payload,
     };
   }
@@ -117,7 +119,7 @@ async function buildEncryptedRecord(
     date,
     notes: content,
     sync_pending: syncPending,
-    updatedAt: Date.now(),
+    updatedAt: timestamp,
   };
 }
 
@@ -219,9 +221,13 @@ export async function saveLocalNote(date: string, content: string): Promise<void
  * Mirrors to $APPDATA/notes/ on disk.
  * LAYER 6: Note content is AES-256-GCM encrypted before storage.
  */
-export async function saveDownloadedNote(date: string, content: string): Promise<void> {
+export async function saveDownloadedNote(
+  date: string,
+  content: string,
+  remoteModifiedTimeMs?: number
+): Promise<void> {
   const key = `${NOTE_KEY_PREFIX}${date}`;
-  const record = await buildEncryptedRecord(date, content, false);
+  const record = await buildEncryptedRecord(date, content, false, remoteModifiedTimeMs);
 
   await set(key, record);
   saveNoteToDisk(date, record).catch(() => {});

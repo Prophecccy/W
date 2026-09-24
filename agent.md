@@ -587,3 +587,28 @@ Relocated the Strike System toggle out of the Schedule & Time section and establ
 5. **Verification**:
    - All 10 test suites (102 tests) pass with zero errors.
    - Production build (`npm run build`) passes cleanly.
+
+---
+
+## Batch 47 — Daily Note Editing Protection & Sync-Down Revert Immunity
+
+Resolved an issue where typing or updating text in the Daily Note textarea (on both Desktop and Web) was aggressively reverted back to the previous/remote note text:
+
+1. **Active Focus & Local Edit Protection (`DailyNote.tsx`)**:
+   - Added `isFocusedRef` tracked via `onFocus` and `onBlur` listeners on `<textarea>`.
+   - Added `lastLocalEditTimeRef` updated on every keystroke and local save.
+   - `handleSynced` suppresses remote note reloads if the user is focused in the textarea, has pending unsaved changes, has an active debounce timer, or interacted locally within the last 5 seconds.
+   - When an upload completes locally (`source: "upload"`), `handleSynced` skips reloading the editor content since the local client is already the authoritative author.
+   - Guarded `saveNote`: `hasUnsavedChangesRef.current` is only cleared if `latestNoteRef.current === content`, preventing race conditions if typing continues during an async save.
+
+2. **Google Drive Sync Engine Hardening (`googleDriveService.ts`)**:
+   - In `pullNotesFromDrive`:
+     - Checks `existing?.sync_pending`: local notes with un-uploaded pending changes are never overwritten by remote notes.
+     - Removed the `existing.notes.trim() !== ""` condition from the skip check (`if (localTime >= remoteTime) continue;`), allowing users to delete or clear a note without Drive resurrecting the old text.
+     - Passes the remote file's true `remoteTime` (`modifiedTime`) to `saveDownloadedNote`, preventing timestamp inflation.
+     - Added `skipDate` parameter and updated `runBackgroundSync` to pass `today` to `pullNotesFromDrive` whenever today's upload was deferred due to active typing (`lastEditAge < 2000`).
+     - Global event `w:note-synced` now dispatches structured detail (`{ date, source: "remote" | "upload" }`).
+
+3. **Accurate Timestamping (`localLogService.ts`)**:
+   - `saveDownloadedNote(date, content, remoteModifiedTimeMs)` accepts and sets `updatedAt = remoteModifiedTimeMs`, maintaining consistent chronological ordering between local records and remote Drive files.
+

@@ -729,7 +729,8 @@ export async function syncNoteToDrive(accessToken: string, dateStr: string, cont
 /**
  * Lists all Year subfolders and downloads missing daily note .md files from Google Drive W_Logbook.
  */
-export async function pullNotesFromDrive(accessToken: string): Promise<void> {
+export async function pullNotesFromDrive(accessToken: string, skipDate?: string): Promise<void> {
+  let downloadedCount = 0;
   try {
     console.info("[GDrive Service] Starting historical daily notes sync-down from Google Drive...");
     
@@ -764,6 +765,12 @@ export async function pullNotesFromDrive(accessToken: string): Promise<void> {
         if (!match) continue;
 
         const dateStr = match[1];
+
+        // If explicitly requested to skip (e.g. today's note has active typing deferred)
+        if (skipDate && dateStr === skipDate) {
+          console.info(`[GDrive Service] Skipping pull for ${dateStr} - active edit deferred.`);
+          continue;
+        }
         
         // Check if note exists locally
         const existing = await getLocalNoteRecord(dateStr);
@@ -771,8 +778,14 @@ export async function pullNotesFromDrive(accessToken: string): Promise<void> {
         const localTime = existing ? (existing.updatedAt || 0) : 0;
 
         if (existing) {
-          // Skip downloading only if local is newer and not blank
-          if (localTime >= remoteTime && existing.notes.trim() !== "") {
+          // If local note has un-uploaded pending changes, NEVER overwrite with remote!
+          if (existing.sync_pending) {
+            console.info(`[GDrive Service] Skipping pull for ${dateStr} - local note has pending unsynced changes.`);
+            continue;
+          }
+
+          // Skip downloading if local note timestamp is equal or newer than remote
+          if (localTime >= remoteTime) {
             continue;
           }
         }
@@ -798,14 +811,23 @@ export async function pullNotesFromDrive(accessToken: string): Promise<void> {
           continue;
         }
 
-        // 5. Save to local IndexedDB
-        await saveDownloadedNote(dateStr, noteContent);
+        // 5. Save to local IndexedDB with remote timestamp
+        await saveDownloadedNote(dateStr, noteContent, remoteTime);
+        downloadedCount++;
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("w:note-synced", {
+              detail: { date: dateStr, source: "remote" },
+            })
+          );
+        }
       }
     }
 
-    console.info("[GDrive Service] Historical daily notes sync-down completed successfully.");
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("w:note-synced"));
+    console.info(`[GDrive Service] Historical daily notes sync-down completed successfully (${downloadedCount} updated).`);
+    if (downloadedCount > 0 && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("w:note-synced", { detail: { source: "remote" } }));
     }
   } catch (err) {
     console.error("[GDrive Service] Failed to pull notes from Drive:", err);
@@ -896,6 +918,8 @@ export async function runBackgroundSync(): Promise<void> {
     const resetTime = localStorage.getItem("w_daily_reset_time") || "04:00";
     const today = getToday(undefined, resetTime);
 
+    let todayDeferred = false;
+
     // Sync notes sequentially to avoid race conditions or folder creation duplication
     for (const note of pendingNotes) {
       if (note.date === today) {
@@ -903,6 +927,7 @@ export async function runBackgroundSync(): Promise<void> {
         // If edited within the last 2 seconds, defer briefly to avoid spamming during active typing
         if (lastEditAge < 2000) {
           console.info(`[GDrive Service] Deferring sync of today's note (${note.date}) - active editing detected.`);
+          todayDeferred = true;
           continue;
         }
       }
@@ -914,16 +939,16 @@ export async function runBackgroundSync(): Promise<void> {
         await clearSyncPending(note.date, localStartTimestamp, serverModifiedTimeMs);
         
         // Dispatch global notification for UI indicators
-        window.dispatchEvent(new CustomEvent("w:note-synced", { detail: note.date }));
+        window.dispatchEvent(new CustomEvent("w:note-synced", { detail: { date: note.date, source: "upload" } }));
       } catch (err) {
         console.error(`[GDrive Service] Failed to sync note for date ${note.date}:`, err);
         // Continue to next note in case one is corrupted, leaving this one flagged pending
       }
     }
 
-    // Pull down any remote notes after local flush
+    // Pull down any remote notes after local flush (skip today if active edit was deferred)
     try {
-      await pullNotesFromDrive(accessToken);
+      await pullNotesFromDrive(accessToken, todayDeferred ? today : undefined);
     } catch (pullErr) {
       console.warn("[GDrive Service] Error pulling remote notes after push:", pullErr);
     }
