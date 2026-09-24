@@ -284,8 +284,9 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
                     <DatePicker
                       value={data.duration.endDate || getToday()}
                       onChange={val => update({ duration: { ...data.duration, endDate: val } })}
-                      min={getToday()}
+                      min={data.startDate || getToday()}
                       placeholder="SELECT END DATE..."
+                      dailyResetTime={userResetTime}
                     />
                   </div>
                 )}
@@ -387,9 +388,7 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
                       className={`habit-form__radio-btn-compact t-body ${startDateOption === "custom" ? "habit-form__radio-btn-compact--active" : ""}`}
                       onClick={() => {
                         setStartDateOption("custom");
-                        const nextDate = data.startDate && data.startDate !== todayDate && data.startDate !== tomorrowDate
-                          ? data.startDate
-                          : tomorrowDate;
+                        const nextDate = data.startDate || todayDate;
                         update({ startDate: nextDate });
                       }}
                     >
@@ -406,6 +405,7 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
                       onChange={val => update({ startDate: val })}
                       min={todayDate}
                       placeholder="SELECT START DATE..."
+                      dailyResetTime={userResetTime}
                     />
                   </div>
                 </div>

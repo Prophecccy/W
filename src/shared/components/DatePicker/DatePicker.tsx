@@ -10,6 +10,7 @@ interface DatePickerProps {
   disabled?: boolean;
   placeholder?: string;
   dailyResetTime?: string;
+  direction?: "auto" | "up" | "down";
 }
 
 export function DatePicker({
@@ -18,9 +19,11 @@ export function DatePicker({
   min,
   disabled = false,
   placeholder = "SELECT DATE...",
-  dailyResetTime
+  dailyResetTime,
+  direction = "auto"
 }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const today = getToday(undefined, dailyResetTime);
@@ -61,6 +64,25 @@ export function DatePicker({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isOpen]);
+
+  // Dynamic placement detection (upward vs downward)
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      if (direction === "up") {
+        setOpenUpward(true);
+        return;
+      }
+      if (direction === "down") {
+        setOpenUpward(false);
+        return;
+      }
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      // Dropdown popover is ~340px tall. If spaceBelow < 350 and spaceAbove > spaceBelow, open upward
+      setOpenUpward(spaceBelow < 350 && spaceAbove > spaceBelow);
+    }
+  }, [isOpen, direction]);
 
   const year = gridDate.getFullYear();
   const month = gridDate.getMonth(); // 0-indexed
@@ -152,7 +174,7 @@ export function DatePicker({
       </div>
 
       {isOpen && (
-        <div className="w-datepicker__popover">
+        <div className={`w-datepicker__popover ${openUpward ? "w-datepicker__popover--upward" : ""}`}>
           {/* Quick Presets */}
           <div className="w-datepicker__presets">
             {presets.map((preset) => {
