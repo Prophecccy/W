@@ -53,6 +53,7 @@
 
 .heatmap-card {
   grid-column: span 3;
+  overflow: hidden;
 }
 
 .rate-card {

@@ -48,6 +48,7 @@
 
 .heatmap-wrapper {
   grid-column: span 3;
+  overflow: hidden;
 }
 
 .tod-chart {

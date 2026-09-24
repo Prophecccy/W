@@ -66,7 +66,7 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId: propHabitId, habit }
       const month = currentViewDate.getMonth();
 
       const months = [];
-      for (let i = -2; i <= 2; i++) {
+      for (let i = -1; i <= 1; i++) {
         months.push(new Date(year, month + i, 1));
       }
 
@@ -289,7 +289,7 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId: propHabitId, habit }
     "NOVEMBER",
     "DECEMBER",
   ];
-  const centerMonth = monthsData[2];
+  const centerMonth = monthsData[1];
 
   return (
     <div className="activity-heatmap-container">
@@ -319,7 +319,7 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId: propHabitId, habit }
         <div className="heatmap-carousel">
           <AnimatePresence initial={false} mode="popLayout">
             {monthsData.map((mData, index) => {
-              const offset = index - 2;
+              const offset = index - 1;
               const absOffset = Math.abs(offset);
               return (
                 <motion.div
@@ -328,14 +328,14 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId: propHabitId, habit }
                   layout
                   initial={{ opacity: 0, scale: 0.8, x: offset > 0 ? 60 : -60 }}
                   animate={{
-                    opacity: absOffset === 0 ? 1 : absOffset === 1 ? 0.4 : 0.1,
-                    scale: absOffset === 0 ? 1 : absOffset === 1 ? 0.85 : 0.7,
+                    opacity: absOffset === 0 ? 1 : 0.4,
+                    scale: absOffset === 0 ? 1 : 0.85,
                     x: 0,
-                    zIndex: 5 - absOffset,
+                    zIndex: 3 - absOffset,
                     filter:
                       absOffset === 0
                         ? "blur(0px) grayscale(0%)"
-                        : `blur(${absOffset * 1.5}px) grayscale(100%)`,
+                        : "blur(1.5px) grayscale(100%)",
                   }}
                   exit={{ opacity: 0, scale: 0.6, x: offset > 0 ? -60 : 60 }}
                   transition={{
