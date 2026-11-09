@@ -213,6 +213,13 @@ export function SettingsPage() {
       if (Object.keys(updates).length > 0) {
         const { updateUserDoc } = await import("../../auth/services/userService");
         await updateUserDoc(userDoc.uid, updates);
+
+        if (draftSettings.strikeSystemEnabled === false && (userDoc.strikes?.current ?? 0) > 0) {
+          try {
+            const { resetStrikes } = await import("../../strikes/services/strikeService");
+            await resetStrikes();
+          } catch {}
+        }
       }
 
       // Notify widget to clear preview and load saved values

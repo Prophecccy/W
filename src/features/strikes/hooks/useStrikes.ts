@@ -65,9 +65,12 @@ export function useStrikes(): UseStrikesReturn {
     // State updates via onSnapshot listener automatically
   };
 
+  const effectiveStrikes = strikeSystemEnabled ? strikes : { ...strikes, current: 0 };
+  const isLocked = strikeSystemEnabled && strikes.current >= MAX_STRIKES;
+
   return {
-    strikes,
-    isLocked: strikeSystemEnabled && strikes.current >= MAX_STRIKES,
+    strikes: effectiveStrikes,
+    isLocked,
     strikeSystemEnabled,
     loading,
     addStrike: handleAddStrike,

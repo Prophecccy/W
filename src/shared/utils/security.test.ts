@@ -346,4 +346,37 @@ describe("Unified SSO & Sovereign State Ownership Security Architecture", () => 
   });
 });
 
+describe("Strike System Zen Mode & Cross-Device Disablement Architecture", () => {
+  it("verifies localDb.ts deep-merges settings, respects strikeSystemEnabled: false, and zeroes strikes.current", () => {
+    const localDbPath = path.resolve(__dirname, "../services/localDb.ts");
+    const content = fs.readFileSync(localDbPath, "utf-8");
+    expect(content).toContain("remote.settings?.strikeSystemEnabled === false || local.settings?.strikeSystemEnabled === false");
+    expect(content).toContain("newerSettings.strikeSystemEnabled = false");
+    expect(content).toContain("merged.settings?.strikeSystemEnabled === false");
+    expect(content).toContain("current: 0");
+  });
+
+  it("verifies useStrikes.ts provides lockout immunity when strikeSystemEnabled is false", () => {
+    const useStrikesPath = path.resolve(__dirname, "../../features/strikes/hooks/useStrikes.ts");
+    const content = fs.readFileSync(useStrikesPath, "utf-8");
+    expect(content).toContain("effectiveStrikes = strikeSystemEnabled ? strikes : { ...strikes, current: 0 }");
+    expect(content).toContain("isLocked = strikeSystemEnabled && strikes.current >= MAX_STRIKES");
+  });
+
+  it("verifies Layout.tsx implements startup auto-healing for disabled strike systems", () => {
+    const layoutPath = path.resolve(__dirname, "../../app/Layout.tsx");
+    const content = fs.readFileSync(layoutPath, "utf-8");
+    expect(content).toContain("doc.settings?.strikeSystemEnabled === false && (doc.strikes?.current ?? 0) > 0");
+    expect(content).toContain("resetStrikes");
+  });
+
+  it("verifies LockoutOverlay.tsx refreshes the window upon successful Google Drive sync", () => {
+    const lockoutPath = path.resolve(__dirname, "../../features/strikes/components/LockoutOverlay.tsx");
+    const content = fs.readFileSync(lockoutPath, "utf-8");
+    expect(content).toContain("SYNC COMPLETE: REFRESHING...");
+    expect(content).toContain("window.location.reload()");
+  });
+});
+
+
 

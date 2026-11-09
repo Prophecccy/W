@@ -1009,6 +1009,28 @@ function mergeObject(local: any, remote: any): any {
     ? { ...local, ...remote }
     : { ...remote, ...local };
 
+  // Deep-merge settings so individual remote/local settings aren't wiped out by shallow object spread
+  if (remote.settings || local.settings) {
+    const newerSettings = remoteTime > localTime
+      ? { ...(local.settings || {}), ...(remote.settings || {}) }
+      : { ...(remote.settings || {}), ...(local.settings || {}) };
+
+    // Explicit opt-out of strike system must be respected across devices
+    if (remote.settings?.strikeSystemEnabled === false || local.settings?.strikeSystemEnabled === false) {
+      newerSettings.strikeSystemEnabled = false;
+    }
+
+    merged.settings = newerSettings;
+  }
+
+  // If strike system is disabled anywhere, force strikes.current = 0
+  if (merged.settings?.strikeSystemEnabled === false) {
+    merged.strikes = {
+      ...(merged.strikes || {}),
+      current: 0,
+    };
+  }
+
   // If remote shows the lockout was cleared (strikes.current === 0),
   // prevent a stale local gap run from re-locking the account
   if (remote.strikes && remote.strikes.current === 0 && merged.strikes && merged.strikes.current > 0) {

@@ -1026,3 +1026,30 @@ Resolved an issue where opening the Web app after prolonged absence falsely disp
    - 17 test files and 159 tests passing via Vitest (`npx vitest run`).
    - Zero TypeScript compiler errors with `npm run build`.
 
+## Batch 65 — Strike System Zen Mode Immunity & Multi-Device Sync Architecture
+
+Resolved an issue where opening the Web app after months of inactivity displayed a false `[ SYSTEM LOCKED ] 5/5 strikes` lockout screen despite the user having disabled the strike system (`strikeSystemEnabled: false`) on Desktop long ago:
+
+1. **Deep Merge & Strike System Immunity in State Synchronization (`localDb.ts`)**:
+   - In `mergeObject()`, updated `settings` handling from shallow object overwrite to a deep merge.
+   - **Cross-Device Opt-Out Priority**: If either `remote.settings?.strikeSystemEnabled === false` or `local.settings?.strikeSystemEnabled === false`, `strikeSystemEnabled = false` is strictly preserved, preventing stale client caches from resurrecting the strike system.
+   - **Zero-Strike Guarantee**: When `strikeSystemEnabled === false`, `merged.strikes.current` is automatically forced to `0`.
+   - Preserved remote lockout clearing logic (`remote.strikes.current === 0` resets `merged.strikes.current = 0`).
+
+2. **Absolute Lockout Immunity (`useStrikes.ts`)**:
+   - In `useStrikes()`, when `strikeSystemEnabled === false`, `isLocked` is strictly forced to `false` and `strikes.current` is exposed as `0`, guaranteeing the lockout screen cannot render when the strike system is disabled.
+
+3. **Startup Auto-Healing (`Layout.tsx`)**:
+   - On application startup / userDoc resolution, if `doc.settings?.strikeSystemEnabled === false` and `(doc.strikes?.current ?? 0) > 0`, silently invokes `resetStrikes()` to purge lingering strikes from local IndexedDB and cloud sync.
+
+4. **Lockout Overlay Instant Refresh (`LockoutOverlay.tsx`)**:
+   - In `handleSyncFromDrive()`, upon successful sync from Google Drive (`pullAndMergeFromGoogleDrive(true)` returns `true`), reloads the window after a brief status message (`[ SYNC COMPLETE: REFRESHING... ]`) to reinitialize state and unmount the lockout screen immediately.
+
+5. **Proactive Zeroing on Toggle (`DisciplineSection.tsx`, `SettingsPage.tsx`)**:
+   - When the user toggles `strikeSystemEnabled` to `false` in Settings, proactively calls `resetStrikes()` to purge active strikes immediately.
+
+6. **Verification & Quality Gates**:
+   - 17 test files and 163 tests passing via Vitest (`npm test`).
+   - Added unit test suite in `security.test.ts` for Zen Mode immunity and cross-device sync resolution.
+   - Zero TypeScript compiler errors (`npm run build`).
+

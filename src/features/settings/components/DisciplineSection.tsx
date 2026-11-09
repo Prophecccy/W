@@ -29,7 +29,16 @@ export function DisciplineSection({ settings, onUpdate }: DisciplineSectionProps
             </div>
             <button
               className={`settings-toggle ${strikeSystemEnabled ? "settings-toggle--on" : ""}`}
-              onClick={() => onUpdate({ strikeSystemEnabled: !strikeSystemEnabled })}
+              onClick={async () => {
+                const nextVal = !strikeSystemEnabled;
+                onUpdate({ strikeSystemEnabled: nextVal });
+                if (!nextVal) {
+                  try {
+                    const { resetStrikes } = await import("../../strikes/services/strikeService");
+                    await resetStrikes();
+                  } catch {}
+                }
+              }}
               aria-label="Toggle Strike System"
             >
               <span className="settings-toggle__knob" />

@@ -36,7 +36,13 @@ export function LockoutOverlay({ onResolve }: LockoutOverlayProps) {
       const pulled = await pullAndMergeFromGoogleDrive(true);
       if (pulled) {
         playMechanicalClick();
-        setSyncStatus("[ SYNC COMPLETE: UPDATING... ]");
+        setSyncStatus("[ SYNC COMPLETE: REFRESHING... ]");
+        setTimeout(() => {
+          if (typeof window !== "undefined") {
+            window.location.reload();
+          }
+        }, 800);
+        return;
       } else {
         setSyncStatus("[ UP TO DATE ]");
       }

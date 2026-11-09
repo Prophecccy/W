@@ -103,6 +103,13 @@ function LayoutInner() {
         document.body.classList.remove("low-graphics");
       }
 
+      // Self-healing: If strike system is disabled, purge any lingering strikes from local state
+      if (doc.settings?.strikeSystemEnabled === false && (doc.strikes?.current ?? 0) > 0) {
+        import("../features/strikes/services/strikeService").then(({ resetStrikes }) => {
+          resetStrikes().catch(() => {});
+        });
+      }
+
       if (phase === "loading") {
         setPhase("processing");
       }
