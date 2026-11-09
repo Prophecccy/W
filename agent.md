@@ -1072,3 +1072,23 @@ Resolved an issue where opening the Web app after months of dormancy triggered a
    - 17 test files and 166 tests passing via Vitest (`npm test`).
    - Zero TypeScript compiler errors (`npm run build`).
 
+## Batch 67 — Real-Time Cloud Sync Dispatch, Multi-Device Tombstone Permanence & 1-Click Re-Authentication
+
+Resolved an issue where habit completions marked on Desktop were unticked on Web, and deleted zombie habits reappeared due to expired browser OAuth sessions and missing web sync event dispatchers:
+
+1. **Browser Sync Event Dispatch & Reactive UI Refresh (`localDb.ts`, `DashboardPage.tsx`, `HabitsPage.tsx`, `TodosPage.tsx`)**:
+   - In `localDb.ts`, updated `notifyDataChanged()` to dispatch a DOM CustomEvent `"w:data-synced"`.
+   - In `DashboardPage.tsx`, `HabitsPage.tsx`, and `TodosPage.tsx`, registered window listeners for `"w:data-synced"` that operate seamlessly in browser and Tauri environments. Whenever cloud sync pulls fresh state from Google Drive (e.g., startup, window focus, tab visibility change, or the 10-second heartbeat), the UI immediately re-fetches and renders completed habits and current todos.
+
+2. **Permanent Tombstone Deletion Defense across Devices (`localDb.ts`)**:
+   - In `mergeCollection()`, updated tombstone reconciliation. If either client marks an item `deleted: true`, the deletion strictly wins (`isRemoteDeleted || isLocalDeleted`), preventing dormant browser tabs from resurrecting deleted habits (such as `Hand Gripper` or deprecated video habits) via outdated creation timestamps or local gap processing.
+
+3. **One-Click Re-Authentication on Expired Session (`useAuth.ts`, `AccountSection.tsx`, `Topbar.tsx`)**:
+   - Extended `useAuth` hook and `AuthContext` to expose `isDriveSessionExpired`, automatically tracking OAuth validity and listening for `"w:gdrive-session-expired"` and `"w:gdrive-linked"`.
+   - In `AccountSection.tsx`, if the session has expired, the status transitions to a red warning and provides a direct `[ RE-LINK GOOGLE DRIVE ]` button calling `signIn()`.
+   - In `Topbar.tsx`, if the cloud session is expired, displays a prominent `[ SYNC PENDING — RE-LINK ]` badge with `GoogleDriveIcon` that initiates one-click Google re-authentication and triggers an immediate pull from Google Drive.
+
+4. **Verification & Quality Gates**:
+   - 17 test files and 169 tests passing via Vitest (`npm test`).
+   - Clean production build via Vite (`npm run build`).
+

@@ -59,12 +59,20 @@ export function DashboardPage() {
   }, [userDoc?.settings?.dailyResetTime]);
 
   useEffect(() => {
-    if (!isTauri()) return;
-
     let active = true;
     let unsubPromise: Promise<(() => void)[]> | null = null;
 
+    const handleDataSynced = () => {
+      console.log('Dashboard: Received w:data-synced event, refreshing state...');
+      setRefreshTrigger(prev => prev + 1);
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("w:data-synced", handleDataSynced);
+    }
+
     async function setupListeners() {
+      if (!isTauri()) return [];
       try {
         const { listen } = await import('@tauri-apps/api/event');
         if (!active) return [];
@@ -89,6 +97,9 @@ export function DashboardPage() {
 
     return () => {
       active = false;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("w:data-synced", handleDataSynced);
+      }
       if (unsubPromise) {
         unsubPromise.then((unsubs) => unsubs.forEach((unsub) => unsub())).catch(() => {});
       }

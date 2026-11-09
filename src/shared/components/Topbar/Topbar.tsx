@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Search, Minus, Square, X, Download, Snowflake, HelpCircle, ChevronDown, LayoutDashboard, Target, ListChecks, BookOpen, Settings, Menu } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useUpdateManager } from "../../../features/updater/hooks/useUpdateManager";
+import { GoogleDriveIcon } from "../GoogleDriveIcon/GoogleDriveIcon";
 import "./Topbar.css";
 
 // Pre-import so startDragging fires instantly on pointer-down (no async delay)
@@ -39,7 +40,65 @@ export function Topbar({
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isDriveExpired, setIsDriveExpired] = useState(false);
+  const [isReauthing, setIsReauthing] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    const checkStatus = async () => {
+      if (localStorage.getItem("driveLinked") === "true") {
+        try {
+          const { getValidAccessToken } = await import("../../../shared/services/googleDriveService");
+          const token = await getValidAccessToken();
+          if (active && !token) {
+            setIsDriveExpired(true);
+          }
+        } catch {
+          if (active) setIsDriveExpired(true);
+        }
+      }
+    };
+    checkStatus();
+
+    const handleExpired = () => setIsDriveExpired(true);
+    const handleLinked = () => setIsDriveExpired(false);
+    const handleUnlinked = () => setIsDriveExpired(false);
+
+    window.addEventListener("w:gdrive-session-expired", handleExpired);
+    window.addEventListener("w:gdrive-linked", handleLinked);
+    window.addEventListener("w:gdrive-unlinked", handleUnlinked);
+
+    return () => {
+      active = false;
+      window.removeEventListener("w:gdrive-session-expired", handleExpired);
+      window.removeEventListener("w:gdrive-linked", handleLinked);
+      window.removeEventListener("w:gdrive-unlinked", handleUnlinked);
+    };
+  }, []);
+
+  const handleReauth = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsReauthing(true);
+    try {
+      const { signInWithGoogle } = await import("../../../features/auth/services/authService");
+      await signInWithGoogle();
+      setIsDriveExpired(false);
+      const { pullAndMergeFromGoogleDrive } = await import("../../../shared/services/localDb");
+      await pullAndMergeFromGoogleDrive(true);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("w:toast", {
+            detail: "[ GOOGLE DRIVE RE-LINKED & SYNCED ]",
+          })
+        );
+      }
+    } catch (err) {
+      console.error("[Topbar] Re-authentication failed:", err);
+    } finally {
+      setIsReauthing(false);
+    }
+  };
 
   const handleUnfreeze = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -171,6 +230,23 @@ export function Topbar({
             >
               <Snowflake size={11} strokeWidth={2} />
               <span>[ FROZEN — CLICK TO RESUME ]</span>
+            </button>
+          )}
+          {isDriveExpired && (
+            <button
+              type="button"
+              className="topbar__freeze-indicator"
+              style={{
+                borderColor: "rgba(248, 113, 113, 0.5)",
+                color: "var(--strike-red)",
+                background: "rgba(248, 113, 113, 0.08)",
+              }}
+              onClick={handleReauth}
+              disabled={isReauthing}
+              title="Google Drive session expired. Click to re-link and sync today's completed habits."
+            >
+              <GoogleDriveIcon size={11} />
+              <span>{isReauthing ? "[ RE-LINKING... ]" : "[ SYNC PENDING — RE-LINK ]"}</span>
             </button>
           )}
 

@@ -84,6 +84,15 @@ export function TodosPage() {
     let active = true;
     let unsubPromise: Promise<(() => void)[]> | null = null;
 
+    const handleDataSynced = () => {
+      console.log('TodosPage: Received w:data-synced event, refreshing...');
+      if (active) loadData(true);
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("w:data-synced", handleDataSynced);
+    }
+
     async function setupListeners() {
       try {
         const { isTauri } = await import("../../../shared/utils/tauri");
@@ -115,6 +124,9 @@ export function TodosPage() {
     unsubPromise = setupListeners();
     return () => {
       active = false;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("w:data-synced", handleDataSynced);
+      }
       if (unsubPromise) {
         unsubPromise.then((unsubs) => unsubs.forEach((unsub) => unsub())).catch(() => {});
       }

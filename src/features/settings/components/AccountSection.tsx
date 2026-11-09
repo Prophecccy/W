@@ -4,7 +4,7 @@ import { GoogleDriveIcon } from "../../../shared/components/GoogleDriveIcon/Goog
 import { useUserStore } from "../../../shared/stores/userStore";
 
 export function AccountSection() {
-  const { user, signIn, signOut, error, signingIn, clearError } = useAuthContext();
+  const { user, signIn, signOut, error, signingIn, clearError, isDriveSessionExpired } = useAuthContext();
   const { userDoc } = useUserStore();
 
   const handleSignOut = async () => {
@@ -58,14 +58,27 @@ export function AccountSection() {
         <div className="settings-row">
           <div className="settings-row__label">
             <span className="t-meta" style={{ letterSpacing: "1px", fontWeight: 500 }}>SOVEREIGN CLOUD SYNC</span>
-            <span className="t-meta" style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px", display: "block" }}>
-              {user?.email
+            <span className="t-meta" style={{ fontSize: "11px", color: isDriveSessionExpired ? "var(--strike-red)" : "var(--text-muted)", marginTop: "2px", display: "block" }}>
+              {isDriveSessionExpired
+                ? "Google Drive session expired or needs re-authentication. Re-link to resume cloud synchronization."
+                : user?.email
                 ? `Directly locked & mirrored to ${user.email}'s personal Google Drive container.`
                 : "Offline development mode. Cloud sync is disabled."}
             </span>
           </div>
           <div className="settings-row__action">
-            {user?.email ? (
+            {user?.email && isDriveSessionExpired ? (
+              <button
+                className="settings-btn"
+                style={{ color: "var(--strike-red)", borderColor: "var(--strike-red)" }}
+                onClick={signIn}
+                disabled={signingIn}
+                title="Click to sign in with Google and re-link your Drive container"
+              >
+                <GoogleDriveIcon size={12} />
+                <span>{signingIn ? "[ CONNECTING... ]" : "[ RE-LINK GOOGLE DRIVE ]"}</span>
+              </button>
+            ) : user?.email ? (
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <GoogleDriveIcon size={14} />
                 <span className="t-meta" style={{ color: "#4ade80", fontWeight: 600 }}>[ CONNECTED & LOCKED ]</span>

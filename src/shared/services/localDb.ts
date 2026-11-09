@@ -669,6 +669,9 @@ export function triggerLocalListenersForEverything(uid: string) {
 export function notifyDataChanged(uid: string) {
   triggerLocalListenersForEverything(uid);
   emit("w_localdb_write", { path: `users/${uid}` }).catch(() => {});
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("w:data-synced", { detail: { uid } }));
+  }
 }
 
 if (typeof window !== "undefined") {
@@ -1151,20 +1154,15 @@ function mergeCollection(local: Record<string, any>, remote: Record<string, any>
       const isLocalDeleted = localItem.deleted === true;
       const isRemoteDeleted = remoteItem.deleted === true;
 
-      if (isLocalDeleted && !isRemoteDeleted) {
-        // Local was deleted: only resurrect if remote was explicitly modified AFTER local deletion
-        if (remoteTime > localTime) {
-          merged[id] = remoteItem;
-        } else {
-          merged[id] = { ...remoteItem, deleted: true, updatedAt: localTime };
-        }
-      } else if (isRemoteDeleted && !isLocalDeleted) {
-        // Remote was deleted: only resurrect if local was explicitly modified AFTER remote deletion
-        if (localTime > remoteTime) {
-          merged[id] = localItem;
-        } else {
-          merged[id] = { ...localItem, deleted: true, updatedAt: remoteTime };
-        }
+      if (isLocalDeleted || isRemoteDeleted) {
+        // Tombstone rule: deletion across devices is authoritative.
+        // A dormant client waking up with stale items must NEVER resurrect an item deleted on another device.
+        const base = remoteTime > localTime ? { ...localItem, ...remoteItem } : { ...remoteItem, ...localItem };
+        merged[id] = {
+          ...base,
+          deleted: true,
+          updatedAt: Math.max(localTime, remoteTime),
+        };
       } else {
         if (remoteTime > localTime) {
           merged[id] = remoteItem;

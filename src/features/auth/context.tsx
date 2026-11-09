@@ -13,6 +13,7 @@ interface AuthContextType {
   devSkip: () => void;
   isDriveLinked: boolean;
   setIsDriveLinked: (linked: boolean) => void;
+  isDriveSessionExpired: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);

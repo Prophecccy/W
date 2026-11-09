@@ -10,12 +10,33 @@ export function useAuth() {
   const [isDriveLinked, setIsDriveLinked] = useState<boolean>(() => {
     return localStorage.getItem("driveLinked") === "true";
   });
+  const [isDriveSessionExpired, setIsDriveSessionExpired] = useState<boolean>(false);
   const restoringRef = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    async function checkInitialToken() {
+      if (localStorage.getItem("driveLinked") === "true") {
+        try {
+          const { getValidAccessToken } = await import("../../../shared/services/googleDriveService");
+          const token = await getValidAccessToken();
+          if (active && !token) {
+            setIsDriveSessionExpired(true);
+          }
+        } catch {
+          if (active) setIsDriveSessionExpired(true);
+        }
+      }
+    }
+    checkInitialToken();
+    return () => { active = false; };
+  }, [user]);
 
   useEffect(() => {
     const handleLinked = async () => {
       console.info("[W Auth Hook] Google Drive linked event captured. Synchronizing state to true.");
       setIsDriveLinked(true);
+      setIsDriveSessionExpired(false);
       if (auth.currentUser) {
         try {
           const { updateUserDoc } = await import("../services/userService");
@@ -39,14 +60,21 @@ export function useAuth() {
     const handleUnlinked = () => {
       console.info("[W Auth Hook] Google Drive unlinked event captured. Synchronizing state to false.");
       setIsDriveLinked(false);
+      setIsDriveSessionExpired(false);
+    };
+    const handleSessionExpired = () => {
+      console.warn("[W Auth Hook] Google Drive session expired event captured.");
+      setIsDriveSessionExpired(true);
     };
 
     window.addEventListener("w:gdrive-linked", handleLinked);
     window.addEventListener("w:gdrive-unlinked", handleUnlinked);
+    window.addEventListener("w:gdrive-session-expired", handleSessionExpired);
 
     return () => {
       window.removeEventListener("w:gdrive-linked", handleLinked);
       window.removeEventListener("w:gdrive-unlinked", handleUnlinked);
+      window.removeEventListener("w:gdrive-session-expired", handleSessionExpired);
     };
   }, []);
 
@@ -112,6 +140,7 @@ export function useAuth() {
     try {
       await signInWithGoogle();
       setIsDriveLinked(localStorage.getItem("driveLinked") === "true");
+      setIsDriveSessionExpired(false);
     } catch (err: unknown) {
       let message: string;
       if (err instanceof Error) {
@@ -179,5 +208,6 @@ export function useAuth() {
     devSkip,
     isDriveLinked,
     setIsDriveLinked,
+    isDriveSessionExpired,
   };
 }

@@ -83,12 +83,20 @@ export function HabitsPage() {
 
   // ── Cross-window sync: listen for habit updates from Dashboard/Widget ──
   useEffect(() => {
-    if (!isTauri()) return;
+    const handleDataSynced = () => {
+      console.log('HabitsPage: Received w:data-synced event, refreshing...');
+      setRefreshKey(prev => prev + 1);
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("w:data-synced", handleDataSynced);
+    }
 
     let active = true;
     let unsubPromise: Promise<() => void> | null = null;
 
     async function setupListener() {
+      if (!isTauri()) return () => {};
       try {
         const { listen } = await import('@tauri-apps/api/event');
         if (!active) return () => {};
@@ -108,6 +116,9 @@ export function HabitsPage() {
 
     return () => {
       active = false;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("w:data-synced", handleDataSynced);
+      }
       if (unsubPromise) {
         unsubPromise.then((unsub) => unsub()).catch(() => {});
       }

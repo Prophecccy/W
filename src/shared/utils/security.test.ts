@@ -400,7 +400,37 @@ describe("Strike System Zen Mode & Cross-Device Disablement Architecture", () =>
     expect(content).toContain("deactivateFreeze");
     expect(content).toContain("[ FROZEN — CLICK TO RESUME ]");
   });
+
+  it("verifies localDb.ts dispatches w:data-synced and enforces permanent tombstones across devices", () => {
+    const localDbPath = path.resolve(__dirname, "../services/localDb.ts");
+    const content = fs.readFileSync(localDbPath, "utf-8");
+    expect(content).toContain("window.dispatchEvent(new CustomEvent(\"w:data-synced\"");
+    expect(content).toContain("if (isLocalDeleted || isRemoteDeleted)");
+    expect(content).toContain("deleted: true");
+  });
+
+  it("verifies DashboardPage, HabitsPage, and TodosPage listen for w:data-synced to auto-refresh on cloud sync", () => {
+    const dashboardPath = path.resolve(__dirname, "../../features/dashboard/components/DashboardPage.tsx");
+    const habitsPath = path.resolve(__dirname, "../../features/habits/components/HabitsPage.tsx");
+    const todosPath = path.resolve(__dirname, "../../features/todos/components/TodosPage.tsx");
+
+    expect(fs.readFileSync(dashboardPath, "utf-8")).toContain("w:data-synced");
+    expect(fs.readFileSync(habitsPath, "utf-8")).toContain("w:data-synced");
+    expect(fs.readFileSync(todosPath, "utf-8")).toContain("w:data-synced");
+  });
+
+  it("verifies Topbar and AccountSection render re-authentication triggers when Google Drive session is expired", () => {
+    const topbarPath = path.resolve(__dirname, "../components/Topbar/Topbar.tsx");
+    const accountPath = path.resolve(__dirname, "../../features/settings/components/AccountSection.tsx");
+
+    const topbarContent = fs.readFileSync(topbarPath, "utf-8");
+    const accountContent = fs.readFileSync(accountPath, "utf-8");
+
+    expect(topbarContent).toContain("[ SYNC PENDING — RE-LINK ]");
+    expect(accountContent).toContain("[ RE-LINK GOOGLE DRIVE ]");
+  });
 });
+
 
 
 
