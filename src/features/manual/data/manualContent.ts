@@ -34,7 +34,7 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
     shortTitle: "Overview & Philosophy",
     iconName: "Terminal",
     summary: "Understand the core design philosophy of W, the viewport-locked interface, and how the 24-hour command loop works.",
-    keywords: ["overview", "philosophy", "command center", "interface", "viewport", "basics", "endfield", "loop"],
+    keywords: ["overview", "philosophy", "command center", "interface", "viewport", "basics", "loop"],
     sections: [
       {
         id: "what-is-w",
@@ -57,8 +57,8 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
         title: "The Viewport-Locked Interface",
         tag: "INTERFACE MECHANICS",
         content: [
-          "One of the first things you will notice is that W never lets you scroll endlessly down a page. The entire Command Center is strictly locked to 100% of your screen height (100vh).",
-          "This intentional constraint forces visual priority: only current, high-leverage protocols are displayed. When a section contains multiple items (like your habit feed), internal scroll containers activate with invisible scrollbars to preserve the clean, distraction-free aesthetic."
+          "One of the first things you will notice on the Dashboard is that W never lets you scroll endlessly down a page. The primary Command Center HUD is strictly locked to 100% of your screen height (100vh).",
+          "This intentional constraint forces visual priority: only current, high-leverage protocols are displayed. When a section contains multiple items (like your habit feed), internal scroll containers activate with invisible scrollbars to preserve the clean, distraction-free aesthetic. Detailed repository views (Manual, Habits, Analytics, Settings) support smooth vertical scrolling."
         ],
         subsections: [
           {
@@ -66,8 +66,8 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
             description: "Elements rest as semi-transparent frosted data projections against your wallpaper. When you hover or interact, elements elevate with sharp outlines and vibrant accent glows."
           },
           {
-            title: "Endfield Monospace Typography",
-            description: "All labels, timestamps, and metrics are rendered in Departure Mono. Section titles always follow bracketed uppercase notation: [ SYSTEM STATUS ], [ ACTIVE PROTOCOLS ], [ QUICK STATS ]."
+            title: "Departure Mono Typography",
+            description: "All labels, timestamps, and metrics are rendered in Departure Mono, an 8-bit retro tactical monospace font. Section titles always follow bracketed uppercase notation: [ SYSTEM STATUS ], [ ACTIVE PROTOCOLS ], [ QUICK STATS ]."
           }
         ]
       }
@@ -84,10 +84,10 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
     sections: [
       {
         id: "habit-types",
-        title: "The 4 Protocol Archetypes",
+        title: "The 5 Protocol Archetypes",
         tag: "FOUNDATIONS",
         content: [
-          "Not all habits are simple yes/no checkmarks. W provides four distinct behavioral engines designed to match real human habits:"
+          "Not all habits are simple yes/no checkmarks. W provides five distinct behavioral engines designed to match real human habits:"
         ],
         subsections: [
           {
@@ -120,12 +120,23 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
               "A sub-badge displays '✓ DONE TODAY' when you've worked on it today, even before the weekly quota is fully met.",
               "Progress resets cleanly on your configured Weekly Reset Day (default: Monday)."
             ]
+          },
+          {
+            title: "5. Specific Days Habits (Discrete Day Protocols)",
+            description: "Protocols that occur only on designated days of the week (e.g. 'Heavy Squats on Monday & Thursday', 'Weekly Review on Sunday').",
+            bulletPoints: [
+              "Appears in your active habit matrix strictly on its scheduled days of the week.",
+              "On non-scheduled days, the habit is cleanly hidden from your active list and displayed under [ UPCOMING ] with a 'NEXT: <DAY>' badge.",
+              "Zero Carryover: If you miss a scheduled day, it does not roll over to the next morning—it disappears until the next scheduled day.",
+              "Strike Integrity: Missing a scheduled day incurs exactly 1 strike point if the Strike System is active (0 strikes if disabled). Unscheduled rest days never accrue penalties.",
+              "Discrete Heatmap & Analytics: Rest days are displayed as subtle non-scheduled cells, preventing unfair dilution of your completion efficiency."
+            ]
           }
         ]
       },
       {
         id: "habit-interactions",
-        title: "Hold-to-Complete & Undo Grace Period",
+        title: "Hold-to-Complete & Tactical Undo",
         tag: "INTERACTIONS",
         content: [
           "To prevent accidental misclicks, W uses tactical interaction mechanics:"
@@ -138,8 +149,8 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
           },
           {
             type: "rule",
-            title: "8-SECOND UNDO GRACE PERIOD",
-            text: "Immediately after completing a habit, a glowing countdown line activates across the bottom of the card for 8 seconds. Clicking the card during this window instantly reverses the completion and restores your previous metric value."
+            title: "TACTICAL UNDO MECHANICS",
+            text: "Immediately upon completing a habit, an interactive system toast appears with a one-click [ UNDO ] action. You can also re-hold any completed card directly in your matrix or click [ UNDO LOG ] inside the habit's configuration drawer to instantly revert a mistaken check-in."
           }
         ]
       },
@@ -158,10 +169,10 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
         tag: "ANALYTICS",
         content: [
           "Clicking any habit opens its complete analytical breakdown:",
-          "• GitHub-Style Calendar Heatmap: Visualizes your consistency over the past 365 days. Darker green blocks represent higher completion intensity or milestone achievements.",
-          "• Peak Performance Window: Analyzes the exact timestamps of your completions to identify when during the day (Morning, Afternoon, Evening, Night) you are most disciplined.",
-          "• Best vs Current Streak: Compares your active consecutive run against your historical all-time record.",
-          "• Weekly Adherence Rate: Accurately evaluates completion percentage against your target."
+          "• 28-Day Consistency Heatmap: Visualizes your daily check-ins over the last 28 days directly inside the habit drawer.",
+          "• 14-Day Trend Sparkline: SVG graph showing unit trends for Metric and Limiter habits.",
+          "• Level, Current Streak, and Lifetime Total: Instant milestone tracking at a glance.",
+          "• Full-Year Macro Analytics: Comprehensive 365-day heatmaps, weekly adherence rates, and long-term trends are accessible from the dedicated [ Analytics ] page in the sidebar."
         ]
       }
     ]
@@ -271,24 +282,28 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
       },
       {
         id: "resolving-lockout",
-        title: "Resolving Lockout (Penance & Escalation)",
+        title: "Resolving Lockout (Penance Protocols)",
         tag: "RESOLUTION",
         content: [
-          "To unlock your Command Center, click [ RESOLVE LOCKOUT ]. You must choose between two paths:"
+          "To unlock your Command Center, click [ RESOLVE LOCKOUT ]. The system presents three tactical penance pathways to clear your strikes and restore operations:"
         ],
         subsections: [
           {
-            title: "Option A: Immediate Penance Action",
-            description: "Create and immediately execute an extra compensatory protocol (a rigorous new habit or an immediate high-priority task) to earn redemption."
+            title: "1. [ INCREASE DIFFICULTY ] (Target Escalation)",
+            description: "Accept a permanent challenge increase on one of your active habits. The target value for your chosen habit increases by +33% (or tightens by -33% for limiter habits).",
+            bulletPoints: [
+              "Requires at least one active Metric or Limiter habit.",
+              "For example, a target of 30 pushups raises to 40 reps, or a limiter cap of 3 coffees tightens to 2.",
+              "Immediately upon selection, strikes reset to 0/5 and the viewport unlocks."
+            ]
           },
           {
-            title: "Option B: Permanent Difficulty Escalation",
-            description: "Accept permanent increases in accountability for your active protocols:",
-            bulletPoints: [
-              "Metric Habits: Target values increase by +33% (minimum +1). For example, 30 pushups becomes 40 pushups.",
-              "Limiter Habits: Daily allowances tighten by -33% (minimum -1). For example, 3 coffees becomes 2 coffees.",
-              "Upon accepting the higher difficulty, all 5 strikes are cleared, and the system reactively unlocks."
-            ]
+            title: "2. [ ADD NEW HABIT ] (Matrix Expansion)",
+            description: "Commit to expanded daily discipline by provisioning an entirely new daily habit. The penance habit creation form opens inline, and upon saving, all 5 strikes are cleared."
+          },
+          {
+            title: "3. [ ADD NEW TODO ] (Tactical Task Commitment)",
+            description: "Formulate and schedule an urgent new task that must be completed. Submitting the task commits the record to your Todos matrix and reactively releases the system lockout."
           }
         ]
       },
@@ -347,34 +362,34 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
       },
       {
         id: "depletion-zones",
-        title: "The 4 Depletion Zones",
+        title: "Waking Fuel Mechanics & Depletion",
         tag: "FUEL STATUS",
         content: [
-          "Throughout the day, the tube changes color and behavior across 4 discrete psychological stages:"
+          "The SleepTube operates on dynamic biological time, measuring the percentage of waking energy remaining before your target sleep window:"
         ],
         subsections: [
           {
-            title: "1. Optimal Fuel (100% — 70%) — Cyan/Accent Glow",
-            description: "Peak cognitive state. Best reserved for high-friction deep work, workout protocols, and creative problem-solving."
+            title: "Dynamic Circadian Calculation",
+            description: "The gauge calculates elapsed time between your configured Wake-Up Time and Bedtime. If your sleep schedule crosses midnight (e.g. 09:00 AM wake-up and 01:00 AM bedtime), W automatically handles the night-owl rollover seamlessly."
           },
           {
-            title: "2. Cruising Fuel (69% — 30%) — Cool Blue",
-            description: "Steady-state afternoon momentum. Ideal for tactical execution, meetings, and incremental todos."
+            title: "Tactical Interval Markers",
+            description: "Calibrated horizontal milestone ticks mark [ 100 ], [ 75 ], [ 50 ], [ 25 ], and [ 0 ] percent fuel levels, giving you an immediate visual cue of your day's decay."
           },
           {
-            title: "3. Low Fuel (29% — 10%) — Amber Warning",
-            description: "Evening decline. The gauge shifts to amber, signaling that you should begin wrapping up high-demand tasks and reviewing outstanding daily protocols."
+            title: "Themed Fuel Luminescence",
+            description: "The fluid inside the mercury track is illuminated with your chosen accent color (--accent) and features an ambient breathing glow pulse."
           },
           {
-            title: "4. Fuel Depleted (< 10%) — Crimson Flash",
-            description: "Circadian limit reached. The gauge flashes red with the label [ DEPLETED ]. The system encourages you to disconnect, log your final Daily Note, and sleep."
+            title: "Zero Fuel / Depleted State",
+            description: "When your waking window expires or your designated bedtime passes, the fluid drains completely to 0% and displays the tactical label [ DEPLETED ] (which can be customized to any phrase you choose in Settings)."
           }
         ],
         callouts: [
           {
             type: "tip",
             title: "CONFIGURING YOUR CIRCADIAN HOURS",
-            text: "Head to [ SETTINGS ] → [ SLEEP TUBE ] to set your typical Wake-Up Time (e.g. 07:00) and Bedtime (e.g. 23:30). The tube automatically calculates the total waking window and scales smoothly in real time."
+            text: "Head to [ SETTINGS ] → [ SLEEP TUBE ] to set your typical Wake-Up Time (e.g. 07:00), Bedtime (e.g. 23:30), and your custom empty tube text. The tube automatically scales smoothly in real time across the Dashboard and Desktop Widget."
           }
         ]
       }
@@ -431,6 +446,13 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
         content: [
           "You never need to interrupt your focus or switch app windows to capture a fleeting thought or sudden assignment.",
           "Press Ctrl+N (or click the '[ + TODO ]' button on the Desktop Widget) from anywhere on your PC. A lightweight, floating, centered quick-creator dialog spawns instantly. Type your task, select priority, hit Enter, and the task immediately syncs to your database while the window auto-closes."
+        ],
+        callouts: [
+          {
+            type: "tip",
+            title: "NATURAL LANGUAGE CAPTURE (CTRL + K)",
+            text: "You can also type 'new todo [task] [date] [priority]' directly in the Command Palette (Ctrl+K) to create tasks with dates and priorities without opening any dialogs."
+          }
         ]
       }
     ]
@@ -438,11 +460,11 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
   {
     id: "desktop-widget",
     number: "07",
-    title: "Desktop Widget Companion",
-    shortTitle: "Desktop Widget",
+    title: "Desktop Companions & Sticky Notes",
+    shortTitle: "Desktop Companions",
     iconName: "Monitor",
-    summary: "How the desktop companion widget works, bottom pinning, auto-scaling height, safe-centering habits, and quick logging.",
-    keywords: ["widget", "desktop", "hud", "always on top", "bottom pinned", "auto resize", "safe center"],
+    summary: "Master the always-on-screen companion widget, floating desktop sticky notes, local coordinate persistence, and multi-monitor recall.",
+    keywords: ["widget", "desktop", "hud", "always on top", "bottom pinned", "auto resize", "safe center", "sticky notes", "multi-monitor", "displays"],
     sections: [
       {
         id: "widget-overview",
@@ -471,6 +493,26 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
             type: "tip",
             title: "DRAGGING & POSITIONING",
             text: "Click and drag any non-interactive surface of the widget to place it anywhere across multiple monitors. W automatically remembers its coordinates across app reboots."
+          }
+        ]
+      },
+      {
+        id: "desktop-sticky-notes",
+        title: "Floating Sticky Notes & Multi-Monitor Recall",
+        tag: "DESKTOP OVERLAYS",
+        content: [
+          "In addition to the widget HUD, W allows you to pin active tasks directly onto your desktop wallpaper as tactile sticky notes.",
+          "Features include:",
+          "• One-Click Desktop Pinning: From the Todos page, toggle the pin icon on any active task to cast it onto your desktop overlay.",
+          "• Local-Only Persistence: All sticky note and widget screen coordinates are saved strictly to your local machine (widget_position.json and local storage). Coordinates are never sent to external cloud databases, preserving your privacy and local autonomy.",
+          "• Multi-Monitor Topology Detection: If you position notes or the widget on a 2nd monitor and later boot your PC with only 1 monitor connected, W temporarily renders them inside the safe bounds of your primary screen so you never lose sight of your work.",
+          "• Non-Destructive Hardware Auto-Recall: When your 2nd monitor is plugged back in, the system detects the display change in real time and automatically teleports all sticky notes and the widget back to their exact positions on your secondary screen."
+        ],
+        callouts: [
+          {
+            type: "tip",
+            title: "RESETTING WIDGET POSITION",
+            text: "If you ever lose track of your widget or notes across complex display setups, navigate to [ SETTINGS ] → [ DESKTOP COMPANIONS ] and click [ RESET WIDGET POSITION ] to safely recall it to your primary monitor."
           }
         ]
       }
@@ -513,6 +555,10 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
           {
             title: "Historical Archive Browser",
             description: "Browse past notes by clicking any date on the Logbook calendar. You can read, search, and edit past entries seamlessly."
+          },
+          {
+            title: "Unified SSO & State Ownership Isolation",
+            description: "Logging in with Google authenticates your profile and binds your personal Google Drive container in a single roundtrip. W embeds an ownership envelope (v2) with your authenticated email into W_state.json. If cloud state belonging to a different account is ever encountered, the sync engine immediately halts to eliminate cross-account data leakage and prevent cloud clobbering."
           }
         ]
       }
@@ -529,19 +575,23 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
     sections: [
       {
         id: "lockdown-concept",
-        title: "Distraction Elimination",
+        title: "Distraction Elimination & Deep Work",
         tag: "FOCUS SESSIONS",
         content: [
-          "When you need to enter deep work, willpower is not enough. The Lockdown engine enforces total environment hygiene by blocking distracting desktop software and websites during designated focus blocks."
+          "When you need to enter deep work, willpower alone is not enough. The Lockdown engine enforces total environment hygiene by terminating distracting desktop software and blocking distracting websites during designated focus sprints."
         ],
         subsections: [
           {
-            title: "Application Blacklists",
-            description: "Configure process names (e.g. Steam, Discord, Spotify, games, or social media desktop clients) in [ SETTINGS ] → [ LOCKDOWN ]. When Lockdown is active, attempting to launch these apps will terminate their windows or display an enforcement overlay."
+            title: "Dedicated Command Center",
+            description: "Access Lockdown directly from the primary sidebar by clicking [ LOCKDOWN ]. All target applications, website blocklists, sprint durations, and automated schedules are configured directly from this control hub."
           },
           {
-            title: "Timed Sprints",
-            description: "Start a 25-minute, 50-minute, or custom focus session. The sidebar highlights with an active [ LOCKDOWN ] badge, and the countdown timer anchors your current sprint."
+            title: "Smart Category Presets & Custom Binaries",
+            description: "Quickly toggle pre-configured process blocks for Gaming clients (Steam, Epic, Riot, Battle.net), Socials & Chats (Discord, Slack, WhatsApp, Telegram), Browsers, and Media Streaming. You can also specify any custom process name (e.g. game.exe) to enforce strict termination."
+          },
+          {
+            title: "Timed Sprints & Recurring Schedules",
+            description: "Trigger a 25-minute, 50-minute, or custom focus session with one click, or establish recurring daily focus blocks. While Lockdown is engaged, attempting to open a restricted app triggers an immediate block overlay and window termination to protect your focus."
           }
         ]
       }
@@ -553,8 +603,8 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
     title: "Keyboard Shortcuts & Pro Tips",
     shortTitle: "Shortcuts & Pro Tips",
     iconName: "Keyboard",
-    summary: "Quick-reference cheat sheet for global hotkeys, command palette actions, wallpaper customization, and low graphics mode.",
-    keywords: ["shortcuts", "hotkeys", "ctrl+k", "ctrl+n", "wallpaper", "aesthetics", "backup", "tips", "tricks"],
+    summary: "Quick-reference cheat sheet for global hotkeys, the Natural Language Command Palette (Ctrl+K), wallpaper customization, and data backups.",
+    keywords: ["shortcuts", "hotkeys", "ctrl+k", "ctrl+n", "command palette", "nlp", "natural language", "create todo", "create habit", "delete", "direct execute", "wallpaper", "aesthetics", "backup", "tips", "tricks"],
     sections: [
       {
         id: "keyboard-shortcuts",
@@ -565,20 +615,87 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
         ],
         subsections: [
           {
-            title: "Ctrl + K — Command Palette",
-            description: "Open the universal search bar to quickly jump between pages, toggle features, or complete habits instantly by name."
+            title: "Universal Hotkeys",
+            description: "System commands accessible from anywhere:",
+            bulletPoints: [
+              "Ctrl + K — Universal Command Palette & Natural Language Engine",
+              "Ctrl + N — Spawn Floating Quick Todo Creator",
+              "Ctrl + / — Jump directly to this Field Manual",
+              "Escape — Dismiss active modals, detail drawers, or search inputs"
+            ]
           },
           {
-            title: "Ctrl + N — Quick Todo Creator",
-            description: "Spawn the floating quick todo creator from any window or screen."
+            title: "Single-Key Quick Navigation (When Not Typing)",
+            description: "Press these keys from any page when not typing in a text field for instantaneous page switching:",
+            bulletPoints: [
+              "H — Dashboard Command HUD",
+              "T — Todos Matrix",
+              "A — Analytics Center",
+              "S — Settings & Preferences",
+              "M — Field Manual",
+              "N — Context-dependent New Item creation",
+              "Space — Quick-complete currently focused habit"
+            ]
+          }
+        ]
+      },
+      {
+        id: "natural-command-palette",
+        title: "Natural Language Command Palette (Ctrl + K)",
+        tag: "POWER PROTOCOL",
+        content: [
+          "The Command Palette in W is not just a quick page switcher—it features a built-in, 100% offline, zero-latency Natural Language Engine that allows you to create and delete habits and todos instantly using natural English without rigid syntax.",
+          "When a valid natural command is recognized, a glowing hero card appears at the very top of the palette. Pressing [ ENTER ] directly executes the action with zero confirmation dialogs, writes to local storage, and dispatches an instant system toast confirmation."
+        ],
+        subsections: [
+          {
+            title: "1. Creating Tasks (Todos) on the Fly",
+            description: "Quickly schedule tasks with natural language dates and priority tags. The engine automatically extracts titles, relative deadlines, and urgency levels:",
+            bulletPoints: [
+              "'new todo Buy groceries tomorrow urgent' → Schedules task for tomorrow with high priority (crimson #ff4d4d accent)",
+              "'add task Submit quarterly taxes by friday' → Automatically resolves the date to the upcoming Friday",
+              "'todo Review pull request in 3 days p1' → Schedules task 3 days out with priority 1",
+              "'remind me to Call bank' → Creates a standard task with no deadline"
+            ]
           },
           {
-            title: "Ctrl + / — Field Manual",
-            description: "Instantly jump to this documentation manual to look up any feature or rule."
+            title: "2. Creating Habits & Routines",
+            description: "Spin up new daily or weekly habits in seconds directly from your keyboard:",
+            bulletPoints: [
+              "'new habit Morning Meditation daily' → Instantly provisions a daily habit with target 1 completion per day",
+              "'add routine Deep clean room weekly' → Provisions a weekly habit schedule",
+              "'habit Cold shower each day' → Automatically parses recurrence and sets up tracking"
+            ]
           },
           {
-            title: "Escape — Dismiss Overlays",
-            description: "Close modals, cancel active search, or dismiss detail drawers."
+            title: "3. Direct Deletion & Safety",
+            description: "Clean up obsolete items without opening menus or configuration drawers:",
+            bulletPoints: [
+              "'delete todo Buy groceries' → Directly removes the matching task and logs to Undo history",
+              "'remove habit Morning Meditation' → Directly deletes the habit from the database",
+              "'del task Bugfix' → Fast shorthand deletion"
+            ]
+          },
+          {
+            title: "4. Supported Keywords & Modifiers",
+            description: "Natural English modifiers recognized across all commands:",
+            bulletPoints: [
+              "Relative Dates: today, tonight, tomorrow, in X days, by [monday-sunday], on [day]",
+              "Priorities: urgent, critical, high priority, p1 (tags with crimson #ff4d4d accent)",
+              "Recurrences: daily, weekly, every day, each week, every week"
+            ]
+          }
+        ],
+        callouts: [
+          {
+            type: "info",
+            title: "DIRECT EXECUTE ARCHITECTURE",
+            text: "All natural commands are executed directly upon pressing [ ENTER ] with zero modal prompts. A tactile system toast confirms the mutation instantly."
+          },
+          {
+            type: "tip",
+            title: "TACTILE COMPLETION PHILOSOPHY",
+            text: "Task and habit completion is intentionally excluded from the Command Palette. In W, checking off a todo or logging a habit is designed to be experienced directly on the Dashboard, Habits grid, or Desktop Widget for maximum tactile satisfaction."
           }
         ]
       },
@@ -587,11 +704,27 @@ export const MANUAL_CHAPTERS: ManualChapter[] = [
         title: "Wallpapers & Custom Visual Aesthetics",
         tag: "AESTHETICS",
         content: [
-          "Customize W to match your battlestation setup in [ SETTINGS ] → [ APPEARANCE ]:",
-          "• Custom Accent Colors: Choose from Cyber Cyan (#5B8DEF), Neon Emerald (#4ADE80), Crimson Red (#E8736C), Amber Orange, or Deep Purple.",
-          "• Custom Wallpapers: Upload any local JPG or PNG image to serve as the backdrop for both the main Command Center and Desktop Widget.",
-          "• Dim & Blur Sliders: Adjust background dimming (0% to 100%) and frosted glass blur (0px to 32px) to ensure text remains 100% readable over any wallpaper.",
-          "• Low Graphics Mode: Disables heavy backdrop blurs for lightning-fast performance on older or battery-conscious laptops."
+          "Customize W to match your battlestation setup with dedicated customization controls in Settings:"
+        ],
+        subsections: [
+          {
+            title: "[ SETTINGS ] → [ WALLPAPERS ]",
+            description: "Upload and calibrate custom desktop and widget backgrounds:",
+            bulletPoints: [
+              "Custom Wallpapers: Upload any local JPG or PNG image to serve as the backdrop for both the main Command Center and Desktop Widget.",
+              "Position & Crop Editor: Drag and reposition images to frame them perfectly.",
+              "Dim & Blur Sliders: Independently adjust background dimming (0% to 100%) and frosted glass blur (0px to 32px) to guarantee text readability over any wallpaper."
+            ]
+          },
+          {
+            title: "[ SETTINGS ] → [ APPEARANCE ]",
+            description: "Tune tactical themes and system audio:",
+            bulletPoints: [
+              "Custom Accent Colors: Choose from Cyber Cyan (#5B8DEF), Neon Emerald (#4ADE80), Crimson Red (#E8736C), Amber Orange, or Deep Purple.",
+              "Completion Audio: Toggle the subtle Web Audio API click feedback tone played when checking off protocols.",
+              "Low Graphics Mode: Disables heavy backdrop blurs for lightning-fast performance on older or battery-conscious laptops."
+            ]
+          }
         ]
       },
       {

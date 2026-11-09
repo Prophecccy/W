@@ -1,3 +1,4 @@
+/* ─── Sticky Canvas Background ─────────────────────────────────── */
 .sticky-canvas {
   position: fixed;
   top: 0;
@@ -17,88 +18,161 @@
   pointer-events: auto;
   cursor: grab;
   user-select: none;
-  min-width: 220px;
-  max-width: 280px;
-  background: rgba(12, 13, 15, 0.95);
-  backdrop-filter: blur(12px) saturate(120%);
-  -webkit-backdrop-filter: blur(12px) saturate(120%);
-  border-top: 3px solid var(--card-accent, var(--accent));
-  border-radius: 0px;
+  min-width: 230px;
+  max-width: 290px;
+  background: rgba(14, 15, 18, 0.94);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
   padding: 14px 16px 0 16px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.7);
-  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
 }
 
 .sticky-note:hover {
-  background: rgba(24, 26, 30, 0.98) !important;
-  backdrop-filter: blur(12px) saturate(120%);
-  -webkit-backdrop-filter: blur(12px) saturate(120%);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.9);
+  background: rgba(20, 22, 26, 0.98) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
+/* Glowing neon top rail - strictly monochromatic to note's color */
+.sticky-note::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--card-accent) 0%,
+    var(--card-accent) 60%,
+    color-mix(in srgb, var(--card-accent) 40%, transparent) 85%,
+    transparent 100%
+  );
+  box-shadow: 0 0 10px color-mix(in srgb, var(--card-accent) 50%, transparent);
+  z-index: 6;
+  pointer-events: none;
+}
+
+/* Linear-style cursor-tracking spotlight border beam - strictly monochromatic */
+.sticky-note::before {
+  content: "";
+  position: absolute;
+  inset: 0px;
+  border-radius: inherit;
+  padding: 1px;
+  background: radial-gradient(
+    160px circle at var(--mouse-x, -999px) var(--mouse-y, -999px),
+    color-mix(in srgb, var(--card-accent) 80%, transparent),
+    transparent 75%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  z-index: 5;
+}
+
+.sticky-note:hover::before {
+  opacity: 0.9;
+}
+
+/* High-Performance Drag State: zero backdrop filter or spotlight calculations */
 .sticky-note--dragging {
   cursor: grabbing;
-  opacity: 0.92;
+  opacity: 0.94;
   z-index: 100;
   /* Kill ALL transitions during drag — they fight with direct DOM writes */
   transition: none !important;
-  /* Disable backdrop-filter during drag — it's extremely expensive.
-     The blur forces a full re-sample + Gaussian blur of all background
-     pixels on EVERY frame. In transparent Tauri windows this tanks FPS. */
+  /* Disable backdrop-filter during drag to keep 60+ FPS on transparent Tauri webview */
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  /* Solid fallback background while dragging (no blur needed) */
-  background: rgba(17, 18, 20, 0.95);
-  /* Simpler shadow — large blurs are expensive */
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-  /* GPU layer hint for transform-based movement */
+  background: rgba(17, 18, 20, 0.98);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
   will-change: transform;
   contain: layout style;
 }
 
+.sticky-note--dragging::before {
+  display: none !important;
+}
+
 .sticky-note--holding {
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 
 /* ─── Content ────────────────────────────────────────────────── */
-
-/* ─── NEW Layout Grid ─────────────────────────────────── */
 
 .sticky-note__header {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+.sticky-note__checkbox-pod {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .sticky-note__checkbox {
-  width: 12px;
-  height: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 0px;
-  margin-top: 3px;
-  flex-shrink: 0;
-  transition: all 0.2s ease;
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.sticky-note:hover .sticky-note__checkbox {
+  border-color: var(--card-accent, rgba(255, 255, 255, 0.7));
+  box-shadow: 0 0 6px var(--card-accent, rgba(255, 255, 255, 0.2));
+}
+
+.sticky-note__checkbox--checked {
+  background: var(--card-accent, #4ade80) !important;
+  border-color: var(--card-accent, #4ade80) !important;
+  color: #0c0d0f;
+  box-shadow: 0 0 10px var(--card-accent, rgba(74, 222, 128, 0.5)) !important;
+}
+
+.sticky-note__check-svg {
+  width: 10px;
+  height: 10px;
+  color: #0c0d0f;
 }
 
 .sticky-note__title {
   font-family: 'Departure Mono', monospace;
   font-size: 13px;
+  font-weight: 500;
   color: #ffffff;
   line-height: 1.4;
   text-transform: uppercase;
   word-break: break-word;
+  letter-spacing: 0.05em;
   text-shadow: var(--text-shadow-sharp);
 }
 
 .sticky-note__description {
   font-family: 'Departure Mono', monospace;
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.5);
   line-height: 1.4;
-  margin-left: 22px;
+  margin-left: 24px;
   margin-bottom: 12px;
   word-break: break-word;
 }
@@ -106,7 +180,7 @@
 .sticky-note__divider {
   height: 1px;
   background: rgba(255, 255, 255, 0.08);
-  margin: 0 -16px;
+  margin: 6px -16px 0;
 }
 
 .sticky-note__footer {
@@ -114,9 +188,12 @@
   align-items: center;
   height: 32px;
   margin: 0 -16px;
+  padding: 0 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
 
-.sticky-note__footer-half {
+.sticky-note__footer-chip {
   flex: 1;
   display: flex;
   align-items: center;
@@ -124,27 +201,40 @@
   gap: 6px;
   font-family: 'Departure Mono', monospace;
   font-size: 9px;
-  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.45);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+}
+
+.sticky-note__chip-label {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.sticky-note__chip-val {
+  color: rgba(255, 255, 255, 0.7);
+  font-variant-numeric: tabular-nums;
 }
 
 .sticky-note__footer-divider {
   width: 1px;
   height: 14px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
 }
 
-.sticky-note__footer-half--overdue {
+.sticky-note__footer-chip--overdue .sticky-note__chip-val {
   color: #E8736C;
+  text-shadow: 0 0 6px rgba(232, 115, 108, 0.4);
 }
 
 .sticky-note__progress-footer {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-left: 22px;
-  margin-bottom: 12px;
+  margin-left: 24px;
+  margin-bottom: 10px;
 }
 
 .sticky-note__badge {
@@ -165,7 +255,7 @@
 }
 
 .sticky-note__badge--numbered {
-  color: var(--card-accent, #5B8DEF);
+  color: var(--card-accent);
 }
 
 /* ─── Progress bar for numbered ──────────────────────────────── */
@@ -179,44 +269,57 @@
 
 .sticky-note__progress-fill {
   height: 100%;
-  background: var(--card-accent, #5B8DEF);
+  background: var(--card-accent);
   transition: width 0.3s ease;
 }
 
-/* ─── Hold fill overlay ──────────────────────────────────────── */
+/* ─── Hold & Complete Fill Overlays ──────────────────────────── */
+
+.sticky-note__hold-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--card-accent) 15%, transparent) 0%,
+    color-mix(in srgb, var(--card-accent) 32%, transparent) 100%
+  );
+  z-index: 1;
+  pointer-events: none;
+}
 
 .sticky-note__fill {
   position: absolute;
   top: 0;
   left: 0;
   height: 100%;
-  background: var(--card-accent, #5B8DEF);
-  opacity: 0.18;
-  z-index: -1;
-  border-radius: 3px;
+  background: var(--card-accent);
+  opacity: 0.22;
+  z-index: 1;
   will-change: width;
   pointer-events: none;
 }
 
 .sticky-note__fill--completing {
-  opacity: 0.4;
+  opacity: 0.45;
 }
 
 .sticky-note__fill--undoable {
-  opacity: 0.2;
+  opacity: 0.25;
 }
 
-/* ─── Completion / Exit animation ───────────────────────────────────── */
+/* ─── Completion / Exit animation ───────────────────────────── */
 
 .sticky-note--exiting {
-  animation: sticky-exit 0.3s ease-in forwards;
+  animation: sticky-exit 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   pointer-events: none;
 }
 
 @keyframes sticky-exit {
   to {
     opacity: 0;
-    transform: scale(0.8) translateY(-10px);
+    transform: scale(0.85) translateY(-8px);
   }
 }
 
@@ -225,6 +328,8 @@
   flex-direction: column;
   opacity: 1;
   transition: opacity 0.2s ease;
+  position: relative;
+  z-index: 2;
 }
 
 .sticky-note__content--hidden {
@@ -234,17 +339,24 @@
 
 .sticky-note__undo-overlay {
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: 'Departure Mono', monospace;
-  font-size: 14px;
-  letter-spacing: 0.1em;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   color: #ffffff;
   cursor: pointer;
   z-index: 10;
-  transition: transform 0.2s ease, color 0.2s ease;
+  background: rgba(14, 15, 18, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s ease;
 }
 
 .sticky-note__undo-overlay:hover {

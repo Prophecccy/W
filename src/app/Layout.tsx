@@ -46,11 +46,28 @@ function LayoutInner() {
   const { user } = useAuthContext();
   const userStore = useUserStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [isNavDrawerOpen, setIsNavDrawerOpen] = useState(false);
   const [userDoc, setUserDoc] = useState<User | null>(null);
   const [phase, setPhase] = useState<StartupPhase>("loading");
   const [showPunishment, setShowPunishment] = useState(false);
   const gapProcessorStartedRef = useRef(false);
+
+  // Close navigation drawer on page navigation or Escape
+  useEffect(() => {
+    setIsNavDrawerOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isNavDrawerOpen) {
+        setIsNavDrawerOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isNavDrawerOpen]);
 
   // Freeze / WelcomeBack state
   const [frozenSince, setFrozenSince] = useState<string | null>(null);
@@ -328,6 +345,29 @@ function LayoutInner() {
         overlay.once("tauri://error", (_e: unknown) => {
           console.error("Failed to create sticky overlay");
         });
+
+        // Listen for monitor connects/disconnects to keep overlay spanning full virtual screen
+        try {
+          const { listen } = await import("@tauri-apps/api/event");
+          listen("w://monitors-changed", async () => {
+            try {
+              const currentOverlay = await WebviewWindow.getByLabel("sticky-overlay");
+              if (currentOverlay) {
+                const mons = await availableMonitors();
+                if (mons && mons.length > 0) {
+                  const mX = Math.min(...mons.map((m) => m.position.x));
+                  const mY = Math.min(...mons.map((m) => m.position.y));
+                  const mxX = Math.max(...mons.map((m) => m.position.x + m.size.width));
+                  const mxY = Math.max(...mons.map((m) => m.position.y + m.size.height));
+                  await currentOverlay.setPosition(new PhysicalPosition(mX, mY));
+                  await currentOverlay.setSize(new PhysicalSize(mxX - mX, mxY - mY));
+                }
+              }
+            } catch (err) {
+              console.error("[Layout] Failed to re-anchor sticky overlay on monitors-changed:", err);
+            }
+          });
+        } catch {}
       } catch {
         // Not running in Tauri (browser dev mode)
       }
@@ -761,8 +801,6 @@ function LayoutInner() {
   }, []);
 
   // ── N key (context-dependent new item) ─────────────────────────
-  const location = useLocation();
-
   const handleNewItem = useCallback(() => {
     if (location.pathname === "/todos") {
       window.dispatchEvent(new CustomEvent("w:open-todo-form"));
@@ -907,16 +945,30 @@ function LayoutInner() {
           habitsCount={paletteHabits.length}
           todosCount={paletteTodos.length}
           isFrozen={!!userDoc?.freeze?.active}
+          isDrawerOpen={isNavDrawerOpen}
+          onCloseDrawer={() => setIsNavDrawerOpen(false)}
         />
-        <Topbar onCommandPaletteOpen={toggleCommandPalette} isFrozen={!!userDoc?.freeze?.active} />
+        {isNavDrawerOpen && (
+          <div
+            className="sidebar-drawer-backdrop"
+            onClick={() => setIsNavDrawerOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+        <Topbar
+          onCommandPaletteOpen={toggleCommandPalette}
+          isFrozen={!!userDoc?.freeze?.active}
+          onToggleNavDrawer={() => setIsNavDrawerOpen(prev => !prev)}
+          isNavDrawerOpen={isNavDrawerOpen}
+        />
         <main className="layout__content">
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="popLayout" initial={false}>
             <motion.div
               key={location.pathname}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.15, ease: "easeInOut" }}
+              transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
               style={{ width: "100%", flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}
             >
               <Outlet context={{ userDoc, gapResult }} />
@@ -932,16 +984,19 @@ function LayoutInner() {
           isFrozen={!!userDoc?.freeze?.active}
         />
       </div>
-      {commandPaletteOpen && (
-        <CommandPalette
-          onClose={() => setCommandPaletteOpen(false)}
-          habits={paletteHabits}
-          todos={paletteTodos}
-          onCompleteHabit={handlePaletteCompleteHabit}
-          onOpenNewHabit={handlePaletteNewHabit}
-          onOpenNewTodo={handlePaletteNewTodo}
-        />
-      )}
+      <AnimatePresence>
+        {commandPaletteOpen && (
+          <CommandPalette
+            onClose={() => setCommandPaletteOpen(false)}
+            habits={paletteHabits}
+            todos={paletteTodos}
+            onCompleteHabit={handlePaletteCompleteHabit}
+            onOpenNewHabit={handlePaletteNewHabit}
+            onOpenNewTodo={handlePaletteNewTodo}
+            dailyResetTime={userDoc?.settings?.dailyResetTime}
+          />
+        )}
+      </AnimatePresence>
 
       {(userDoc?.settings?.strikeSystemEnabled ?? true) && (
         <StrikeWarningToast strikes={strikes} />

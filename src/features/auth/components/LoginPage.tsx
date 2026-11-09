@@ -109,7 +109,7 @@ export function LoginPage() {
             disabled={signingIn}
             style={signingIn ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
           >
-            {signingIn ? "[ CONNECTING PROTOCOL... ]" : "[ LINK GOOGLE DRIVE ]"}
+            {signingIn ? "[ CONNECTING PROTOCOL... ]" : "[ SIGN IN WITH GOOGLE ]"}
           </button>
 
           {window.location.hostname === "localhost" && (

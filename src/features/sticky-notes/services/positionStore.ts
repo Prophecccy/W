@@ -1,20 +1,75 @@
-import { updateTodo } from "../../todos/services/todoService";
-
 // ─── Types ──────────────────────────────────────────────────────
 
-interface PositionMap {
+export interface StickyPlacement {
+  x: number;
+  y: number;
+  monitorName?: string;
+  monitorIndex?: number;
+  relativeX?: number; // offset from top-left of the monitor where it was placed
+  relativeY?: number;
+  totalMonitorsWhenSaved?: number;
+}
+
+export interface PositionMap {
   [todoId: string]: { x: number; y: number };
 }
 
-const STORAGE_KEY = "w_sticky_positions";
+export interface PlacementMap {
+  [todoId: string]: StickyPlacement;
+}
 
-// ─── Local Storage (fast cache) ─────────────────────────────────
-// Using localStorage as the fast local cache since we're in a web context.
-// In Tauri production, this persists per-window and survives restarts.
+const STORAGE_KEY_POS = "w_sticky_positions";
+const STORAGE_KEY_PLACEMENTS = "w_sticky_placements";
+
+// ─── Local Storage (Persistent Local Placements) ─────────────────
+// Local-only persistence: remembers note placements and monitor context
+// across PC restarts without sending coordinates to cloud.
+
+export function loadPlacementsLocal(): PlacementMap {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_PLACEMENTS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as PlacementMap;
+      }
+    }
+  } catch (e) {
+    console.error("Failed to load sticky placements locally:", e);
+  }
+
+  // Fallback to legacy positions if placements not yet saved
+  const legacy = loadPositions();
+  const converted: PlacementMap = {};
+  for (const [id, pos] of Object.entries(legacy)) {
+    converted[id] = { x: pos.x, y: pos.y };
+  }
+  return converted;
+}
+
+export function savePlacementsLocal(placements: PlacementMap): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_PLACEMENTS, JSON.stringify(placements));
+    // Also mirror to legacy key for backwards compatibility
+    const posMap: PositionMap = {};
+    for (const [id, p] of Object.entries(placements)) {
+      posMap[id] = { x: p.x, y: p.y };
+    }
+    localStorage.setItem(STORAGE_KEY_POS, JSON.stringify(posMap));
+  } catch (e) {
+    console.error("Failed to save sticky placements locally:", e);
+  }
+}
+
+export function saveStickyPlacementLocal(todoId: string, placement: StickyPlacement): void {
+  const placements = loadPlacementsLocal();
+  placements[todoId] = placement;
+  savePlacementsLocal(placements);
+}
 
 export function loadPositions(): PositionMap {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY_POS);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
@@ -28,77 +83,35 @@ export function loadPositions(): PositionMap {
 
 export function savePositionsLocal(positions: PositionMap): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(positions));
+    localStorage.setItem(STORAGE_KEY_POS, JSON.stringify(positions));
   } catch (e) {
     console.error("Failed to save sticky positions locally:", e);
   }
 }
 
 export function savePositionLocal(todoId: string, pos: { x: number; y: number }): void {
-  const positions = loadPositions();
-  positions[todoId] = pos;
-  savePositionsLocal(positions);
+  saveStickyPlacementLocal(todoId, { x: pos.x, y: pos.y });
 }
 
 export function removePositionLocal(todoId: string): void {
+  const placements = loadPlacementsLocal();
+  delete placements[todoId];
+  savePlacementsLocal(placements);
+
   const positions = loadPositions();
   delete positions[todoId];
   savePositionsLocal(positions);
 }
 
-// ─── Firestore Sync (debounced) ─────────────────────────────────
+// ─── Local-only coordinate management ───────────────────────────
+// Cloud coordinate syncing disabled per architectural standard:
+// physical screen coordinates are machine-specific and are preserved
+// exclusively on local storage across PC shutdowns.
 
-interface PendingSync {
-  timer: number;
-  pos: { x: number; y: number };
+export function syncPositionToFirestore(_todoId: string, _pos: { x: number; y: number }): void {
+  // Local-only persistence: intentional no-op to prevent cloud overwriting local monitor coordinates
 }
 
-const pendingSyncs = new Map<string, PendingSync>();
-
-/**
- * Debounced sync to Firestore. Waits 1 second after the last call
- * for a given todoId before actually writing.
- */
-export function syncPositionToFirestore(todoId: string, pos: { x: number; y: number }): void {
-  // Clear existing timer for this todo
-  const existing = pendingSyncs.get(todoId);
-  if (existing) {
-    clearTimeout(existing.timer);
-  }
-
-  // Set new debounced write
-  const timer = window.setTimeout(async () => {
-    pendingSyncs.delete(todoId);
-    try {
-      await updateTodo(todoId, { stickyPosition: pos });
-    } catch (e) {
-      console.error("Failed to sync sticky position to Firestore:", todoId, e);
-    }
-  }, 1000);
-
-  pendingSyncs.set(todoId, { timer, pos });
-}
-
-/**
- * Immediately flush all pending syncs (e.g., on window close).
- */
 export async function flushPendingSyncs(): Promise<void> {
-  const promises: Promise<void>[] = [];
-  pendingSyncs.forEach((sync, todoId) => {
-    clearTimeout(sync.timer);
-    // Write immediately to prevent data loss on close/reload
-    const p = updateTodo(todoId, { stickyPosition: sync.pos }).catch((e) => {
-      console.error("Failed to flush sticky position to Firestore:", todoId, e);
-    });
-    promises.push(p);
-  });
-  pendingSyncs.clear();
-  await Promise.all(promises);
-}
-
-// Automatically register global unload listener to guarantee persistence
-if (typeof window !== "undefined") {
-  window.addEventListener("beforeunload", () => {
-    flushPendingSyncs();
-  });
+  // Placements are saved synchronously to localStorage immediately upon drag release
 }

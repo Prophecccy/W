@@ -32,8 +32,11 @@ export function SleepTube({ settings: propsSettings, isWidget }: SleepTubeProps)
       className={`sleep-tube ${isWidget ? 'sleep-tube--widget' : ''}`}
       title={`${Math.round(percent)}%`}
     >
-      <div className="sleep-tube__label t-meta">{isWidget ? '[ FUEL ]' : '[ WAKING FUEL ]'}</div>
-      <div className={`sleep-tube__track ${isEmpty ? 'is-empty' : ''}`}>
+      <div className="sleep-tube__label t-meta">
+        <span className="sleep-tube__label-text--desktop">{isWidget ? '[ FUEL ]' : '[ WAKING FUEL ]'}</span>
+        <span className="sleep-tube__label-text--mobile">[ FUEL ]</span>
+      </div>
+      <div className={`sleep-tube__track ${isEmpty ? 'is-empty' : ''} ${isSleeping ? 'is-sleeping' : ''}`}>
         {MARKERS.map(m => (
           <div 
             key={m} 
@@ -50,7 +53,9 @@ export function SleepTube({ settings: propsSettings, isWidget }: SleepTubeProps)
         <div 
           className={`sleep-tube__fill ${isSleeping ? 'is-sleeping' : ''}`}
           style={{ height: `${percent}%`, '--fill-level': `${percent}%` } as React.CSSProperties}
-        />
+        >
+          {!isEmpty && !isSleeping && <div className="sleep-tube__meniscus" />}
+        </div>
         {isEmpty && !isWidget && (
           <div className="sleep-tube__empty-text t-data">
             {emptyText}

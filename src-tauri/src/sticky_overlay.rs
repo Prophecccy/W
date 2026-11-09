@@ -41,9 +41,9 @@ pub fn set_click_through(hwnd: isize, ignore: bool) {
     unsafe {
         let target = windows::Win32::Foundation::HWND(hwnd as *mut _);
         
-        // 1. Set owner to hidden owner
-        let owner = crate::get_hidden_owner();
-        SetWindowLongPtrW(target, GWLP_HWNDPARENT, owner);
+        // 1. Break parent/owner linkage so the overlay is completely unowned.
+        // This allows it to freely sink to HWND_BOTTOM without being held up by an owner window.
+        SetWindowLongPtrW(target, GWLP_HWNDPARENT, 0);
 
         // 2. Adjust hit testing and taskbar styles
         let ex_style = GetWindowLongPtrW(target, GWL_EXSTYLE) as u32;
@@ -57,8 +57,8 @@ pub fn set_click_through(hwnd: isize, ignore: bool) {
         
         // Ensure WS_EX_NOACTIVATE is set
         new_style |= WS_EX_NOACTIVATE.0;
-        // Ensure WS_EX_TOOLWINDOW and WS_EX_APPWINDOW are NOT set (hides from taskbar, retains Task Manager registration via owner)
-        new_style &= !WS_EX_TOOLWINDOW.0 & !WS_EX_APPWINDOW.0;
+        // Ensure WS_EX_TOOLWINDOW is set and WS_EX_APPWINDOW is cleared (hides from taskbar and Alt+Tab)
+        new_style = (new_style | WS_EX_TOOLWINDOW.0) & !WS_EX_APPWINDOW.0;
         
         if new_style != ex_style {
             SetWindowLongPtrW(target, GWL_EXSTYLE, new_style as isize);

@@ -15,9 +15,12 @@
   background-color: var(--bg-surface);
   border: 1px solid var(--border-default);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8);
+  border-radius: 8px;
   padding: 32px;
   box-sizing: border-box;
-  animation: todoFormSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+
 }
 
 /* Header */
@@ -267,34 +270,87 @@
   animation: todoFormSlideDown 0.2s ease-out;
 }
 
-/* Colors Selection */
-.todo-form__colors-row {
+/* Priority Hierarchy (P1 to P4) */
+.todo-form__priority-header {
   display: flex;
-  gap: 12px;
+  justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
-  padding: 4px 0;
 }
 
-.todo-form__color-dot {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: 2px solid transparent;
+.todo-form__priority-badge {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 1px;
+  font-size: 11px;
+}
+
+.todo-form__priority-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 6px;
+}
+
+@media (max-width: 520px) {
+  .todo-form__priority-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.todo-form__priority-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid var(--border-subtle);
+  padding: 10px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
   cursor: pointer;
-  padding: 0;
-  transition: transform 0.2s ease, border-color 0.2s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  transition: all 0.2s ease;
+  user-select: none;
 }
 
-.todo-form__color-dot:hover {
-  transform: scale(1.15);
+.todo-form__priority-btn:hover {
+  border-color: var(--tier-color, var(--text-secondary));
+  color: var(--text-primary);
 }
 
-.todo-form__color-dot.active {
-  border-color: #ffffff;
-  transform: scale(1.1);
-  box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 4px #ffffff;
+.todo-form__priority-btn.active {
+  border-color: var(--tier-color);
+  color: var(--tier-color);
+  background: color-mix(in srgb, var(--tier-color) 10%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--tier-color) 25%, transparent);
+}
+
+.todo-form__priority-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.todo-form__priority-btn.active .todo-form__priority-dot {
+  transform: scale(1.25);
+  box-shadow: 0 0 8px var(--tier-color);
+}
+
+.todo-form__priority-label {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.todo-form__priority-desc {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  opacity: 0.85;
 }
 
 .todo-form__field--future {

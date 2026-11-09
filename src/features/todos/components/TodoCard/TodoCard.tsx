@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Todo } from "../../types";
+import { Todo, PRIORITY_CONFIG, TodoPriority } from "../../types";
 import { LucideIcon } from "../../../../shared/components/IconPicker/LucideIcon";
 import { getToday } from "../../../../shared/utils/dateUtils";
+import { SPRING_LAYOUT, SPRING_POP } from "../../../../shared/constants/motion";
+import { useSpotlightBorder } from "../../../../shared/hooks/useSpotlightBorder";
+import { playMechanicalClick, playSubtleThud, playHoldHum, stopHoldHum } from "../../../../shared/services/tactileAudioService";
 import "./TodoCard.css";
 
 interface TodoCardProps {
@@ -14,6 +17,17 @@ interface TodoCardProps {
   onToggleExpand?: () => void;
   expanded?: boolean;
   dailyResetTime?: string;
+}
+
+function getTodoPriority(todo: Todo): TodoPriority {
+  if (todo.priority && PRIORITY_CONFIG[todo.priority]) {
+    return todo.priority;
+  }
+  const hex = (todo.color || "").toLowerCase();
+  if (hex === "#ef4444" || hex === "#ff4d4d") return "p1";
+  if (hex === "#f59e0b" || hex === "#facc15") return "p2";
+  if (hex === "#6b7280" || hex === "#71717a") return "p4";
+  return "p3";
 }
 
 export function TodoCard({ 
@@ -31,13 +45,17 @@ export function TodoCard({
   const holdTimeoutRef = useRef<number | null>(null);
   const hasHeldRef = useRef(false);
   const pointerStartCoordsRef = useRef<{ x: number; y: number } | null>(null);
+  const spotlight = useSpotlightBorder<HTMLDivElement>();
 
   const HOLD_DURATION = 500; // ms to hold to complete
   const isCompleted = todo.status === "done";
   const isClickable = todo.type === "numbered" || (!!todo.description && todo.description.trim() !== "");
 
+  const priorityTier = getTodoPriority(todo);
+  const priorityInfo = PRIORITY_CONFIG[priorityTier];
+
   const cardStyle = {
-    "--card-accent": todo.color,
+    "--card-accent": todo.color || priorityInfo.color,
     cursor: isClickable ? "pointer" : "default",
   } as React.CSSProperties;
 
@@ -58,16 +76,20 @@ export function TodoCard({
     setIsHolding(true);
     setCompleteTriggered(false);
     hasHeldRef.current = false;
+    playHoldHum();
     
     holdTimeoutRef.current = window.setTimeout(() => {
+      stopHoldHum();
       setCompleteTriggered(true);
       setIsHolding(false);
       hasHeldRef.current = true;
+      playMechanicalClick();
       onComplete();
     }, HOLD_DURATION);
   };
 
   const cancelHold = () => {
+    stopHoldHum();
     if (holdTimeoutRef.current) {
       clearTimeout(holdTimeoutRef.current);
       holdTimeoutRef.current = null;
@@ -77,6 +99,7 @@ export function TodoCard({
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    spotlight.onPointerMove(e);
     if (!isHolding || !pointerStartCoordsRef.current) return;
     
     const deltaX = Math.abs(e.clientX - pointerStartCoordsRef.current.x);
@@ -86,6 +109,11 @@ export function TodoCard({
     if (deltaX > 15 || deltaY > 15) {
       cancelHold();
     }
+  };
+
+  const handlePointerLeave = (e: React.PointerEvent<HTMLDivElement>) => {
+    spotlight.onPointerLeave(e);
+    cancelHold();
   };
 
   useEffect(() => {
@@ -123,14 +151,18 @@ export function TodoCard({
   }
 
   return (
-    <div
+    <motion.div
+      layout
+      transition={SPRING_LAYOUT}
+      whileTap={{ scale: 0.98 }}
       className={`todo-card ${isCompleted ? "todo-card--completed" : ""} ${isHolding ? "todo-card--holding" : ""}`}
       style={cardStyle}
+      onPointerEnter={spotlight.onPointerEnter}
       onPointerDown={startHold}
       onPointerUp={handlePointerUp}
       onPointerMove={handlePointerMove}
-      onPointerLeave={cancelHold}
-      onPointerCancel={cancelHold}
+      onPointerLeave={handlePointerLeave}
+      onPointerCancel={handlePointerLeave}
       onContextMenu={(e) => {
          e.preventDefault();
       }}
@@ -142,7 +174,7 @@ export function TodoCard({
             initial={{ width: "0%" }}
             animate={{ width: "100%" }}
             exit={{ width: "0%", transition: { duration: 0.1 } }}
-            transition={{ duration: HOLD_DURATION / 1000, ease: "linear" }}
+            transition={{ duration: HOLD_DURATION / 1000, ease: [0.32, 0, 0.67, 1] }}
           />
         )}
       </AnimatePresence>
@@ -213,6 +245,7 @@ export function TodoCard({
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
+                  playSubtleThud();
                   onDelete();
                 }}
                 title="Delete Todo"
@@ -230,7 +263,7 @@ export function TodoCard({
               initial={{ height: 0, opacity: 0, marginTop: 0 }}
               animate={{ height: "auto", opacity: 1, marginTop: 8 }}
               exit={{ height: 0, opacity: 0, marginTop: 0 }}
-              transition={{ duration: 0.2, ease: "easeInOut" }}
+              transition={SPRING_LAYOUT}
               style={{ overflow: "hidden", color: "var(--text-secondary)" }}
             >
               {todo.description}
@@ -240,6 +273,12 @@ export function TodoCard({
 
         <div className="todo-card__footer">
           <div className="todo-card__badges">
+            <span
+              className="badge t-meta todo-card__priority-badge"
+              style={{ color: priorityInfo.color }}
+            >
+              [ {priorityInfo.shortLabel} ]
+            </span>
             <span className="badge t-meta">[ {todo.type.toUpperCase()} ]</span>
             {deadlineText && (
                <span className="badge t-meta" style={{ color: deadlineText === "OVERDUE" ? "var(--strike-red)" : "var(--text-secondary)" }}>
@@ -258,9 +297,14 @@ export function TodoCard({
           )}
           
           {isCompleted && (
-             <div className="todo-card__complete-check">
+             <motion.div 
+               className="todo-card__complete-check"
+               initial={{ scale: 0, rotate: -20, opacity: 0 }}
+               animate={{ scale: 1, rotate: 0, opacity: 1 }}
+               transition={SPRING_POP}
+             >
                <LucideIcon name="Check" size={16} />
-             </div>
+             </motion.div>
           )}
         </div>
       </div>
@@ -273,6 +317,6 @@ export function TodoCard({
             />
          </div>
       )}
-    </div>
+    </motion.div>
   );
 }

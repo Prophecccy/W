@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
+import { motion } from "framer-motion";
+import { SPRING_TACTILE } from "../../constants/motion";
+import { playMechanicalClick } from "../../services/tactileAudioService";
 import {
   LayoutDashboard,
   ListChecks,
@@ -14,6 +17,7 @@ import {
   Lock,
   BookOpen,
   HelpCircle,
+  X,
 } from "lucide-react";
 import { FlameIcon } from "../FlameIcon/FlameIcon";
 import { isTauri, isMobileWeb } from "../../utils/tauri";
@@ -29,6 +33,8 @@ interface SidebarProps {
   habitsCount?: number;
   todosCount?: number;
   isFrozen?: boolean;
+  isDrawerOpen?: boolean;
+  onCloseDrawer?: () => void;
 }
 
 export function Sidebar({ 
@@ -38,7 +44,9 @@ export function Sidebar({
   isLockdownActive = false,
   habitsCount = 0,
   todosCount = 0,
-  isFrozen = false
+  isFrozen = false,
+  isDrawerOpen = false,
+  onCloseDrawer
 }: SidebarProps) {
   const { isDriveLinked } = useAuthContext();
   const [appVersion, setAppVersion] = useState('...');
@@ -70,9 +78,22 @@ export function Sidebar({
     { to: "/settings", icon: Settings, label: "Settings" },
   ];
   return (
-    <aside className={`sidebar ${isFrozen ? "sidebar--frozen" : ""}`}>
-      <div className={`sidebar__logo t-display ${isFrozen ? "sidebar__logo--frozen" : ""}`}>
-        {isFrozen ? "✳ [ W ]" : "[ W ]"}
+    <aside className={`sidebar ${isFrozen ? "sidebar--frozen" : ""} ${isDrawerOpen ? "sidebar--drawer-open" : ""}`}>
+      <div className="sidebar__header-row">
+        <div className={`sidebar__logo t-display ${isFrozen ? "sidebar__logo--frozen" : ""}`}>
+          {isFrozen ? "✳ [ W ]" : "[ W ]"}
+        </div>
+        {onCloseDrawer && (
+          <button
+            className="sidebar__drawer-close-btn"
+            onClick={onCloseDrawer}
+            title="Close navigation drawer"
+            type="button"
+            aria-label="Close navigation"
+          >
+            <X size={16} />
+          </button>
+        )}
       </div>
 
       <nav className="sidebar__nav">
@@ -83,6 +104,9 @@ export function Sidebar({
             onClick={(e) => {
               if (isLocked) {
                 e.preventDefault();
+              } else {
+                playMechanicalClick();
+                onCloseDrawer?.();
               }
             }}
             end={item.to === "/"}
@@ -90,16 +114,29 @@ export function Sidebar({
               `sidebar__link t-body${isActive && !isLocked ? " sidebar__link--active" : ""}${isLocked ? " sidebar__link--disabled" : ""}`
             }
           >
-            <item.icon size={16} strokeWidth={1.5} />
-            <span>{item.label}</span>
-            {item.label === "Logbook" && (
-              <GoogleDriveIcon
-                size={12}
-                style={{
-                  marginLeft: "auto",
-                  color: isDriveLinked ? "var(--accent)" : "rgba(255, 255, 255, 0.15)",
-                }}
-              />
+            {({ isActive }) => (
+              <>
+                {isActive && !isLocked && (
+                  <motion.div
+                    layoutId="sidebar-active-indicator"
+                    className="sidebar__active-pill"
+                    transition={SPRING_TACTILE}
+                  />
+                )}
+                <item.icon size={16} strokeWidth={1.5} style={{ position: "relative", zIndex: 1 }} />
+                <span style={{ position: "relative", zIndex: 1 }}>{item.label}</span>
+                {item.label === "Logbook" && (
+                  <GoogleDriveIcon
+                    size={12}
+                    style={{
+                      marginLeft: "auto",
+                      position: "relative",
+                      zIndex: 1,
+                      color: isDriveLinked ? "var(--accent)" : "rgba(255, 255, 255, 0.15)",
+                    }}
+                  />
+                )}
+              </>
             )}
           </NavLink>
         ))}

@@ -40,6 +40,24 @@ export function calculateStreak(habit: Habit, logs: HabitLog[], userResetTime?: 
       return streak;
     }
 
+    if (habit.period === "specific_days") {
+      let expectedDate = today;
+      while (expectedDate >= startLimitDate) {
+        const d = parseLocalDate(expectedDate);
+        if (habit.daysOfWeek && habit.daysOfWeek.includes(d.getDay())) {
+          const log = sorted.find((l) => l.date === expectedDate);
+          const entry = log?.habits?.[habit.id];
+          if (entry && entry.value > entry.target) {
+            break;
+          }
+          streak++;
+        }
+        d.setDate(d.getDate() - 1);
+        expectedDate = formatDate(d);
+      }
+      return streak;
+    }
+
     if (habit.period === "weekly") {
       const byWeek = groupLogsByISOWeek(sorted);
       const weeks = getRecentWeeks(today, byWeek.size + 2);
@@ -129,6 +147,37 @@ export function calculateStreak(habit: Habit, logs: HabitLog[], userResetTime?: 
         const d = parseLocalDate(expectedDate);
         d.setDate(d.getDate() - 1);
         expectedDate = formatDate(d);
+      }
+      break;
+    }
+
+    case "specific_days": {
+      if (!habit.daysOfWeek || habit.daysOfWeek.length === 0) return 0;
+      const startDate = habit.startDate || formatDate(new Date(habit.createdAt));
+      let checkDate = parseLocalDate(today);
+      let isFirstScheduled = true;
+
+      while (formatDate(checkDate) >= startDate) {
+        const dayOfWeek = checkDate.getDay();
+        if (habit.daysOfWeek.includes(dayOfWeek)) {
+          const dateStr = formatDate(checkDate);
+          const log = sorted.find((l) => l.date === dateStr);
+          const entry = log?.habits?.[habit.id];
+
+          if (!entry?.completed) {
+            // Grace period: if today is scheduled but not yet completed, don't break streak yet
+            if (isFirstScheduled && dateStr === today) {
+              isFirstScheduled = false;
+              checkDate.setDate(checkDate.getDate() - 1);
+              continue;
+            }
+            break;
+          }
+
+          streak++;
+          isFirstScheduled = false;
+        }
+        checkDate.setDate(checkDate.getDate() - 1);
       }
       break;
     }

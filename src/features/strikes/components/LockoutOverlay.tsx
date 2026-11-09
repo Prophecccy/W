@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { LucideIcon } from "../../../shared/components/IconPicker/LucideIcon";
 import { isTauri } from "../../../shared/utils/tauri";
+import { playMechanicalClick } from "../../../shared/services/tactileAudioService";
 import "./LockoutOverlay.css";
 
 interface LockoutOverlayProps {
@@ -12,6 +13,7 @@ export function LockoutOverlay({ onResolve }: LockoutOverlayProps) {
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
   const handleSyncFromDrive = async () => {
+    playMechanicalClick();
     setSyncing(true);
     setSyncStatus("[ CONNECTING TO GOOGLE DRIVE... ]");
     try {
@@ -33,6 +35,7 @@ export function LockoutOverlay({ onResolve }: LockoutOverlayProps) {
       const { pullAndMergeFromGoogleDrive } = await import("../../../shared/services/localDb");
       const pulled = await pullAndMergeFromGoogleDrive(true);
       if (pulled) {
+        playMechanicalClick();
         setSyncStatus("[ SYNC COMPLETE: UPDATING... ]");
       } else {
         setSyncStatus("[ UP TO DATE ]");

@@ -1,6 +1,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { initAudioOnUserGesture } from "./shared/services/tactileAudioService";
+
+// Unlock Web Audio API on first user interaction
+initAudioOnUserGesture();
 
 // Transparent Tauri windows need body to be transparent from first paint
 const transparentRoutes = ["/sticky-canvas", "/widget"];

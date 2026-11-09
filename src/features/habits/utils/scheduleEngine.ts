@@ -63,6 +63,12 @@ export function isHabitScheduledToday(
     case "daily":
       return true;
 
+    case "specific_days": {
+      if (!habit.daysOfWeek || habit.daysOfWeek.length === 0) return false;
+      const d = new Date(today + "T12:00:00");
+      return habit.daysOfWeek.includes(d.getDay());
+    }
+
     case "weekly": {
       if (habit.type === "standard" && habit.lastCompletedDate) {
         const currentWeekStart = getWeekStart(today, weeklyResetDay);
@@ -166,4 +172,33 @@ export function getScheduledDaysInRange(
   }
 
   return result;
+}
+
+// ─── getNextSpecificDueDate ───────────────────────────────────────
+
+const WEEKDAY_SHORT_NAMES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+/**
+ * For specific_days habits: returns the next upcoming scheduled date
+ * and weekday label (e.g. "THU"), starting from tomorrow.
+ */
+export function getNextSpecificDueDate(
+  habit: Habit,
+  fromDate: string = getToday()
+): { date: string; dayLabel: string } | null {
+  if (habit.period !== "specific_days" || !habit.daysOfWeek || habit.daysOfWeek.length === 0) {
+    return null;
+  }
+  const current = new Date(fromDate + "T12:00:00");
+  for (let offset = 1; offset <= 7; offset++) {
+    current.setDate(current.getDate() + 1);
+    const dayOfWeek = current.getDay();
+    if (habit.daysOfWeek.includes(dayOfWeek)) {
+      return {
+        date: formatDate(current),
+        dayLabel: WEEKDAY_SHORT_NAMES[dayOfWeek],
+      };
+    }
+  }
+  return null;
 }

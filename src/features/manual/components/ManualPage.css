@@ -524,3 +524,296 @@
   color: var(--text-muted);
   margin: 0;
 }
+
+.manual-page__footer-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  transition: opacity 0.2s ease;
+}
+
+.manual-page__footer-link:hover {
+  opacity: 0.8;
+}
+
+.manual-page__footer-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── LLM Knowledge Export Card (Sidebar) ─────────────────────── */
+.manual-page__llm-card {
+  margin: 0 16px 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.manual-page__llm-card:hover {
+  border-color: rgba(var(--accent-rgb, 91, 141, 239), 0.3);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.manual-page__llm-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.manual-page__llm-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.manual-page__llm-card-title {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.manual-page__llm-card-desc {
+  font-size: 9.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.manual-page__llm-download-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  background: rgba(var(--accent-rgb, 91, 141, 239), 0.08);
+  border: 1px solid rgba(var(--accent-rgb, 91, 141, 239), 0.25);
+  border-radius: 5px;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 9.5px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.manual-page__llm-download-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: #08090a;
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb, 91, 141, 239), 0.35);
+}
+
+.manual-page__llm-download-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.manual-page__sidebar-mobile-header {
+  display: none;
+}
+
+.manual-page__mobile-chapters-toggle {
+  display: none;
+}
+
+/* ─── Header Top Row & Export Action Button ───────────────────── */
+.manual-page__header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.manual-page__header-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  padding: 5px 10px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.manual-page__header-export-btn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb, 91, 141, 239), 0.08);
+  box-shadow: 0 0 10px rgba(var(--accent-rgb, 91, 141, 239), 0.25);
+}
+
+.manual-page__header-export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Responsive Layout Rules ─────────────────────────────────── */
+
+/* Tier 2: Medium / Restored Desktop (769px – 1024px) */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .manual-page__sidebar {
+    width: 220px;
+  }
+
+  .manual-page__content {
+    padding: 20px 24px 32px;
+  }
+
+  .manual-page__llm-card {
+    margin: 10px 8px 4px;
+    padding: 10px;
+  }
+
+  .manual-page__article-title {
+    font-size: 20px;
+  }
+}
+
+/* Tier 3: Compact / Mobile Drawer (< 768px) */
+@media (max-width: 768px) {
+  .manual-page {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .manual-page__sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: min(320px, 86vw);
+    height: 100%;
+    z-index: 60;
+    background: #0e0f12;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.7);
+  }
+
+  .manual-page__sidebar--open {
+    transform: translateX(0);
+  }
+
+  .manual-page__sidebar-mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--accent);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+  }
+
+  .manual-page__sidebar-close-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border-radius: 4px;
+    transition: color 0.15s ease, background-color 0.15s ease;
+  }
+
+  .manual-page__sidebar-close-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .manual-page__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 55;
+    animation: manualBackdropFadeIn 0.2s ease-out forwards;
+  }
+
+  @keyframes manualBackdropFadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .manual-page__mobile-chapters-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(var(--accent-rgb, 91, 141, 239), 0.1);
+    border: 1px solid rgba(var(--accent-rgb, 91, 141, 239), 0.3);
+    border-radius: 5px;
+    padding: 5px 9px;
+    color: var(--accent);
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+  }
+
+  .manual-page__mobile-chapters-toggle:hover {
+    background: var(--accent);
+    color: #08090a;
+  }
+
+  .manual-page__header-top {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .manual-page__article-meta {
+    font-size: 9px;
+    letter-spacing: 1px;
+  }
+
+  .manual-page__content {
+    padding: 14px 14px 32px;
+    width: 100%;
+  }
+
+  .manual-page__article-title {
+    font-size: 18px;
+  }
+
+  .manual-page__article-summary {
+    font-size: 11.5px;
+  }
+
+  .manual-page__jump-pills {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .manual-page__jump-pills::-webkit-scrollbar {
+    display: none;
+  }
+}
+

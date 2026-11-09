@@ -8,6 +8,7 @@ import { resetStrikes } from "../services/strikeService";
 import { HabitForm } from "../../habits/components/HabitForm/HabitForm";
 import { TodoForm } from "../../todos/components/TodoForm/TodoForm";
 import { isTauri } from "../../../shared/utils/tauri";
+import { playMechanicalClick, playSubtleThud, playLockLatch } from "../../../shared/services/tactileAudioService";
 import "./PunishmentModal.css";
 
 const getProposedDelta = (habit: Habit) => {
@@ -41,7 +42,10 @@ const HabitPenanceCard = memo(function HabitPenanceCard({
   return (
     <button
       className={`punishment-card ${isSelected ? "punishment-card--selected" : ""}`}
-      onClick={() => onSelect(habit.id)}
+      onClick={() => {
+        playMechanicalClick();
+        onSelect(habit.id);
+      }}
     >
       <div className="punishment-card__icon" style={{ color: habit.type === "limiter" ? "var(--strike-red)" : habit.color }}>
         <LucideIcon name={habit.icon || "Activity"} size={24} />
@@ -177,6 +181,7 @@ export function PunishmentModal({ onConfirm, onCancel, userResetTime }: Punishme
 
       await createHabit(newHabit as Omit<Habit, "id" | "uid">);
       await resetStrikes();
+      playLockLatch();
       onConfirm("add_habit", undefined, true);
     } catch (e) {
       console.error("Failed to create penance habit:", e);
@@ -188,6 +193,7 @@ export function PunishmentModal({ onConfirm, onCancel, userResetTime }: Punishme
     try {
       setConfirming(true);
       await resetStrikes();
+      playLockLatch();
       onConfirm("add_todo", undefined, true);
     } catch (e) {
       console.error("Failed to resolve strikes for penance todo:", e);
@@ -238,7 +244,7 @@ export function PunishmentModal({ onConfirm, onCancel, userResetTime }: Punishme
 
   // ── Render: Selection Step ──────────────────────────────────────
   return (
-    <div className="punishment-overlay" onClick={onCancel} onPointerDown={handleDrag} data-tauri-drag-region>
+    <div className="punishment-overlay" onClick={() => { playSubtleThud(); onCancel(); }} onPointerDown={handleDrag} data-tauri-drag-region>
       <div className="punishment-modal" onClick={(e) => e.stopPropagation()}>
         {step === "select_penance" ? (
           <>
@@ -254,7 +260,7 @@ export function PunishmentModal({ onConfirm, onCancel, userResetTime }: Punishme
                 <button
                   key={opt.id}
                   className={`punishment-card ${selected === opt.id ? "punishment-card--selected" : ""}`}
-                  onClick={() => setSelected(opt.id)}
+                  onClick={() => { playMechanicalClick(); setSelected(opt.id); }}
                 >
                   <div className="punishment-card__icon">
                     <LucideIcon name={opt.icon} size={24} />

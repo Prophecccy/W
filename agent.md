@@ -44,6 +44,15 @@ graph TD
     - **Native Binary Minification & Obfuscation**: Release builds in `Cargo.toml` (`[profile.release]`) enforce `strip = true`, `lto = true`, `codegen-units = 1`, and `panic = "abort"` for full symbol stripping, dead-code elimination, and binary obfuscation.
     - **Win32 Hard Single-Instance Mutex**: Implements a global named Win32 mutex (`Global\com.wapp.desktop-primary-guard`) at the entry of `run()` before initializing Tauri plugins. If a secondary instance starts (via shortcut, autostart, or race condition), it attempts to signal the primary window via `WM_COPYDATA` or `SetForegroundWindow` and terminates immediately with `std::process::exit(0)`. This guarantees that two `w-app.exe` processes can never run concurrently under any startup race condition.
     - **Window Shadow Defense & Glass Border Prevention**: Transparent borderless windows (`widget`, `sticky-overlay`) in Windows 11 Desktop Window Manager (DWM) default to rendering an acrylic / frosted glass drop-shadow border frame if `shadow: false` is omitted. All window definitions in `tauri.conf.json` and any runtime window constructors (`WebviewWindow`) in `Layout.tsx` must explicitly declare `shadow: false`, and adhere to canonical dimensions (`width: 460, height: 620`), to preserve borderless, clean dark card aesthetics.
+  - **Lockdown Mode Website Tab Closure Protocol**:
+    - **Tab vs Process Discrimination**: The native monitor checks whether the foreground process is a recognized browser (`is_browser_process(&info.exe_name)`) and whether the triggered rule is a title/website rule (non-`.exe`). For browser website matches, `BlockPayload` emits `is_browser: true` and the active window `hwnd`.
+    - **Dynamic UI Action**: `BlockOverlay.tsx` displays `CLOSE TAB` for browser website rules and `CLOSE APP` for desktop executables.
+    - **Safe Tab Closure via Keystroke Synthesis (`close_blocked_tab`)**: Rather than killing the browser process (which would terminate all windows and tabs), `close_blocked_tab(app, hwnd, pid)` safely attaches thread input (`AttachThreadInput`), brings the browser window to the foreground (`SetForegroundWindow`, `SetFocus`), and synthesizes the universal `Ctrl + W` shortcut with spaced key events via Win32 `SendInput`.
+    - **Tab Close Debounce & Suppression Architecture**: To prevent rapid re-opening race conditions while Chromium destroys the tab process and updates the window title:
+      1. **Native Suppression Window**: Sets `TAB_CLOSE_SUPPRESSION_UNTIL` to 2.5 seconds, immediately hides the overlay, emits `lockdown-unblock`, and causes `start_polling` to suppress all block emissions.
+      2. **Active Transition Polling**: After sending `Ctrl + W`, `close_blocked_tab` polls the foreground window title for up to 800ms until it transitions away from the blocked rule before lifting the suppression.
+      3. **Frontend Cooldown Guard**: `BlockOverlay.tsx` sets `closing = true` on the first click (disabling button double-clicks), clears local block info, and drops any inbound block events within 2.5 seconds of tab closure.
+    - **Browser Process Guard**: `kill_blocked_process` explicitly validates that browser processes are never terminated unless an explicit `.exe` rule (e.g. `chrome.exe`) is present in the active blocklist, eliminating catastrophic browser closure on website blocks.
 
 ### 2. [ Frontend_Specialist ]
 * **Role**: Governs the user interface, typography hierarchy, aesthetic consistency, responsive layouts, motion profiles, and interaction design.
@@ -53,14 +62,36 @@ graph TD
   - **Zero Utility Bloat**: Do not introduce utility classes or CSS-in-JS. All styling must consume variables defined in `src/index.css`.
   - **Endfield Aesthetic**: Every page and section header must strictly adhere to the bracketed uppercase title format: `[ NAME ]`.
   - **No React Namespace Imports**: Never use `import React from 'react'`. Always import hooks and types directly (`import { useState } from 'react'`).
+  - **World-Class UI Consistency & Interaction Physics Mandate (`DESIGN.md` Section 8)**:
+    - **Ghost Elevation Standard**: Surfaces float on dark obsidian with translucent chassis (`rgba(255, 255, 255, 0.02)`), 1px hairline micro-bevels (`rgba(255, 255, 255, 0.08)`), and hardware-accelerated cursor spotlight beams (`useSpotlightBorder`). Heavy borders, solid opaque cards, and nested card outlines are strictly forbidden.
+    - **Monochromatic Theme Cohesion**: All active accents consume `var(--accent)`. Multi-color/rainbow gradient tracks or progress bars are strictly blacklisted.
+    - **Centralized Spring Physics**: All Framer Motion animations must strictly consume presets from `src/shared/constants/motion.ts` (`SPRING_LAYOUT`, `SPRING_MODAL`, `SPRING_TACTILE`, `SPRING_POP`). Arbitrary CSS easing curves or raw durations for spatial movement are forbidden.
+    - **Tactile Web Audio Engine**: Wire `playMechanicalClick()`, `playSubtleThud()`, and `playLockLatch()` from `src/shared/services/tactileAudioService.ts` for instantaneous, zero-latency physical haptics on user actions.
+    - **The Wise Principle**: Routine micro-actions (clicks, toggles) are instantaneous (<50ms feedback); high-stakes actions (habit completion, deletions, lockout release) require deliberate mechanical investment (500ms power-curve hold fill `cubic-bezier(0.32, 0, 0.67, 1)` and resonant latch audio).
+    - **Transparent Desktop Drag Performance**: In transparent windows (`WidgetApp`, `StickyCanvas`), never trigger React component state updates during active pointer motion. Manipulate DOM refs directly (`classList`, `style.transform`) and synchronize coordinates only on pointer release (`onUp`) to guarantee 60+ FPS performance.
+    - **Mandatory Pre-Flight UI Checklist**: Before submitting any UI code, verify:
+      1. Monospace typography (`Departure Mono` + `tabular-nums`) + bracketed headers (`[ NAME ]`).
+      2. Ghost elevation chassis with `useSpotlightBorder`.
+      3. Spring physics from `motion.ts` (0 raw duration layout animations).
+      4. Web Audio haptics wired (`tactileAudioService.ts`).
+      5. Zero blacklisted anti-patterns (no rainbow meters, no nested box outlines).
+      6. Clean `npx tsc --noEmit` (0 errors) and passing `npx vitest run` (0 regressions).
+  - **Adaptive Desktop & Responsive Viewport Architecture (Expanded / Medium Rail / Compact Drawer)**:
+    - **Tier 1 — Expanded / Wide Desktop (`≥ 1025px`)**: Persistent 200px sidebar (`grid-template-columns: 200px 1fr`), full navigation labels, four-column dashboard grid (`max-content 1fr 1fr 1fr`), 280px Field Manual sidebar, and multi-column settings cards (`repeat(auto-fit, minmax(min(100%, 340px), 1fr))`).
+    - **Tier 2 — Medium / Restored Desktop Rail (`769px – 1024px`)**: The main sidebar collapses into a 64px icon navigation rail (`grid-template-columns: 64px 1fr`), centering navigation icons and hiding text labels. Topbar left offset automatically updates to `left: 64px`. Dashboard reflows into a fluid 2-to-3 column grid (`max-content repeat(auto-fit, minmax(260px, 1fr))`) without clipping. Field Manual master sidebar condenses to 220px. SleepTube fuel gauge height scales fluidly (`max-height: clamp(200px, 42vh, 400px)`), eliminating vertical or horizontal overflow in windowed states.
+    - **Tier 3 — Compact / Windowed & Mobile Drawer (`< 768px`)**: Layout converts to a full-width column (`left: 0; width: 100%`). The persistent sidebar transforms into a high-performance slide-out drawer (`position: absolute; width: min(280px, 85vw); z-index: 1000; transform: translateX(-100%)`). Topbar displays a tactical hamburger toggle `[ ☰ ]`. The slide-out drawer includes a frosted glass backdrop overlay (`.sidebar-drawer-backdrop`), auto-dismisses on route changes and <kbd>Esc</kbd> key presses, and features a dedicated close button `[ ✕ ]`. The Field Manual features a mobile module selector drawer and top action pills.
+    - **Window State & Resizing Resilience**: All layouts utilize pure CSS fluid bounding (`minmax()`, `clamp()`, `min-width: 0`, and `flex-wrap: wrap`) rather than rigid pixel locks. When the user restores-down, maximizes, or arbitrarily resizes the desktop window, active React view states, form drafts, scroll offsets, and selections remain 100% stable without DOM remounting or clipping.
   - **Mobile Web Architecture (`<= 768px`)**:
     - **3-Tier Docked Flex Shell (`Layout.css`)**: Layout converts to a viewport-locked flex column (`position: fixed; inset: 0; display: flex; flex-direction: column; overflow: hidden;`). Topbar is `flex: none`, Content is `flex: 1 1 0; min-height: 0; overflow-y: auto;`, and `<MobileNav />` is `flex: none` permanently docked at the container base with safe-area padding. This mathematically guarantees that the bottom navigation cannot be pushed below the fold on any screen height.
     - **Dual Navigation Redundancy**: In addition to the bottom `<MobileNav />`, the mobile Topbar features an interactive section switcher dropdown when tapping the page title (`[ DASHBOARD ] v`, `[ HABITS ] v`), providing instant 1-tap switching from either the top or bottom of the screen.
     - **Safe Area Inset Standard**: All shell containers and docked bars consume `--safe-area-top` and `--safe-area-bottom` (`env(safe-area-inset-*)`) to accommodate device cutouts and gesture bars.
     - **Scrollbar Suppression**: Touch viewports suppress visible scrollbars globally (`scrollbar-width: none; ::-webkit-scrollbar { display: none; }`) while preserving fluid inertial touch scrolling.
-    - **Mobile Dashboard Fuel Strip**: `SleepTube` automatically switches from a vertical pillar to an ergonomic horizontal fuel gauge with live numerical percentage on mobile, preventing vertical scroll starvation.
-    - **Tactile Segment Switcher**: The mobile Dashboard renders category tabs (`[ ALL ]`, `[ HABITS ]`, `[ LIMITERS ]`, `[ TODOS ]`) with minimum touch heights and zero squashing to allow focused single-handed task triage.
-    - **Settings Tactical Tile Grid**: The Settings page replaces the vertical sidebar with a compact 4-column tactical tile grid (`repeat(4, 1fr)`), fitting all 8 sub-navigation items in 2 rows without horizontal scroll.
+    - **Mobile Dashboard Fuel Strip & Glass Track**: `SleepTube` automatically switches from a vertical pillar to an ergonomic horizontal fuel gauge with live numerical percentage on mobile (`[ FUEL ]`), glass cylinder track (`rgba(255, 255, 255, 0.03)` with 1px hairline border), and ambient resting glow when fuel is at 0% or during sleeping phases, preventing vertical scroll starvation.
+    - **Ghost-Elevated Mobile Stats Deck**: Directly beneath the fuel gauge, the mobile dashboard features a dedicated three-column telemetry cluster (`COMPLETED | TOTAL | PROGRESS %`) separated by 1px vertical hairline dividers (`rgba(255, 255, 255, 0.08)`) with zero outer box borders or chunky drop shadows.
+    - **Daily Note 2-Tier Telemetry Header**: On mobile viewports, the Daily Note card splits into a 2-tier telemetry layout: Tier 1 houses the bracketed title `[ DAILY NOTE ]` and `[ LOGBOOK ]` button, while Tier 2 contains the autosave indicator (`SAVED`), Google Drive backup status (`[ BACKED UP ]`), and character counter (`0 / 5000`) with strict `white-space: nowrap` and tabular numerals to eliminate multi-line bracket wrapping.
+    - **Tactile Segment Switcher**: The mobile Dashboard renders category tabs (`[ ALL ]`, `[ HABITS ]`, `[ LIMITERS ]`, `[ TODOS ]`) with Ghost Elevation, minimum touch heights, active scale physics (`SPRING_TACTILE`), and zero squashing to allow focused single-handed task triage.
+    - **Mobile Dashboard Full Vertical Scroll**: While the desktop dashboard remains strictly viewport-locked (`100vh`) with column-level internal scrollbars, the mobile dashboard (`<= 768px`) enables natural page-level vertical scrolling (`.dashboard-page { height: 100%; overflow-y: auto; scrollbar-width: none !important; }`). Inner containers (`.dashboard-page__content`, `.dashboard-grid`, `.dashboard-list`) release desktop height and overflow clamping (`overflow: visible; flex-grow: unset; min-height: auto;`), allowing all stacked habit cards, limiters, active todos, and the Daily Note footer to flow sequentially without clipping or scroll starvation.
+    - **Settings Tactical Tile Grid**: The Settings page replaces the vertical sidebar with a compact 4-column tactical tile grid (`repeat(4, 1fr)`), fitting all 9 sub-navigation items in 3 rows without horizontal scroll. On mobile (`<= 768px`), the tile grid is docked sticky at `top: 0` (`position: sticky; z-index: 50;`) directly beneath the Topbar with a subtle dark backdrop and separation border. The parent `.settings-page` manages internal vertical scrolling (`overflow-y: auto`), allowing settings content to glide underneath the pinned navigation without hiding the sub-tabs. Individual tabs enforce `box-sizing: border-box`, inner outline offset (`outline-offset: -2px`), and zero horizontal overflow, ensuring active and focused states fit completely within mobile viewports without edge clipping.
     - **Mobile Analytics Architecture**: Smart Insights collapse into a high-density $2 \times 2$ grid (`repeat(2, 1fr)`). The Activity Heatmap carousel suppresses peripheral blurred months (`offset-1`, `offset-2`), centers the active month, and decouples navigation chevrons to outer margins to prevent touch collisions. Lower comparison charts scale dynamically without horizontal overflow.
     - **Responsive Controls & Single-Column Grid**: Habit and Todo grids collapse to single-column full-width cards (`1fr`), while action headers wrap cleanly to avoid viewport blowout.
   - **Desktop Widget Height & Scroll Bounds**:
@@ -69,6 +100,31 @@ graph TD
   - **Modal Architecture & Flex-Container Containment**:
     - **Wide Form Modal Standards**: When presenting wide configuration forms (`<HabitForm>`, `<TodoForm>`) inline within modal containers (such as `HabitsPage` modal or `PunishmentModal`), the modal container must enforce block flow (`display: block`) or explicit full-width alignment (`width: 95vw; max-width: 1200px;`) rather than relying on unconstrained flex column layouts.
     - **Intrinsic Grid Stretch Defense**: To prevent CSS Grid layouts (`repeat(auto-fill, minmax(...))`) like `<IconPicker>` from collapsing into intrinsic input min-widths (~200px / 3 icon columns), all intermediate wrappers (`.habit-form`, `.habit-form__content`, `.habit-form__step`, `.habit-form__step--appearance`, `.habit-form__field--full`, and `.icon-picker`) must declare explicit `width: 100%; box-sizing: border-box;`.
+  - **Natural Language Command Palette Engine (`Ctrl + K`)**:
+    - **Deterministic Zero-Latency Parsing (`naturalLanguageParser.ts`)**: 100% offline regex & heuristic parser extracting domain (Habit vs. Todo), intent (Create, Delete/Remove), recurrence (`daily`, `weekly`), priority (`urgent`/`p1` -> `#ff4d4d`), and relative dates (`today`, `tomorrow`, `in X days`, `by [day]`) without LLM API overhead or external latency. Task and habit completion is intentionally excluded from the palette to preserve tactile satisfaction and prevent accidental checkoffs.
+    - **Direct Execution Protocol**: When a valid natural command is parsed from the palette input, an elevated Direct Action hero card is dynamically pinned to index 0 of `flatFiltered` with visual glowing cues (`#5B8DEF` for create, `#ff4d4d` for delete). Pressing `Enter` executes the mutation directly (creating or deleting habits/todos) and dispatches Endfield system toasts (`[ TODO CREATED ]`, `[ HABIT DELETED ]`) with zero intermediate confirmation modals.
+    - **Undo Logging & Non-Destructive Integrity**: Todo actions trigger `logAction` to ensure accidental deletions can be reversed via the undo history buffer.
+  - **Todo Tactical Priority Hierarchy (P1 to P4)**:
+    - **Strict Field Manual Alignment**: Eliminates arbitrary multi-color selection in favor of 4 military operational priority tiers defined in `PRIORITY_CONFIG`:
+      - `[ P1 CRITICAL ]` (`#EF4444` Crimson): Non-negotiable priorities for today.
+      - `[ P2 HIGH ]` (`#F59E0B` Amber): Important strategic initiatives that move the needle.
+      - `[ P3 MEDIUM ]` (`#5B8DEF` Endfield Blue): Routine daily operations and tasks (default).
+      - `[ P4 LOW ]` (`#6B7280` Muted Gray): Nice-to-have backlog items or casual ideas.
+    - **Color Binding & Deadline Decoupling**: Priority strictly dictates the task accent color. Scheduling (`NONE`, `TODAY`, `CUSTOM`) is fully decoupled from priority.
+    - **Card Badges & Command Palette Integration**: Card footers render tactical badges (`[ P1 ]`, `[ P2 ]`, `[ P3 ]`, `[ P4 ]`), and natural language parsing (`Ctrl + K`) natively resolves P1–P4 intents with matching glowing hero accents.
+  - **Specific Days Habit Protocol (`period: "specific_days"`)**:
+    - **Discrete Scheduling Engine (`scheduleEngine.ts`)**: Unlike generic weekly quotas that sum completions over 7 days, `specific_days` protocols execute strictly on the selected weekdays (`daysOfWeek: number[]`, where $0=\text{Sun}, 1=\text{Mon}, \dots, 6=\text{Sat}$). On unscheduled days, `isHabitScheduledToday` evaluates to `false`, instantly and cleanly omitting the habit from active daily views with zero rollover.
+    - **Upcoming Visibility & Tactile Badging (`HabitsPage.tsx`)**: Unscheduled specific-day protocols render under `[ UPCOMING ]` with an exact tactical badge indicating the next scheduled occurrence (`NEXT: <DAY>`, e.g., `NEXT: THU`), calculated via `getNextSpecificDueDate`.
+    - **Zero-Rollover Gap & Strike Enforcement (`gapProcessor.ts`)**: During day rollover/gap analysis, non-scheduled days are bypassed cleanly at the scheduling gate without penalty. When a scheduled day is reached and left uncompleted, it triggers exactly 1 strike point if the Strike System is enabled (0 strikes if disabled). It vanishes the following morning and does not carry over as an active debt.
+    - **Streak Continuity Over Rest Days (`streakEngine.ts`)**: `calculateStreak` walks backward through calendar history and evaluates *only* days matching `habit.daysOfWeek`. Unscheduled rest days are skipped without breaking the streak. A same-day grace period is provided if today is scheduled but not yet completed.
+    - **Discrete Analytics & Heatmap Transparency (`HabitDetail.tsx`, `ActivityHeatmap.tsx`)**: In single-habit activity heatmaps, cells differentiate between completed (accent glow), missed (scheduled but omitted), and non-scheduled rest days (`.rest-day`, subtle dashed border and tooltip: `Rest Day (Not scheduled)`). Because `analyticsService.ts` gates daily scheduling through `isHabitScheduledToday`, unscheduled days are omitted from the efficiency denominator, preventing false dilution of habit performance.
+  - **Tactical Endfield Motion Architecture & Physics Protocol (`motion.ts`, `framer-motion`)**:
+    - **Spring Physics Standard**: High-tension, low-overshoot spring constants (`SPRING_TACTILE`: stiffness 450, damping 28; `SPRING_LAYOUT`: stiffness 380, damping 30; `SPRING_MODAL`: stiffness 420, damping 32) benchmarked from Linear, Raycast, and Apple HIG. Replaces floaty CSS transitions with immediate, mechanical feedback.
+    - **FLIP Layout Reordering**: Lists (`DashboardPage`, `HabitsPage`, `TodosPage`) wrap interactive cards in `<AnimatePresence mode="popLayout" initial={false}>` with `motion.div layout`, smoothly gliding surrounding cards into place on deletion, checkoff, or filtering without DOM jumps.
+    - **Tactile Card Micro-Haptics**: Habit and Todo cards enforce `whileTap={{ scale: 0.985 }}` on press. Checkoff completions trigger spring checkmark pop (`SPRING_POP`), synchronized audio click, and localized celebratory confetti bursts.
+    - **Zero-Flicker Page Transitions**: Route transitions in `Layout.tsx` enforce concurrent cross-fade (`mode="popLayout"`, duration 0.16s, `[0.16, 1, 0.3, 1]`) with micro-elevation (`y: 4 -> 0`), eliminating black blank screen flashes between views.
+    - **Gliding Navigation Indicators**: Sidebar navigation features a shared sliding indicator pill (`layoutId="sidebar-active-indicator"`) that glides vertically across tabs.
+    - **GPU Acceleration & Reduced-Motion Defense**: Animations are strictly constrained to hardware-accelerated transforms (`transform`, `opacity`, `filter`). Global CSS enforces `@media (prefers-reduced-motion: reduce)` fallbacks to guarantee zero layout thrashing across all desktop windows.
 
 ### 3. [ Data_State_Engineer ]
 * **Role**: Orchestrates database connections, localized state providers, daily cycle calculations, local caching, and real-time cross-webview synchronization.
@@ -104,6 +160,11 @@ graph TD
     - **Multi-Trigger Eager Synchronization**: Sync is driven by: (1) an active 10s state polling heartbeat and 15s note heartbeat, (2) immediate synchronization on `window.addEventListener("focus")` and `document.addEventListener("visibilitychange")` when switching between desktop and web tabs, (3) instant 1s debounced push on local mutations (`setDoc`, `updateDoc`, `deleteDoc`), (4) low-latency 2-second note sync deferral during typing, and (5) continuous background sync-down of remote Daily Notes (`pullNotesFromDrive()`).
     - **Reactive Note UI Refresh (`DailyNote.tsx`)**: When `w:note-synced` fires (with or without specific date detail), active notes are automatically re-read from IndexedDB into editor state if the user is not actively typing, ensuring multi-device notes reflect immediately without manual page reload.
   - **Interval Habit Scheduling & Heatmap Analytics**: Interval habits (due once every $N$ days) enter cooldown strictly between `lastCompletedDate` and `lastCompletedDate + intervalDays`. Historical dates prior to `lastCompletedDate` are never retroactively blacked out by future cooldowns. In single-habit and global heatmaps, any completed interval habit entry renders unconditionally as an active level-4 cell (never marked as a faded ghost cell). Interval completion rates and monthly efficiency are calculated using cycle intervals ($\max(1, \text{round}(\text{elapsedDays} / \text{intervalDays}))$).
+  - **Unified Single Sign-On (SSO) & State Ownership Isolation Protocol (`googleDriveService.ts`, `localDb.ts`, `authService.ts`, `AccountSection.tsx`)**:
+    - **Single Canonical Login**: Google Account login is the sole entry point. Identity (`openid email profile`) and Google Drive scopes (`drive.file`) are acquired simultaneously in one OAuth roundtrip.
+    - **Eradication of Decoupled Linking**: Separate "Link Drive" / "Unlink" buttons in Settings are eliminated. Unlinking cloud storage is atomic with signing out (`signOut()`), which flushes cached tokens, deletes AppData credentials, and purges IndexedDB cache.
+    - **Account Switch Cache Purge**: If an authenticated session switches to another Google email, `processGoogleOAuthToken()` detects the email change and purges the previous account's local IndexedDB cache before importing remote state.
+    - **Version 2 State Ownership Envelope (`localDb.ts`)**: `W_state.json` is packaged in an ownership envelope containing `version: 2`, `ownerEmail`, and `ownerUid`. Prior to merging remote cloud data into local storage, `pullAndMergeFromGoogleDrive()` validates that `remoteState.ownerEmail` matches `currentUser.email`. If a mismatch is detected, synchronization is immediately aborted with a security log, completely preventing cross-account data leakage and accidental cloud state clobbering. Legacy v1 states (lacking `ownerEmail`) are gracefully accepted and automatically upgraded to v2 envelopes upon their next upload.
 
 
 ### 4. [ Security_Quality_Auditor ]
@@ -612,3 +673,334 @@ Resolved an issue where typing or updating text in the Daily Note textarea (on b
 3. **Accurate Timestamping (`localLogService.ts`)**:
    - `saveDownloadedNote(date, content, remoteModifiedTimeMs)` accepts and sets `updatedAt = remoteModifiedTimeMs`, maintaining consistent chronological ordering between local records and remote Drive files.
 
+---
+
+## Batch 50 — Concurrent Lockdown & Operational Schedule Controls
+
+Resolved lockdown page locking where users were unable to create/modify schedules, trigger manual sessions, or stop active schedules while an automated schedule was enforcing:
+
+1. **Unified Two-Column Lockdown Architecture (`LockdownPage.tsx`)**:
+   - Eliminated the exclusive binary view fork (`{isAnyLockdownActive ? telemetry : setup}`) that locked the entire UI behind an immutable telemetry view with disabled buttons (`AUTOPILOT ENFORCED`).
+   - Established a concurrent two-column layout:
+     - **Column 1 (`lockdown-column--control`)**: Houses the unified `#lockdown-status` terminal card (displaying active session badges for `MANUAL`, `SCHEDULED`, or `DUAL ENFORCEMENT`, scheduled countdown/banner, manual countdown, `STOP SCHEDULE` button, `DEACTIVATE MANUAL LOCKDOWN` button, and standard `ACTIVATE LOCKDOWN` launcher with duration presets when manual mode is idle) and the `#lockdown-schedules` card (always visible and interactive with `+ CREATE NEW SCHEDULE`, form, and list of configured schedules with live enable/disable toggles).
+     - **Column 2 (`lockdown-column--inspect`)**: Renders active telemetry (`#lockdown-blocked-targets`, `#lockdown-telemetry` radar/terminal) when any lockdown is running, alongside `#lockdown-blocklist` (preset app pills & custom app input) and `#lockdown-violations` history.
+   - Removed sticky viewport positioning from the control column to prevent clipping when user schedules expand.
+
+2. **Autonomous Schedule Deactivation & Overlay Cleanup (`LockdownPage.tsx`)**:
+   - Introduced `handleStopActiveSchedules(targetScheduleId?: string)`:
+     - Allows stopping a specific active schedule or all currently active schedules.
+     - Sets `enabled: false` on the target schedule(s) and commits via `updateSchedules`.
+     - Immediately triggers `syncActiveLockdownState(user.uid)` to disengage the Rust native monitor.
+     - If no concurrent manual lockdown is running (`!isActive`), calls `WebviewWindow.getByLabel("block-overlay")?.hide()` to immediately dismiss the Tauri blocking overlay.
+   - Wired the same overlay hide cleanup to `handleToggleScheduleEnabled` and `handleDeleteSchedule`.
+
+3. **Sub-Second Reactive Synchronization (`lockdownService.ts`, `useLockdown.ts`)**:
+   - In `lockdownService.ts`, `updateSchedules` now immediately invokes `await syncActiveLockdownState(activeUid)` on every mutation (toggle, delete, create) so Rust's low-level window monitor (`start_lockdown_monitor` / `stop_lockdown_monitor`) reconfigures synchronously without waiting for polling ticks.
+   - In `useLockdown.ts`, added immediate synchronization on mount plus a 15-second heartbeat interval, ensuring schedules automatically activate/deactivate in the native Rust monitor even if the desktop widget window is minimized or closed.
+
+---
+
+## Batch 51 — Desktop Widget Z-Order Defense & Unowned HWND_BOTTOM Architecture
+
+Resolved the issue where the Desktop Widget appeared on top of games (such as Arknights: Endfield) and application windows until clicked:
+
+1. **Decoupled Window Ownership Trap (`workerw.rs`, `sticky_overlay.rs`)**:
+   - Eliminated the `GWLP_HWNDPARENT = W_Hidden_Owner` linkage. In Win32, an owned window is permanently locked by the OS kernel to remain above its owner in the Z-order, preventing it from sinking below background or loading application windows.
+   - Cleared parentage (`GWLP_HWNDPARENT = 0`) to make `widget` and `sticky-overlay` completely unowned top-level windows.
+   - Applied `WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE` and stripped `WS_EX_APPWINDOW`. This natively and reliably hides the windows from both the Windows Taskbar and Alt+Tab switcher without needing an owner window anchor.
+
+2. **Continuous Desktop Z-Order Guard (`workerw.rs`, `lib.rs`)**:
+   - Implemented `start_desktop_zorder_guard(app: tauri::AppHandle)` in `workerw.rs`, spawned during `lib.rs` application setup.
+   - Runs a non-blocking 500ms background loop:
+     - Detects active dragging via `LAST_MOVE_EVENT_MS` and suspends bottom-pinning during user drag operations (`now.saturating_sub(last_move) < 600`) to guarantee smooth dragging.
+     - When not dragging, queries the active foreground window (`GetForegroundWindow()`). If the active window is any other process or application (e.g. Endfield, game, browser, Explorer), continuously asserts `SetWindowPos(HWND_BOTTOM, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)` on the widget and sticky overlay.
+     - Also wired an immediate `pin_widget_bottom` call on `tauri::WindowEvent::Focused(false)` blur events.
+
+---
+
+## Batch 52 — Desktop Widget Progress Circle & Left Panel Layout Polish
+
+Resolved the cramped and misaligned widget layout where the habit completion circle was squeezed directly atop the vertical SleepTube fuel gauge in the narrow left rail:
+
+1. **Header Protocol Ring Integration (`WidgetApp.tsx`, `WidgetApp.css`)**:
+   - Relocated `<ProgressCircle>` from `.widget-app__left-panel` into `.widget-app__header-left` alongside `[ ACTIVE PROTOCOLS ]`.
+   - Scaled to a clean `size={16}` inline HUD gauge with hover tooltip (`${completedCount}/${totalScheduled} Completed`), conceptually pairing protocol completion directly with protocol items.
+   - Updated `calculateAutoHeight` in `WidgetApp.tsx` (`targetLogicalLeftPanel = 180`) to synchronize window auto-sizing with the streamlined rail.
+
+2. **Dedicated SleepTube Left Rail (`WidgetApp.tsx`, `WidgetApp.css`, `SleepTube.css`)**:
+   - Removed `.widget-app__left-progress` and removed hardcoded margins (`marginTop: '48px', marginBottom: '64px'`).
+   - Replaced with `.widget-app__left-tube-container` (`margin-bottom: 24px`, `flex: 1`).
+   - Aligned `.widget-app__left-panel` top padding (`padding-top: 16px`) with `.widget-app__header` so that `[ FUEL ]` and `[ W ] [ ACTIVE PROTOCOLS ]` share an exact horizontal baseline.
+   - Overrode `.sleep-tube--widget` with `height: 100%; min-height: unset;` in `SleepTube.css` so the tube flexes cleanly without inheriting the main application's 350px minimum height.
+
+3. **Background Track in Tiny Mode (`ProgressCircle.tsx`)**:
+   - Added a subtle background ring (`stroke="rgba(255, 255, 255, 0.12)"`) for `tiny` mode SVG rendering, ensuring the circular HUD gauge remains crisply defined even at 0% daily completion.
+
+---
+
+## Batch 53 — Multi-Monitor Dynamic Recall & Local Placement Persistence
+
+Implemented robust, local-only multi-monitor placement recall and dynamic display topology sensing for both the Desktop Widget and Sticky Notes:
+
+1. **Hardware Display Topology Watcher (`workerw.rs`, `lib.rs`)**:
+   - Win32 background loop queries `GetSystemMetrics(SM_CMONITORS)` and virtual desktop bounds `(SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN)`.
+   - On display change (monitor connected/disconnected, resolution altered):
+     - Immediately expands/re-anchors the `sticky-overlay` window to span the new virtual desktop using native `SetWindowPos`.
+     - Emits `w://monitors-changed` to notify all webviews.
+
+2. **Non-Destructive Primary Monitor Fallback (`WidgetApp.tsx`, `widgetPositionStore.ts`)**:
+   - `WidgetPosition` records absolute screen coordinates, monitor context (`monitorName`, `relativeX`, `relativeY`, `totalMonitorsWhenSaved`).
+   - On launch without the target monitor (e.g. PC booted with only primary display):
+     - Positions widget safely within the primary monitor's visible bounds.
+     - Activates `isFallbackActive = true` flag to prevent overwriting the user's secondary monitor coordinates in `widget_position.json`.
+   - On `w://monitors-changed`: when the 2nd monitor reconnects, automatically restores the widget to its exact saved placement on the 2nd monitor.
+   - User drag explicitly updates the saved placement, while process unload flushes writes immediately.
+
+3. **Local-Only Sticky Note Placements (`positionStore.ts`, `StickyCanvas.tsx`, `useStickyNotes.ts`)**:
+   - Removed destructive screen clamping that previously overwrote off-screen note coordinates in Firestore/localStorage when a monitor was disconnected.
+   - Decoupled physical screen coordinates from Firestore (`syncPositionToFirestore` disabled) per local-only architecture.
+   - Notes on disconnected displays are rendered on the primary display in a non-destructive fallback state in memory without corrupting local disk placement records.
+   - On `w://monitors-changed`: when the 2nd monitor reconnects, notes seamlessly teleport back to their original positions on the 2nd monitor and update hit-test regions immediately.---
+
+## Batch 54 — Field Manual Accuracy & Discrepancy Purge
+
+Comprehensive audit and correction of the in-app Field Manual documentation (`src/features/manual/data/manualContent.ts`) to align with actual codebase features:
+
+1. **Purged Fabricated Artifacts**:
+   - Removed all references to `"Endfield Monospace Typography"` and `"endfield"` search keywords in Chapter 1; accurately documented the retro monospace font **Departure Mono**.
+   - Removed the non-existent `"Peak Performance Window"` from Chapter 2 habit analytics, replacing it with the actual 28-day consistency heatmap and 14-day metric trend sparkline.
+   - Removed fictional `"8-Second Undo Grace Period"` countdown line from habit cards, documenting real tactical undo pathways (toast `[ UNDO ]` button, card re-hold, and Habit Detail drawer).
+   - Removed fictional `"4 Depletion Color Zones"` (Cyan -> Cool Blue -> Amber -> Crimson) from Chapter 5 SleepTube documentation, accurately describing linear circadian waking energy drainage, milestone ticks, and custom `[ DEPLETED ]` empty state.
+   - Removed incorrect `[ SETTINGS ] → [ LOCKDOWN ]` path in Chapter 9, guiding users to the dedicated `[ LOCKDOWN ]` sidebar control hub.
+
+2. **Accurate Architecture & Interface Mechanics**:
+   - Clarified viewport-locking in Chapter 1: only the operational Dashboard HUD is 100vh-locked, while documentation, settings, analytics, and habits support smooth vertical scrolling.
+   - Aligned lockout penance in Chapter 4 with the exact three modal options from `PunishmentModal.tsx`: `[ INCREASE DIFFICULTY ]` (+33% on 1 habit), `[ ADD NEW HABIT ]`, and `[ ADD NEW TODO ]`.
+   - Clarified Settings module separation in Chapter 10: `[ SETTINGS ] → [ WALLPAPERS ]` (crop, dim, blur) vs `[ SETTINGS ] → [ APPEARANCE ]` (accent colors, completion audio, low graphics mode).
+
+3. **Core Feature Additions**:
+   - Added comprehensive documentation for **Floating Desktop Sticky Notes & Multi-Monitor Recall** in Chapter 7, detailing todo desktop pinning, local-only coordinate persistence (`widget_position.json` and `w_sticky_placements`), and hardware display topology sensing.
+   - Added single-key navigation shortcuts to Chapter 10 (<kbd>H</kbd>, <kbd>T</kbd>, <kbd>A</kbd>, <kbd>S</kbd>, <kbd>M</kbd>, <kbd>N</kbd>, <kbd>Space</kbd>).
+
+---
+
+## Batch 55 — LLM Knowledge Base Manual Export Engine
+
+Introduced a 1-click manual exporter that compiles the complete, up-to-date Field Manual into a structured text prompt file (`W_COMMAND_CENTER_MANUAL_FOR_LLM.txt`) formatted for direct ingestion into AI models (ChatGPT, Claude, Gemini, Ollama):
+
+1. **Dynamic LLM Manual Compilation (`manualExportService.ts`)**:
+   - Pre-seeds an authoritative LLM System Prompt / Persona instructing the AI to act as an expert W operations assistant, answer concisely, cite exact UI routes, and adhere strictly to documented workflows.
+   - Dynamically formats all 10 chapters from `MANUAL_CHAPTERS` (Philosophy, Habits Matrix, Reset Timing, Strikes & Lockout, SleepTube, Todos Architecture, Desktop Companions, Logbook & Google Drive, Lockdown Engine, and Shortcuts).
+   - Appends an AI Quick-Reference & Troubleshooting Matrix addressing common user inquiries (recovering lost widgets, multi-monitor sticky note persistence, daily reset boundaries, lockout resolution paths, AES-256 encrypted notes, and background sync).
+   - Utilizes native Tauri file saving via `@tauri-apps/plugin-dialog` and `@tauri-apps/plugin-fs` with automated fallback to browser Blob downloading.
+
+2. **Tactical UI Integration (`ManualPage.tsx`, `ManualPage.css`)**:
+   - Integrated an **`[ LLM KNOWLEDGE EXPORT ]`** tactical card in the manual's left sidebar navigation with an action button: `[ DOWNLOAD MANUAL .TXT ]`.
+   - Added a compact **`[ EXPORT FOR LLM ]`** action button in the right article header for instantaneous chapter-level downloads.
+   - Connected `useToast` to provide tactile operational feedback: `[ MANUAL DOWNLOADED FOR LLM ]`.
+   - Added comprehensive unit testing suite in `manualExportService.test.ts`.
+
+---
+
+## Batch 56 — Adaptive Responsive Layout & Window Resizing Resilience
+
+Implemented a comprehensive, 3-tier adaptive responsive layout architecture across the entire desktop application to dynamically accommodate non-maximized (restored/windowed) desktop states and arbitrary viewport resizing without clipping or awkward horizontal scrollbars:
+
+1. **Breakpoint Architecture & 3-Tier Navigation Shell**:
+   - **Tier 1 (Expanded Desktop `≥ 1025px`)**: Standard persistent 200px sidebar (`grid-template-columns: 200px 1fr`), full navigation labels, four-column dashboard grid, 280px Field Manual sidebar, and multi-column settings cards.
+   - **Tier 2 (Medium Restored Desktop Rail `769px – 1024px`)**:
+     - Sidebar transforms into a 64px icon navigation rail (`grid-template-columns: 64px 1fr; width: 64px;`). Text labels and badges collapse cleanly with centered icon alignment.
+     - Topbar dynamically realigns to `left: 64px; width: calc(100% - 64px);`.
+     - Dashboard grid fluidly reflows from 4 columns to 2-3 columns (`max-content 1fr 1fr` or `max-content 1fr`) based on available horizontal space.
+     - Field Manual navigation sidebar condenses from 280px to 220px.
+   - **Tier 3 (Compact / Narrow `< 768px`)**:
+     - Topbar renders a tactical hamburger drawer toggle button `[ ☰ ]` (`.topbar__drawer-toggle-btn`).
+     - Persistent sidebar transitions into an absolute slide-out drawer (`position: absolute; width: min(280px, 85vw); z-index: 1000; transform: translateX(-100%)`) with smooth spring animation (`.sidebar--drawer-open`).
+     - Full-screen frosted glass overlay backdrop (`.sidebar-drawer-backdrop`) dismisses on click, on route navigation, or via the <kbd>Esc</kbd> key.
+     - Field Manual provides an overlay chapter picker drawer (`.manual-page__sidebar--open`) triggered by a topbar pill `[ MODULES: {number} ]`.
+
+2. **Fluid Content Grids & Height Resilience**:
+   - **SleepTube Circadian Fuel Gauge**: Replaced rigid fixed height overrides with dynamic fluid bounds (`max-height: clamp(200px, 42vh, 400px)`), completely preventing vertical clipping and scroll starvation when the window is vertically resized down.
+   - **Settings Grid**: Replaced rigid 400px min-width with fluid bounding (`grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: clamp(16px, 2vw, 32px);`).
+   - **Habits & Todos Action Headers**: Applied `flex-wrap: wrap; gap: 12px;` to `.habits-page__header`, `.habits-page__controls`, and `.todos-page__header` so action controls never exceed container bounds.
+
+3. **Window State Resilience**:
+   - Zero React unmounting or state loss on window maximize, restore-down, or arbitrary edge drags.
+   - Preserves all scroll positions, form drafts, active tabs, and navigation history.
+
+---
+
+## Batch 57 — World-Class UI Evolution: Foundational Physics & Tactile Micro-Interactions
+
+Implemented Phase 1 of the world-class UI modernization inspired by Enrico Tartarotti and Emil Kowalski (*animations.dev*):
+
+1. **Tactile Procedural Web Audio Engine (`tactileAudioService.ts`)**:
+   - 100% offline procedural synthesizer generating instantaneous mechanical micro-feedback (zero network/disk asset latency):
+     - `playMechanicalClick()`: 8ms high-frequency metallic switch snap for button taps, checkboxes, and tabs.
+     - `playSubtleThud()`: 16ms resonant low-frequency pulse for deletions, cancellations, and undo events.
+     - `playLockLatch()`: 35ms dual-detent mechanical latch for Lockdown activation/clearance.
+     - `playMilestoneChirp()`: 75ms dual-tone harmonic chime for streak level-ups and milestones.
+   - User preference persistence (`w_tactile_audio` in `localStorage`), integrated with `AppearanceSection.tsx` audio toggle.
+   - Early audio context warming on initial user interaction (`initAudioOnUserGesture()` in `main.tsx`).
+
+2. **Linear-Style Cursor-Tracking Spotlight Surfaces (`useSpotlightBorder.ts`)**:
+   - Lightweight pointer-tracking hook throttling coordinate calculations via `requestAnimationFrame` to prevent layout thrashing and maintain 120 FPS.
+   - Pure CSS masked radial gradient border beam (`::before` with `-webkit-mask` composite exclusion) that illuminates the card perimeter directly under the mouse pointer with the card's accent color.
+   - Integrated into both `HabitCard` and `TodoCard`.
+
+3. **Critical Damping & Power-Curve Spring Transitions (`motion.ts`, `HabitCard.tsx`, `TodoCard.tsx`)**:
+   - Refined spring constants to Emil Kowalski's critical damping standard (`stiffness: 520, damping: 30, mass: 0.75` for tactile micro-interactions), eliminating cartoonish oscillations while delivering instantaneous physical response.
+   - Upgraded hold-to-complete fill animation to an accelerated power curve (`[0.32, 0, 0.67, 1]`), creating mechanical build-up that decisively snaps upon checkoff.
+
+4. **Living Circadian Bio-HUD (`SleepTube.tsx`, `SleepTube.css`)**:
+   - Added a dynamic liquid meniscus wave (`.sleep-tube__meniscus`) that gently breathes with ambient circadian energy at the waking fuel boundary.
+   - Layered fluid depth gradients across the fuel track.
+
+---
+
+## Batch 58 — World-Class UI Evolution: FLIP Shared Layout & Spring Modals
+
+Implemented Phase 2 of the world-class UI modernization inspired by Enrico Tartarotti and Emil Kowalski (*animations.dev*):
+
+1. **FLIP Shared-Layout Projection & List Reordering (`HabitsPage.tsx`, `TodosPage.tsx`)**:
+   - Wrapped all habit grids (grouped, ungrouped, upcoming, limiters, completed) and todo lists in `<AnimatePresence mode="popLayout" initial={false}>`.
+   - Cards reorder and collapse smoothly using hardware-accelerated spring physics (`SPRING_LAYOUT`: stiffness 380, damping 32, mass 1) when items are completed, reactivated, or deleted, avoiding abrupt layout jumps.
+
+2. **Interruptible Spring Modals & Drawers (`HabitForm`, `GroupManager`, `TodoForm`, `HabitDetail`)**:
+   - Replaced static CSS keyframe animations with interruptible Framer Motion springs (`SPRING_MODAL`: stiffness 420, damping 32, mass 0.9).
+   - Upgraded `TodoForm` in `TodosPage.tsx` from an abrupt full-page swap to a modal overlay with backdrop blur.
+   - `<HabitDetail>` drawer features sliding spring physics (`initial={{ x: '100%', opacity: 0.6 }}`, `animate={{ x: 0, opacity: 1 }}`, `exit={{ x: '100%', opacity: 0 }}`) wrapped in `<AnimatePresence>`.
+
+3. **Direct Habit Inspection on Dashboard (`DashboardPage.tsx`)**:
+   - Clicking any scheduled habit or limiter card on the unified Dashboard now opens `<HabitDetail>` in-place without page navigation.
+   - Wired optimistic `onUpdate` and `onDeleteRequest` callbacks with desktop confirm dialogs to ensure immediate state sync.
+
+4. **Physics Regression Suite (`motion.test.ts`)**:
+   - Automated unit tests asserting exact spring parameters across `SPRING_LAYOUT`, `SPRING_MODAL`, `SPRING_POP`, and `SPRING_TACTILE`. 17 test files and 158 tests passing.
+
+---
+
+## Batch 59 — World-Class UI Evolution: Raycast-Grade Command Palette & Tactical Heatmap Dynamics
+
+Implemented Phase 3 of the world-class UI modernization inspired by Enrico Tartarotti and Emil Kowalski (*animations.dev*):
+
+1. **Raycast-Grade Command Palette Adaptive Height & Multimodal Audio (`CommandPalette.tsx`, `CommandPalette.css`)**:
+   - Added layout projection (`layout`, `transition={SPRING_MODAL}`) to `.command-palette` motion container so the palette smoothly morphs its height as search results filter down without hard snaps.
+   - Synthesized crisp 8ms mechanical switch audio (`playMechanicalClick()`) on `ArrowDown` / `ArrowUp` item navigation and `[ ENTER ]` execution.
+   - Synthesized resonant low-frequency pulse (`playSubtleThud()`) on direct natural-language task deletions.
+   - Added fluid active pill indicator (`layoutId="cmd-palette-active-pill"`, `transition={SPRING_LAYOUT}`) that smoothly slides between selected command rows.
+
+2. **Tactile Activity Heatmap & Carousel Spring Dynamics (`ActivityHeatmap.tsx`, `ActivityHeatmap.css`)**:
+   - Upgraded carousel month slide transitions from sluggish spring tokens (`stiffness: 90, damping: 20`) to tuned `SPRING_LAYOUT` (`stiffness: 380, damping: 32, mass: 1`), delivering crisp physical snapping.
+   - Added `playMechanicalClick()` on previous / next month navigation buttons.
+   - Enhanced daily heatmap cells with responsive hover scaling (`transform: scale(1.18); box-shadow: 0 0 10px var(--accent)`) and Apple/Stripe ease curve (`[0.16, 1, 0.3, 1]`).
+
+3. **Global Navigation Multimodal Micro-Feedback (`Sidebar.tsx`)**:
+   - Integrated `playMechanicalClick()` into primary sidebar and drawer navigation links on route change.
+
+4. **Verification & Testing**:
+   - 17 test files and 158 tests passing via Vitest.
+   - Zero TypeScript compiler errors with `npx tsc --noEmit`.
+   - Release binary compiled and deployed to `C:\Users\unniu\AppData\Local\W\w-app.exe`.
+
+---
+
+## Batch 60 — World-Class UI Evolution: Sonner-Style Interactive Toast Stacking, High-Stakes Lockout Pacing & Surface Polish
+
+Implemented Phase 4 of the world-class UI modernization inspired by Enrico Tartarotti and Emil Kowalski (*animations.dev*):
+
+1. **Sonner-Style Interactive Toast Stacking (`Toast.tsx`, `Toast.css`)**:
+   - Upgraded `ToastProvider` from a single-item sequential queue into an interactive multi-toast stack supporting up to 3 simultaneous toasts.
+   - Stack physics when idle: front toast (`scale: 1, y: 0, opacity: 1, zIndex: 3`), older toasts tuck behind (`scale: 1 - index * 0.05`, `y: -index * 12px`, with layered z-index and opacity).
+   - Interactive hover expansion: hovering over `.toast-container` smoothly fans out the stack (`y: -index * 56px`, `scale: 1`, `opacity: 1`) via `SPRING_TACTILE`, allowing the user to view all pending toasts and click action buttons directly.
+   - Auto-dismiss pause: active toast timers pause on hover and resume upon mouse leave.
+   - Multimodal Audio: Synthesized `playMechanicalClick()` when a toast enters, and `playSubtleThud()` when a toast is closed or dismissed.
+
+2. **Lockout & Penance Deliberate Pacing (The Wise Principle) (`PunishmentModal.tsx`, `LockoutOverlay.tsx`)**:
+   - In accordance with Emil Kowalski's *Wise Principle* (routine actions are 0ms instant; high-stakes actions demand deliberate mechanical confirmation):
+   - Wired `playMechanicalClick()` on penance card selections.
+   - Wired `playLockLatch()` on penance confirmation, generating a resonant dual-detent mechanical latch audio cue when the lockdown is officially unlocked.
+   - In `LockoutOverlay.tsx`, wired `playMechanicalClick()` on cloud sync trigger and completion.
+
+3. **DailyNote Tactical Surface Spotlight (`DailyNote.tsx`, `DailyNote.css`)**:
+   - Integrated `useSpotlightBorder` into the Daily Note container in the Dashboard footer, harmonizing its cursor-tracking spotlight border with the Habit and Todo cards above it.
+
+4. **Verification & Testing**:
+   - 17 test files and 158 tests passing via Vitest.
+   - Zero TypeScript compiler errors with `npx tsc --noEmit`.
+   - Release binary compiled and deployed to `C:\Users\unniu\AppData\Local\W\w-app.exe`.
+
+
+## Batch 61 — World-Class UI Evolution: Widget & Sticky Notes Tactical Remaster
+
+Implemented full visual remaster, interactive physics, cursor spotlight border beams, power-curve animations, and multimodal procedural audio across the Desktop Overlay Widget and Desktop Sticky Notes:
+
+1. **Desktop Sticky Notes Tactical Remaster (`StickyNote.tsx`, `StickyNote.css`, `StickyCanvas.tsx`)**:
+   - **Curved Glass Chassis & Top Neon Rail**: Replaced the legacy flat 3px top border with an illuminated neon top rail (`linear-gradient(90deg, var(--card-accent) 0%, var(--card-accent) 60%, rgba(var(--card-accent-rgb), 0.4) 85%, transparent 100%)`) with 8px smooth corner radius, micro-bevel border (`rgba(255, 255, 255, 0.08)`), and subtle inner glass highlight (`inset 0 1px 0 rgba(255, 255, 255, 0.08)`).
+   - **Cursor-Tracking Spotlight Border**: Integrated `useSpotlightBorder` to cast a radial accent beam along the card perimeter based on mouse coordinates.
+   - **Tactical Checkbox Experience**: Replaced the plain empty square with an engineered tactical checkbox pod featuring hover border glow and a spring-animated checkmark drawing (`motion.svg`).
+   - **Dynamic Accelerated Hold Fill**: Added immediate visual hold feedback with an accelerated power curve (`cubic-bezier(0.32, 0, 0.67, 1)`).
+   - **Multimodal Procedural Audio**: Wired `playMechanicalClick()` on hold completion and `playSubtleThud()` on undo/revert. Called `initAudioOnUserGesture()` on canvas mount.
+   - **Telemetry Footer Chips**: Elevated the footer into high-contrast micro-chips (`INIT` and `DUE/STATUS`) with tabular numbers and overdue color states.
+   - **Guaranteed Drag Performance**: Maintained zero-regression desktop drag performance by suppressing expensive backdrop-filters and spotlight calculations during active drags (`.sticky-note--dragging`).
+
+2. **Desktop Overlay Widget UI Remaster (`WidgetHabitCard.tsx`, `WidgetHabitCard.css`, `StatsDeck.tsx`, `StatsDeck.css`, `WidgetApp.tsx`, `WidgetApp.css`)**:
+   - **Header HUD Evolution**: Transformed `[ W ]` into an illuminated crest badge, `[ ACTIVE PROTOCOLS ]` into a crisp telemetry pill, and `[ + TODO ]` into a tactile spring button with hover glow and audio feedback.
+   - **Active Habit Cards Spotlight & Power Fill**: Integrated `useSpotlightBorder` for luminous hardware edges on hover, accelerated power curve hold fill sweep (`cubic-bezier(0.32, 0, 0.67, 1)`), and synthesized audio haptics (`playMechanicalClick()` on hold/tap completion, `playSubtleThud()` on undo).
+   - **Completed Habit Rows Polish**: Replaced the empty ghost style with a sleek, compact tactical finished row: subtle translucent dark chassis (`rgba(255, 255, 255, 0.015)`), delicate green perimeter highlight (`rgba(74, 222, 128, 0.12)`), illuminated green check badge, and crisp strikethrough typography.
+   - **Stats Deck Telemetry Cluster**: Upgraded the flat text row into 3 modular micro-telemetry cells (`COMPLETED`, `TOTAL`, `PROGRESS`) with glowing tabular digits and an animated mini progress track bar (`motion.div` with `SPRING_TACTILE` fill). Added glowing status pips for streaks and strikes.
+   - **Live Clock HUD**: Enhanced clock display with deep neon luminescence and a technical sub-label (`// LOCAL TIMECODE //`).
+
+3. **Verification & Testing**:
+   - 17 test files and 158 tests passing via Vitest (`npx vitest run`).
+   - Zero TypeScript compiler errors with `npx tsc --noEmit`.
+   - Release binary compiled and deployed to `C:\Users\unniu\AppData\Local\W\w-app.exe` (SHA256: `38AA6BA726F477028029265036BF6D63181EC7F996CAB54810CD34E8EA9BD864`, running under PID `30308`).
+
+
+## Batch 62 — Sticky Notes Drag Architecture Fix, StatsDeck Ghost Elevation & SleepTube Polish
+
+Resolved critical user feedback on desktop sticky notes interactivity and refined the Desktop Overlay Widget telemetry:
+
+1. **Sticky Notes Drag Lockout Bug Fix (`StickyNote.tsx`, `StickyCanvas.tsx`)**:
+   - **Pointer Capture & Drag State Reset**: Fixed critical lockout bug where `isDraggingRef.current` remained `true` indefinitely because it was not reset in `onUp`. Added explicit resets: `isDraggingRef.current = false;`, `el.classList.remove("sticky-note--dragging");`, and `el.classList.remove("sticky-note--holding");`.
+   - **Eliminated Mid-Drag React 18 Re-render Thrashing**: When drag displacement exceeded 15px, the legacy code called `cancelHold()`, which invoked `setIsHolding(false)`. This triggered a React state re-render mid-drag. Because the virtual DOM reconciliation wiped out dynamic `el.style.transform`, dragging snapped back and froze. Fixed by clearing `holdTimeoutRef.current` and removing the class directly from the DOM without triggering React re-renders during active pointer motion.
+   - **Transparent Hit-Testing Region Sync**: Added `accentReady` and `effectivePositions` dependencies to `triggerUpdateRegions` in `StickyCanvas.tsx` so the Rust-side `WH_MOUSE_LL` hook receives accurate interactive coordinates on mount and drag finish.
+
+2. **StatsDeck Ghost Elevation Polish (`StatsDeck.tsx`, `StatsDeck.css`)**:
+   - **Eliminated Rainbow Meter**: Completely removed the multi-color progress track bar (`.stats-deck__progress-track`) to eliminate visual clutter.
+   - **Ghost Elevation Styling**: Removed outer card borders, box-shadows, and background boxes (`border: none; background: transparent; padding: 6px 0; margin-top: 0`), restoring sleek floating cyber-telemetry with clean vertical dividing rules.
+   - **Unified Typography**: Aligned `PROGRESS` percentage typography directly to `var(--accent)` alongside `COMPLETED` and `TOTAL`.
+   - **Clean Streak Telemetry**: Removed colored status dot pips, restoring sharp `STREAK 0D | WEEKLY 31` monospace metrics.
+
+3. **Widget Digital Clock Polish (`WidgetApp.tsx`, `WidgetApp.css`)**:
+   - Removed the `// LOCAL TIMECODE //` sub-label to keep the digital clock minimal, focused, and uncluttered.
+
+4. **SleepTube Fuel Gauge Polish (`SleepTube.css`)**:
+   - **Centered Axis Label**: Centered `[ FUEL ]` squarely over the cylinder axis (`margin-left: 0; text-align: center; width: 100%`).
+   - **Glass Chamber Styling**: Added a subtle transparent glass tube track (`background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 4px; box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.6)`).
+   - **Ambient Base Glow at 0% / Sleep**: Added `.sleep-tube--widget .sleep-tube__track.is-empty::after` glowing base indicator so the tube displays an active, low-power resting state during late-night hours rather than a hollow wireframe outline.
+
+5. **Verification & Deployment**:
+   - 17 test files and 158 tests passing via Vitest (`npx vitest run`).
+   - Zero TypeScript compiler errors with `npx tsc --noEmit`.
+   - Release binary compiled (`npm run build:app`) and deployed to `C:\Users\unniu\AppData\Local\W\w-app.exe` (SHA256: `C92AFB1B390A439B487489FEA720407EB062792FA1021FF5C639683D46CB7764`, running under PID `28304`).
+
+
+## Batch 63 — Sticky Notes Monochromatic Color-Mix & Instant Placement Architecture
+
+Resolved sticky note visual gradient leakage and drag placement animation bugs:
+
+1. **Monochromatic Color-Mix Architecture (`StickyNote.css`, `StickyNote.tsx`)**:
+   - **Eliminated Blue Fallback Shift**: Replaced all legacy `rgba(var(--card-accent-rgb, 91, 141, 239), <alpha>)` rules with modern CSS `color-mix(in srgb, var(--card-accent) <alpha>, transparent)`. This completely eradicated the unwanted blue shift on the right edge of green (`#4ade80`), pink (`#ff4694`), and orange (`#f97316`) sticky notes.
+   - **Monochromatic Cursor Spotlight**: Replaced hardcoded blue fallbacks in `.sticky-note::before` with `color-mix(in srgb, var(--card-accent) 80%, transparent)`, ensuring the spotlight border beam remains strictly matched to each note's color.
+   - **`hexToRgb` Helper**: Added a lightweight hex-to-RGB parser in `StickyNote.tsx` to provide `--card-accent-rgb` alongside `--card-accent` in `cardStyle` as a defense-in-depth measure.
+
+2. **Instant Drag-and-Drop Placement Fix (`StickyNote.css`, `StickyNote.tsx`)**:
+   - **Removed `transform` from CSS Transition**: Removed `transform 0.2s cubic-bezier(...)` from `.sticky-note`'s base transition rule. Previously, when the pointer was released, clearing the drag `transform` triggered a 200ms backwards interpolation while `left`/`top` were already updated, producing a jarring stutter/slide glitch.
+   - **Atomic Placement**: Dropping a note now commits immediately and cleanly at the exact release coordinates with zero rubber-banding or twitching.
+
+3. **Verification & Deployment**:
+   - Fixed unused import errors in `HabitCard.tsx` and `TodoCard.tsx`.
+   - 17 test files and 158 tests passing via Vitest (`npx vitest run`).
+   - Zero TypeScript compiler errors with `npx tsc --noEmit`.
+   - Release binary compiled (`npm run build:app`) and deployed to `C:\Users\unniu\AppData\Local\W\w-app.exe` (SHA256: `08CC5E5E731551223D14AC2E7D08D3CBC1BB2D9E413B776FB38D57EBD006C866`, running under PID `6944`).

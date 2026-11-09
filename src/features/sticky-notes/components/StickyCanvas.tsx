@@ -5,15 +5,17 @@ import { useAuthContext } from "../../auth/context";
 import { useStickyNotes } from "../hooks/useStickyNotes";
 import { StickyNote } from "./StickyNote";
 import {
-  savePositionLocal,
-  syncPositionToFirestore,
+  saveStickyPlacementLocal,
+  loadPlacementsLocal,
   removePositionLocal,
+  StickyPlacement,
 } from "../services/positionStore";
 import {
   completeTodo,
   incrementNumberedTodo,
   completeNumberedTodoFull,
 } from "../../todos/services/todoService";
+import { initAudioOnUserGesture } from "../../../shared/services/tactileAudioService";
 import "./StickyNote.css";
 
 async function safeInvoke(cmd: string, args?: any) {
@@ -98,6 +100,10 @@ export function StickyCanvas() {
   const [accentReady, setAccentReady] = useState(false);
   const initRef = useRef(false);
   const regionsTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    initAudioOnUserGesture();
+  }, []);
 
   // Intercept close request to flush all pending completed todo writes
   useEffect(() => {
@@ -199,41 +205,108 @@ export function StickyCanvas() {
     }
   }, []);
 
-  // Clamping check for off-screen notes (e.g. after monitor disconnection)
-  const isInitializedRef = useRef(false);
+  // ─── Multi-Monitor Effective Placements ────────────────────────
+  // Non-destructively maps notes to their saved monitor positions,
+  // falling back to primary monitor when secondary monitor is disconnected.
+  const [effectivePositions, setEffectivePositions] = useState<Record<string, { x: number; y: number }>>({});
+  const fallbackNotesRef = useRef<Set<string>>(new Set());
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      isInitializedRef.current = true;
-    }, 2500);
-    return () => clearTimeout(timer);
-  }, []);
+  const computeEffectivePositions = useCallback(async () => {
+    const placements = loadPlacementsLocal();
+    if (!isTauri()) {
+      const eff: Record<string, { x: number; y: number }> = {};
+      todos.forEach((t) => {
+        const p = placements[t.id] || positions[t.id] || t.stickyPosition || { x: 100, y: 100 };
+        eff[t.id] = { x: p.x, y: p.y };
+      });
+      setEffectivePositions(eff);
+      return;
+    }
 
-  useEffect(() => {
-    if (!isInitializedRef.current || notesLoading || !accentReady) return;
-    if (todos.length === 0) return;
+    try {
+      const { availableMonitors, primaryMonitor, getCurrentWindow } = await import("@tauri-apps/api/window");
+      const monitors = await availableMonitors();
+      if (!monitors || monitors.length === 0) return;
 
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+      const primary = (await primaryMonitor()) || monitors[0];
+      const win = getCurrentWindow();
+      const winPos = await win.outerPosition();
+      const dpr = window.devicePixelRatio || 1;
 
-    // Safety threshold: don't clamp if window is abnormally small (initializing or hidden)
-    if (width <= 800 || height <= 600) return;
+      const newEff: Record<string, { x: number; y: number }> = {};
+      const newFallbacks = new Set<string>();
 
-    todos.forEach((todo) => {
-      const pos = positions[todo.id] || todo.stickyPosition;
-      if (pos) {
-        // StickyNote size is roughly 300x200
-        const clampedX = Math.max(20, Math.min(pos.x, width - 320));
-        const clampedY = Math.max(20, Math.min(pos.y, height - 220));
+      todos.forEach((todo) => {
+        const p: StickyPlacement = placements[todo.id] || (positions[todo.id] as any) || (todo.stickyPosition as any) || { x: 100, y: 100 };
 
-        if (clampedX !== pos.x || clampedY !== pos.y) {
-          console.log(`[StickyCanvas] Clamping off-screen note ${todo.title} (${todo.id}) from (${pos.x}, ${pos.y}) to (${clampedX}, ${clampedY})`);
-          savePositionLocal(todo.id, { x: clampedX, y: clampedY });
-          syncPositionToFirestore(todo.id, { x: clampedX, y: clampedY });
+        // Check if the monitor where this note was saved is currently available
+        let isTargetMonitorConnected = false;
+        if (p.monitorName) {
+          isTargetMonitorConnected = monitors.some((m) => m.name === p.monitorName);
+        } else {
+          // If no monitorName recorded, check if coordinate falls within any active monitor
+          const physX = Math.round(p.x * dpr) + winPos.x;
+          const physY = Math.round(p.y * dpr) + winPos.y;
+          isTargetMonitorConnected = monitors.some(
+            (m) =>
+              physX >= m.position.x &&
+              physX < m.position.x + m.size.width &&
+              physY >= m.position.y &&
+              physY < m.position.y + m.size.height
+          );
         }
-      }
-    });
-  }, [todos, positions, notesLoading, accentReady]);
+
+        if (isTargetMonitorConnected) {
+          // Monitor is active: display directly at target position
+          newEff[todo.id] = { x: p.x, y: p.y };
+        } else {
+          // Target monitor disconnected: provide safe fallback on primary monitor without overwriting disk
+          newFallbacks.add(todo.id);
+          const primLogicalWidth = Math.round(primary.size.width / (primary.scaleFactor || 1));
+          const primLogicalHeight = Math.round(primary.size.height / (primary.scaleFactor || 1));
+
+          const fallbackX = Math.max(30, Math.min(p.relativeX ?? p.x, primLogicalWidth - 320));
+          const fallbackY = Math.max(30, Math.min(p.relativeY ?? p.y, primLogicalHeight - 220));
+
+          newEff[todo.id] = { x: fallbackX, y: fallbackY };
+          console.log(`[StickyCanvas] Displaying fallback on primary for note ${todo.title} (${todo.id}): (${fallbackX}, ${fallbackY})`);
+        }
+      });
+
+      fallbackNotesRef.current = newFallbacks;
+      setEffectivePositions(newEff);
+    } catch (err) {
+      console.error("[StickyCanvas] Failed to compute effective positions:", err);
+    }
+  }, [todos, positions]);
+
+  useEffect(() => {
+    computeEffectivePositions();
+  }, [computeEffectivePositions]);
+
+  // Listen for monitor hardware topology changes (connect/disconnect)
+  useEffect(() => {
+    if (!isTauri()) return;
+    let unlisten: (() => void) | null = null;
+    let active = true;
+
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      listen("w://monitors-changed", () => {
+        if (!active) return;
+        console.log("[StickyCanvas] Received w://monitors-changed. Re-evaluating note placements...");
+        setTimeout(() => {
+          if (active) computeEffectivePositions();
+        }, 300);
+      }).then((u) => {
+        unlisten = u;
+      });
+    }).catch((err) => console.error("Failed to listen for monitors-changed:", err));
+
+    return () => {
+      active = false;
+      if (unlisten) unlisten();
+    };
+  }, [computeEffectivePositions]);
 
   // Update sticky note bounding boxes whenever notes or positions change
   const triggerUpdateRegions = useCallback(() => {
@@ -275,7 +348,7 @@ export function StickyCanvas() {
       if (regionsTimerRef.current) clearTimeout(regionsTimerRef.current);
       window.removeEventListener("resize", triggerUpdateRegions);
     };
-  }, [triggerUpdateRegions]);
+  }, [triggerUpdateRegions, accentReady, effectivePositions]);
 
   // Scale change listener for DPI changes
   useEffect(() => {
@@ -315,17 +388,16 @@ export function StickyCanvas() {
   const handleDragEnd = useCallback(
     async (todoId: string, pos: { x: number; y: number }) => {
       // Find old position before overwrite
-      const oldPos = positions[todoId] || todos.find((t) => t.id === todoId)?.stickyPosition || { x: 100, y: 100 };
+      const oldPos = effectivePositions[todoId] || positions[todoId] || todos.find((t) => t.id === todoId)?.stickyPosition || { x: 100, y: 100 };
 
       // Block Firestore onSnapshot from overwriting this note's position
-      // until the debounced write has committed + propagated back.
       suppressSnapshot(todoId);
-      savePositionLocal(todoId, pos);
-      syncPositionToFirestore(todoId, pos);
+      fallbackNotesRef.current.delete(todoId); // User intentionally placed this note
 
       if (isTauri()) {
         try {
-          const { getCurrentWindow, monitorFromPoint } = await import("@tauri-apps/api/window");
+          const { availableMonitors, getCurrentWindow, monitorFromPoint } = await import("@tauri-apps/api/window");
+          const monitors = await availableMonitors();
           const win = getCurrentWindow();
           const winPos = await win.outerPosition();
           const dpr = window.devicePixelRatio || 1;
@@ -338,16 +410,40 @@ export function StickyCanvas() {
           const oldMonitor = await monitorFromPoint(oldPhysX, oldPhysY);
           const newMonitor = await monitorFromPoint(newPhysX, newPhysY);
 
+          const targetMon = newMonitor || monitors.find((m) =>
+            newPhysX >= m.position.x && newPhysX < m.position.x + m.size.width &&
+            newPhysY >= m.position.y && newPhysY < m.position.y + m.size.height
+          ) || monitors[0];
+
+          const relX = targetMon ? Math.round((newPhysX - targetMon.position.x) / dpr) : pos.x;
+          const relY = targetMon ? Math.round((newPhysY - targetMon.position.y) / dpr) : pos.y;
+
+          saveStickyPlacementLocal(todoId, {
+            x: pos.x,
+            y: pos.y,
+            monitorName: targetMon?.name || undefined,
+            relativeX: relX,
+            relativeY: relY,
+            totalMonitorsWhenSaved: monitors.length,
+          });
+
+          setEffectivePositions((prev) => ({ ...prev, [todoId]: pos }));
+
           if (oldMonitor && newMonitor && oldMonitor.name !== newMonitor.name) {
             console.log(`[StickyCanvas] Note moved to new monitor: ${oldMonitor.name} -> ${newMonitor.name}. Reloading...`);
             window.location.reload();
           }
         } catch (err) {
           console.error("[StickyCanvas] Failed to check monitor onDragEnd:", err);
+          saveStickyPlacementLocal(todoId, { x: pos.x, y: pos.y });
+          setEffectivePositions((prev) => ({ ...prev, [todoId]: pos }));
         }
+      } else {
+        saveStickyPlacementLocal(todoId, { x: pos.x, y: pos.y });
+        setEffectivePositions((prev) => ({ ...prev, [todoId]: pos }));
       }
     },
-    [suppressSnapshot, positions, todos]
+    [suppressSnapshot, effectivePositions, positions, todos]
   );
 
   const handleComplete = useCallback(async (todoId: string) => {
@@ -403,7 +499,7 @@ export function StickyCanvas() {
   return (
     <div className="sticky-canvas">
       {todos.map((todo) => {
-        const pos = positions[todo.id] || todo.stickyPosition || { x: 100, y: 100 };
+        const pos = effectivePositions[todo.id] || positions[todo.id] || todo.stickyPosition || { x: 100, y: 100 };
 
         return (
           <StickyNote

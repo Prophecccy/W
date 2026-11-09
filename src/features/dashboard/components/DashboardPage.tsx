@@ -1,19 +1,23 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
 import { HabitCard } from '../../habits/components/HabitCard/HabitCard';
 import { TodoCard } from '../../todos/components/TodoCard/TodoCard';
 import { DailyNote } from '../../habits/components/DailyNote/DailyNote';
-import { Habit, HabitLog } from '../../habits/types';
+import { Habit, HabitLog, HabitGroup } from '../../habits/types';
 import { Todo } from '../../todos/types';
-import { getHabits } from '../../habits/services/habitService';
+import { getHabits, deleteHabit } from '../../habits/services/habitService';
+import { getGroups } from '../../habits/services/groupService';
 import { getTodayLog, getLogRange, completeHabit, uncompleteHabit } from '../../habits/services/logService';
 import { getLocalNote } from '../../logs/services/localLogService';
 import { getTodos, completeTodo, completeNumberedTodoFull, incrementNumberedTodo, deleteTodo } from '../../todos/services/todoService';
 import { isHabitScheduledToday, isHabitResting } from '../../habits/utils/scheduleEngine';
+import { HabitDetail } from '../../habits/components/HabitDetail/HabitDetail';
 import { getToday } from '../../../shared/utils/dateUtils';
 import { User } from '../../../shared/types';
 import { SleepTube } from './SleepTube';
-import { isTauri } from '../../../shared/utils/tauri';
+import { isTauri, confirmDialog } from '../../../shared/utils/tauri';
+import { playMechanicalClick } from '../../../shared/services/tactileAudioService';
 import './DashboardPage.css';
 
 interface DashboardOutlet {
@@ -29,6 +33,8 @@ export function DashboardPage() {
   const [log, setLog] = useState<HabitLog | null>(null);
   const [periodLogs, setPeriodLogs] = useState<HabitLog[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [groups, setGroups] = useState<HabitGroup[]>([]);
+  const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [mobileTab, setMobileTab] = useState<'all' | 'habits' | 'limiters' | 'todos'>('all');
   
@@ -93,10 +99,11 @@ export function DashboardPage() {
     let active = true;
     async function loadData() {
       try {
-        const [fetchedHabits, fetchedLog, fetchedTodos, localNote] = await Promise.all([
+        const [fetchedHabits, fetchedLog, fetchedTodos, fetchedGroups, localNote] = await Promise.all([
           getHabits(),
           getTodayLog(userDoc?.settings?.dailyResetTime),
           getTodos(),
+          getGroups(),
           getLocalNote(today)
         ]);
         if (!active) return;
@@ -104,6 +111,7 @@ export function DashboardPage() {
         
         const activeHabits = fetchedHabits.filter(h => !h.startDate || h.startDate <= today);
         setHabits(activeHabits);
+        setGroups(fetchedGroups);
         setLog(fetchedLog);
         setTodos(fetchedTodos);
 
@@ -198,6 +206,34 @@ export function DashboardPage() {
       return !isFuture && !isExpiredAndDisappeared;
     });
   }, [todos, today]);
+
+  // Derived metrics for Mobile Telemetry Cluster
+  const totalScheduledHabits = useMemo(() => {
+    const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
+    return habits.filter(h => {
+      if (isHabitResting(h, userDoc?.settings?.dailyResetTime)) return false;
+      return isHabitScheduledToday(h, today, weeklyResetDay) && h.type !== 'limiter';
+    }).length;
+  }, [habits, today, userDoc?.settings?.weeklyResetDay, userDoc?.settings?.dailyResetTime]);
+
+  const completedHabitsCount = useMemo(() => {
+    const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
+    return habits.filter(h => {
+      if (isHabitResting(h, userDoc?.settings?.dailyResetTime)) return false;
+      if (!isHabitScheduledToday(h, today, weeklyResetDay) || h.type === 'limiter') return false;
+      if (isMultiDayMetric(h) && h.metric) {
+        const target = h.metric.targetValue;
+        const start = getPeriodStart(h, today, weeklyResetDay);
+        const total = getTotalInRange(periodLogs, h.id, start);
+        return target > 0 && total >= target;
+      }
+      return !!log?.habits?.[h.id]?.completed;
+    }).length;
+  }, [habits, log, today, periodLogs, userDoc?.settings?.weeklyResetDay, userDoc?.settings?.dailyResetTime]);
+
+  const progressPercentage = totalScheduledHabits > 0 
+    ? Math.round((completedHabitsCount / totalScheduledHabits) * 100) 
+    : 0;
 
   // Actions for Habits
   const handleHabitComplete = async (habitId: string) => {
@@ -435,27 +471,39 @@ export function DashboardPage() {
         <div className="dashboard-mobile-tabs" role="tablist">
           <button 
             className={`dashboard-mobile-tab ${mobileTab === 'all' ? 'dashboard-mobile-tab--active' : ''}`}
-            onClick={() => setMobileTab('all')}
+            onClick={() => {
+              playMechanicalClick();
+              setMobileTab('all');
+            }}
           >
             [ ALL ]
           </button>
           <button 
             className={`dashboard-mobile-tab ${mobileTab === 'habits' ? 'dashboard-mobile-tab--active' : ''}`}
-            onClick={() => setMobileTab('habits')}
+            onClick={() => {
+              playMechanicalClick();
+              setMobileTab('habits');
+            }}
           >
             [ HABITS ({scheduledHabits.length}) ]
           </button>
           {scheduledLimiters.length > 0 && (
             <button 
               className={`dashboard-mobile-tab ${mobileTab === 'limiters' ? 'dashboard-mobile-tab--active' : ''}`}
-              onClick={() => setMobileTab('limiters')}
+              onClick={() => {
+                playMechanicalClick();
+                setMobileTab('limiters');
+              }}
             >
               [ LIMITERS ({scheduledLimiters.length}) ]
             </button>
           )}
           <button 
             className={`dashboard-mobile-tab ${mobileTab === 'todos' ? 'dashboard-mobile-tab--active' : ''}`}
-            onClick={() => setMobileTab('todos')}
+            onClick={() => {
+              playMechanicalClick();
+              setMobileTab('todos');
+            }}
           >
             [ TODOS ({currentTodos.length}) ]
           </button>
@@ -464,6 +512,28 @@ export function DashboardPage() {
           
           {/* COLUMN 1: SLEEP TUBE */}
           <SleepTube settings={userDoc?.settings} />
+
+          {/* MOBILE TELEMETRY CLUSTER (GHOST ELEVATION) */}
+          <div className="dashboard-mobile-stats">
+            <div className="dashboard-mobile-stats__cell">
+              <span className="dashboard-mobile-stats__label t-label">COMPLETED</span>
+              <span className="dashboard-mobile-stats__value t-data">{completedHabitsCount}</span>
+            </div>
+
+            <div className="dashboard-mobile-stats__divider" />
+
+            <div className="dashboard-mobile-stats__cell">
+              <span className="dashboard-mobile-stats__label t-label">TOTAL</span>
+              <span className="dashboard-mobile-stats__value t-data">{totalScheduledHabits}</span>
+            </div>
+
+            <div className="dashboard-mobile-stats__divider" />
+
+            <div className="dashboard-mobile-stats__cell">
+              <span className="dashboard-mobile-stats__label t-label">PROGRESS</span>
+              <span className="dashboard-mobile-stats__value t-data">{progressPercentage}%</span>
+            </div>
+          </div>
 
           {/* COLUMN 2: HABITS */}
           <div className={`dashboard-column ${mobileTab !== 'all' && mobileTab !== 'habits' ? 'dashboard-column--mobile-hidden' : ''}`}>
@@ -487,31 +557,33 @@ export function DashboardPage() {
               </div>
             ) : (
               <div className="dashboard-list">
-                {scheduledHabits.map(h => (
-                  <HabitCard 
-                    key={h.id} 
-                    habit={h} 
-                    isCompletedToday={false} 
-                    doneToday={(() => {
-                      const entry = log?.habits?.[h.id];
-                      const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
-                      if (h.type === 'limiter') {
-                        return interactedToday;
-                      }
-                      if (!isMultiDayMetric(h) || !h.metric) return false;
-                      const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
-                      const start = getPeriodStart(h, today, weeklyResetDay);
-                      const total = getTotalInRange(periodLogs, h.id, start);
-                      const periodCompleted = h.metric.targetValue > 0 ? total >= h.metric.targetValue : false;
-                      return interactedToday && !periodCompleted;
-                    })()}
-                    onComplete={() => handleHabitComplete(h.id)} 
-                    onUndo={() => handleHabitUndo(h.id)}
-                    onClick={() => {}}
-                    currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
-                    disabled={isAppFrozen}
-                  />
-                ))}
+                <AnimatePresence mode="popLayout" initial={false}>
+                  {scheduledHabits.map(h => (
+                    <HabitCard 
+                      key={h.id} 
+                      habit={h} 
+                      isCompletedToday={false} 
+                      doneToday={(() => {
+                        const entry = log?.habits?.[h.id];
+                        const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
+                        if (h.type === 'limiter') {
+                          return interactedToday;
+                        }
+                        if (!isMultiDayMetric(h) || !h.metric) return false;
+                        const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
+                        const start = getPeriodStart(h, today, weeklyResetDay);
+                        const total = getTotalInRange(periodLogs, h.id, start);
+                        const periodCompleted = h.metric.targetValue > 0 ? total >= h.metric.targetValue : false;
+                        return interactedToday && !periodCompleted;
+                      })()}
+                      onComplete={() => handleHabitComplete(h.id)} 
+                      onUndo={() => handleHabitUndo(h.id)}
+                      onClick={() => setSelectedHabitId(h.id)}
+                      currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
+                      disabled={isAppFrozen}
+                    />
+                  ))}
+                </AnimatePresence>
               </div>
             )}
           </div>
@@ -538,22 +610,24 @@ export function DashboardPage() {
               </div>
             ) : (
               <div className="dashboard-list">
-                {scheduledLimiters.map(h => (
-                  <HabitCard 
-                    key={h.id} 
-                    habit={h} 
-                    isCompletedToday={false} 
-                    doneToday={(() => {
-                      const entry = log?.habits?.[h.id];
-                      return (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
-                    })()}
-                    onComplete={() => handleHabitComplete(h.id)} 
-                    onUndo={() => handleHabitUndo(h.id)}
-                    onClick={() => {}}
-                    currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
-                    disabled={isAppFrozen}
-                  />
-                ))}
+                <AnimatePresence mode="popLayout" initial={false}>
+                  {scheduledLimiters.map(h => (
+                    <HabitCard 
+                      key={h.id} 
+                      habit={h} 
+                      isCompletedToday={false} 
+                      doneToday={(() => {
+                        const entry = log?.habits?.[h.id];
+                        return (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
+                      })()}
+                      onComplete={() => handleHabitComplete(h.id)} 
+                      onUndo={() => handleHabitUndo(h.id)}
+                      onClick={() => setSelectedHabitId(h.id)}
+                      currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
+                      disabled={isAppFrozen}
+                    />
+                  ))}
+                </AnimatePresence>
               </div>
             )}
           </div>
@@ -580,16 +654,18 @@ export function DashboardPage() {
               </div>
             ) : (
               <div className="dashboard-list">
-                {currentTodos.map(todo => (
-                  <TodoCard 
-                    key={todo.id} 
-                    todo={todo} 
-                    dailyResetTime={userDoc?.settings?.dailyResetTime}
-                    onComplete={() => handleTodoComplete(todo.id)}
-                    onClick={() => handleTodoClick(todo.id)}
-                    onDelete={() => handleDelete(todo.id)}
-                  />
-                ))}
+                <AnimatePresence mode="popLayout" initial={false}>
+                  {currentTodos.map(todo => (
+                    <TodoCard 
+                      key={todo.id} 
+                      todo={todo} 
+                      dailyResetTime={userDoc?.settings?.dailyResetTime}
+                      onComplete={() => handleTodoComplete(todo.id)}
+                      onClick={() => handleTodoClick(todo.id)}
+                      onDelete={() => handleDelete(todo.id)}
+                    />
+                  ))}
+                </AnimatePresence>
               </div>
             )}
           </div>
@@ -600,6 +676,39 @@ export function DashboardPage() {
       <div className="dashboard-page__footer">
         <DailyNote initialNote={log?.notes || ''} dailyResetTime={userDoc?.settings?.dailyResetTime} date={today} />
       </div>
+
+      <AnimatePresence>
+        {selectedHabitId && habits.find(h => h.id === selectedHabitId) && (
+          <HabitDetail
+            habit={habits.find(h => h.id === selectedHabitId)!}
+            onClose={() => setSelectedHabitId(null)}
+            userResetTime={userDoc?.settings?.dailyResetTime}
+            groups={groups}
+            onGroupCreated={(newG) => setGroups(prev => [...prev, newG])}
+            onUpdate={(updated) => {
+              if (updated.isArchived) {
+                setHabits(prev => prev.filter(h => h.id !== updated.id));
+              } else {
+                setHabits(prev => prev.map(h => h.id === updated.id ? updated : h));
+              }
+              setRefreshTrigger(prev => prev + 1);
+            }}
+            onDeleteRequest={async (habit) => {
+              const confirmed = await confirmDialog("PERMANENTLY PURGE HABIT?");
+              if (confirmed) {
+                try {
+                  await deleteHabit(habit.id);
+                  setHabits(prev => prev.filter(h => h.id !== habit.id));
+                  setSelectedHabitId(null);
+                  setRefreshTrigger(prev => prev + 1);
+                } catch (e) {
+                  console.error("Failed to delete habit", e);
+                }
+              }
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

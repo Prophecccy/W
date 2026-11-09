@@ -4,11 +4,13 @@ import { Habit } from "../../types";
 import { LucideIcon } from "../../../../shared/components/IconPicker/LucideIcon";
 import { addDays, getToday } from "../../../../shared/utils/dateUtils";
 import { useToast } from "../../../../shared/components/Toast/Toast";
-import { playCompletionSound } from "../../../../shared/services/completionSound";
+import { playMechanicalClick, playSubtleThud, playHoldHum, stopHoldHum } from "../../../../shared/services/tactileAudioService";
 import { FlameIcon } from "../../../../shared/components/FlameIcon/FlameIcon";
 import { LevelBadge } from "../../../../shared/components/LevelBadge/LevelBadge";
 import { ConfettiParticles } from "../../../../shared/components/ConfettiParticles/ConfettiParticles";
 import { useUserStore } from "../../../../shared/stores/userStore";
+import { SPRING_LAYOUT, SPRING_POP } from "../../../../shared/constants/motion";
+import { useSpotlightBorder } from "../../../../shared/hooks/useSpotlightBorder";
 import "./HabitCard.css";
 import "./HabitCardTiers.css";
 
@@ -84,6 +86,7 @@ export function HabitCard({
   const pointerStartCoordsRef = useRef<{ x: number; y: number } | null>(null);
 
   const HOLD_DURATION = 500; // ms to hold to verify
+  const spotlight = useSpotlightBorder<HTMLDivElement>();
 
   // ─── Level Visual Progression Logic ──────────────────────────────
   // Lv1 = normal, Lv2+ = subtle border glow & shimmer
@@ -112,17 +115,20 @@ export function HabitCard({
     
     setIsHolding(true);
     setCompleteTriggered(false);
+    playHoldHum();
     
     holdTimeoutRef.current = window.setTimeout(() => {
+      stopHoldHum();
       setCompleteTriggered(true);
       setIsHolding(false);
       hasHeldRef.current = true;
       
       if (isCompletedToday) {
+        playSubtleThud();
         onUndo();
         showToast(`Undid ${habit.title}`);
       } else {
-        playCompletionSound();
+        playMechanicalClick();
         onComplete();
 
         const isLimiter = habit.type === "limiter";
@@ -135,13 +141,17 @@ export function HabitCard({
 
         showToast(toastMessage, {
           actionLabel: 'UNDO',
-          onAction: () => onUndo()
+          onAction: () => {
+            playSubtleThud();
+            onUndo();
+          }
         });
       }
     }, HOLD_DURATION);
   };
 
   const cancelHold = () => {
+    stopHoldHum();
     if (holdTimeoutRef.current) {
       clearTimeout(holdTimeoutRef.current);
       holdTimeoutRef.current = null;
@@ -151,6 +161,7 @@ export function HabitCard({
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    spotlight.onPointerMove(e);
     if (!isHolding || !pointerStartCoordsRef.current) return;
     
     const deltaX = Math.abs(e.clientX - pointerStartCoordsRef.current.x);
@@ -160,6 +171,11 @@ export function HabitCard({
     if (deltaX > 15 || deltaY > 15) {
       cancelHold();
     }
+  };
+
+  const handlePointerLeave = (e: React.PointerEvent<HTMLDivElement>) => {
+    spotlight.onPointerLeave(e);
+    cancelHold();
   };
 
   useEffect(() => {
@@ -179,17 +195,21 @@ export function HabitCard({
   };
 
   return (
-    <div
+    <motion.div
+      layout
+      transition={SPRING_LAYOUT}
+      whileTap={disabled || isResting ? undefined : { scale: 0.98 }}
       tabIndex={tabIndex}
       onFocus={onFocus}
       onKeyDown={onKeyDown}
       className={`habit-card ${isCompletedToday ? "habit-card--completed" : ""} ${isResting ? "habit-card--resting" : ""} ${isHolding ? "habit-card--holding" : ""} ${disabled ? "habit-card--disabled" : ""} level-tier-${Math.min(habit.level, 10)}${riskScore != null && riskScore > 90 ? " risk-critical" : riskScore != null && riskScore > 75 ? " risk-elevated" : ""}`}
       style={cardStyle}
+      onPointerEnter={spotlight.onPointerEnter}
       onPointerDown={startHold}
       onPointerUp={handlePointerUp}
       onPointerMove={handlePointerMove}
-      onPointerLeave={cancelHold}
-      onPointerCancel={cancelHold}
+      onPointerLeave={handlePointerLeave}
+      onPointerCancel={handlePointerLeave}
       onClick={() => {
         if (!hasHeldRef.current) {
           onClick();
@@ -208,7 +228,7 @@ export function HabitCard({
             initial={{ width: "0%" }}
             animate={{ width: "100%" }}
             exit={{ width: "0%", transition: { duration: 0.1 } }}
-            transition={{ duration: HOLD_DURATION / 1000, ease: "linear" }}
+            transition={{ duration: HOLD_DURATION / 1000, ease: [0.32, 0, 0.67, 1] }}
           />
         )}
       </AnimatePresence>
@@ -259,7 +279,7 @@ export function HabitCard({
 
         <div className="habit-card__footer">
           <div className="habit-card__badges">
-            <span className="badge t-meta">[ {habit.period.toUpperCase()} ]</span>
+            <span className="badge t-meta">[ {habit.period === "specific_days" ? "SPECIFIC DAYS" : habit.period.toUpperCase()} ]</span>
             {habit.type !== "standard" && (
               <span className={`badge t-meta ${habit.type === 'limiter' ? 'limiter-badge' : ''}`}>
                 [ {habit.type.toUpperCase()} ]
@@ -286,12 +306,17 @@ export function HabitCard({
               
               {/* Checkmark and Confetti on finish */}
               {isCompletedToday && (
-                 <div className="habit-card__complete-check">
+                 <motion.div 
+                   className="habit-card__complete-check"
+                   initial={{ scale: 0, rotate: -20, opacity: 0 }}
+                   animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                   transition={SPRING_POP}
+                 >
                    <LucideIcon name="Check" size={16} />
                    {completeTriggered && (
                      <ConfettiParticles particleCount={16} />
                    )}
-                 </div>
+                 </motion.div>
               )}
             </>
           )}
@@ -308,6 +333,6 @@ export function HabitCard({
             />
          </div>
       )}
-    </div>
+    </motion.div>
   );
 }

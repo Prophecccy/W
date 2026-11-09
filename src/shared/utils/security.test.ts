@@ -295,4 +295,47 @@ describe("Real-Time Cross-Device Google Drive Sync Architecture", () => {
   });
 });
 
+describe("Unified SSO & Sovereign State Ownership Security Architecture", () => {
+  it("verifies localDb.ts wraps state in a v2 Ownership Envelope with ownerEmail and ownerUid", () => {
+    const localDbPath = path.resolve(__dirname, "../services/localDb.ts");
+    const content = fs.readFileSync(localDbPath, "utf-8");
+    expect(content).toContain("version: 2");
+    expect(content).toContain("ownerEmail: user.email");
+    expect(content).toContain("ownerUid: user.uid");
+  });
+
+  it("verifies localDb.ts contains the Ownership Guard in pullAndMergeFromGoogleDrive to prevent cross-account clobbering", () => {
+    const localDbPath = path.resolve(__dirname, "../services/localDb.ts");
+    const content = fs.readFileSync(localDbPath, "utf-8");
+    expect(content).toContain("remoteState.ownerEmail");
+    expect(content).toContain("remoteState.ownerEmail.toLowerCase().trim() !== user.email.toLowerCase().trim()");
+    expect(content).toContain("SECURITY ABORT");
+  });
+
+  it("verifies googleDriveService.ts pins OAuth sessions to user email and cleans up on logout", () => {
+    const gdrivePath = path.resolve(__dirname, "../services/googleDriveService.ts");
+    const content = fs.readFileSync(gdrivePath, "utf-8");
+    expect(content).toContain("userEmail?: string | null");
+    expect(content).toContain("localStorage.setItem(USER_EMAIL_KEY, finalEmail)");
+    expect(content).toContain("localStorage.removeItem(USER_EMAIL_KEY)");
+    expect(content).toContain("export async function getSessionUserEmail");
+  });
+
+  it("verifies authService.ts validates identity and purges local cache on account switch", () => {
+    const authPath = path.resolve(__dirname, "../../features/auth/services/authService.ts");
+    const content = fs.readFileSync(authPath, "utf-8");
+    expect(content).toContain("Account switch detected");
+    expect(content).toContain("idbClear()");
+    expect(content).toContain("saveOAuthTokens(accessToken, refreshToken || \"\", expiresInSeconds, email || undefined)");
+  });
+
+  it("verifies AccountSection.tsx eliminates decoupled unlink and provides unified disconnect", () => {
+    const accountSectionPath = path.resolve(__dirname, "../../features/settings/components/AccountSection.tsx");
+    const content = fs.readFileSync(accountSectionPath, "utf-8");
+    expect(content).not.toContain("handleUnlinkDrive");
+    expect(content).toContain("[ SIGN OUT / DISCONNECT ]");
+    expect(content).toContain("[ CONNECTED & LOCKED ]");
+  });
+});
+
 

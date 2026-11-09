@@ -91,19 +91,18 @@ export function useStickyNotes(): StickyNotesReturn {
 
         // Include todo if it has a Firestore position OR if we have a cached local position
         if (!isExpiredAndDisappeared && (todo.stickyPosition || localPos)) {
-          const finalPos = todo.stickyPosition || localPos || { x: 100, y: 100 };
+          // Local placement is authoritative for screen layout
+          const finalPos = localPos || todo.stickyPosition || { x: 100, y: 100 };
           activeTodos.push({
             ...todo,
             stickyPosition: finalPos
           });
 
-          // Skip position overwrite for notes being actively dragged.
-          // Their local position is authoritative until the DB catches up.
-          if (!suppressedIdsRef.current.has(todo.id)) {
-            firestorePositions[todo.id] = finalPos;
-            // Also update local cache with Firestore values
+          // If note is new to local cache, record initial position
+          if (!localPos) {
             savePositionLocal(todo.id, finalPos);
           }
+          firestorePositions[todo.id] = finalPos;
         }
       });
 

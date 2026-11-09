@@ -856,6 +856,9 @@ export async function syncToGoogleDrive() {
     const undoHistory = await idbGet(`w_col_users/${uid}/undoHistory`) || {};
 
     const statePayload = {
+      version: 2,
+      ownerEmail: user.email || null,
+      ownerUid: user.uid,
       user: userDoc,
       groups,
       habits,
@@ -940,6 +943,19 @@ export async function pullAndMergeFromGoogleDrive(force = false): Promise<boolea
 
     if (!remoteState) {
       console.warn("[LocalDB] Unrecognized remote state format or decryption failed.");
+      isSyncing = false;
+      return false;
+    }
+
+    // ─── Ownership Guard: Prevent Cross-Account State Pollution ───
+    if (
+      remoteState.ownerEmail &&
+      user.email &&
+      remoteState.ownerEmail.toLowerCase().trim() !== user.email.toLowerCase().trim()
+    ) {
+      console.error(
+        `[LocalDB] SECURITY ABORT: Remote state owner '${remoteState.ownerEmail}' does not match authenticated user '${user.email}'. Halting sync to prevent cross-account data clobbering.`
+      );
       isSyncing = false;
       return false;
     }

@@ -2,7 +2,7 @@
 // Habit core types — matching the v1 Firestore schema
 // ────────────────────────────────────────────────────────────────
 
-export type HabitPeriod = "daily" | "weekly" | "monthly" | "interval";
+export type HabitPeriod = "daily" | "specific_days" | "weekly" | "monthly" | "interval";
 export type HabitType = "standard" | "metric" | "limiter";
 
 export interface HabitMetric {

@@ -9,6 +9,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { getToday, formatDate } from "../../../shared/utils/dateUtils";
 import { useUserStore } from "../../../shared/stores/userStore";
 import { getCompletionRate } from "../services/analyticsService";
+import { SPRING_LAYOUT } from "../../../shared/constants/motion";
+import { playMechanicalClick } from "../../../shared/services/tactileAudioService";
 import "./ActivityHeatmap.css";
 
 interface Props {
@@ -263,6 +265,7 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId: propHabitId, habit }
 
   const handlePrevMonth = () => {
     if (isLeftDisabled || isLoading) return;
+    playMechanicalClick();
     setCurrentViewDate(
       (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
     );
@@ -270,6 +273,7 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId: propHabitId, habit }
 
   const handleNextMonth = () => {
     if (isRightDisabled || isLoading) return;
+    playMechanicalClick();
     setCurrentViewDate(
       (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
     );
@@ -339,26 +343,11 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId: propHabitId, habit }
                   }}
                   exit={{ opacity: 0, scale: 0.6, x: offset > 0 ? -60 : 60 }}
                   transition={{
-                    layout: {
-                      type: "spring",
-                      stiffness: 90,
-                      damping: 20,
-                      mass: 0.8,
-                    },
-                    opacity: { duration: 0.6, ease: [0.16, 1, 0.3, 1] },
-                    scale: {
-                      type: "spring",
-                      stiffness: 90,
-                      damping: 20,
-                      mass: 0.8,
-                    },
-                    filter: { duration: 0.6, ease: [0.16, 1, 0.3, 1] },
-                    x: {
-                      type: "spring",
-                      stiffness: 90,
-                      damping: 20,
-                      mass: 0.8,
-                    },
+                    layout: SPRING_LAYOUT,
+                    opacity: { duration: 0.22, ease: [0.16, 1, 0.3, 1] },
+                    scale: SPRING_LAYOUT,
+                    filter: { duration: 0.22, ease: [0.16, 1, 0.3, 1] },
+                    x: SPRING_LAYOUT,
                   }}
                 >
                   <div className="month-card">
@@ -412,16 +401,19 @@ export const ActivityHeatmap: React.FC<Props> = ({ habitId: propHabitId, habit }
                         }
 
                         const dayNum = parseInt(c.date.split("-")[2], 10);
+                        const isRestDay = !!habitId && !c.isGhost && c.scheduledCount === 0 && c.completedCount === 0;
                         const tooltipText = habitId
                           ? c.completedCount > 0
                             ? `${c.date}: Completed`
-                            : `${c.date}: ${c.rate}% completed`
+                            : c.scheduledCount > 0
+                              ? `${c.date}: Missed`
+                              : `${c.date}: Rest Day (Not scheduled)`
                           : `${c.date}: ${c.completedCount} habit(s) completed`;
 
                         return (
                           <div
                             key={c.date}
-                            className={`heatmap-cell level-${level} ${c.isGhost ? "ghost" : ""}`}
+                            className={`heatmap-cell level-${level} ${c.isGhost ? "ghost" : ""} ${isRestDay ? "rest-day" : ""}`}
                             title={tooltipText}
                           >
                             <span className="cell-date">{dayNum}</span>

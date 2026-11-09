@@ -486,13 +486,66 @@ export function LockdownPage() {
   const handleDeleteSchedule = async (id: string) => {
     const nextSchedules = schedules.filter((s) => s.id !== id);
     await saveSchedules(nextSchedules);
+
+    if (!isActive) {
+      try {
+        const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+        const overlay = await WebviewWindow.getByLabel("block-overlay");
+        if (overlay) {
+          await overlay.hide();
+        }
+      } catch {}
+    }
   };
 
   const handleToggleScheduleEnabled = async (id: string) => {
+    const target = schedules.find((s) => s.id === id);
+    const nextEnabled = target ? !target.enabled : false;
     const nextSchedules = schedules.map((s) =>
       s.id === id ? { ...s, enabled: !s.enabled } : s
     );
     await saveSchedules(nextSchedules);
+
+    if (!nextEnabled && !isActive) {
+      try {
+        const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+        const overlay = await WebviewWindow.getByLabel("block-overlay");
+        if (overlay) {
+          await overlay.hide();
+        }
+      } catch {}
+    }
+  };
+
+  const handleStopActiveSchedules = async (targetScheduleId?: string) => {
+    const idsToStop = targetScheduleId
+      ? [targetScheduleId]
+      : activeSchedules.map((s) => s.id);
+
+    const nextSchedules = schedules.map((s) =>
+      idsToStop.includes(s.id) ? { ...s, enabled: false } : s
+    );
+    await saveSchedules(nextSchedules);
+
+    if (!isActive) {
+      try {
+        const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+        const overlay = await WebviewWindow.getByLabel("block-overlay");
+        if (overlay) {
+          await overlay.hide();
+        }
+      } catch {}
+    }
+
+    const stoppedNames = targetScheduleId
+      ? schedules.find((s) => s.id === targetScheduleId)?.name.toUpperCase()
+      : activeSchedules.map((s) => s.name.toUpperCase()).join(", ");
+
+    window.dispatchEvent(
+      new CustomEvent("w:toast", {
+        detail: `[ SCHEDULE DEACTIVATED: ${stoppedNames || "AUTOPILOT"} ]`
+      })
+    );
   };
 
   // ── Handlers ───────────────────────────────────────────────────
@@ -516,100 +569,461 @@ export function LockdownPage() {
       </div>
 
       <div className="lockdown-page__content">
-        {isAnyLockdownActive ? (
-          /* ── ACTIVE STATE: TWO-COLUMN GRID ── */
-          <>
-            {/* Column 1: Active Shield Status */}
-            <div className="lockdown-column lockdown-column--control">
-              <div className="lockdown-section" id="lockdown-status">
-                <div className="lockdown-section__content">
-                  <div className="lockdown-hero">
-                    <LockdownLogo isActive={isAnyLockdownActive} size={160} />
-                    <div className="lockdown-hero__status">
-                      {isActive ? (
-                        <span className="lockdown-hero__badge lockdown-hero__badge--active">
-                          <Shield size={12} /> LOCKDOWN ACTIVE
-                        </span>
-                      ) : (
-                        <span className="lockdown-hero__badge lockdown-hero__badge--schedule">
-                          <Shield size={12} /> SCHEDULE ENFORCED
-                        </span>
-                      )}
+        {/* ── Column 1: Control, Manual Activation & Schedules ── */}
+        <div className="lockdown-column lockdown-column--control">
+          {/* Status & Hero Deck */}
+          <div className="lockdown-section" id="lockdown-status">
+            <div className="lockdown-section__content">
+              <div className="lockdown-hero">
+                <LockdownLogo isActive={isAnyLockdownActive} size={160} />
+                <div className="lockdown-hero__status">
+                  {isActive && isScheduleActive ? (
+                    <div style={{ display: "flex", gap: "8px", justifyContent: "center", flexWrap: "wrap" }}>
+                      <span className="lockdown-hero__badge lockdown-hero__badge--active">
+                        <Shield size={12} /> MANUAL ACTIVE
+                      </span>
+                      <span className="lockdown-hero__badge lockdown-hero__badge--schedule">
+                        <Shield size={12} /> SCHEDULE ENFORCED
+                      </span>
                     </div>
+                  ) : isActive ? (
+                    <span className="lockdown-hero__badge lockdown-hero__badge--active">
+                      <Shield size={12} /> LOCKDOWN ACTIVE
+                    </span>
+                  ) : isScheduleActive ? (
+                    <span className="lockdown-hero__badge lockdown-hero__badge--schedule">
+                      <Shield size={12} /> SCHEDULE ENFORCED
+                    </span>
+                  ) : (
+                    <span className="lockdown-hero__badge lockdown-hero__badge--inactive">
+                      <ShieldOff size={12} /> LOCKDOWN INACTIVE
+                    </span>
+                  )}
+                </div>
 
-                    {isActive ? (
-                      timeRemaining !== null ? (
-                        <>
-                          <div className="lockdown-hero__timer t-display">
-                            {formatTime(timeRemaining)}
-                          </div>
-                          <div className="lockdown-hero__timer-label t-meta">
-                            TIME REMAINING
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="lockdown-hero__timer t-display" style={{ fontSize: 18 }}>
-                            ∞
-                          </div>
-                          <div className="lockdown-hero__timer-label t-meta">
-                            UNTIL YOU STOP
-                          </div>
-                        </>
-                      )
-                    ) : (
-                      <>
-                        <div className="lockdown-hero__timer t-display" style={{ fontSize: 22, letterSpacing: "1px", margin: "16px 0 8px 0" }}>
-                          {activeSchedules[0]?.name.toUpperCase() || "SCHEDULE"}
-                        </div>
-                        <div className="lockdown-hero__timer-label t-meta">
-                          ACTIVE TIME: {activeSchedules[0]?.startTime} - {activeSchedules[0]?.endTime}
-                        </div>
-                      </>
-                    )}
-
-                    {isActive ? (
-                      <button
-                        className="lockdown-activate-btn lockdown-activate-btn--stop"
-                        onClick={handleDeactivate}
-                      >
-                        <ShieldOff size={14} />
-                        DEACTIVATE LOCKDOWN
-                      </button>
-                    ) : (
-                      <button
-                        className="lockdown-activate-btn lockdown-activate-btn--disabled"
-                        disabled
-                        style={{ cursor: "not-allowed", opacity: 0.6 }}
-                      >
-                        <Lock size={14} />
-                        AUTOPILOT ENFORCED
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Stats */}
-                  <div className="lockdown-stats">
-                    <div className="lockdown-stat">
-                      <span className="lockdown-stat__value">{state.totalSessions || 0}</span>
-                      <span className="lockdown-stat__label">SESSIONS</span>
+                {/* Schedule Active Information */}
+                {isScheduleActive && (
+                  <div style={{ margin: "12px 0 8px 0" }}>
+                    <div className="lockdown-hero__timer t-display" style={{ fontSize: 20, letterSpacing: "1px", margin: "8px 0 4px 0", color: "var(--lockdown-color)" }}>
+                      {activeSchedules.map((s) => s.name.toUpperCase()).join(" + ")}
                     </div>
-                    <div className="lockdown-stat">
-                      <span className="lockdown-stat__value">{state.totalViolations || 0}</span>
-                      <span className="lockdown-stat__label">VIOLATIONS</span>
-                    </div>
-                    <div className="lockdown-stat">
-                      <span className="lockdown-stat__value">{activeCombinedBlocklist.length}</span>
-                      <span className="lockdown-stat__label">BLOCKED APPS</span>
+                    <div className="lockdown-hero__timer-label t-meta">
+                      ACTIVE TIME: {activeSchedules.map((s) => `${s.startTime} - ${s.endTime}`).join(" | ")}
                     </div>
                   </div>
+                )}
+
+                {/* Manual Timer Information */}
+                {isActive && (
+                  timeRemaining !== null ? (
+                    <>
+                      <div className="lockdown-hero__timer t-display">
+                        {formatTime(timeRemaining)}
+                      </div>
+                      <div className="lockdown-hero__timer-label t-meta">
+                        {isScheduleActive ? "MANUAL TIME REMAINING" : "TIME REMAINING"}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="lockdown-hero__timer t-display" style={{ fontSize: 18 }}>
+                        ∞
+                      </div>
+                      <div className="lockdown-hero__timer-label t-meta">
+                        {isScheduleActive ? "MANUAL SESSION (UNTIL YOU STOP)" : "UNTIL YOU STOP"}
+                      </div>
+                    </>
+                  )
+                )}
+
+                {/* Primary Control Buttons */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%", marginTop: "12px" }}>
+                  {isScheduleActive && (
+                    <button
+                      className="lockdown-activate-btn lockdown-activate-btn--stop-schedule"
+                      onClick={() => handleStopActiveSchedules()}
+                      style={{ width: "100%", justifyContent: "center" }}
+                    >
+                      <ShieldOff size={14} />
+                      {activeSchedules.length > 1
+                        ? "STOP ACTIVE SCHEDULES"
+                        : `STOP SCHEDULE (${activeSchedules[0]?.name.toUpperCase() || "AUTOPILOT"})`}
+                    </button>
+                  )}
+
+                  {isActive && (
+                    <button
+                      className="lockdown-activate-btn lockdown-activate-btn--stop"
+                      onClick={handleDeactivate}
+                      style={{ width: "100%", justifyContent: "center" }}
+                    >
+                      <ShieldOff size={14} />
+                      DEACTIVATE MANUAL LOCKDOWN
+                    </button>
+                  )}
+                </div>
+
+                {/* Manual Activation Area (when manual is not active) */}
+                {!isActive && (
+                  <div className="lockdown-manual-activation" style={{ width: "100%", marginTop: isScheduleActive ? "16px" : "12px", borderTop: isScheduleActive ? "1px solid rgba(255,255,255,0.06)" : "none", paddingTop: isScheduleActive ? "16px" : "0" }}>
+                    <button
+                      className="lockdown-activate-btn lockdown-activate-btn--start"
+                      onClick={handleActivate}
+                      disabled={fullBlocklist.length === 0}
+                      title={fullBlocklist.length === 0 ? "Select at least one app to block below" : ""}
+                      style={{ width: "100%", justifyContent: "center", marginBottom: "16px" }}
+                    >
+                      <Shield size={14} />
+                      {isScheduleActive ? "START ADDITIONAL LOCKDOWN" : "ACTIVATE LOCKDOWN"}
+                    </button>
+
+                    <div className="lockdown-duration-section">
+                      <div className="lockdown-section-subheading t-meta">SELECT SESSION TIMEOUT</div>
+                      <div className="lockdown-duration">
+                        {LOCKDOWN_DURATIONS.map((opt) => (
+                          <button
+                            key={opt.label}
+                            className={`lockdown-duration__chip${
+                              selectedDuration === opt.value ? " lockdown-duration__chip--selected" : ""
+                            }`}
+                            onClick={() => setSelectedDuration(opt.value)}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Stats */}
+              <div className="lockdown-stats">
+                <div className="lockdown-stat">
+                  <span className="lockdown-stat__value">{state.totalSessions || 0}</span>
+                  <span className="lockdown-stat__label">SESSIONS</span>
+                </div>
+                <div className="lockdown-stat">
+                  <span className="lockdown-stat__value">{state.totalViolations || 0}</span>
+                  <span className="lockdown-stat__label">VIOLATIONS</span>
+                </div>
+                <div className="lockdown-stat">
+                  <span className="lockdown-stat__value">
+                    {isAnyLockdownActive ? activeCombinedBlocklist.length : (state.blocklist?.length || 0)}
+                  </span>
+                  <span className="lockdown-stat__label">BLOCKED APPS</span>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Column 2: Telemetry & Targets */}
-            <div className="lockdown-column lockdown-column--telemetry">
-              {/* Actively Blocked Targets Grid */}
+          {/* Scheduled Lockdowns Section - ALWAYS VISIBLE */}
+          <div className="lockdown-section" id="lockdown-schedules">
+            <h2 className="lockdown-section__header t-label">[ SCHEDULED LOCKDOWNS ]</h2>
+            <div className="lockdown-section__content">
+              {/* Create New Schedule Button */}
+              {!showScheduleForm && (
+                <button
+                  className="lockdown-schedule-create-btn"
+                  onClick={() => setShowScheduleForm(true)}
+                >
+                  <Plus size={12} />
+                  <span>CREATE NEW SCHEDULE</span>
+                </button>
+              )}
+
+              {/* Creation Form */}
+              {showScheduleForm && (
+                <div className="lockdown-schedule-form" style={{ padding: "16px", background: "rgba(255,255,255,0.01)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: "12px", marginBottom: "16px" }}>
+                  <div className="lockdown-section-subheading t-meta" style={{ marginBottom: "6px" }}>SCHEDULE NAME</div>
+                  <input
+                    className="lockdown-custom__input"
+                    style={{ marginBottom: "12px", width: "100%" }}
+                    type="text"
+                    placeholder="e.g. Morning Focus, Deep Work"
+                    value={scheduleName}
+                    onChange={(e) => setScheduleName(e.target.value)}
+                  />
+
+                  <div className="lockdown-schedule-form__row" style={{ display: "flex", gap: "16px", marginBottom: "12px" }}>
+                    <div style={{ flex: 1 }}>
+                      <div className="lockdown-section-subheading t-meta" style={{ marginBottom: "6px" }}>START TIME</div>
+                      <TimeInput
+                        value={scheduleStartTime}
+                        onChange={setScheduleStartTime}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div className="lockdown-section-subheading t-meta" style={{ marginBottom: "6px" }}>END TIME</div>
+                      <TimeInput
+                        value={scheduleEndTime}
+                        onChange={setScheduleEndTime}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="lockdown-section-subheading t-meta" style={{ marginBottom: "6px" }}>REPEAT DAYS</div>
+                  <div className="lockdown-days-selector" style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
+                    {["S", "M", "T", "W", "T", "F", "S"].map((dayName, idx) => {
+                      const active = scheduleDays.includes(idx);
+                      return (
+                        <button
+                          key={idx}
+                          className={`lockdown-day-chip${active ? " lockdown-day-chip--active" : ""}`}
+                          onClick={() => toggleScheduleDay(idx)}
+                          style={{
+                            width: "32px",
+                            height: "32px",
+                            borderRadius: "50%",
+                            border: "1px solid rgba(255, 255, 255, 0.1)",
+                            background: active ? "var(--lockdown-color, var(--strike-red))" : "rgba(255, 255, 255, 0.03)",
+                            color: active ? "#000" : "#fff",
+                            fontWeight: "bold",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease"
+                          }}
+                        >
+                          {dayName}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="lockdown-section-subheading t-meta" style={{ marginBottom: "6px" }}>BLOCK PRESETS & APPS</div>
+                  <div className="lockdown-schedule-presets-container" style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
+                    {LOCKDOWN_PRESETS.map((p) => {
+                      const IconComponent = iconMap[p.icon] || Globe;
+                      const allSelected = p.items.every((item) => scheduleApps.includes(item));
+                      const someSelected = p.items.some((item) => scheduleApps.includes(item));
+                      const expanded = expandedSchedulePresets.has(p.id);
+                      return (
+                        <div key={p.id} className="lockdown-schedule-preset-item" style={{ border: "1px solid rgba(255,255,255,0.05)", borderRadius: "6px", overflow: "hidden" }}>
+                          <div style={{ display: "flex", alignItems: "center", background: "rgba(255,255,255,0.01)" }}>
+                            <div
+                              onClick={() => toggleSchedulePresetGroup(p)}
+                              style={{ flex: 1, display: "flex", alignItems: "center", gap: "10px", padding: "8px 12px", cursor: "pointer" }}
+                            >
+                              <IconComponent size={14} className="lockdown-preset__icon" style={{ color: someSelected ? "var(--lockdown-color)" : "var(--text-secondary)" }} />
+                              <div style={{ display: "flex", flexDirection: "column" }}>
+                                <span style={{ fontSize: "10px", fontFamily: "Departure Mono, monospace", letterSpacing: "1px", color: "var(--text-primary)" }}>{p.label}</span>
+                                <span className="t-meta" style={{ fontSize: "8px", color: "var(--text-muted)", letterSpacing: "0.5px" }}>{p.items.length} APPS</span>
+                              </div>
+                              <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", color: "var(--lockdown-color)" }}>
+                                {allSelected && <Check size={12} />}
+                                {!allSelected && someSelected && <Minus size={12} />}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => toggleSchedulePresetExpand(p.id)}
+                              style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.4)", padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center" }}
+                            >
+                              <ChevronDown size={12} style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.25s ease" }} />
+                            </button>
+                          </div>
+                          {expanded && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", padding: "10px", background: "rgba(0,0,0,0.2)", borderTop: "1px solid rgba(255,255,255,0.03)" }}>
+                              {p.items.map((item) => {
+                                const active = scheduleApps.includes(item);
+                                return (
+                                  <button
+                                    key={item}
+                                    type="button"
+                                    onClick={() => toggleScheduleApp(item)}
+                                    style={{
+                                      padding: "3px 6px",
+                                      borderRadius: "4px",
+                                      border: active ? "1px solid rgba(var(--lockdown-color-rgb), 0.3)" : "1px solid rgba(255,255,255,0.05)",
+                                      background: active ? "rgba(var(--lockdown-color-rgb), 0.08)" : "rgba(255,255,255,0.01)",
+                                      color: active ? "var(--lockdown-color)" : "var(--text-secondary)",
+                                      fontFamily: "Departure Mono, monospace",
+                                      fontSize: "8px",
+                                      letterSpacing: "0.5px",
+                                      cursor: "pointer",
+                                      transition: "all 0.15s ease"
+                                    }}
+                                  >
+                                    {item}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="lockdown-section-subheading t-meta" style={{ marginBottom: "6px" }}>CUSTOM APPS TO BLOCK</div>
+                  <div className="lockdown-custom__input-row" style={{ marginBottom: "12px" }}>
+                    <input
+                      className="lockdown-custom__input"
+                      type="text"
+                      placeholder="e.g. steam.exe, chrome.exe"
+                      value={scheduleCustomInput}
+                      onChange={(e) => setScheduleCustomInput(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleAddScheduleCustom()}
+                    />
+                    <button className="lockdown-custom__add-btn" onClick={handleAddScheduleCustom}>
+                      + ADD
+                    </button>
+                  </div>
+
+                  {scheduleCustoms.length > 0 && (
+                    <div className="lockdown-tags" style={{ marginBottom: "16px" }}>
+                      {scheduleCustoms.map((c) => (
+                        <span key={c} className="lockdown-tag">
+                          <span className="lockdown-tag__name">{c}</span>
+                          <button className="lockdown-tag__remove" onClick={() => handleRemoveScheduleCustom(c)}>
+                            <X size={10} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="lockdown-schedule-form-actions" style={{ display: "flex", gap: "12px" }}>
+                    <button
+                      className="lockdown-activate-btn lockdown-activate-btn--start"
+                      onClick={handleSaveSchedule}
+                      disabled={!scheduleName.trim() || (scheduleApps.length === 0 && scheduleCustoms.length === 0)}
+                    >
+                      SAVE SCHEDULE
+                    </button>
+                    <button
+                      className="lockdown-activate-btn lockdown-activate-btn--stop"
+                      onClick={() => setShowScheduleForm(false)}
+                      style={{ background: "rgba(255, 255, 255, 0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+                    >
+                      CANCEL
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Schedules List */}
+              <div className="lockdown-schedules-list" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {schedules.map((s) => {
+                  const active = activeSchedules.some((a) => a.id === s.id);
+                  return (
+                    <div
+                      key={s.id}
+                      className="lockdown-schedule-card"
+                      style={{
+                        padding: "16px",
+                        borderRadius: "12px",
+                        background: "rgba(255, 255, 255, 0.02)",
+                        border: active ? "1px solid var(--lockdown-color, var(--strike-red))" : "1px solid rgba(255, 255, 255, 0.05)",
+                        boxShadow: active ? "0 0 15px rgba(232, 115, 108, 0.15)" : "none",
+                        transition: "all 0.3s ease"
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ fontWeight: "bold", fontSize: "14px", letterSpacing: "0.5px" }}>{s.name.toUpperCase()}</span>
+                            {active && (
+                              <span
+                                style={{
+                                  fontSize: "9px",
+                                  background: "var(--lockdown-color, var(--strike-red))",
+                                  color: "#000",
+                                  fontWeight: "bold",
+                                  padding: "2px 6px",
+                                  borderRadius: "10px"
+                                }}
+                              >
+                                ACTIVE
+                              </span>
+                            )}
+                          </div>
+                          <span className="t-meta" style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px", display: "block" }}>
+                            {s.startTime} - {s.endTime}
+                          </span>
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                          {/* Enable/Disable Toggle */}
+                          <button
+                            onClick={() => handleToggleScheduleEnabled(s.id)}
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: "4px",
+                              border: "1px solid rgba(255,255,255,0.1)",
+                              background: s.enabled ? "rgba(232, 115, 108, 0.15)" : "rgba(255,255,255,0.03)",
+                              color: s.enabled ? "var(--lockdown-color, var(--strike-red))" : "var(--text-muted)",
+                              fontSize: "10px",
+                              fontWeight: "bold",
+                              cursor: "pointer"
+                            }}
+                          >
+                            {s.enabled ? "ENABLED" : "DISABLED"}
+                          </button>
+
+                          {/* Delete Button */}
+                          <button
+                            onClick={() => handleDeleteSchedule(s.id)}
+                            style={{
+                              background: "transparent",
+                              border: "none",
+                              color: "rgba(255,255,255,0.3)",
+                              cursor: "pointer"
+                            }}
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        {/* Days indicators */}
+                        <div style={{ display: "flex", gap: "4px" }}>
+                          {["S", "M", "T", "W", "T", "F", "S"].map((d, idx) => {
+                            const activeDay = s.days.includes(idx);
+                            return (
+                              <span
+                                key={idx}
+                                style={{
+                                  fontSize: "9px",
+                                  fontWeight: "bold",
+                                  color: activeDay ? "var(--lockdown-color, var(--strike-red))" : "rgba(255,255,255,0.15)"
+                                }}
+                              >
+                                {d}
+                              </span>
+                            );
+                          })}
+                        </div>
+
+                        <span className="t-meta" style={{ fontSize: "10px", color: "var(--text-muted)" }}>
+                          {s.blocklist.length} TARGET APPS
+                        </span>
+                      </div>
+
+                      {s.blocklist.length > 0 && (
+                        <div style={{ marginTop: "8px", fontSize: "9px", color: "rgba(255,255,255,0.3)", fontFamily: "Departure Mono, monospace", borderTop: "1px dashed rgba(255,255,255,0.05)", paddingTop: "6px", wordBreak: "break-all", textAlign: "left" }}>
+                          BLOCKED: {s.blocklist.slice(0, 5).join(", ")}{s.blocklist.length > 5 ? `, +${s.blocklist.length - 5} more` : ""}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {schedules.length === 0 && !showScheduleForm && (
+                  <div className="t-meta" style={{ textAlign: "center", padding: "16px 0", color: "var(--text-muted)" }}>
+                    NO SCHEDULED LOCKDOWNS CONFIGURED
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Column 2: Telemetry, Targets & Presets ── */}
+        <div className="lockdown-column lockdown-column--telemetry">
+          {/* Actively Blocked Targets Grid (Visible when any lockdown is active) */}
+          {isAnyLockdownActive && (
+            <>
               <div className="lockdown-section" id="lockdown-blocked-targets">
                 <h2 className="lockdown-section__header t-label">[ BLOCKED TARGETS ]</h2>
                 <div className="lockdown-section__content">
@@ -691,529 +1105,138 @@ export function LockdownPage() {
                   </div>
                 </div>
               </div>
+            </>
+          )}
 
-              {/* Recent Violations */}
-              {state.violations && state.violations.length > 0 && (
-                <div className="lockdown-section" id="lockdown-violations">
-                  <h2 className="lockdown-section__header t-label">[ RECENT VIOLATIONS ]</h2>
-                  <div className="lockdown-section__content">
-                    <div className="lockdown-violations-list">
-                      {state.violations
-                        .slice(-6)
-                        .reverse()
-                        .map((v, i) => (
-                          <div key={i} className="lockdown-row">
-                            <div className="lockdown-row__label">
-                              <Lock size={12} style={{ color: "var(--lockdown-color)" }} />
-                              <span className="t-body">{v.matchedRule || v.appName}</span>
-                            </div>
-                            <span className="t-meta" style={{ color: "var(--text-muted)", fontSize: 10 }}>
-                              {new Date(v.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          {/* Blocklist Presets & Custom inputs - ALWAYS VISIBLE */}
+          <div className="lockdown-section" id="lockdown-blocklist">
+            <h2 className="lockdown-section__header t-label">[ BLOCKLIST PRESETS ]</h2>
+            <div className="lockdown-section__content">
+              <div className="lockdown-presets">
+                {LOCKDOWN_PRESETS.map((preset) => {
+                  const IconComponent = iconMap[preset.icon] || Globe;
+                  const allSelected = preset.items.every((item) => selectedApps.has(item));
+                  const someSelected = preset.items.some((item) => selectedApps.has(item));
+                  const expanded = expandedPresets.has(preset.id);
+                  return (
+                    <div
+                      key={preset.id}
+                      className={`lockdown-preset-container ${expanded ? "expanded" : ""}`}
+                    >
+                      <div className={`lockdown-preset${someSelected ? " lockdown-preset--active" : ""}`}>
+                        <div className="lockdown-preset__main" onClick={() => togglePreset(preset.id)}>
+                          <IconComponent size={18} className="lockdown-preset__icon" />
+                          <div className="lockdown-preset__info">
+                            <span className="lockdown-preset__name">{preset.label}</span>
+                            <span className="lockdown-preset__count t-meta">
+                              {preset.items.length} APPS
                             </span>
                           </div>
-                        ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </>
-        ) : (
-          /* ── INACTIVE STATE: TWO-COLUMN GRID ── */
-          <>
-            {/* Column 1: Lockdown Configuration */}
-            <div className="lockdown-column lockdown-column--control">
-              <div className="lockdown-section" id="lockdown-status">
-                <div className="lockdown-section__content">
-                  <div className="lockdown-hero">
-                    <LockdownLogo isActive={isActive} size={160} />
-                    <div className="lockdown-hero__status">
-                      <span className="lockdown-hero__badge lockdown-hero__badge--inactive">
-                        <ShieldOff size={12} /> LOCKDOWN INACTIVE
-                      </span>
-                    </div>
-
-                    <button
-                      className="lockdown-activate-btn lockdown-activate-btn--start"
-                      onClick={handleActivate}
-                      disabled={fullBlocklist.length === 0}
-                      title={fullBlocklist.length === 0 ? "Select at least one app to block" : ""}
-                    >
-                      <Shield size={14} />
-                      ACTIVATE LOCKDOWN
-                    </button>
-
-                    {/* Duration picker */}
-                    <div className="lockdown-duration-section">
-                      <div className="lockdown-section-subheading t-meta">SELECT SESSION TIMEOUT</div>
-                      <div className="lockdown-duration">
-                        {LOCKDOWN_DURATIONS.map((opt) => (
-                          <button
-                            key={opt.label}
-                            className={`lockdown-duration__chip${
-                              selectedDuration === opt.value ? " lockdown-duration__chip--selected" : ""
-                            }`}
-                            onClick={() => setSelectedDuration(opt.value)}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Stats */}
-                  <div className="lockdown-stats">
-                    <div className="lockdown-stat">
-                      <span className="lockdown-stat__value">{state.totalSessions || 0}</span>
-                      <span className="lockdown-stat__label">SESSIONS</span>
-                    </div>
-                    <div className="lockdown-stat">
-                      <span className="lockdown-stat__value">{state.totalViolations || 0}</span>
-                      <span className="lockdown-stat__label">VIOLATIONS</span>
-                    </div>
-                    <div className="lockdown-stat">
-                      <span className="lockdown-stat__value">{state.blocklist?.length || 0}</span>
-                      <span className="lockdown-stat__label">BLOCKED APPS</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Scheduled Lockdowns Section */}
-              <div className="lockdown-section" id="lockdown-schedules" style={{ marginTop: "24px" }}>
-                <h2 className="lockdown-section__header t-label">[ SCHEDULED LOCKDOWNS ]</h2>
-                <div className="lockdown-section__content">
-                  {/* Create New Schedule Button */}
-                  {!showScheduleForm && (
-                    <button
-                      className="lockdown-schedule-create-btn"
-                      onClick={() => setShowScheduleForm(true)}
-                    >
-                      <Plus size={12} />
-                      <span>CREATE NEW SCHEDULE</span>
-                    </button>
-                  )}
-
-                  {/* Creation Form */}
-                  {showScheduleForm && (
-                    <div className="lockdown-schedule-form" style={{ padding: "16px", background: "rgba(255,255,255,0.01)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: "12px", marginBottom: "16px" }}>
-                      <div className="lockdown-section-subheading t-meta" style={{ marginBottom: "6px" }}>SCHEDULE NAME</div>
-                      <input
-                        className="lockdown-custom__input"
-                        style={{ marginBottom: "12px", width: "100%" }}
-                        type="text"
-                        placeholder="e.g. Morning Focus, Deep Work"
-                        value={scheduleName}
-                        onChange={(e) => setScheduleName(e.target.value)}
-                      />
-
-                      <div className="lockdown-schedule-form__row" style={{ display: "flex", gap: "16px", marginBottom: "12px" }}>
-                        <div style={{ flex: 1 }}>
-                          <div className="lockdown-section-subheading t-meta" style={{ marginBottom: "6px" }}>START TIME</div>
-                          <TimeInput
-                            value={scheduleStartTime}
-                            onChange={setScheduleStartTime}
-                          />
+                          <span className="lockdown-preset__check">
+                            {allSelected && <Check size={14} />}
+                            {!allSelected && someSelected && <Minus size={14} />}
+                          </span>
                         </div>
-                        <div style={{ flex: 1 }}>
-                          <div className="lockdown-section-subheading t-meta" style={{ marginBottom: "6px" }}>END TIME</div>
-                          <TimeInput
-                            value={scheduleEndTime}
-                            onChange={setScheduleEndTime}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="lockdown-section-subheading t-meta" style={{ marginBottom: "6px" }}>REPEAT DAYS</div>
-                      <div className="lockdown-days-selector" style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
-                        {["S", "M", "T", "W", "T", "F", "S"].map((dayName, idx) => {
-                          const active = scheduleDays.includes(idx);
-                          return (
-                            <button
-                              key={idx}
-                              className={`lockdown-day-chip${active ? " lockdown-day-chip--active" : ""}`}
-                              onClick={() => toggleScheduleDay(idx)}
-                              style={{
-                                width: "32px",
-                                height: "32px",
-                                borderRadius: "50%",
-                                border: "1px solid rgba(255, 255, 255, 0.1)",
-                                background: active ? "var(--lockdown-color, var(--strike-red))" : "rgba(255, 255, 255, 0.03)",
-                                color: active ? "#000" : "#fff",
-                                fontWeight: "bold",
-                                cursor: "pointer",
-                                transition: "all 0.2s ease"
-                              }}
-                            >
-                              {dayName}
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <div className="lockdown-section-subheading t-meta" style={{ marginBottom: "6px" }}>BLOCK PRESETS & APPS</div>
-                      <div className="lockdown-schedule-presets-container" style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
-                        {LOCKDOWN_PRESETS.map((p) => {
-                          const IconComponent = iconMap[p.icon] || Globe;
-                          const allSelected = p.items.every((item) => scheduleApps.includes(item));
-                          const someSelected = p.items.some((item) => scheduleApps.includes(item));
-                          const expanded = expandedSchedulePresets.has(p.id);
-                          return (
-                            <div key={p.id} className="lockdown-schedule-preset-item" style={{ border: "1px solid rgba(255,255,255,0.05)", borderRadius: "6px", overflow: "hidden" }}>
-                              <div style={{ display: "flex", alignItems: "center", background: "rgba(255,255,255,0.01)" }}>
-                                <div
-                                  onClick={() => toggleSchedulePresetGroup(p)}
-                                  style={{ flex: 1, display: "flex", alignItems: "center", gap: "10px", padding: "8px 12px", cursor: "pointer" }}
-                                >
-                                  <IconComponent size={14} className="lockdown-preset__icon" style={{ color: someSelected ? "var(--lockdown-color)" : "var(--text-secondary)" }} />
-                                  <div style={{ display: "flex", flexDirection: "column" }}>
-                                    <span style={{ fontSize: "10px", fontFamily: "Departure Mono, monospace", letterSpacing: "1px", color: "var(--text-primary)" }}>{p.label}</span>
-                                    <span className="t-meta" style={{ fontSize: "8px", color: "var(--text-muted)", letterSpacing: "0.5px" }}>{p.items.length} APPS</span>
-                                  </div>
-                                  <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", color: "var(--lockdown-color)" }}>
-                                    {allSelected && <Check size={12} />}
-                                    {!allSelected && someSelected && <Minus size={12} />}
-                                  </span>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => toggleSchedulePresetExpand(p.id)}
-                                  style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.4)", padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center" }}
-                                >
-                                  <ChevronDown size={12} style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.25s ease" }} />
-                                </button>
-                              </div>
-                              {expanded && (
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", padding: "10px", background: "rgba(0,0,0,0.2)", borderTop: "1px solid rgba(255,255,255,0.03)" }}>
-                                  {p.items.map((item) => {
-                                    const active = scheduleApps.includes(item);
-                                    return (
-                                      <button
-                                        key={item}
-                                        type="button"
-                                        onClick={() => toggleScheduleApp(item)}
-                                        style={{
-                                          padding: "3px 6px",
-                                          borderRadius: "4px",
-                                          border: active ? "1px solid rgba(var(--lockdown-color-rgb), 0.3)" : "1px solid rgba(255,255,255,0.05)",
-                                          background: active ? "rgba(var(--lockdown-color-rgb), 0.08)" : "rgba(255,255,255,0.01)",
-                                          color: active ? "var(--lockdown-color)" : "var(--text-secondary)",
-                                          fontFamily: "Departure Mono, monospace",
-                                          fontSize: "8px",
-                                          letterSpacing: "0.5px",
-                                          cursor: "pointer",
-                                          transition: "all 0.15s ease"
-                                        }}
-                                      >
-                                        {item}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      <div className="lockdown-section-subheading t-meta" style={{ marginBottom: "6px" }}>CUSTOM APPS TO BLOCK</div>
-                      <div className="lockdown-custom__input-row" style={{ marginBottom: "12px" }}>
-                        <input
-                          className="lockdown-custom__input"
-                          type="text"
-                          placeholder="e.g. steam.exe, chrome.exe"
-                          value={scheduleCustomInput}
-                          onChange={(e) => setScheduleCustomInput(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && handleAddScheduleCustom()}
-                        />
-                        <button className="lockdown-custom__add-btn" onClick={handleAddScheduleCustom}>
-                          + ADD
+                        
+                        <button
+                          type="button"
+                          className="lockdown-preset__expand-btn"
+                          onClick={() => toggleExpand(preset.id)}
+                        >
+                          <ChevronDown size={14} className={`chevron-icon ${expanded ? "rotated" : ""}`} />
                         </button>
                       </div>
 
-                      {scheduleCustoms.length > 0 && (
-                        <div className="lockdown-tags" style={{ marginBottom: "16px" }}>
-                          {scheduleCustoms.map((c) => (
-                            <span key={c} className="lockdown-tag">
-                              <span className="lockdown-tag__name">{c}</span>
-                              <button className="lockdown-tag__remove" onClick={() => handleRemoveScheduleCustom(c)}>
-                                <X size={10} />
+                      {expanded && (
+                        <div className="lockdown-preset__apps-list">
+                          {preset.items.map((item) => {
+                            const itemActive = selectedApps.has(item);
+                            return (
+                              <button
+                                key={item}
+                                type="button"
+                                className={`lockdown-preset__app-pill ${itemActive ? "active" : ""}`}
+                                onClick={() => toggleAppSelection(item)}
+                              >
+                                {item}
                               </button>
-                            </span>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
-
-                      <div className="lockdown-schedule-form-actions" style={{ display: "flex", gap: "12px" }}>
-                        <button
-                          className="lockdown-activate-btn lockdown-activate-btn--start"
-                          onClick={handleSaveSchedule}
-                          disabled={!scheduleName.trim() || (scheduleApps.length === 0 && scheduleCustoms.length === 0)}
-                        >
-                          SAVE SCHEDULE
-                        </button>
-                        <button
-                          className="lockdown-activate-btn lockdown-activate-btn--stop"
-                          onClick={() => setShowScheduleForm(false)}
-                          style={{ background: "rgba(255, 255, 255, 0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
-                        >
-                          CANCEL
-                        </button>
-                      </div>
                     </div>
-                  )}
-
-                  {/* Schedules List */}
-                  <div className="lockdown-schedules-list" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                    {schedules.map((s) => {
-                      const active = activeSchedules.some((a) => a.id === s.id);
-                      return (
-                        <div
-                          key={s.id}
-                          className="lockdown-schedule-card"
-                          style={{
-                            padding: "16px",
-                            borderRadius: "12px",
-                            background: "rgba(255, 255, 255, 0.02)",
-                            border: active ? "1px solid var(--lockdown-color, var(--strike-red))" : "1px solid rgba(255, 255, 255, 0.05)",
-                            boxShadow: active ? "0 0 15px rgba(232, 115, 108, 0.15)" : "none",
-                            transition: "all 0.3s ease"
-                          }}
-                        >
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                            <div>
-                              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                <span style={{ fontWeight: "bold", fontSize: "14px", letterSpacing: "0.5px" }}>{s.name.toUpperCase()}</span>
-                                {active && (
-                                  <span
-                                    style={{
-                                      fontSize: "9px",
-                                      background: "var(--lockdown-color, var(--strike-red))",
-                                      color: "#000",
-                                      fontWeight: "bold",
-                                      padding: "2px 6px",
-                                      borderRadius: "10px"
-                                    }}
-                                  >
-                                    ACTIVE
-                                  </span>
-                                )}
-                              </div>
-                              <span className="t-meta" style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px", display: "block" }}>
-                                {s.startTime} - {s.endTime}
-                              </span>
-                            </div>
-
-                            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                              {/* Enable/Disable Toggle */}
-                              <button
-                                onClick={() => handleToggleScheduleEnabled(s.id)}
-                                style={{
-                                  padding: "4px 8px",
-                                  borderRadius: "4px",
-                                  border: "1px solid rgba(255,255,255,0.1)",
-                                  background: s.enabled ? "rgba(232, 115, 108, 0.15)" : "rgba(255,255,255,0.03)",
-                                  color: s.enabled ? "var(--lockdown-color, var(--strike-red))" : "var(--text-muted)",
-                                  fontSize: "10px",
-                                  fontWeight: "bold",
-                                  cursor: "pointer"
-                                }}
-                              >
-                                {s.enabled ? "ENABLED" : "DISABLED"}
-                              </button>
-
-                              {/* Delete Button */}
-                              <button
-                                onClick={() => handleDeleteSchedule(s.id)}
-                                style={{
-                                  background: "transparent",
-                                  border: "none",
-                                  color: "rgba(255,255,255,0.3)",
-                                  cursor: "pointer"
-                                }}
-                              >
-                                <X size={14} />
-                              </button>
-                            </div>
-                          </div>
-
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            {/* Days indicators */}
-                            <div style={{ display: "flex", gap: "4px" }}>
-                              {["S", "M", "T", "W", "T", "F", "S"].map((d, idx) => {
-                                const activeDay = s.days.includes(idx);
-                                return (
-                                  <span
-                                    key={idx}
-                                    style={{
-                                      fontSize: "9px",
-                                      fontWeight: "bold",
-                                      color: activeDay ? "var(--lockdown-color, var(--strike-red))" : "rgba(255,255,255,0.15)"
-                                    }}
-                                  >
-                                    {d}
-                                  </span>
-                                );
-                              })}
-                            </div>
-
-                            <span className="t-meta" style={{ fontSize: "10px", color: "var(--text-muted)" }}>
-                              {s.blocklist.length} TARGET APPS
-                            </span>
-                          </div>
-
-                          {s.blocklist.length > 0 && (
-                            <div style={{ marginTop: "8px", fontSize: "9px", color: "rgba(255,255,255,0.3)", fontFamily: "Departure Mono, monospace", borderTop: "1px dashed rgba(255,255,255,0.05)", paddingTop: "6px", wordBreak: "break-all", textAlign: "left" }}>
-                              BLOCKED: {s.blocklist.slice(0, 5).join(", ")}{s.blocklist.length > 5 ? `, +${s.blocklist.length - 5} more` : ""}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {schedules.length === 0 && !showScheduleForm && (
-                      <div className="t-meta" style={{ textAlign: "center", padding: "16px 0", color: "var(--text-muted)" }}>
-                        NO SCHEDULED LOCKDOWNS CONFIGURED
-                      </div>
-                    )}
-                  </div>
-                </div>
+                  );
+                })}
               </div>
-            </div>
 
-            {/* Column 2: Presets & Custom inputs */}
-            <div className="lockdown-column lockdown-column--config">
-              <div className="lockdown-section" id="lockdown-blocklist">
-                <h2 className="lockdown-section__header t-label">[ BLOCKLIST PRESETS ]</h2>
-                <div className="lockdown-section__content">
-                  <div className="lockdown-presets">
-                    {LOCKDOWN_PRESETS.map((preset) => {
-                      const IconComponent = iconMap[preset.icon] || Globe;
-                      const allSelected = preset.items.every((item) => selectedApps.has(item));
-                      const someSelected = preset.items.some((item) => selectedApps.has(item));
-                      const expanded = expandedPresets.has(preset.id);
-                      return (
-                        <div
-                          key={preset.id}
-                          className={`lockdown-preset-container ${expanded ? "expanded" : ""}`}
-                        >
-                          <div className={`lockdown-preset${someSelected ? " lockdown-preset--active" : ""}`}>
-                            <div className="lockdown-preset__main" onClick={() => togglePreset(preset.id)}>
-                              <IconComponent size={18} className="lockdown-preset__icon" />
-                              <div className="lockdown-preset__info">
-                                <span className="lockdown-preset__name">{preset.label}</span>
-                                <span className="lockdown-preset__count t-meta">
-                                  {preset.items.length} APPS
-                                </span>
-                              </div>
-                              <span className="lockdown-preset__check">
-                                {allSelected && <Check size={14} />}
-                                {!allSelected && someSelected && <Minus size={14} />}
-                              </span>
-                            </div>
-                            
-                            <button
-                              type="button"
-                              className="lockdown-preset__expand-btn"
-                              onClick={() => toggleExpand(preset.id)}
-                            >
-                              <ChevronDown size={14} className={`chevron-icon ${expanded ? "rotated" : ""}`} />
-                            </button>
-                          </div>
-
-                          {expanded && (
-                            <div className="lockdown-preset__apps-list">
-                              {preset.items.map((item) => {
-                                const itemActive = selectedApps.has(item);
-                                return (
-                                  <button
-                                    key={item}
-                                    type="button"
-                                    className={`lockdown-preset__app-pill ${itemActive ? "active" : ""}`}
-                                    onClick={() => toggleAppSelection(item)}
-                                  >
-                                    {item}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Custom entries */}
-                  <div className="lockdown-custom">
-                    <div className="lockdown-custom__input-row">
-                      <input
-                        className="lockdown-custom__input"
-                        type="text"
-                        placeholder="Add custom app name..."
-                        value={customInput}
-                        onChange={(e) => setCustomInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && addCustomEntry()}
-                      />
-                      <button className="lockdown-custom__add-btn" onClick={addCustomEntry}>
-                        + ADD
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Current blocklist as tags */}
-                  {fullBlocklist.length > 0 && (
-                    <div className="lockdown-tags-container">
-                      <div className="lockdown-section-subheading t-meta">ACTIVE TARGETS TO BLOCK ({fullBlocklist.length})</div>
-                      <div className="lockdown-tags">
-                        {fullBlocklist.map((item) => {
-                          const AppIcon = getAppIcon(item);
-                          return (
-                            <span key={item} className="lockdown-tag">
-                              <AppIcon size={12} className="lockdown-tag__icon" />
-                              <span className="lockdown-tag__name">{item}</span>
-                              <button
-                                className="lockdown-tag__remove"
-                                onClick={() => removeBlocklistItem(item)}
-                              >
-                                <X size={10} />
-                              </button>
-                            </span>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+              {/* Custom entries */}
+              <div className="lockdown-custom">
+                <div className="lockdown-custom__input-row">
+                  <input
+                    className="lockdown-custom__input"
+                    type="text"
+                    placeholder="Add custom app name..."
+                    value={customInput}
+                    onChange={(e) => setCustomInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && addCustomEntry()}
+                  />
+                  <button className="lockdown-custom__add-btn" onClick={addCustomEntry}>
+                    + ADD
+                  </button>
                 </div>
               </div>
 
-              {/* Violations History */}
-              {state.violations && state.violations.length > 0 && (
-                <div className="lockdown-section" id="lockdown-violations">
-                  <h2 className="lockdown-section__header t-label">[ RECENT VIOLATIONS ]</h2>
-                  <div className="lockdown-section__content">
-                    <div className="lockdown-violations-list">
-                      {state.violations
-                        .slice(-6)
-                        .reverse()
-                        .map((v, i) => (
-                          <div key={i} className="lockdown-row">
-                            <div className="lockdown-row__label">
-                              <Lock size={12} style={{ color: "var(--lockdown-color)" }} />
-                              <span className="t-body">{v.matchedRule || v.appName}</span>
-                            </div>
-                            <span className="t-meta" style={{ color: "var(--text-muted)", fontSize: 10 }}>
-                              {new Date(v.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                            </span>
-                          </div>
-                        ))}
-                    </div>
+              {/* Current blocklist as tags */}
+              {fullBlocklist.length > 0 && (
+                <div className="lockdown-tags-container">
+                  <div className="lockdown-section-subheading t-meta">ACTIVE TARGETS TO BLOCK ({fullBlocklist.length})</div>
+                  <div className="lockdown-tags">
+                    {fullBlocklist.map((item) => {
+                      const AppIcon = getAppIcon(item);
+                      return (
+                        <span key={item} className="lockdown-tag">
+                          <AppIcon size={12} className="lockdown-tag__icon" />
+                          <span className="lockdown-tag__name">{item}</span>
+                          <button
+                            className="lockdown-tag__remove"
+                            onClick={() => removeBlocklistItem(item)}
+                          >
+                            <X size={10} />
+                          </button>
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
               )}
             </div>
-          </>
-        )}
+          </div>
+
+          {/* Violations History */}
+          {state.violations && state.violations.length > 0 && (
+            <div className="lockdown-section" id="lockdown-violations">
+              <h2 className="lockdown-section__header t-label">[ RECENT VIOLATIONS ]</h2>
+              <div className="lockdown-section__content">
+                <div className="lockdown-violations-list">
+                  {state.violations
+                    .slice(-6)
+                    .reverse()
+                    .map((v, i) => (
+                      <div key={i} className="lockdown-row">
+                        <div className="lockdown-row__label">
+                          <Lock size={12} style={{ color: "var(--lockdown-color)" }} />
+                          <span className="t-body">{v.matchedRule || v.appName}</span>
+                        </div>
+                        <span className="t-meta" style={{ color: "var(--text-muted)", fontSize: 10 }}>
+                          {new Date(v.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -43,8 +43,7 @@
 }
 
 .lockdown-column--control {
-  position: sticky;
-  top: 24px;
+  /* Allow natural scrolling alongside telemetry column */
 }
 
 .lockdown-section {
@@ -169,6 +168,20 @@
   background: rgba(255, 255, 255, 0.12);
   border-color: var(--text-secondary);
   transform: translateY(-2px);
+}
+
+.lockdown-activate-btn--stop-schedule {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--strike-red);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.lockdown-activate-btn--stop-schedule:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: var(--strike-red);
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.25);
 }
 
 /* ─── Duration Picker ────────────────────────────────────────── */

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Todo, TodoType } from "../../types";
+import { Todo, TodoType, TodoPriority, PRIORITY_CONFIG } from "../../types";
 import { createTodo, updateTodo } from "../../services/todoService";
 import { HabitGroup } from "../../../habits/types";
 import { createGroup, sanitizeGroupName } from "../../../habits/services/groupService";
@@ -16,18 +16,41 @@ interface TodoFormProps {
   todoToEdit?: Todo;
 }
 
+function getInitialPriority(todoToEdit?: Todo): TodoPriority {
+  if (todoToEdit?.priority) return todoToEdit.priority;
+  if (!todoToEdit) return "p3";
+  const c = todoToEdit.color?.toLowerCase();
+  if (c === "#ff4d4d" || c === "#ef4444") return "p1";
+  if (c === "#f59e0b" || c === "#facc15" || c === "#f97316") return "p2";
+  if (c === "#6b7280" || c === "#71717a" || c === "#888888") return "p4";
+  return "p3";
+}
+
 export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todoToEdit }: TodoFormProps) {
+  const todayStr = getToday(undefined, dailyResetTime);
+
   // Input fields
   const [title, setTitle] = useState(todoToEdit?.title ?? "");
   const [description, setDescription] = useState(todoToEdit?.description ?? "");
   const [type, setType] = useState<TodoType>(todoToEdit?.type ?? "standard");
   const [targetInput, setTargetInput] = useState(todoToEdit?.numbered?.target ? String(todoToEdit.numbered.target) : "5");
-  const [isUrgent, setIsUrgent] = useState(todoToEdit ? todoToEdit.color === "#ff4d4d" : false);
-  const [hasCustomDeadline, setHasCustomDeadline] = useState(todoToEdit ? !!todoToEdit.deadline : false);
-  const [customDeadline, setCustomDeadline] = useState(todoToEdit?.deadline ?? "");
-  const [postDeadlineAction, setPostDeadlineAction] = useState<"keep" | "disappear">(todoToEdit?.postDeadlineAction ?? "keep");
+
+  // Priority Hierarchy (P1 to P4)
+  const [priority, setPriority] = useState<TodoPriority>(() => getInitialPriority(todoToEdit));
+
+  // Deadline selection
+  const [deadlineMode, setDeadlineMode] = useState<"none" | "today" | "custom">(() => {
+    if (!todoToEdit?.deadline) return "none";
+    if (todoToEdit.deadline === todayStr) return "today";
+    return "custom";
+  });
+  const [customDeadline, setCustomDeadline] = useState(
+    todoToEdit?.deadline && todoToEdit.deadline !== todayStr ? todoToEdit.deadline : ""
+  );
+  const [postDeadlineAction, setPostDeadlineAction] = useState<"keep" | "disappear">(
+    todoToEdit?.postDeadlineAction ?? "keep"
+  );
   const [group, setGroup] = useState<string | null>(todoToEdit?.group ?? null);
-  const [color, setColor] = useState(todoToEdit?.color ?? (todoToEdit?.color || "#5B8DEF"));
   const [futureDate, setFutureDate] = useState(todoToEdit?.future ?? "");
   const [hasFutureDate, setHasFutureDate] = useState(todoToEdit ? !!todoToEdit.future : false);
 
@@ -36,9 +59,17 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todo
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const handleSelectPriority = (newPriority: TodoPriority) => {
+    setPriority(newPriority);
+    // P1 Critical: Non-negotiable priorities for today. If deadline not set, auto-suggest today.
+    if (newPriority === "p1" && deadlineMode === "none") {
+      setDeadlineMode("today");
+    }
+  };
+
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!title.trim() || isSubmitting || (hasCustomDeadline && !customDeadline)) return;
+    if (!title.trim() || isSubmitting || (deadlineMode === "custom" && !customDeadline)) return;
 
     setIsSubmitting(true);
     try {
@@ -63,24 +94,24 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todo
         }
       }
 
-      const todayStr = getToday(undefined, dailyResetTime);
       let deadlineVal: string | null = null;
-      if (isUrgent) {
+      if (deadlineMode === "today") {
         deadlineVal = todayStr;
-      } else if (hasCustomDeadline && customDeadline) {
+      } else if (deadlineMode === "custom" && customDeadline) {
         deadlineVal = customDeadline;
       }
 
       const todoData: any = {
         title: sanitizeText(title, 200),
         description: description ? sanitizeText(description, 2000) : "",
-        color: color,
+        color: PRIORITY_CONFIG[priority].color,
+        priority: priority,
         deadline: deadlineVal,
         future: hasFutureDate && futureDate ? futureDate : null,
         group: finalGroup,
       };
 
-      if (isUrgent || (hasCustomDeadline && customDeadline)) {
+      if (deadlineVal) {
         todoData.postDeadlineAction = postDeadlineAction;
       } else {
         todoData.postDeadlineAction = null;
@@ -112,8 +143,8 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todo
       // Reset main input fields
       setTitle("");
       setDescription("");
-      setIsUrgent(false);
-      setHasCustomDeadline(false);
+      setPriority("p3");
+      setDeadlineMode("none");
       setCustomDeadline("");
       setPostDeadlineAction("keep");
       setTargetInput("5");
@@ -165,7 +196,7 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todo
           />
         </div>
 
-        {/* Controls Grid: Type & Priority (Sleek text segments) */}
+        {/* Controls Grid: Task Type & Deadline */}
         <div className="todo-form__controls-grid">
           <div className="todo-form__field">
             <span className="t-meta">TASK TYPE</span>
@@ -188,35 +219,26 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todo
           </div>
 
           <div className="todo-form__field">
-            <span className="t-meta">PRIORITY</span>
+            <span className="t-meta">DEADLINE</span>
             <div className="todo-form__selector-group">
               <button
                 type="button"
-                className={`todo-form__selector-btn ${!isUrgent && !hasCustomDeadline ? "active" : ""}`}
-                onClick={() => {
-                  setIsUrgent(false);
-                  setHasCustomDeadline(false);
-                }}
+                className={`todo-form__selector-btn ${deadlineMode === "none" ? "active" : ""}`}
+                onClick={() => setDeadlineMode("none")}
               >
-                NORMAL
+                NONE
               </button>
               <button
                 type="button"
-                className={`todo-form__selector-btn todo-form__selector-btn--urgent ${isUrgent ? "active" : ""}`}
-                onClick={() => {
-                  setIsUrgent(true);
-                  setHasCustomDeadline(false);
-                }}
+                className={`todo-form__selector-btn ${deadlineMode === "today" ? "active" : ""}`}
+                onClick={() => setDeadlineMode("today")}
               >
-                URGENT
+                TODAY
               </button>
               <button
                 type="button"
-                className={`todo-form__selector-btn ${hasCustomDeadline ? "active" : ""}`}
-                onClick={() => {
-                  setIsUrgent(false);
-                  setHasCustomDeadline(true);
-                }}
+                className={`todo-form__selector-btn ${deadlineMode === "custom" ? "active" : ""}`}
+                onClick={() => setDeadlineMode("custom")}
               >
                 CUSTOM
               </button>
@@ -225,7 +247,7 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todo
         </div>
 
         {/* Custom Deadline Input */}
-        {hasCustomDeadline && (
+        {deadlineMode === "custom" && (
           <div className="todo-form__field todo-form__field--deadline">
             <span className="t-meta">DEADLINE DATE</span>
             <DatePicker
@@ -243,7 +265,7 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todo
         )}
 
         {/* Post-Deadline Action Selection */}
-        {(isUrgent || hasCustomDeadline) && (
+        {deadlineMode !== "none" && (
           <div className="todo-form__field todo-form__field--post-action">
             <span className="t-meta">POST-DEADLINE ACTION</span>
             <div className="todo-form__selector-group">
@@ -283,21 +305,39 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todo
           </div>
         )}
 
-        {/* Accent Color Selection */}
-        <div className="todo-form__field">
-          <span className="t-meta">ACCENT COLOR</span>
-          <div className="todo-form__colors-row">
-            {["#5B8DEF", "#ff4d4d", "#4ADE80", "#FACC15", "#A855F7", "#EC4899", "#F97316"].map(c => (
-              <button
-                key={c}
-                type="button"
-                className={`todo-form__color-dot ${color === c ? "active" : ""}`}
-                style={{ backgroundColor: c }}
-                onClick={() => setColor(c)}
-                title={c}
-              />
-            ))}
+        {/* Priority Hierarchy (P1 to P4) */}
+        <div className="todo-form__field todo-form__field--priority">
+          <div className="todo-form__priority-header">
+            <span className="t-meta">PRIORITY HIERARCHY</span>
+            <span
+              className="t-meta todo-form__priority-badge"
+              style={{ color: PRIORITY_CONFIG[priority].color }}
+            >
+              [ {PRIORITY_CONFIG[priority].label} ]
+            </span>
           </div>
+          <div className="todo-form__priority-grid">
+            {(["p1", "p2", "p3", "p4"] as TodoPriority[]).map((tierKey) => {
+              const tier = PRIORITY_CONFIG[tierKey];
+              const isSelected = priority === tierKey;
+              return (
+                <button
+                  key={tierKey}
+                  type="button"
+                  className={`todo-form__priority-btn todo-form__priority-btn--${tierKey} ${isSelected ? "active" : ""}`}
+                  style={{ "--tier-color": tier.color } as React.CSSProperties}
+                  onClick={() => handleSelectPriority(tierKey)}
+                  title={tier.description}
+                >
+                  <span className="todo-form__priority-dot" style={{ backgroundColor: tier.color }} />
+                  <span className="todo-form__priority-label">{tier.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="todo-form__priority-desc t-meta">
+            {PRIORITY_CONFIG[priority].description}
+          </p>
         </div>
 
         {/* Commencement Date Selector */}
@@ -414,7 +454,7 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todo
           <button
             type="submit"
             className="btn-action btn-action--primary"
-            disabled={isSubmitting || !title.trim() || (hasCustomDeadline && !customDeadline) || (hasFutureDate && !futureDate)}
+            disabled={isSubmitting || !title.trim() || (deadlineMode === "custom" && !customDeadline) || (hasFutureDate && !futureDate)}
           >
             {todoToEdit ? "[ SAVE CHANGES ]" : "[ CREATE TODO ]"}
           </button>

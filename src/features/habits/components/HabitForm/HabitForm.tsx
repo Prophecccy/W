@@ -80,6 +80,9 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
           const days = Number(intervalDays);
           if (intervalDays.trim() === "" || isNaN(days) || days < 2) return false;
         }
+        if (data.period === "specific_days") {
+          if (!data.daysOfWeek || data.daysOfWeek.length === 0) return false;
+        }
         if (data.type === "metric" || data.type === "limiter") {
           if (!data.metric) return false;
           const targetVal = Number(data.metric.targetValue);
@@ -108,6 +111,13 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
           return;
         }
         updates.intervalDays = days;
+      }
+
+      if (data.period === "specific_days") {
+        if (!data.daysOfWeek || data.daysOfWeek.length === 0) {
+          setError("Please select at least one scheduled day of the week.");
+          return;
+        }
       }
       
       if (data.type === "metric" || data.type === "limiter") {
@@ -299,21 +309,62 @@ export function HabitForm({ initialData, groups, onSubmit, onCancel, userResetTi
                 <div className="habit-form__field">
                   <label className="t-meta">EVALUATION PERIOD</label>
                   <div className="habit-form__radio-group-compact">
-                    {(["daily", "weekly", "monthly", "interval"] as HabitPeriod[]).map((p) => (
+                    {[
+                      { id: "daily", label: "DAILY (Every Single Day)" },
+                      { id: "specific_days", label: "SPECIFIC DAYS (Set Days/Week)" },
+                      { id: "weekly", label: "WEEKLY (Cumulative Weekly Target)" },
+                      { id: "monthly", label: "MONTHLY (Monthly Target)" },
+                      { id: "interval", label: "INTERVAL (Every N Days)" },
+                    ].map((item) => (
                       <button
-                        key={p}
+                        key={item.id}
                         type="button"
-                        className={`habit-form__radio-btn-compact t-body ${data.period === p ? "habit-form__radio-btn-compact--active" : ""}`}
+                        className={`habit-form__radio-btn-compact t-body ${data.period === item.id ? "habit-form__radio-btn-compact--active" : ""}`}
                         onClick={() => {
-                          update({ period: p });
+                          const updates: Partial<HabitFormData> = { period: item.id as HabitPeriod };
+                          if (item.id === "specific_days" && (!data.daysOfWeek || data.daysOfWeek.length === 0 || data.daysOfWeek.length === 7)) {
+                            updates.daysOfWeek = [1, 4]; // Default to Mon & Thu
+                          }
+                          update(updates);
                           setError(null);
                         }}
                       >
-                        {p.toUpperCase()}
+                        {item.label}
                       </button>
                     ))}
                   </div>
                 </div>
+
+                {data.period === "specific_days" && (
+                  <div className="habit-form__field">
+                    <label className="t-meta">SCHEDULED DAYS OF WEEK</label>
+                    <div className="habit-form__days-selector">
+                      {["S", "M", "T", "W", "T", "F", "S"].map((dayName, idx) => {
+                        const active = (data.daysOfWeek || []).includes(idx);
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            className={`habit-form__day-btn ${active ? "habit-form__day-btn--active" : ""}`}
+                            onClick={() => {
+                              const currentDays = data.daysOfWeek || [];
+                              const nextDays = active
+                                ? currentDays.filter((d) => d !== idx)
+                                : [...currentDays, idx].sort((a, b) => a - b);
+                              update({ daysOfWeek: nextDays });
+                              setError(null);
+                            }}
+                          >
+                            {dayName}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <span className="t-meta" style={{ color: "var(--text-muted)", marginTop: "4px", fontSize: "11px", lineHeight: "1.4" }}>
+                      Active strictly on selected days. If uncompleted on a set day, it incurs 1 strike at reset (if strike system is enabled) and vanishes without carryover until the next set day.
+                    </span>
+                  </div>
+                )}
 
                 {data.period === "interval" && (
                   <div className="habit-form__field">

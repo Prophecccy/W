@@ -1,6 +1,7 @@
 import { ColorPicker } from "../../../shared/components/ColorPicker/ColorPicker";
 import { Palette, Volume2 } from "lucide-react";
 import { Settings, Aesthetics } from "../../../shared/types";
+import { playMechanicalClick, setAudioHapticsEnabled } from "../../../shared/services/tactileAudioService";
 
 interface AppearanceSectionProps {
   settings: Settings;
@@ -24,7 +25,12 @@ export function AppearanceSection({ settings, onUpdate, aesthetics, onUpdateAest
   };
 
   const handleSoundToggle = () => {
-    onUpdate({ completionSound: !completionSound });
+    const nextVal = !completionSound;
+    setAudioHapticsEnabled(nextVal);
+    if (nextVal) {
+      playMechanicalClick();
+    }
+    onUpdate({ completionSound: nextVal });
   };
 
   const handleGraphicsToggle = () => {

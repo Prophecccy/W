@@ -802,3 +802,141 @@ npx tsc --noEmit
 ```
 
 **Environment:** Windows 10/11 required for widget and sticky overlay features. The main app shell runs in-browser for development convenience, with graceful fallbacks for all Tauri APIs.
+
+
+---
+
+## 8. World-Class Interaction Physics & UI Consistency Standard (Batches 58–62)
+
+> **Mandate**: All future components, widgets, modals, and views added to `W` **must** conform to this standard. Any PR or assistant code introducing arbitrary styling, non-conforming color gradients, or unsprung layout pops must be rejected.
+
+### 8.1 Philosophy & Ghost Elevation
+
+1. **Ghost Elevation over Heavy Boxes**: Surfaces float seamlessly on obsidian backgrounds. We do not use chunky drop shadows, thick card borders, or nested bordered boxes within bordered boxes. Elevation is established through translucent glass chassis (`rgba(255, 255, 255, 0.02)`), 1px hairline micro-bevels (`rgba(255, 255, 255, 0.08)`), and cursor-reactive spotlight border beams.
+2. **Monochromatic Theme Cohesion**: All active accent highlights stem from `var(--accent)` (and `--accent-rgb`). Multi-color/rainbow gradient tracks are strictly forbidden. Accent colors are reserved for interactive focus, active metrics, and brand identity.
+3. **The "Wise Principle" (Emil Kowalski)**: Routine micro-interactions (navigation, toggle, row clicks) are instantaneous (<50ms feedback with tactile micro-audio). High-stakes interactions (habit completion, punishment confirmation, lockdown release) require deliberate mechanical investment (e.g. 500ms power-curve hold fill and resonant latch audio).
+4. **Monospace Telemetry Discipline**: Everything is rendered in `'Departure Mono', monospace` with strict tabular figures (`tabular-nums`) and bracketed tactical labels (e.g., `[ W ]`, `[ ACTIVE PROTOCOLS ]`, `[ FUEL ]`, `INIT:`, `STATUS:`).
+
+### 8.2 Standardized Spring Physics (`src/shared/constants/motion.ts`)
+
+Framer Motion animations must use the centralized spring presets. Never specify raw durations or cubic-bezier curves for spatial layout:
+
+```ts
+import { SPRING_LAYOUT, SPRING_MODAL, SPRING_TACTILE, SPRING_POP } from '@/shared/constants/motion';
+```
+
+| Spring Preset | Physics Parameters | Usage |
+|---|---|---|
+| `SPRING_LAYOUT` | `stiffness: 380, damping: 32, mass: 1` | FLIP shared layout reordering (`<motion.div layout>`), card insertions, card deletions in `<AnimatePresence mode="popLayout">`. |
+| `SPRING_MODAL` | `stiffness: 420, damping: 32, mass: 0.9` | Drawer panels (`HabitDetail`), modal overlays, command palettes, full-screen dialogs. |
+| `SPRING_TACTILE` | `stiffness: 500, damping: 30, mass: 0.8` | Micro-interactions: button hover/tap (`whileHover={{ y: -1 }}`, `whileTap={{ scale: 0.98 }}`), card scale. |
+| `SPRING_POP` | `stiffness: 400, damping: 25, mass: 0.8` | Checkmark drawings, status badge pop-in, streak counter updates. |
+
+### 8.3 Cursor Spotlight Border Beams (`useSpotlightBorder`)
+
+Every interactive card, pod, and container should incorporate the hardware-accelerated cursor spotlight hook (`src/shared/hooks/useSpotlightBorder.ts`):
+- Uses `requestAnimationFrame` to track cursor position with 0ms React re-render overhead.
+- Injects CSS custom properties `--mouse-x` and `--mouse-y` onto the target element.
+- The CSS pseudo-element `::before` or `::after` renders a radial gradient beam that illuminates the 1px hairline border on hover:
+  ```css
+  .my-card::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    background: radial-gradient(
+      180px circle at var(--mouse-x, 0px) var(--mouse-y, 0px),
+      rgba(var(--card-accent-rgb, var(--accent-rgb)), 0.25),
+      transparent 70%
+    );
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+  }
+  .my-card:hover::before {
+    opacity: 1;
+  }
+  ```
+
+### 8.4 Tactile Web Audio Engine (`src/shared/services/tactileAudioService.ts`)
+
+Synthesizes procedural micro-audio directly via Web Audio API. Zero external audio file assets, zero network latency:
+
+```ts
+import {
+  playMechanicalClick,
+  playSubtleThud,
+  playLockLatch,
+  playHoldHum,
+  stopHoldHum
+} from '@/shared/services/tactileAudioService';
+```
+
+- `playMechanicalClick()`: Call on standard user action execution, button press, navigation change, or completed check.
+- `playSubtleThud()`: Call on cancellation, item uncheck, task deletion, or reversal.
+- `playLockLatch()`: Call on high-stakes confirmations (e.g. penance completion, lockdown emergency release).
+- `playHoldHum()` & `stopHoldHum()`: Call during hold-to-complete interactions for physical tension buildup.
+
+### 8.5 Power-Curve Hold-to-Complete
+
+For all hold-to-complete interactions (Habit cards, Todo cards, Sticky note checkbox pods):
+- **Hold Duration**: Exact `500ms`.
+- **Power Curve**: `cubic-bezier(0.32, 0, 0.67, 1)` (accelerates forward deliberately as the user commits pressure).
+- **Audio**: Initialize audio gesture on pointer down; trigger `playMechanicalClick()` upon reaching 100%.
+
+### 8.6 Mobile Tactile & Ergonomic Remaster Standard (<= 768px)
+
+To deliver 100% aesthetic, tactile, and physics parity without compromising mobile touch performance (60+ FPS) or viewport ergonomics:
+
+1. **3-Tier Docked Flex Shell (`Layout.css`)**:
+   - Viewport-locked flex column (`position: fixed; inset: 0; display: flex; flex-direction: column; overflow: hidden;`).
+   - Topbar: `flex: none` with `env(safe-area-inset-top)`.
+   - Content: `flex: 1 1 0; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none !important;`.
+   - Bottom Docked Nav (`<MobileNav />`): `flex: none` with `env(safe-area-inset-bottom)`. Mathematically impossible to push below fold.
+2. **Mobile SleepTube (Circadian Fuel Bar)**:
+   - Horizontal tactical bar with responsive `[ FUEL ]` label, tabular percentage (`font-variant-numeric: tabular-nums`), glass cylinder track (`rgba(255, 255, 255, 0.03)` + 1px border `rgba(255, 255, 255, 0.12)`), and ambient resting glow at 0% / sleeping phases.
+3. **Ghost-Elevated Stats Deck Telemetry Cluster**:
+   - Positioned directly below SleepTube with `COMPLETED`, `TOTAL`, and `PROGRESS` separated by clean 1px vertical hairline dividers (`rgba(255, 255, 255, 0.08)`), styled in `var(--accent)` with zero outer box borders or drop shadows.
+4. **Daily Note 2-Tier Telemetry Header**:
+   - Row 1: `[ DAILY NOTE ]` (left) and `[ LOGBOOK ]` (right) with `white-space: nowrap`.
+   - Row 2: Status indicator (`SAVED`), Google Drive backup status (`[ BACKED UP ]`), and character count (`0 / 5000`) in a single horizontal telemetry row with tabular numbers.
+5. **Touch-Optimized Tactical Cards & Spotlight Suppression**:
+   - Minimum 44px–48px touch targets with Ghost Elevation (`rgba(18, 18, 26, 0.7)` chassis + 1px hairline border + 8px corners).
+   - `@media (hover: none)` suppresses cursor spotlight beams on touch screens to prevent sticky hover artifacts.
+   - Physical press states consume `SPRING_TACTILE` (`whileTap={{ scale: 0.98 }}`).
+   - Accelerated 500ms power-curve hold-to-complete with `playHoldHum()` and `playMechanicalClick()`.
+6. **Frosted Glass Modals & Bottom Sheets**:
+   - All mobile sheets consume Framer Motion `SPRING_MODAL` with frosted glass backdrop (`rgba(0, 0, 0, 0.7)` with `backdrop-filter: blur(8px)`) and 12px top radii bottom anchoring.
+
+### 8.7 The Strict Anti-Patterns Blacklist
+
+> [!CAUTION] The following 5 anti-patterns are strictly forbidden across the entire codebase:
+
+1. **NO Rainbow or Multi-Color Progress Bars**:
+   - ❌ *Never*: `background: linear-gradient(90deg, #ff4694, #fbbf24, #4ade80);`
+   - ✅ *Always*: Use a solid accent glow (`var(--accent)`) or semantic green (`var(--color-success)`) for progress.
+2. **NO Boxy Nested Card Outlines**:
+   - ❌ *Never*: Enclosing stats or telemetry clusters inside an extra outer box with dark background, border, and drop shadow.
+   - ✅ *Always*: Use **Ghost Elevation** — transparent background, 1px vertical hairline dividers (`rgba(255, 255, 255, 0.08)`), and floating monospace metrics.
+3. **NO Arbitrary CSS Transition Speeds**:
+   - ❌ *Never*: `transition: all 0.3s ease;` or `transition: transform 0.5s;`
+   - ✅ *Always*: Use Framer Motion spring presets for spatial movement, or concise tokenized transitions (`transition: opacity 0.15s ease, border-color 0.15s ease;`) for color/opacity.
+4. **NO Raw Unsprung DOM Removal**:
+   - ❌ *Never*: Removing a card or list item that abruptly collapses the surrounding DOM without animating.
+   - ✅ *Always*: Wrap in `<AnimatePresence mode="popLayout" initial={false}>` and give items `<motion.div layout transition={SPRING_LAYOUT} exit={{ opacity: 0, scale: 0.95 }}>`.
+5. **NO Mid-Drag React State Re-renders**:
+   - ❌ *Never*: Calling React state setters (e.g. `setIsDragging(true)` or `setIsHolding(false)`) inside rapid `onPointerMove` mouse handlers in transparent desktop windows.
+   - ✅ *Always*: Manipulate DOM refs directly (`el.classList.add(...)`, `el.style.transform = ...`) and only commit position to state on pointer release (`onPointerUp`).
+
+### 8.7 Pre-Flight UI Consistency Checklist
+
+Before submitting or approving any UI code:
+
+- [ ] **Typeface**: Is all text using `'Departure Mono', monospace` with tabular numerals?
+- [ ] **Chassis**: Is the component using `rgba(255, 255, 255, 0.02)` and a 1px `0.08` hairline border instead of solid backgrounds?
+- [ ] **Spotlight**: Has `useSpotlightBorder` been attached to the interactive root container?
+- [ ] **Springs**: Are all layout transitions and entrance/exits referencing `SPRING_LAYOUT` or `SPRING_MODAL` from `motion.ts`?
+- [ ] **Audio Haptics**: Do interactive commits trigger `playMechanicalClick()` and reversals trigger `playSubtleThud()`?
+- [ ] **Zero Anti-Patterns**: Verified 0 rainbow meters, 0 heavy box outlines, 0 raw unsprung layout snaps.
+- [ ] **Automated Tests**: Does `npx vitest run` pass completely with 0 regressions?
+- [ ] **Type Safety**: Does `npx tsc --noEmit` exit with 0 errors?

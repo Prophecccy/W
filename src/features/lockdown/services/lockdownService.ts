@@ -164,6 +164,7 @@ export async function updateSchedules(schedules: LockdownSchedule[]): Promise<vo
   await updateDoc(doc(db, "users", activeUid), {
     "lockdown.schedules": schedules,
   });
+  await syncActiveLockdownState(activeUid);
 }
 
 // Keep track of the last blocklist in memory to avoid redundant tauri calls

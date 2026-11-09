@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isHabitScheduledToday, getScheduledDaysInRange } from "./scheduleEngine";
+import { isHabitScheduledToday, getScheduledDaysInRange, getNextSpecificDueDate } from "./scheduleEngine";
 import { Habit } from "../types";
 
 // ─── Helper to build a minimal habit mock ─────────────────────
@@ -174,4 +174,82 @@ describe("getScheduledDaysInRange", () => {
     const days = getScheduledDaysInRange(habit, "2026-04-05", "2026-04-05");
     expect(days).toEqual(["2026-04-05"]);
   });
+
+  it("returns only specific days of the week in range for specific_days period", () => {
+    // 2026-04-06 is Monday, 2026-04-09 is Thursday
+    const habit = makeHabit({
+      period: "specific_days",
+      daysOfWeek: [1, 4], // Mon and Thu
+    });
+    const days = getScheduledDaysInRange(habit, "2026-04-06", "2026-04-12");
+    expect(days).toEqual(["2026-04-06", "2026-04-09"]);
+  });
 });
+
+describe("isHabitScheduledToday - specific_days", () => {
+  it("returns true only on specified days of week", () => {
+    // 2026-04-06 = Mon (1), 2026-04-07 = Tue (2), 2026-04-08 = Wed (3), 2026-04-09 = Thu (4)
+    const habit = makeHabit({
+      period: "specific_days",
+      daysOfWeek: [1, 4], // Monday & Thursday
+    });
+
+    expect(isHabitScheduledToday(habit, "2026-04-06")).toBe(true);  // Monday
+    expect(isHabitScheduledToday(habit, "2026-04-07")).toBe(false); // Tuesday
+    expect(isHabitScheduledToday(habit, "2026-04-08")).toBe(false); // Wednesday
+    expect(isHabitScheduledToday(habit, "2026-04-09")).toBe(true);  // Thursday
+    expect(isHabitScheduledToday(habit, "2026-04-10")).toBe(false); // Friday
+  });
+
+  it("returns false if daysOfWeek is empty or missing", () => {
+    const habit = makeHabit({
+      period: "specific_days",
+      daysOfWeek: [],
+    });
+    expect(isHabitScheduledToday(habit, "2026-04-06")).toBe(false);
+  });
+
+  it("returns false if date is before startDate", () => {
+    const habit = makeHabit({
+      period: "specific_days",
+      daysOfWeek: [1, 4],
+      startDate: "2026-04-10",
+    });
+    expect(isHabitScheduledToday(habit, "2026-04-06")).toBe(false);
+  });
+});
+
+describe("getNextSpecificDueDate", () => {
+  it("finds next due day within the same week", () => {
+    // Mon (1) and Thu (4). Today = Mon 2026-04-06
+    const habit = makeHabit({
+      period: "specific_days",
+      daysOfWeek: [1, 4],
+    });
+    const next = getNextSpecificDueDate(habit, "2026-04-06");
+    expect(next).not.toBeNull();
+    expect(next?.date).toBe("2026-04-09");
+    expect(next?.dayLabel).toBe("THU");
+  });
+
+  it("wraps around to next week if today is the last scheduled day of week", () => {
+    // Mon (1) and Thu (4). Today = Thu 2026-04-09
+    const habit = makeHabit({
+      period: "specific_days",
+      daysOfWeek: [1, 4],
+    });
+    const next = getNextSpecificDueDate(habit, "2026-04-09");
+    expect(next).not.toBeNull();
+    expect(next?.date).toBe("2026-04-13"); // Next Monday
+    expect(next?.dayLabel).toBe("MON");
+  });
+
+  it("returns null if daysOfWeek is empty", () => {
+    const habit = makeHabit({
+      period: "specific_days",
+      daysOfWeek: [],
+    });
+    expect(getNextSpecificDueDate(habit, "2026-04-06")).toBeNull();
+  });
+});
+

@@ -3,6 +3,11 @@ export interface WidgetPosition {
   y: number;
   width: number;
   height: number;
+  monitorName?: string;
+  monitorIndex?: number;
+  relativeX?: number; // offset from top-left of the monitor
+  relativeY?: number;
+  totalMonitorsWhenSaved?: number;
 }
 
 const POSITION_FILE = 'widget_position.json';
@@ -18,6 +23,17 @@ const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI_INTER
 
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 let lastPendingPosition: WidgetPosition | null = null;
+let isFallbackActive = false;
+
+/** Set whether the widget is currently displaying in temporary fallback mode on the primary monitor. */
+export function setFallbackPositionActive(active: boolean) {
+  isFallbackActive = active;
+}
+
+/** Check if the widget is currently in temporary fallback mode. */
+export function isFallbackPositionActive(): boolean {
+  return isFallbackActive;
+}
 
 export async function loadWidgetPosition(): Promise<WidgetPosition> {
   if (!isTauri) {
@@ -44,28 +60,28 @@ export async function loadWidgetPosition(): Promise<WidgetPosition> {
   return DEFAULT_POSITION;
 }
 
-export async function saveWidgetPosition(pos: WidgetPosition): Promise<void> {
-  // Debounce: only write after 500ms of no movement
-  if (saveTimeout) clearTimeout(saveTimeout);
-  lastPendingPosition = pos;
-  saveTimeout = setTimeout(async () => {
-    if (!isTauri) {
-      try {
-        localStorage.setItem(POSITION_FILE, JSON.stringify(pos));
-        lastPendingPosition = null;
-      } catch (e) {
-        console.error('Failed to save widget position to localStorage:', e);
-      }
-      return;
-    }
+export async function saveWidgetPosition(pos: WidgetPosition, immediate = false): Promise<void> {
+  // If in fallback mode on primary monitor, do NOT overwrite the saved secondary monitor target
+  if (isFallbackActive) {
+    return;
+  }
 
-    try {
-      const { writeTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs');
-      await writeTextFile(POSITION_FILE, JSON.stringify(pos), { baseDir: BaseDirectory.AppData });
-      lastPendingPosition = null;
-    } catch (e) {
-      console.error('Failed to save widget position:', e);
+  lastPendingPosition = pos;
+
+  if (immediate) {
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+      saveTimeout = null;
     }
+    await flushWidgetPosition(pos);
+    return;
+  }
+
+  // Debounce: write after 500ms of no movement
+  if (saveTimeout) clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(async () => {
+    saveTimeout = null;
+    await flushWidgetPosition(pos);
   }, 500);
 }
 

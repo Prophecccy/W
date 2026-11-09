@@ -412,8 +412,8 @@ export async function processGap(
           continue;
         }
 
-        // For daily/interval limiters: update streak based on success/failure
-        if (habit.type === "limiter" && (habit.period === "daily" || habit.period === "interval")) {
+        // For daily/interval/specific_days limiters: update streak based on success/failure
+        if (habit.type === "limiter" && (habit.period === "daily" || habit.period === "interval" || habit.period === "specific_days")) {
           const logEntry = dayLog?.habits?.[habit.id];
           const hasExceeded = logEntry ? logEntry.value > logEntry.target : false;
           const u = auth.currentUser;

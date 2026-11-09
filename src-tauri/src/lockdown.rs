@@ -27,6 +27,7 @@ static POLLING_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::Ato
 static BLOCKLIST: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static END_TIME: Mutex<Option<std::time::Instant>> = Mutex::new(None);
 static BLOCKED_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
+static TAB_CLOSE_SUPPRESSION_UNTIL: Mutex<Option<std::time::Instant>> = Mutex::new(None);
 static POLLING_THREAD: Mutex<Option<thread::JoinHandle<()>>> = Mutex::new(None);
 
 // ─── Event payloads ──────────────────────────────────────────────
@@ -36,6 +37,8 @@ pub struct BlockPayload {
     pub app_title: String,
     pub matched_rule: String,
     pub pid: u32,
+    pub hwnd: isize,
+    pub is_browser: bool,
     pub x: i32,
     pub y: i32,
     pub width: i32,
@@ -65,6 +68,7 @@ mod platform {
         pub exe_name: String,
         pub title: String,
         pub pid: u32,
+        pub hwnd: isize,
         pub x: i32,
         pub y: i32,
         pub width: i32,
@@ -168,6 +172,7 @@ mod platform {
                     exe_name,
                     title,
                     pid,
+                    hwnd: hwnd.0 as isize,
                     x,
                     y,
                     width,
@@ -217,6 +222,7 @@ mod platform {
         pub exe_name: String,
         pub title: String,
         pub pid: u32,
+        pub hwnd: isize,
         pub x: i32,
         pub y: i32,
         pub width: i32,
@@ -270,6 +276,34 @@ fn is_own_window(info: &platform::ForegroundInfo) -> bool {
     false
 }
 
+/// Returns true if the executable name matches any known web browser.
+pub fn is_browser_process(exe_name: &str) -> bool {
+    let lower = exe_name.to_lowercase();
+    matches!(
+        lower.as_str(),
+        "chrome.exe"
+            | "msedge.exe"
+            | "opera.exe"
+            | "operagx.exe"
+            | "brave.exe"
+            | "firefox.exe"
+            | "vivaldi.exe"
+            | "arc.exe"
+            | "zen.exe"
+            | "waterfox.exe"
+            | "librewolf.exe"
+            | "floorp.exe"
+            | "tor.exe"
+            | "chromium.exe"
+            | "yandex.exe"
+            | "safari.exe"
+            | "sidekick.exe"
+            | "whale.exe"
+            | "maxthon.exe"
+            | "thorium.exe"
+    )
+}
+
 // ─── Polling thread ──────────────────────────────────────────────
 
 fn start_polling(app_handle: tauri::AppHandle) -> Result<(), String> {
@@ -317,6 +351,29 @@ fn start_polling(app_handle: tauri::AppHandle) -> Result<(), String> {
                     break;
                 }
 
+                // Check if we are in tab-close suppression window
+                let in_tab_suppression = {
+                    if let Ok(guard) = TAB_CLOSE_SUPPRESSION_UNTIL.lock() {
+                        if let Some(until) = *guard {
+                            std::time::Instant::now() < until
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                };
+
+                if in_tab_suppression {
+                    if currently_blocking.is_some() {
+                        eprintln!("[lockdown] Tab close suppression active — lifting block overlay");
+                        currently_blocking = None;
+                        let _ = app_handle.emit("lockdown-unblock", UnblockPayload {});
+                    }
+                    thread::sleep(Duration::from_millis(150));
+                    continue;
+                }
+
                 if let Some(info) = platform::get_foreground_info() {
                     // Diagnostic logging every ~10 seconds
                     if tick_count % 20 == 1 {
@@ -354,6 +411,7 @@ fn start_polling(app_handle: tauri::AppHandle) -> Result<(), String> {
                     };
 
                     if let Some(rule) = matched_rule {
+                        let is_browser = is_browser_process(&info.exe_name) && !rule.ends_with(".exe");
                         let display_name = if rule.ends_with(".exe") {
                             info.exe_name.clone()
                         } else {
@@ -362,8 +420,8 @@ fn start_polling(app_handle: tauri::AppHandle) -> Result<(), String> {
 
                         if currently_blocking.as_ref() != Some(&rule) {
                             eprintln!(
-                                "[lockdown] BLOCK: \"{}\" matched rule \"{}\"",
-                                display_name, rule
+                                "[lockdown] BLOCK: \"{}\" matched rule \"{}\" (is_browser={})",
+                                display_name, rule, is_browser
                             );
                         }
 
@@ -373,6 +431,8 @@ fn start_polling(app_handle: tauri::AppHandle) -> Result<(), String> {
                             app_title: display_name,
                             matched_rule: rule,
                             pid: info.pid,
+                            hwnd: info.hwnd,
+                            is_browser,
                             x: info.x,
                             y: info.y,
                             width: info.width,
@@ -560,6 +620,8 @@ pub fn test_lockdown_block(app: tauri::AppHandle) -> Result<(), String> {
         app_title: "TEST APP".to_string(),
         matched_rule: "test".to_string(),
         pid: 0,
+        hwnd: 0,
+        is_browser: false,
         x: 100,
         y: 100,
         width: 800,
@@ -569,6 +631,158 @@ pub fn test_lockdown_block(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| format!("emit failed: {}", e))?;
     eprintln!("[lockdown] test_lockdown_block — event emitted OK");
     Ok(())
+}
+
+/// Close only the active tab of a blocked browser window using synthesized Ctrl+W keystroke.
+#[tauri::command]
+pub fn close_blocked_tab(app: tauri::AppHandle, hwnd: isize, pid: u32) -> Result<(), String> {
+    eprintln!("[lockdown] close_blocked_tab called for HWND {:X}, PID {}", hwnd, pid);
+
+    // 1. Immediately activate tab-close suppression for 2.5 seconds to prevent race conditions
+    if let Ok(mut guard) = TAB_CLOSE_SUPPRESSION_UNTIL.lock() {
+        *guard = Some(std::time::Instant::now() + Duration::from_millis(2500));
+    }
+
+    // 2. Hide overlay window immediately and emit lockdown-unblock
+    if let Some(overlay) = app.get_webview_window("block-overlay") {
+        let _ = overlay.hide();
+    }
+    let _ = app.emit("lockdown-unblock", UnblockPayload {});
+
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            GetWindowThreadProcessId, IsWindow, SetForegroundWindow,
+        };
+        use windows::Win32::System::Threading::{GetCurrentThreadId, AttachThreadInput};
+        use windows::Win32::UI::Input::KeyboardAndMouse::{
+            SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
+            KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CONTROL, SetFocus,
+        };
+
+        if hwnd == 0 {
+            return Err("Invalid window handle (0)".to_string());
+        }
+
+        let target_hwnd = HWND(hwnd as *mut _);
+
+        unsafe {
+            if !IsWindow(target_hwnd).as_bool() {
+                return Err("Target window is no longer valid".to_string());
+            }
+
+            // Bring target window to foreground so the keystroke hits the active tab
+            let current_tid = GetCurrentThreadId();
+            let target_tid = GetWindowThreadProcessId(target_hwnd, None);
+
+            if target_tid != 0 && target_tid != current_tid {
+                let _ = AttachThreadInput(current_tid, target_tid, true);
+                let _ = SetForegroundWindow(target_hwnd);
+                let _ = SetFocus(target_hwnd);
+                let _ = AttachThreadInput(current_tid, target_tid, false);
+            } else {
+                let _ = SetForegroundWindow(target_hwnd);
+                let _ = SetFocus(target_hwnd);
+            }
+
+            // Small delay to let OS process focus switch
+            thread::sleep(Duration::from_millis(50));
+
+            // Synthesize Ctrl + W ('W' virtual key code is 0x57) with spaced events
+            let vk_w = VIRTUAL_KEY(0x57);
+
+            let ctrl_down = [INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_CONTROL,
+                        wScan: 0,
+                        dwFlags: KEYBD_EVENT_FLAGS(0),
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            }];
+
+            let w_down = [INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: vk_w,
+                        wScan: 0,
+                        dwFlags: KEYBD_EVENT_FLAGS(0),
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            }];
+
+            let w_up = [INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: vk_w,
+                        wScan: 0,
+                        dwFlags: KEYEVENTF_KEYUP,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            }];
+
+            let ctrl_up = [INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_CONTROL,
+                        wScan: 0,
+                        dwFlags: KEYEVENTF_KEYUP,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            }];
+
+            SendInput(&ctrl_down, std::mem::size_of::<INPUT>() as i32);
+            thread::sleep(Duration::from_millis(20));
+            SendInput(&w_down, std::mem::size_of::<INPUT>() as i32);
+            thread::sleep(Duration::from_millis(30));
+            SendInput(&w_up, std::mem::size_of::<INPUT>() as i32);
+            thread::sleep(Duration::from_millis(20));
+            SendInput(&ctrl_up, std::mem::size_of::<INPUT>() as i32);
+
+            eprintln!("[lockdown] Dispatched Ctrl+W key sequence to HWND {:X}", hwnd);
+
+            // Wait for window title to transition away from blocked rule (up to 800ms)
+            for _ in 0..16 {
+                thread::sleep(Duration::from_millis(50));
+                if !IsWindow(target_hwnd).as_bool() {
+                    break;
+                }
+                if let Some(info) = platform::get_foreground_info() {
+                    let title_lower = info.title.to_lowercase();
+                    let still_blocked = if let Ok(guard) = BLOCKLIST.lock() {
+                        guard.iter().any(|rule| !rule.ends_with(".exe") && title_lower.contains(rule.as_str()))
+                    } else {
+                        false
+                    };
+                    if !still_blocked {
+                        eprintln!("[lockdown] Tab closed successfully, new foreground title: \"{}\"", info.title);
+                        break;
+                    }
+                }
+            }
+
+            let _ = app.emit("lockdown-unblock", UnblockPayload {});
+        }
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("Tab closure not supported on this platform".to_string())
+    }
 }
 
 /// Kill a blocked process by PID. Called when the user clicks "Close" on the overlay.
@@ -594,6 +808,20 @@ pub fn kill_blocked_process(pid: u32) -> Result<(), String> {
     // Verify process executable name still matches blocklist to prevent PID recycling issues
     if let Some(exe_name) = platform::get_exe_name_by_pid(pid) {
         let exe_lower = exe_name.to_lowercase();
+
+        // Browser safeguard: If this process is a browser, ensure the user explicitly blocked the browser executable
+        if is_browser_process(&exe_lower) {
+            let blocklist = BLOCKLIST.lock().map_err(|_| "BLOCKLIST mutex is poisoned".to_string())?;
+            let has_explicit_exe_rule = blocklist.iter().any(|rule| rule.to_lowercase() == exe_lower);
+            if !has_explicit_exe_rule {
+                eprintln!(
+                    "[lockdown] Refusing to kill browser process {} (PID {}) because only website/tab rule matched",
+                    exe_name, pid
+                );
+                return Err("Cannot terminate entire browser process for website block. Use close_blocked_tab.".to_string());
+            }
+        }
+
         let blocklist = BLOCKLIST.lock().map_err(|_| "BLOCKLIST mutex is poisoned".to_string())?;
         
         let matches_rule = blocklist.iter().any(|rule| {

@@ -18,24 +18,25 @@ mod platform {
         unsafe {
             let target = HWND(hwnd as *mut _);
 
-            // Push to bottom of Z-order
+            // 1. Break parent/owner linkage so the window is completely unowned.
+            // An owned window cannot sink below its owner in the Win32 Z-order.
+            // Breaking ownership allows the window to freely sit at HWND_BOTTOM (desktop wallpaper layer).
+            SetWindowLongPtrW(target, GWLP_HWNDPARENT, 0);
+
+            // 2. Add WS_EX_TOOLWINDOW to hide from Alt+Tab and taskbar without needing an owner.
+            // Add WS_EX_NOACTIVATE to prevent the window from stealing focus when clicked.
+            // Clear WS_EX_APPWINDOW to ensure it does not appear on the taskbar.
+            let ex_style = GetWindowLongPtrW(target, GWL_EXSTYLE);
+            let new_style = (ex_style as u32 | WS_EX_TOOLWINDOW.0 | WS_EX_NOACTIVATE.0) & !WS_EX_APPWINDOW.0;
+            SetWindowLongPtrW(target, GWL_EXSTYLE, new_style as isize);
+
+            // 3. Push to bottom of Z-order (behind all applications, directly above desktop)
             SetWindowPos(
                 target,
                 HWND_BOTTOM,
                 0, 0, 0, 0,
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
             ).map_err(|e| format!("SetWindowPos failed: {e}"))?;
-
-            // Add WS_EX_NOACTIVATE to prevent the window from taking focus when clicked
-            // Clear WS_EX_TOOLWINDOW to ensure Task Manager registers the window, and clear WS_EX_APPWINDOW to hide it from the taskbar.
-            let ex_style = GetWindowLongPtrW(target, GWL_EXSTYLE);
-            let new_style = (ex_style as u32 | WS_EX_NOACTIVATE.0) & !WS_EX_TOOLWINDOW.0 & !WS_EX_APPWINDOW.0;
-            SetWindowLongPtrW(target, GWL_EXSTYLE, new_style as isize);
-
-            // Set parent/owner linkage to our hidden owner window so it is owned (hiding it from Task Manager Apps list)
-            // but is independent of the main dashboard window (so main window can render over it).
-            let owner = crate::get_hidden_owner();
-            SetWindowLongPtrW(target, GWLP_HWNDPARENT, owner);
         }
         Ok(())
     }
@@ -202,3 +203,118 @@ pub fn move_widget_by(app: tauri::AppHandle, dx: i32, dy: i32) -> Result<(), Str
 
     Ok(())
 }
+
+/// Spawns a dedicated background thread that actively enforces HWND_BOTTOM
+/// for the desktop widget and sticky overlay whenever any application
+/// (such as Endfield, browsers, or games) gains focus or changes Z-order.
+/// Also continuously monitors display hardware topology (connecting/disconnecting
+/// secondary monitors) to auto-resize the sticky-overlay across all monitors
+/// and emit `w://monitors-changed` for dynamic window restoration.
+pub fn start_desktop_zorder_guard(app: tauri::AppHandle) {
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            GetForegroundWindow, SetWindowPos, GetSystemMetrics,
+            HWND_BOTTOM, SWP_NOMOVE, SWP_NOSIZE, SWP_NOACTIVATE, SWP_NOZORDER,
+            SM_CMONITORS, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
+        };
+        use std::sync::atomic::Ordering;
+        use std::time::Duration;
+        use tauri::Emitter;
+
+        std::thread::spawn(move || {
+            let mut last_mon_count = unsafe { GetSystemMetrics(SM_CMONITORS) };
+            let mut last_virt_screen = unsafe {
+                (
+                    GetSystemMetrics(SM_XVIRTUALSCREEN),
+                    GetSystemMetrics(SM_YVIRTUALSCREEN),
+                    GetSystemMetrics(SM_CXVIRTUALSCREEN),
+                    GetSystemMetrics(SM_CYVIRTUALSCREEN),
+                )
+            };
+
+            loop {
+                std::thread::sleep(Duration::from_millis(500));
+
+                // ── 1. Monitor & Display Topology Detection ──────────────────────────
+                let mon_count = unsafe { GetSystemMetrics(SM_CMONITORS) };
+                let vx = unsafe { GetSystemMetrics(SM_XVIRTUALSCREEN) };
+                let vy = unsafe { GetSystemMetrics(SM_YVIRTUALSCREEN) };
+                let vcx = unsafe { GetSystemMetrics(SM_CXVIRTUALSCREEN) };
+                let vcy = unsafe { GetSystemMetrics(SM_CYVIRTUALSCREEN) };
+
+                if mon_count != last_mon_count || (vx, vy, vcx, vcy) != last_virt_screen {
+                    last_mon_count = mon_count;
+                    last_virt_screen = (vx, vy, vcx, vcy);
+
+                    // Resize sticky-overlay to cover the new virtual desktop spanning all monitors
+                    if let Some(sticky_win) = app.get_webview_window("sticky-overlay") {
+                        if let Ok(shwnd) = sticky_win.hwnd() {
+                            unsafe {
+                                let _ = SetWindowPos(
+                                    HWND(shwnd.0 as *mut _),
+                                    HWND(0 as *mut _),
+                                    vx, vy, vcx, vcy,
+                                    SWP_NOZORDER | SWP_NOACTIVATE,
+                                );
+                            }
+                        }
+                    }
+
+                    // Emit event to all windows (widget, main, sticky-canvas)
+                    let _ = app.emit("w://monitors-changed", serde_json::json!({
+                        "monitorCount": mon_count,
+                        "virtualScreen": { "x": vx, "y": vy, "width": vcx, "height": vcy }
+                    }));
+                }
+
+                // ── 2. Skip Z-order defense during active drag ────────────────────────
+                let now = crate::now_ms();
+                let last_move = crate::LAST_MOVE_EVENT_MS.load(Ordering::Relaxed);
+                if now.saturating_sub(last_move) < 600 {
+                    continue;
+                }
+
+                // ── 3. Query active foreground window ─────────────────────────────────
+                let fg = unsafe { GetForegroundWindow() };
+                if fg.0.is_null() {
+                    continue;
+                }
+
+                // ── 4. Resolve widget and sticky overlay handles ──────────────────────
+                let widget_hwnd = app.get_webview_window("widget").and_then(|w| w.hwnd().ok());
+                let sticky_hwnd = app.get_webview_window("sticky-overlay").and_then(|w| w.hwnd().ok());
+
+                let is_fg_widget = widget_hwnd.map(|h| h.0 as isize == fg.0 as isize).unwrap_or(false);
+                let is_fg_sticky = sticky_hwnd.map(|h| h.0 as isize == fg.0 as isize).unwrap_or(false);
+
+                // If foreground window is not the widget itself, ensure widget and sticky are at HWND_BOTTOM
+                if !is_fg_widget && !is_fg_sticky {
+                    if let Some(h) = widget_hwnd {
+                        unsafe {
+                            let _ = SetWindowPos(
+                                HWND(h.0 as *mut _),
+                                HWND_BOTTOM,
+                                0, 0, 0, 0,
+                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                            );
+                        }
+                    }
+
+                    if let Some(h) = sticky_hwnd {
+                        unsafe {
+                            let _ = SetWindowPos(
+                                HWND(h.0 as *mut _),
+                                HWND_BOTTOM,
+                                0, 0, 0, 0,
+                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                            );
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+

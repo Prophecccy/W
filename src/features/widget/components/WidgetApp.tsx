@@ -2,7 +2,13 @@ import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useWidgetData } from '../hooks/useWidgetData';
 import { StatsDeck } from './StatsDeck/StatsDeck';
 import { WidgetHabitList } from './HabitList/WidgetHabitList';
-import { loadWidgetPosition, saveWidgetPosition, flushWidgetPosition } from '../services/widgetPositionStore';
+import {
+  loadWidgetPosition,
+  saveWidgetPosition,
+  flushWidgetPosition,
+  setFallbackPositionActive,
+  isFallbackPositionActive,
+} from '../services/widgetPositionStore';
 import { ShieldAlert } from 'lucide-react';
 import { getLocalWallpaper } from '../../../shared/utils/storageUtils';
 import { isTauri } from '../../../shared/utils/tauri';
@@ -11,6 +17,7 @@ import { ProgressCircle } from '../../../shared/components/ProgressCircle/Progre
 import { syncActiveLockdownState } from '../../lockdown/services/lockdownService';
 import { processGap } from '../../strikes/services/gapProcessor';
 import { getTotalInRange, getPeriodStart, isMultiDayMetric } from '../../../shared/utils/dateUtils';
+import { initAudioOnUserGesture, playMechanicalClick } from '../../../shared/services/tactileAudioService';
 import './WidgetApp.css';
 
 // Pre-import for instant drag response (no async delay on first drag)
@@ -69,6 +76,7 @@ export function WidgetApp() {
       const secs = String(now.getSeconds()).padStart(2, '0');
       setTimeString(`${hrs}:${mins}:${secs}`);
     };
+    initAudioOnUserGesture();
     updateClock();
     const timer = setInterval(updateClock, 1000);
     return () => clearInterval(timer);
@@ -329,8 +337,8 @@ export function WidgetApp() {
     // Calculate Right Panel: 4 components with 3 vertical gaps
     const targetLogicalRightPanel = HEADER_H + habitAreaHeight + STATS_DECK_H + CLOCK_H + (3 * PANEL_GAP);
     
-    // Left Panel: Progress circle (40px) + margin (12px) + SleepTube container (200px)
-    const targetLogicalLeftPanel = 252;
+    // Left Panel: Dedicated SleepTube rail (~180px)
+    const targetLogicalLeftPanel = 180;
 
     // Outer window logical height is the maximum panel height + vertical padding/inset
     const targetLogical = Math.max(targetLogicalRightPanel, targetLogicalLeftPanel) + INSET;
@@ -407,31 +415,40 @@ export function WidgetApp() {
           saveWidgetPosition(saved);
         }
 
-        // Monitor Boundaries Guard (clamping offscreen windows)
+        // Multi-Monitor Safe Placement & Fallback Detection
+        let displayX = saved.x;
+        let displayY = saved.y;
+
         try {
-          const { availableMonitors } = await import("@tauri-apps/api/window");
+          const { availableMonitors, primaryMonitor } = await import("@tauri-apps/api/window");
           const monitors = await availableMonitors();
-          let isOnAnyScreen = false;
+          const primary = (await primaryMonitor()) || monitors[0];
 
-          for (const m of monitors) {
-            const mX = m.position.x;
-            const mY = m.position.y;
-            const mW = m.size.width;
-            const mH = m.size.height;
-
-            if (saved.x >= mX && saved.x < (mX + mW - 100) &&
-                saved.y >= mY && saved.y < (mY + mH - 100)) {
-              isOnAnyScreen = true;
-              break;
-            }
+          let isTargetMonitorConnected = false;
+          if (saved.monitorName) {
+            isTargetMonitorConnected = monitors.some((m: any) => m.name === saved.monitorName);
+          } else {
+            isTargetMonitorConnected = monitors.some((m: any) =>
+              saved.x >= m.position.x && saved.x < (m.position.x + m.size.width - 100) &&
+              saved.y >= m.position.y && saved.y < (m.position.y + m.size.height - 100)
+            );
           }
 
-          if (!isOnAnyScreen && monitors.length > 0) {
-            console.warn("[Widget Monitor Guard] Off-screen detected! Resetting position to center-right safe bounds.");
-            const primary = monitors[0];
-            saved.x = Math.max(100, primary.position.x + primary.size.width - saved.width - 100);
-            saved.y = Math.max(100, primary.position.y + 100);
-            saveWidgetPosition(saved);
+          if (isTargetMonitorConnected) {
+            // Target monitor is connected! Use exact saved coordinates
+            setFallbackPositionActive(false);
+          } else if (monitors.length > 0 && primary) {
+            // Target monitor is disconnected! Fall back to primary monitor WITHOUT overwriting saved target
+            console.warn("[Widget Monitor Guard] Target monitor disconnected! Showing temporary fallback on primary screen.");
+            setFallbackPositionActive(true);
+            displayX = Math.max(primary.position.x + 20, Math.min(
+              primary.position.x + (saved.relativeX ?? (primary.size.width - saved.width - 40)),
+              primary.position.x + primary.size.width - saved.width - 20
+            ));
+            displayY = Math.max(primary.position.y + 20, Math.min(
+              primary.position.y + (saved.relativeY ?? 40),
+              primary.position.y + primary.size.height - saved.height - 20
+            ));
           }
         } catch (e) {
           console.warn("[Widget Monitor Guard] Monitor fetch failed:", e);
@@ -443,7 +460,7 @@ export function WidgetApp() {
         }
 
         isAutoResizingRef.current = true;
-        await win.setPosition(new PhysicalPosition(saved.x, saved.y));
+        await win.setPosition(new PhysicalPosition(displayX, displayY));
         await win.setSize(new PhysicalSize(saved.width, saved.height));
         setTimeout(() => {
           isAutoResizingRef.current = false;
@@ -452,7 +469,32 @@ export function WidgetApp() {
         setIsPositionInitialized(true);
 
         let throttleTimer: any = null;
-        const lastPendingPositionRef = { x: saved.x, y: saved.y };
+        const lastPendingPositionRef = { x: displayX, y: displayY };
+
+        // ── Listen for monitor hardware reconnects ──
+        const { listen } = await import("@tauri-apps/api/event");
+        const unlistenMon = await listen("w://monitors-changed", async () => {
+          if (cleanup) return;
+          console.log("[WidgetApp] Received w://monitors-changed! Checking if target monitor reconnected...");
+          try {
+            const { availableMonitors } = await import("@tauri-apps/api/window");
+            const monitors = await availableMonitors();
+            const targetMon = saved.monitorName
+              ? monitors.find((m: any) => m.name === saved.monitorName)
+              : monitors.find((m: any) =>
+                  saved.x >= m.position.x && saved.x < (m.position.x + m.size.width - 100) &&
+                  saved.y >= m.position.y && saved.y < (m.position.y + m.size.height - 100)
+                );
+
+            if (targetMon && isFallbackPositionActive()) {
+              console.log(`[WidgetApp] Monitor ${targetMon.name} reconnected! Restoring widget to target position (${saved.x}, ${saved.y})`);
+              setFallbackPositionActive(false);
+              await win.setPosition(new PhysicalPosition(saved.x, saved.y));
+            }
+          } catch (err) {
+            console.error("[WidgetApp] Error handling monitors-changed:", err);
+          }
+        });
 
         const unlistenM = await win.onMoved(async (pos: any) => {
           if (cleanup) return;
@@ -466,11 +508,36 @@ export function WidgetApp() {
             throttleTimer = null;
             if (cleanup) return;
 
+            // User actively moved the widget: if they moved it while in fallback mode,
+            // this establishes a new intentional placement.
+            setFallbackPositionActive(false);
+
+            let monName: string | undefined = undefined;
+            let relX = pos.payload.x;
+            let relY = pos.payload.y;
+            let monLen = 1;
+
+            try {
+              const { availableMonitors, monitorFromPoint } = await import("@tauri-apps/api/window");
+              const monitors = await availableMonitors();
+              monLen = monitors.length;
+              const mon = await monitorFromPoint(pos.payload.x, pos.payload.y);
+              if (mon) {
+                monName = mon.name || undefined;
+                relX = pos.payload.x - mon.position.x;
+                relY = pos.payload.y - mon.position.y;
+              }
+            } catch {}
+
             saveWidgetPosition({
               x: lastPendingPositionRef.x,
               y: lastPendingPositionRef.y,
               width: currentSizeRef.current.width,
               height: currentSizeRef.current.height,
+              monitorName: monName,
+              relativeX: relX,
+              relativeY: relY,
+              totalMonitorsWhenSaved: monLen,
             });
           }, 500); // 500ms throttle — saves position without heavy IPC during drag
         });
@@ -484,11 +551,32 @@ export function WidgetApp() {
           currentSizeRef.current = { width: size.payload.width, height: size.payload.height };
 
           const pos = await win.outerPosition();
+          let monName: string | undefined = undefined;
+          let relX = pos.x;
+          let relY = pos.y;
+          let monLen = 1;
+
+          try {
+            const { availableMonitors, monitorFromPoint } = await import("@tauri-apps/api/window");
+            const monitors = await availableMonitors();
+            monLen = monitors.length;
+            const mon = await monitorFromPoint(pos.x, pos.y);
+            if (mon) {
+              monName = mon.name || undefined;
+              relX = pos.x - mon.position.x;
+              relY = pos.y - mon.position.y;
+            }
+          } catch {}
+
           saveWidgetPosition({
             x: pos.x,
             y: pos.y,
             width: size.payload.width,
             height: size.payload.height,
+            monitorName: monName,
+            relativeX: relX,
+            relativeY: relY,
+            totalMonitorsWhenSaved: monLen,
           });
         });
 
@@ -504,7 +592,7 @@ export function WidgetApp() {
           }, 2000);
         });
 
-        return [unlistenM, unlistenR, unlistenS];
+        return [unlistenMon, unlistenM, unlistenR, unlistenS];
       } catch {
         setIsPositionInitialized(true);
         return [];
@@ -540,7 +628,8 @@ export function WidgetApp() {
   }, []);
 
   const handleCreateTodoClick = useCallback(async (e: React.PointerEvent) => {
-    e.stopPropagation(); // Prevent widget drag behavior on button press
+    e.stopPropagation();
+    playMechanicalClick(); // Prevent widget drag behavior on button press
     console.log("Widget: handleCreateTodoClick triggered!");
     try {
        const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
@@ -611,14 +700,7 @@ export function WidgetApp() {
 
       <div className="widget-app__content" inert={isLocked ? true : undefined}>
         <div className="widget-app__left-panel">
-          <div className="widget-app__left-progress">
-            <ProgressCircle 
-              completedCount={completedCount}
-              totalScheduled={totalScheduled}
-              tiny
-            />
-          </div>
-          <div style={{ flex: 1, marginTop: '48px', marginBottom: '64px', width: '40px', display: 'flex', flexDirection: 'column' }}>
+          <div className="widget-app__left-tube-container">
             <SleepTube 
               isWidget
               settings={userDoc?.settings ? {
@@ -634,6 +716,17 @@ export function WidgetApp() {
             <div className="widget-app__header-left">
               <span className="widget-app__logo">[ W ]</span>
               <span className="widget-app__protocols-title">[ ACTIVE PROTOCOLS ]</span>
+              <div 
+                className="widget-app__header-progress" 
+                title={`${completedCount}/${totalScheduled} Completed`}
+              >
+                <ProgressCircle 
+                  completedCount={completedCount}
+                  totalScheduled={totalScheduled}
+                  tiny
+                  size={16}
+                />
+              </div>
             </div>
             <button
               className="widget-app__add-todo t-meta"

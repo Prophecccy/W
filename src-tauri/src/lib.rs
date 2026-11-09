@@ -21,7 +21,7 @@ static LAST_BOTTOM_PIN_MS: AtomicU64 = AtomicU64::new(0);
 
 /// Tracks the last Moved event timestamp (always updated, no debounce).
 /// Used by the Focused handler to detect if a drag is in progress.
-static LAST_MOVE_EVENT_MS: AtomicU64 = AtomicU64::new(0);
+pub static LAST_MOVE_EVENT_MS: AtomicU64 = AtomicU64::new(0);
 
 #[cfg(target_os = "windows")]
 pub fn get_hidden_owner() -> isize {
@@ -53,7 +53,7 @@ pub fn get_hidden_owner() -> isize {
 }
 
 /// Returns current time in milliseconds since UNIX epoch.
-fn now_ms() -> u64 {
+pub fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
@@ -347,7 +347,8 @@ pub fn run() {
                 })
                 .build(app)?;
 
-
+            // ── Desktop Z-Order Guard ──────────────────────────────────────
+            workerw::start_desktop_zorder_guard(app.handle().clone());
 
             Ok(())
         })
@@ -366,6 +367,7 @@ pub fn run() {
             lockdown::update_lockdown_blocklist,
             lockdown::test_lockdown_block,
             lockdown::kill_blocked_process,
+            lockdown::close_blocked_tab,
             lockdown::update_lockdown_remaining,
             allow_app_close,
             exit_app
@@ -420,6 +422,9 @@ pub fn run() {
                                     });
                                 }
                             }
+                        } else {
+                            // Immediately push to bottom when window loses focus
+                            let _ = workerw::pin_widget_bottom(window.app_handle().clone());
                         }
                     }
                     tauri::WindowEvent::Moved(_) => {

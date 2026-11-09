@@ -17,8 +17,12 @@ import {
   CheckCircle2,
   AlertOctagon,
   Sparkles,
+  Download,
+  Bot,
 } from "lucide-react";
 import { MANUAL_CHAPTERS, ManualChapter } from "../data/manualContent";
+import { exportManualForLLM } from "../services/manualExportService";
+import { useToast } from "../../../shared/components/Toast/Toast";
 import "./ManualPage.css";
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
@@ -35,9 +39,27 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: 
 };
 
 export function ManualPage() {
+  const { showToast } = useToast();
   const [activeChapterId, setActiveChapterId] = useState<string>("system-basics");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState<boolean>(false);
   const contentContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleDownloadLLMManual = async () => {
+    setIsExporting(true);
+    try {
+      const saved = await exportManualForLLM();
+      if (saved) {
+        showToast("[ MANUAL DOWNLOADED FOR LLM ]");
+      }
+    } catch (err) {
+      console.error("Failed to export LLM manual:", err);
+      showToast("[ EXPORT FAILED ]");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Filtered chapters & sections based on search query
   const searchResults = useMemo(() => {
@@ -76,6 +98,7 @@ export function ManualPage() {
 
   const handleSelectChapter = (chapterId: string, sectionId?: string) => {
     setActiveChapterId(chapterId);
+    setIsMobileNavOpen(false);
     if (sectionId) {
       setTimeout(() => {
         const el = document.getElementById(`section-${sectionId}`);
@@ -96,8 +119,26 @@ export function ManualPage() {
 
   return (
     <div className="manual-page">
+      {/* Mobile Backdrop Overlay */}
+      {isMobileNavOpen && (
+        <div
+          className="manual-page__backdrop"
+          onClick={() => setIsMobileNavOpen(false)}
+        />
+      )}
+
       {/* Left Sidebar: Chapters & Search */}
-      <aside className="manual-page__sidebar">
+      <aside className={`manual-page__sidebar ${isMobileNavOpen ? "manual-page__sidebar--open" : ""}`}>
+        <div className="manual-page__sidebar-mobile-header">
+          <span className="t-meta">[ FIELD MANUAL MODULES ]</span>
+          <button
+            className="manual-page__sidebar-close-btn"
+            onClick={() => setIsMobileNavOpen(false)}
+            aria-label="Close chapters menu"
+          >
+            <X size={15} />
+          </button>
+        </div>
         <div className="manual-page__search-container">
           <div className="manual-page__search-bar">
             <Search size={14} className="manual-page__search-icon" />
@@ -114,6 +155,26 @@ export function ManualPage() {
               </button>
             )}
           </div>
+        </div>
+
+        {/* LLM Knowledge Export Card */}
+        <div className="manual-page__llm-card">
+          <div className="manual-page__llm-card-header">
+            <Bot size={13} className="manual-page__llm-icon" />
+            <span className="manual-page__llm-card-title t-meta">[ LLM KNOWLEDGE EXPORT ]</span>
+          </div>
+          <p className="manual-page__llm-card-desc t-meta">
+            Export the manual as a pre-prompted text file. Feed it to ChatGPT, Claude, or Gemini to guide you on all features and workflows.
+          </p>
+          <button
+            className="manual-page__llm-download-btn t-meta"
+            onClick={handleDownloadLLMManual}
+            disabled={isExporting}
+            title="Download full manual (.txt) for LLM ingestion"
+          >
+            <Download size={12} />
+            <span>{isExporting ? "[ EXPORTING... ]" : "[ DOWNLOAD MANUAL .TXT ]"}</span>
+          </button>
         </div>
 
         <nav className="manual-page__nav">
@@ -192,10 +253,30 @@ export function ManualPage() {
         <div className="manual-page__article">
           {/* Chapter Header Banner */}
           <header className="manual-page__article-header">
-            <div className="manual-page__article-meta t-meta">
-              <span className="manual-page__badge">CHAPTER [{activeChapter.number}]</span>
-              <span className="manual-page__separator">/</span>
-              <span>TACTICAL DOCUMENTATION</span>
+            <div className="manual-page__header-top">
+              <button
+                className="manual-page__mobile-chapters-toggle t-meta"
+                onClick={() => setIsMobileNavOpen(true)}
+                title="Browse Field Manual Chapters"
+              >
+                <BookOpen size={13} />
+                <span>[ MODULES: {activeChapter.number} ]</span>
+              </button>
+              <div className="manual-page__article-meta t-meta">
+                <span className="manual-page__badge">CHAPTER [{activeChapter.number}]</span>
+                <span className="manual-page__separator">/</span>
+                <span>TACTICAL DOCUMENTATION</span>
+              </div>
+              <button
+                className="manual-page__header-export-btn t-meta"
+                onClick={handleDownloadLLMManual}
+                disabled={isExporting}
+                title="Download full manual (.txt) to feed into ChatGPT, Claude, or Gemini"
+              >
+                <Bot size={13} />
+                <span>{isExporting ? "[ EXPORTING... ]" : "[ EXPORT FOR LLM ]"}</span>
+                <Download size={12} />
+              </button>
             </div>
             <h1 className="manual-page__article-title t-display">
               {activeChapter.title}
@@ -309,7 +390,11 @@ export function ManualPage() {
               <div className="manual-page__footer-content">
                 <span className="manual-page__footer-title t-body">NEED FAST HELP WHILE WORKING?</span>
                 <p className="manual-page__footer-desc t-meta">
-                  Press <kbd className="manual-kbd">Ctrl</kbd> + <kbd className="manual-kbd">/</kbd> from anywhere in the app to return to this Field Manual, or press <kbd className="manual-kbd">Ctrl</kbd> + <kbd className="manual-kbd">K</kbd> to search commands.
+                  Press <kbd className="manual-kbd">Ctrl</kbd> + <kbd className="manual-kbd">/</kbd> from anywhere in the app to return to this Field Manual, or press <kbd className="manual-kbd">Ctrl</kbd> + <kbd className="manual-kbd">K</kbd> to search commands. You can also{" "}
+                  <button className="manual-page__footer-link t-meta" onClick={handleDownloadLLMManual} disabled={isExporting}>
+                    download the LLM guide (.txt)
+                  </button>{" "}
+                  to chat with an AI assistant about W.
                 </p>
               </div>
             </div>

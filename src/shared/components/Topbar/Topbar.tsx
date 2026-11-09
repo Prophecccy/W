@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Search, Minus, Square, X, Download, Snowflake, HelpCircle, ChevronDown, LayoutDashboard, Target, ListChecks, BookOpen, Settings } from "lucide-react";
+import { Search, Minus, Square, X, Download, Snowflake, HelpCircle, ChevronDown, LayoutDashboard, Target, ListChecks, BookOpen, Settings, Menu } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useUpdateManager } from "../../../features/updater/hooks/useUpdateManager";
 import "./Topbar.css";
@@ -13,6 +13,8 @@ import("@tauri-apps/api/window")
 interface TopbarProps {
   onCommandPaletteOpen: () => void;
   isFrozen?: boolean;
+  onToggleNavDrawer?: () => void;
+  isNavDrawerOpen?: boolean;
 }
 
 const TITLE_MAP: Record<string, string> = {
@@ -27,7 +29,12 @@ const TITLE_MAP: Record<string, string> = {
   "/manual": "[ MANUAL ]"
 };
 
-export function Topbar({ onCommandPaletteOpen, isFrozen = false }: TopbarProps) {
+export function Topbar({
+  onCommandPaletteOpen,
+  isFrozen = false,
+  onToggleNavDrawer,
+  isNavDrawerOpen = false,
+}: TopbarProps) {
   const { phase, startUpdate } = useUpdateManager();
   const location = useLocation();
   const navigate = useNavigate();
@@ -99,6 +106,17 @@ export function Topbar({ onCommandPaletteOpen, isFrozen = false }: TopbarProps) 
   return (
     <header className="topbar" onPointerDown={handleDrag}>
       <div className="topbar__left">
+        {onToggleNavDrawer && (
+          <button
+            className={`topbar__drawer-toggle-btn ${isNavDrawerOpen ? 'topbar__drawer-toggle-btn--active' : ''}`}
+            onClick={onToggleNavDrawer}
+            title={isNavDrawerOpen ? "Close navigation" : "Open navigation menu"}
+            type="button"
+            aria-label="Toggle navigation drawer"
+          >
+            <Menu size={16} strokeWidth={1.5} />
+          </button>
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <button
             className="topbar__search-btn"

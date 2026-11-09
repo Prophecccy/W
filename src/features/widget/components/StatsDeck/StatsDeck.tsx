@@ -24,23 +24,25 @@ export function StatsDeck({
     <div className="stats-deck">
       {/* Horizontal Stats Row */}
       <div className="stats-deck__stats-row">
-        <div className="stats-deck__stat-item">
+        <div className="stats-deck__stat-cell">
           <span className="stats-deck__stat-label">COMPLETED</span>
           <span className="stats-deck__stat-value t-data">{completedCount}</span>
         </div>
 
         <div className="stats-deck__stat-divider" />
 
-        <div className="stats-deck__stat-item">
+        <div className="stats-deck__stat-cell">
           <span className="stats-deck__stat-label">TOTAL</span>
           <span className="stats-deck__stat-value t-data">{totalScheduled}</span>
         </div>
 
         <div className="stats-deck__stat-divider" />
 
-        <div className="stats-deck__stat-item">
+        <div className="stats-deck__stat-cell">
           <span className="stats-deck__stat-label">PROGRESS</span>
-          <span className="stats-deck__stat-value t-data">{progressPercentage}%</span>
+          <span className="stats-deck__stat-value t-data">
+            {progressPercentage}%
+          </span>
         </div>
       </div>
 

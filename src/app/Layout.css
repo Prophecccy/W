@@ -4,29 +4,36 @@
   grid-template-rows: 44px 1fr;
   height: 100vh;
   height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
+  position: relative;
 }
 
 .layout__content {
   grid-column: 2;
   grid-row: 2;
-  padding: 24px 32px;
+  padding: clamp(16px, 2vw, 24px) clamp(20px, 2.5vw, 32px);
   overflow: hidden;
   height: calc(100vh - 44px);
   position: relative;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  min-height: 0;
 }
 
-@media (min-width: 769px) and (max-width: 900px) {
+/* ─── Tier 2: Medium / Restored Desktop (769px – 1024px) ────────── */
+@media (min-width: 769px) and (max-width: 1024px) {
   .layout {
     grid-template-columns: 64px 1fr;
   }
 
   .layout__content {
-    padding: 16px 20px;
+    padding: clamp(12px, 1.8vw, 18px) clamp(14px, 2vw, 22px);
   }
 }
 
+/* ─── Tier 3: Compact / Narrow (< 768px) ───────────────────────── */
 @media (max-width: 768px) {
   .layout {
     position: fixed;
@@ -34,6 +41,7 @@
     left: 0;
     right: 0;
     bottom: 0;
+    inset: 0;
     height: 100%;
     height: 100dvh;
     height: -webkit-fill-available;
@@ -50,11 +58,38 @@
     min-height: 0;
     height: auto;
     margin-top: 0;
-    padding: 12px 12px 16px 12px;
+    padding: 12px 14px 16px;
     width: 100%;
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none !important;
+  }
+
+  .layout__content::-webkit-scrollbar {
+    display: none !important;
   }
 }
+
+/* ─── Navigation Drawer Backdrop (< 768px) ─────────────────────── */
+.sidebar-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 999;
+  animation: drawerBackdropFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  cursor: pointer;
+}
+
+@keyframes drawerBackdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 

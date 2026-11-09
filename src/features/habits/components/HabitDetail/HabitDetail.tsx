@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { motion } from "framer-motion";
 import { Habit, HabitLog, HabitGroup } from "../../types";
 import { getLogRange } from "../../services/logService";
 import { getToday, subtractDays } from "../../../../shared/utils/dateUtils";
@@ -9,6 +10,8 @@ import { getGroups, createGroup } from "../../services/groupService";
 import { isHabitScheduledToday } from "../../utils/scheduleEngine";
 import { useUserStore } from "../../../../shared/stores/userStore";
 import { confirmDialog } from "../../../../shared/utils/tauri";
+import { SPRING_MODAL } from "../../../../shared/constants/motion";
+import { playMechanicalClick, playSubtleThud } from "../../../../shared/services/tactileAudioService";
 import "./HabitDetail.css";
 
 interface HabitDetailProps {
@@ -98,7 +101,7 @@ export function HabitDetail({
       } else {
         isCompleted = Boolean(entry?.completed || (hasActivity && isScheduled));
       }
-      cells.push({ date: d, isCompleted });
+      cells.push({ date: d, isCompleted, isScheduled });
     }
     return cells;
   }, [logs, habit, today, userDoc]);
@@ -168,6 +171,7 @@ export function HabitDetail({
         group: finalGroupId,
       });
       onUpdate(updated);
+      playMechanicalClick();
       showToast("[ HABIT UPDATED ]");
     } catch (err) {
       console.error("Failed to update habit:", err);
@@ -184,6 +188,7 @@ export function HabitDetail({
       const updates = await uncompleteHabit(habit.id, userResetTime);
       if (updates) {
         onUpdate({ ...habit, ...updates });
+        playSubtleThud();
         showToast("[ LOG COMPILATION UNDONE ]");
       } else {
         showToast("[ NOTHING TO UNDO ]");
@@ -203,6 +208,7 @@ export function HabitDetail({
     try {
       setIsSaving(true);
       await archiveHabit(habit.id);
+      playSubtleThud();
       showToast("[ ARCHIVED ]");
       onUpdate({ ...habit, isArchived: true });
       onClose();
@@ -214,11 +220,34 @@ export function HabitDetail({
   }
 
   return (
-    <div className="habit-detail-overlay" onClick={onClose}>
-      <div className="habit-detail-panel" onClick={(e) => e.stopPropagation()}>
+    <motion.div 
+      className="habit-detail-overlay" 
+      onClick={() => {
+        playSubtleThud();
+        onClose();
+      }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18, ease: "easeOut" }}
+    >
+      <motion.div 
+        className="habit-detail-panel" 
+        onClick={(e) => e.stopPropagation()}
+        initial={{ x: "100%", opacity: 0.6 }}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: "100%", opacity: 0 }}
+        transition={SPRING_MODAL}
+      >
         <div className="habit-detail__header">
           <h2 className="t-display">[ {habit.title.toUpperCase()} ]</h2>
-          <button className="habit-detail__close" onClick={onClose}>
+          <button 
+            className="habit-detail__close" 
+            onClick={() => {
+              playSubtleThud();
+              onClose();
+            }}
+          >
             <LucideIcon name="X" size={24} />
           </button>
         </div>
@@ -246,14 +275,31 @@ export function HabitDetail({
             <div className="habit-detail__heatmap-container">
               <span className="t-meta">LAST 28 DAYS</span>
               <div className="habit-detail__heatmap">
-                {heatmapCells.map((c) => (
-                  <div
-                    key={c.date}
-                    className={`heatmap-cell ${c.isCompleted ? "completed" : ""}`}
-                    style={{ backgroundColor: c.isCompleted ? habit.color : "transparent" }}
-                    title={`${c.date}: ${c.isCompleted ? "Completed" : "Missed"}`}
-                  />
-                ))}
+                {heatmapCells.map((c) => {
+                  let tooltip = `${c.date}: Completed`;
+                  let cellClass = "heatmap-cell";
+                  if (c.isCompleted) {
+                    cellClass += " completed";
+                  } else if (c.isScheduled) {
+                    cellClass += " missed";
+                    tooltip = `${c.date}: Missed`;
+                  } else {
+                    cellClass += " rest-day";
+                    tooltip = `${c.date}: Rest Day (Not Scheduled)`;
+                  }
+                  return (
+                    <div
+                      key={c.date}
+                      className={cellClass}
+                      style={{
+                        backgroundColor: c.isCompleted ? habit.color : "transparent",
+                        borderColor: !c.isScheduled && !c.isCompleted ? "rgba(255, 255, 255, 0.05)" : undefined,
+                        opacity: !c.isScheduled && !c.isCompleted ? 0.35 : 1,
+                      }}
+                      title={tooltip}
+                    />
+                  );
+                })}
               </div>
             </div>
 
@@ -365,7 +411,11 @@ export function HabitDetail({
               <div className="habit-detail__locked-props">
                 <div className="locked-prop">
                   <LucideIcon name="Lock" size={12} />
-                  <span className="t-meta">PERIOD: {habit.period.toUpperCase()}</span>
+                  <span className="t-meta">
+                    PERIOD: {habit.period === "specific_days"
+                      ? `SPECIFIC DAYS (${(habit.daysOfWeek || []).map((d: number) => ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][d]).join(", ")})`
+                      : habit.period.toUpperCase()}
+                  </span>
                 </div>
                 <div className="locked-prop">
                   <LucideIcon name="Lock" size={12} />
@@ -412,7 +462,7 @@ export function HabitDetail({
              </div>
           </section>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

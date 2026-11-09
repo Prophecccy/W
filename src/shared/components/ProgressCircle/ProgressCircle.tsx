@@ -27,7 +27,12 @@ export function ProgressCircle({
         style={{ width: defaultSize, height: defaultSize }}
       >
         <svg className="progress-circle__svg" width="100%" height="100%" viewBox="0 0 32 32">
-          {/* ONLY the accent-colored track is rendered for tiny progress track */}
+          <circle
+            cx="16" cy="16" r={radius}
+            fill="none"
+            stroke="rgba(255, 255, 255, 0.12)"
+            strokeWidth="3"
+          />
           <circle
             cx="16" cy="16" r={radius}
             fill="none"

@@ -11,6 +11,7 @@ import { isTauri } from "../utils/tauri";
 const REFRESH_TOKEN_KEY = "w_gdrive_refresh_token";
 const ACCESS_TOKEN_KEY = "w_gdrive_access_token";
 const EXPIRES_AT_KEY = "w_gdrive_expires_at";
+const USER_EMAIL_KEY = "w_gdrive_user_email";
 const FOLDER_CACHE_KEY = "w_gdrive_folder_cache";
 const TOKENS_FILE = "gdrive_session.json";
 
@@ -25,10 +26,11 @@ interface GDriveFolderCache {
   yearFolderIds: Record<string, string>;
 }
 
-interface OAuthSession {
+export interface OAuthSession {
   accessToken: string;
   refreshToken: string;
   expiresAt: number;
+  userEmail?: string | null;
 }
 
 let cachedSession: OAuthSession | null = null;
@@ -54,11 +56,13 @@ async function ensureSessionInitialized(): Promise<void> {
       const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
       const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
       const expiresAtStr = localStorage.getItem(EXPIRES_AT_KEY);
+      const userEmail = localStorage.getItem(USER_EMAIL_KEY);
       if (accessToken && expiresAtStr) {
         cachedSession = {
           accessToken,
           refreshToken: refreshToken || "",
           expiresAt: parseInt(expiresAtStr, 10),
+          userEmail: userEmail || null,
         };
         console.info("[GDrive Service] OAuth session loaded from localStorage fallback.");
       }
@@ -73,6 +77,11 @@ async function ensureSessionInitialized(): Promise<void> {
 async function getOAuthSession(): Promise<OAuthSession | null> {
   await ensureSessionInitialized();
   return cachedSession;
+}
+
+export async function getSessionUserEmail(): Promise<string | null> {
+  const session = await getOAuthSession();
+  return session?.userEmail || localStorage.getItem(USER_EMAIL_KEY) || null;
 }
 
 async function getFolderCache(): Promise<GDriveFolderCache> {
@@ -103,20 +112,30 @@ async function clearFolderCache(): Promise<void> {
 /**
  * Saves the OAuth tokens securely.
  */
-export async function saveOAuthTokens(accessToken: string, refreshToken: string, expiresIn: number): Promise<void> {
+export async function saveOAuthTokens(
+  accessToken: string,
+  refreshToken: string,
+  expiresIn: number,
+  userEmail?: string
+): Promise<void> {
   const expiresAt = Date.now() + expiresIn * 1000;
   
   const existingSession = await getOAuthSession();
   const finalRefreshToken = refreshToken || existingSession?.refreshToken || "";
+  const finalEmail = userEmail || existingSession?.userEmail || null;
 
   cachedSession = {
     accessToken,
     refreshToken: finalRefreshToken,
     expiresAt,
+    userEmail: finalEmail,
   };
   isSessionInitialized = true;
 
   localStorage.setItem("driveLinked", "true");
+  if (finalEmail) {
+    localStorage.setItem(USER_EMAIL_KEY, finalEmail);
+  }
 
   if (isTauri()) {
     try {
@@ -169,6 +188,7 @@ export async function clearOAuthTokens(): Promise<void> {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(EXPIRES_AT_KEY);
+    localStorage.removeItem(USER_EMAIL_KEY);
     console.info("[GDrive Service] OAuth session removed from localStorage fallback.");
   }
 

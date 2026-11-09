@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
   LayoutDashboard,
   Target,
@@ -6,7 +7,11 @@ import {
   BookOpen,
   Settings,
 } from "lucide-react";
+import { SPRING_TACTILE } from "../../constants/motion";
+import { playMechanicalClick } from "../../services/tactileAudioService";
 import "./MobileNav.css";
+
+const MotionNavLink = motion.create(NavLink);
 
 interface MobileNavProps {
   strikeCount?: number;
@@ -38,11 +43,14 @@ export function MobileNav({
   return (
     <nav className={`mobile-nav ${isFrozen ? "mobile-nav--frozen" : ""}`} aria-label="Mobile Navigation">
       {navItems.map((item) => (
-        <NavLink
+        <MotionNavLink
           key={item.to}
           to={isLocked ? "#" : item.to}
           end={item.to === "/"}
+          whileTap={isLocked ? undefined : { scale: 0.94 }}
+          transition={SPRING_TACTILE}
           onClick={(e) => {
+            playMechanicalClick();
             if (isLocked) {
               e.preventDefault();
             }
@@ -60,7 +68,7 @@ export function MobileNav({
             )}
           </div>
           <span>{item.label}</span>
-        </NavLink>
+        </MotionNavLink>
       ))}
     </nav>
   );

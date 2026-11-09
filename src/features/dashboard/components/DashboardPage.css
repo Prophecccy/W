@@ -35,9 +35,9 @@
   flex-grow: 1;
   display: grid;
   grid-template-columns: max-content 1fr 1fr 1fr;
-  gap: 32px;
+  gap: clamp(16px, 1.8vw, 32px);
   min-height: 0;
-  margin-bottom: 16px; /* Reduced margin */
+  margin-bottom: 16px;
 }
 
 .dashboard-column {
@@ -124,14 +124,14 @@
   }
 }
 
-@media (max-width: 1250px) {
+@media (max-width: 1199px) and (min-width: 920px) {
   .dashboard-page {
     padding: 0 16px 16px 16px;
   }
 
   .dashboard-grid {
     grid-template-columns: max-content 1fr 1fr;
-    gap: 20px;
+    gap: 16px;
   }
 
   .dashboard-grid > :nth-child(1) {
@@ -144,13 +144,15 @@
   }
 }
 
-.dashboard-mobile-tabs {
+.dashboard-mobile-tabs,
+.dashboard-mobile-stats {
   display: none;
 }
 
-@media (min-width: 769px) and (max-width: 950px) {
+@media (min-width: 769px) and (max-width: 919px) {
   .dashboard-page {
     overflow-y: auto;
+    padding: 0 16px 16px 16px;
   }
 
   .dashboard-page__content {
@@ -174,7 +176,7 @@
 
   .sleep-tube {
     min-height: 0 !important;
-    max-height: 280px !important;
+    max-height: clamp(200px, 35vh, 280px) !important;
   }
 
   .dashboard-grid > :nth-child(4) {
@@ -213,38 +215,105 @@
   }
 
   .dashboard-mobile-tab {
-    padding: 6px 12px;
+    padding: 7px 13px;
     font-family: var(--font-mono);
-    font-size: 9px;
-    letter-spacing: 1px;
+    font-size: 10px;
+    letter-spacing: 0.8px;
     text-transform: uppercase;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-default);
-    color: var(--text-muted);
-    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-secondary);
+    border-radius: 6px;
     white-space: nowrap;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .dashboard-mobile-tab:active {
+    transform: scale(0.96);
   }
 
   .dashboard-mobile-tab--active {
-    background: var(--bg-elevated);
+    background: rgba(var(--accent-rgb), 0.08);
     border-color: var(--accent);
     color: var(--accent);
-    font-weight: 600;
-    box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.2);
+    font-weight: 700;
+    box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.25);
+  }
+
+  /* ─── Mobile Telemetry Cluster (Ghost Elevation) ─── */
+  .dashboard-mobile-stats {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    margin-bottom: 8px;
+    width: 100%;
+  }
+
+  .dashboard-mobile-stats__cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 4px;
+  }
+
+  .dashboard-mobile-stats__label {
+    font-size: 8px;
+    letter-spacing: 2px;
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+  }
+
+  .dashboard-mobile-stats__value {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent);
+    text-shadow: var(--text-shadow-glow);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dashboard-mobile-stats__divider {
+    width: 1px;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
   }
 
   .dashboard-page {
-    padding: 0 4px 16px 4px;
+    padding: 0 4px 24px 4px;
+    height: 100%;
     overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none !important;
+  }
+
+  .dashboard-page::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .dashboard-page__content {
+    overflow: visible;
+    flex-grow: unset;
+    min-height: auto;
+    height: auto;
   }
 
   .dashboard-grid {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
+    min-height: auto;
+    flex-grow: unset;
+    height: auto;
   }
 
   .dashboard-column {
@@ -255,6 +324,9 @@
   .dashboard-list {
     gap: 12px;
     padding-right: 0;
+    overflow: visible;
+    height: auto;
+    flex-grow: unset;
   }
 
   .dashboard-column__header {
@@ -264,5 +336,11 @@
 
   .dashboard-column--mobile-hidden {
     display: none !important;
+  }
+
+  .dashboard-page__footer {
+    flex-shrink: 0;
+    margin-top: 20px;
+    margin-bottom: 16px;
   }
 }

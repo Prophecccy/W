@@ -18,12 +18,15 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 32px;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
 .habits-page__controls {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .habits-page__layout-toggle {
@@ -151,6 +154,16 @@
 }
 
 /* Form Modal Overlay */
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-content-in {
+  from { opacity: 0; transform: scale(0.96) translateY(-8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
 .habits-modal-overlay {
   position: fixed;
   top: 0;
@@ -158,12 +171,13 @@
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(8px);
   z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
+
 }
 
 .habits-modal-content {
@@ -178,6 +192,7 @@
   overflow-y: auto;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8);
   transition: max-width 0.3s ease, width 0.3s ease;
+
 }
 
 .habits-modal-content:has(.habit-form--wide) {
@@ -245,13 +260,24 @@
   }
 
   .habits-modal-overlay {
-    padding: 12px;
+    padding: 0;
+    align-items: flex-end;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
   }
 
   .habits-modal-content {
-    max-height: calc(100dvh - 24px);
+    max-height: 92dvh;
     width: 100%;
     margin: 0;
+    border-radius: 12px 12px 0 0;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom: none;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.8);
+    background: rgba(12, 13, 18, 0.95);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
   }
 
   .habits-modal-content:has(.habit-form--wide) {

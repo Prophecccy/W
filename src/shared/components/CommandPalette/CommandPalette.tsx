@@ -1,5 +1,8 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
+import { SPRING_MODAL, SPRING_LAYOUT } from "../../constants/motion";
+import { playMechanicalClick, playSubtleThud } from "../../services/tactileAudioService";
 import {
   LayoutDashboard,
   ListChecks,
@@ -9,7 +12,6 @@ import {
   Search,
   Plus,
   Target,
-  CheckCircle2,
   User,
   Palette,
   Monitor,
@@ -17,11 +19,14 @@ import {
   Bell,
   HardDrive,
   HelpCircle,
+  Trash2,
   type LucideIcon as LucideIconType,
 } from "lucide-react";
 import { LucideIcon } from "../IconPicker/LucideIcon";
 import type { Habit } from "../../../features/habits/types";
-import type { Todo } from "../../../features/todos/types";
+import type { Todo, TodoPriority } from "../../../features/todos/types";
+import { PRIORITY_CONFIG } from "../../../features/todos/types";
+import { parseNaturalCommand, ParsedCommand } from "../../utils/naturalLanguageParser";
 import "./CommandPalette.css";
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -45,6 +50,7 @@ interface CommandPaletteProps {
   onCompleteHabit?: (habitId: string) => void;
   onOpenNewHabit?: () => void;
   onOpenNewTodo?: () => void;
+  dailyResetTime?: string;
 }
 
 // ─── Category Labels ────────────────────────────────────────────
@@ -62,15 +68,127 @@ export function CommandPalette({
   onClose,
   habits = [],
   todos = [],
-  onCompleteHabit,
   onOpenNewHabit,
   onOpenNewTodo,
+  dailyResetTime,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [executing, setExecuting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // ── Direct Natural Language Action Execution ─────────────────
+  const handleExecuteDirectAction = useCallback(async (action: ParsedCommand) => {
+    if (executing) return;
+    setExecuting(true);
+
+    try {
+      if (action.type.startsWith("DELETE")) {
+        playSubtleThud();
+      } else {
+        playMechanicalClick();
+      }
+      switch (action.type) {
+        case "CREATE_TODO": {
+          const { createTodo } = await import("../../../features/todos/services/todoService");
+          const priorityKey: TodoPriority = action.priority || "p3";
+          const priorityColor = PRIORITY_CONFIG[priorityKey]?.color || "#5B8DEF";
+          await createTodo({
+            title: action.title,
+            description: "",
+            type: "standard",
+            priority: priorityKey,
+            color: priorityColor,
+            deadline: action.dueDate || null,
+            future: null,
+            group: null,
+            order: todos.length,
+          });
+          window.dispatchEvent(
+            new CustomEvent("w:toast", {
+              detail: `[ TODO CREATED ] - ${action.title}${action.dueDateLabel ? ` (${action.dueDateLabel})` : ""}`,
+            })
+          );
+          onClose();
+          break;
+        }
+
+        case "DELETE_TODO": {
+          if (!action.targetTodo) return;
+          const { deleteTodo } = await import("../../../features/todos/services/todoService");
+          await deleteTodo(action.targetTodo.id);
+          window.dispatchEvent(
+            new CustomEvent("w:toast", {
+              detail: `[ TODO DELETED ] - ${action.targetTodo.title}`,
+            })
+          );
+          onClose();
+          break;
+        }
+
+        case "CREATE_HABIT": {
+          const { createHabit } = await import("../../../features/habits/services/habitService");
+          const { getToday } = await import("../../utils/dateUtils");
+          await createHabit({
+            title: action.title,
+            description: "",
+            period: action.period || "daily",
+            type: "standard",
+            frequency: 1,
+            daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+            intervalDays: 2,
+            lastCompletedDate: null,
+            startDate: getToday(undefined, dailyResetTime),
+            metric: null,
+            duration: { type: "continuing" },
+            level: 0,
+            totalCompletions: 0,
+            levelProgress: 0,
+            currentStreak: 0,
+            longestStreak: 0,
+            order: habits.length,
+            group: null,
+            icon: "Target",
+            color: "#5B8DEF",
+            isActive: true,
+            archivedAt: null,
+            createdAt: Date.now(),
+          });
+          window.dispatchEvent(
+            new CustomEvent("w:toast", {
+              detail: `[ HABIT CREATED ] - ${action.title} (${(action.period || "daily").toUpperCase()})`,
+            })
+          );
+          onClose();
+          break;
+        }
+
+        case "DELETE_HABIT": {
+          if (!action.targetHabit) return;
+          const { deleteHabit } = await import("../../../features/habits/services/habitService");
+          await deleteHabit(action.targetHabit.id);
+          window.dispatchEvent(
+            new CustomEvent("w:toast", {
+              detail: `[ HABIT DELETED ] - ${action.targetHabit.title}`,
+            })
+          );
+          onClose();
+          break;
+        }
+      }
+    } catch (err: any) {
+      console.error("[CommandPalette] Direct action error:", err);
+      window.dispatchEvent(
+        new CustomEvent("w:toast", {
+          detail: `[ ACTION FAILED ] - ${err?.message || "Unknown error"}`,
+        })
+      );
+    } finally {
+      setExecuting(false);
+    }
+  }, [executing, habits.length, todos.length, dailyResetTime, onClose]);
 
   // ── Build item list ──────────────────────────────────────────
   const items: CommandItem[] = useMemo(() => {
@@ -240,19 +358,6 @@ export function CommandPalette({
         },
         keywords: ["detailed", h.title.toLowerCase()],
       });
-
-      // Complete action (only if callback provided)
-      if (onCompleteHabit) {
-        list.push({
-          id: `complete-habit-${h.id}`,
-          label: `Complete ${h.title}`,
-          icon: CheckCircle2,
-          category: "actions",
-          accent: h.color,
-          action: () => { onCompleteHabit(h.id); onClose(); },
-          keywords: ["complete", "finish", "done", h.title.toLowerCase()],
-        });
-      }
     });
 
     // Todos (searchable)
@@ -272,7 +377,7 @@ export function CommandPalette({
     });
 
     return list;
-  }, [navigate, onClose, habits, todos, onCompleteHabit, onOpenNewHabit, onOpenNewTodo, location.pathname]);
+  }, [navigate, onClose, habits, todos, onOpenNewHabit, onOpenNewTodo, location.pathname]);
 
   // ── Filter ───────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -300,6 +405,35 @@ export function CommandPalette({
     );
   }, [query, items]);
 
+  // ── Natural Language Direct Action ────────────────────────────
+  const parsedAction = useMemo(() => {
+    return parseNaturalCommand(query, habits, todos);
+  }, [query, habits, todos]);
+
+  const directActionItem: CommandItem | null = useMemo(() => {
+    if (!parsedAction) return null;
+    let icon = Plus;
+    let category: CommandCategory = "actions";
+    let accent = "#5B8DEF";
+
+    if (parsedAction.type.startsWith("DELETE")) {
+      icon = Trash2;
+      accent = "#ff4d4d";
+    } else if (parsedAction.priority && PRIORITY_CONFIG[parsedAction.priority]) {
+      accent = PRIORITY_CONFIG[parsedAction.priority].color;
+    }
+
+    return {
+      id: "direct-action-item",
+      label: parsedAction.badgeText,
+      icon,
+      category,
+      accent,
+      action: () => handleExecuteDirectAction(parsedAction),
+      keywords: [],
+    };
+  }, [parsedAction, handleExecuteDirectAction]);
+
   // ── Group by category ────────────────────────────────────────
   const grouped = useMemo(() => {
     const groups: { category: CommandCategory; items: CommandItem[] }[] = [];
@@ -313,7 +447,13 @@ export function CommandPalette({
   }, [filtered]);
 
   // Flattened for keyboard navigation
-  const flatFiltered = useMemo(() => grouped.flatMap((g) => g.items), [grouped]);
+  const flatFiltered = useMemo(() => {
+    const regular = grouped.flatMap((g) => g.items);
+    if (directActionItem) {
+      return [directActionItem, ...regular];
+    }
+    return regular;
+  }, [grouped, directActionItem]);
 
   // ── Focus ────────────────────────────────────────────────────
   useEffect(() => {
@@ -332,6 +472,7 @@ export function CommandPalette({
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
         if (flatFiltered.length > 0) {
+          playMechanicalClick();
           setSelectedIndex((i) => {
             const current = isNaN(i) ? 0 : i;
             return (current + 1) % flatFiltered.length;
@@ -340,6 +481,7 @@ export function CommandPalette({
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         if (flatFiltered.length > 0) {
+          playMechanicalClick();
           setSelectedIndex((i) => {
             const current = isNaN(i) ? 0 : i;
             return (current - 1 + flatFiltered.length) % flatFiltered.length;
@@ -348,6 +490,7 @@ export function CommandPalette({
       } else if (e.key === "Enter") {
         e.preventDefault();
         if (flatFiltered.length > 0 && !isNaN(selectedIndex)) {
+          playMechanicalClick();
           flatFiltered[selectedIndex]?.action();
         }
       }
@@ -357,13 +500,25 @@ export function CommandPalette({
   }, [onClose, flatFiltered, selectedIndex]);
 
   // ── Render ───────────────────────────────────────────────────
-  let runningIndex = 0;
+  let runningIndex = parsedAction ? 1 : 0;
 
   return (
-    <div className="command-palette__backdrop" onClick={onClose}>
-      <div
+    <motion.div 
+      className="command-palette__backdrop" 
+      onClick={onClose}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15, ease: "easeOut" }}
+    >
+      <motion.div
+        layout
         className="command-palette"
         onClick={(e) => e.stopPropagation()}
+        initial={{ opacity: 0, scale: 0.96, y: -16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: -8 }}
+        transition={SPRING_MODAL}
       >
         <div className="command-palette__input-row">
           <Search size={14} strokeWidth={1.5} />
@@ -371,12 +526,51 @@ export function CommandPalette({
             ref={inputRef}
             className="command-palette__input t-body"
             type="text"
-            placeholder="Search pages, habits, todos..."
+            placeholder="Search or type: 'new todo...', 'new habit...', 'delete task'..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
         <div className="command-palette__results">
+          {parsedAction && (
+            <button
+              className={`command-palette__direct-action t-body${
+                selectedIndex === 0 ? " command-palette__direct-action--selected" : ""
+              }${
+                parsedAction.type.startsWith("DELETE")
+                  ? " command-palette__direct-action--delete"
+                  : ""
+              }`}
+              onClick={() => handleExecuteDirectAction(parsedAction)}
+              onMouseEnter={() => setSelectedIndex(0)}
+            >
+              {parsedAction.type.startsWith("DELETE") ? (
+                <Trash2 size={16} strokeWidth={1.5} style={{ color: "#ff4d4d" }} />
+              ) : (
+                <Plus size={16} strokeWidth={1.5} style={{ color: "#5B8DEF" }} />
+              )}
+              <div className="command-palette__direct-action-info">
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span
+                    className="command-palette__direct-badge"
+                    style={{
+                      color: parsedAction.type.startsWith("DELETE")
+                        ? "#ff4d4d"
+                        : "#5B8DEF",
+                    }}
+                  >
+                    [ {parsedAction.badgeText} ]
+                  </span>
+                  <span className="command-palette__direct-title">{parsedAction.title}</span>
+                </div>
+                {parsedAction.detailsHint && (
+                  <span className="command-palette__direct-hint">{parsedAction.detailsHint}</span>
+                )}
+              </div>
+              <span className="command-palette__item-shortcut t-meta">[ ENTER TO EXECUTE ]</span>
+            </button>
+          )}
+
           {flatFiltered.length === 0 ? (
             <div className="command-palette__empty t-meta">NO RESULTS</div>
           ) : (
@@ -394,24 +588,34 @@ export function CommandPalette({
                         className={`command-palette__item t-body${
                           idx === selectedIndex ? " command-palette__item--selected" : ""
                         }`}
-                        onClick={item.action}
+                        onClick={() => {
+                          playMechanicalClick();
+                          item.action();
+                        }}
                         onMouseEnter={() => setSelectedIndex(idx)}
                       >
+                        {idx === selectedIndex && (
+                          <motion.div
+                            layoutId="cmd-palette-active-pill"
+                            className="command-palette__item-active-bg"
+                            transition={SPRING_LAYOUT}
+                          />
+                        )}
                         {item.iconIsDynamic ? (
                           <LucideIcon
                             name={item.icon as string}
                             size={14}
-                            style={item.accent ? { color: item.accent } : undefined}
+                            style={item.accent ? { color: item.accent, position: "relative", zIndex: 1 } : { position: "relative", zIndex: 1 }}
                           />
                         ) : (
                           (() => {
                             const Icon = item.icon as LucideIconType;
-                            return <Icon size={14} strokeWidth={1.5} style={item.accent ? { color: item.accent } : undefined} />;
+                            return <Icon size={14} strokeWidth={1.5} style={item.accent ? { color: item.accent, position: "relative", zIndex: 1 } : { position: "relative", zIndex: 1 }} />;
                           })()
                         )}
-                        <span className="command-palette__item-text">{item.label}</span>
+                        <span className="command-palette__item-text" style={{ position: "relative", zIndex: 1 }}>{item.label}</span>
                         {idx === selectedIndex && (
-                          <span className="command-palette__item-shortcut t-meta">[ ENTER ]</span>
+                          <span className="command-palette__item-shortcut t-meta" style={{ position: "relative", zIndex: 1 }}>[ ENTER ]</span>
                         )}
                       </button>
                     );
@@ -422,7 +626,7 @@ export function CommandPalette({
             })
           )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

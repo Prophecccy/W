@@ -2,6 +2,8 @@ import { useState, useRef, useCallback, PointerEvent, useEffect } from 'react';
 import { Habit, CompletionEntry } from '../../../habits/types';
 import { Check } from 'lucide-react';
 import { LucideIcon } from '../../../../shared/components/IconPicker/LucideIcon';
+import { useSpotlightBorder } from '../../../../shared/hooks/useSpotlightBorder';
+import { playMechanicalClick, playSubtleThud } from '../../../../shared/services/tactileAudioService';
 import './WidgetHabitCard.css';
 
 interface WidgetHabitCardProps {
@@ -32,6 +34,7 @@ export function WidgetHabitCard({
   const undoTimeoutRef = useRef<number | null>(null);
   const pointerStartCoordsRef = useRef<{ x: number; y: number } | null>(null);
   const hasHeldRef = useRef(false);
+  const spotlight = useSpotlightBorder<HTMLDivElement>();
 
   const HOLD_DURATION = 500;
   const UNDO_DURATION = 8000;
@@ -68,6 +71,7 @@ export function WidgetHabitCard({
   const handleUndo = useCallback((e: PointerEvent<HTMLSpanElement>) => {
     e.stopPropagation();
     if (disabled) return;
+    playSubtleThud();
     if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
     onUndo(habit.id);
     // Let the reactive useEffect manage justCompleted based on remaining completions!
@@ -104,6 +108,7 @@ export function WidgetHabitCard({
       setJustCompleted(true);
       hasHeldRef.current = true;
 
+      playMechanicalClick();
       // HOLD action: complete remaining target
       if (isMetricLike && habit.metric) {
         const target = habit.metric.targetValue ?? 1;
@@ -145,6 +150,7 @@ export function WidgetHabitCard({
     if (isHolding && holdTimeoutRef.current && !hasHeldRef.current) {
       // Short click/tap detection
       if (isMetricLike) {
+        playMechanicalClick();
         onComplete(habit.id, 1);
         setJustCompleted(true);
         if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
@@ -157,13 +163,19 @@ export function WidgetHabitCard({
   }, [isHolding, habit.id, habit.type, onComplete, cancelHold, disabled]);
 
   const handlePointerMove = useCallback((e: PointerEvent<HTMLDivElement>) => {
+    spotlight.onPointerMove(e);
     if (!isHolding || !pointerStartCoordsRef.current) return;
     const deltaX = Math.abs(e.clientX - pointerStartCoordsRef.current.x);
     const deltaY = Math.abs(e.clientY - pointerStartCoordsRef.current.y);
     if (deltaX > 15 || deltaY > 15) { // Align threshold to 15px
       cancelHold();
     }
-  }, [isHolding, cancelHold]);
+  }, [isHolding, cancelHold, spotlight]);
+
+  const handlePointerLeave = useCallback((e: PointerEvent<HTMLDivElement>) => {
+    spotlight.onPointerLeave(e);
+    cancelHold();
+  }, [cancelHold, spotlight]);
 
   const isCompleted = isCompletedToday || justCompleted;
   const isLimiter = habit.type === 'limiter';
@@ -182,7 +194,8 @@ export function WidgetHabitCard({
       onPointerDown={startHold}
       onPointerUp={handlePointerUp}
       onPointerMove={handlePointerMove}
-      onPointerLeave={cancelHold}
+      onPointerEnter={spotlight.onPointerEnter}
+      onPointerLeave={handlePointerLeave}
       onPointerCancel={cancelHold}
     >
       {/* Hold fill animation */}

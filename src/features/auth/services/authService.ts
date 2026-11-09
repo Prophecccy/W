@@ -132,8 +132,8 @@ export async function processGoogleOAuthToken(
   _idToken?: string
 ): Promise<LocalUser> {
   const expiresInSeconds = expiresIn && !isNaN(expiresIn) ? expiresIn : 3600;
-  await saveOAuthTokens(accessToken, refreshToken || "", expiresInSeconds);
 
+  // 1. Fetch user identity from Google
   const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -141,17 +141,31 @@ export async function processGoogleOAuthToken(
     throw new Error(`Failed to fetch user info from Google (HTTP ${userInfoRes.status})`);
   }
   const userInfo = await userInfoRes.json();
+  const email = userInfo.email || null;
 
-  try {
-    const { pullAndMergeFromGoogleDrive } = await import("../../../shared/services/localDb");
-    await pullAndMergeFromGoogleDrive(true);
-  } catch (syncErr) {
-    console.warn("[Auth] Initial pull from Google Drive failed:", syncErr);
+  // 2. Identity Guard: Detect account switch and prevent cross-account data bleed
+  const existingUserStr = localStorage.getItem("w_auth_user");
+  if (existingUserStr) {
+    try {
+      const existingUser = JSON.parse(existingUserStr);
+      if (existingUser?.email && email && existingUser.email.toLowerCase() !== email.toLowerCase()) {
+        console.warn(`[Auth] Account switch detected: Previous was '${existingUser.email}', now logging in as '${email}'. Purging local cache.`);
+        try {
+          const { clear: idbClear } = await import("idb-keyval");
+          await idbClear();
+        } catch (clearErr) {
+          console.error("[Auth] Failed to purge IDB cache on account switch:", clearErr);
+        }
+      }
+    } catch {
+      // ignore parse error
+    }
   }
 
+  // 3. Establish LocalUser representation
   const mockUser: LocalUser = {
     uid: userInfo.sub,
-    email: userInfo.email || null,
+    email: email,
     displayName: userInfo.name || null,
     photoURL: userInfo.picture || null,
     metadata: {
@@ -162,8 +176,20 @@ export async function processGoogleOAuthToken(
   };
 
   localStorage.setItem("w_auth_user", JSON.stringify(mockUser));
+
+  // 4. Save OAuth tokens pinned to user email
+  await saveOAuthTokens(accessToken, refreshToken || "", expiresInSeconds, email || undefined);
   window.dispatchEvent(new CustomEvent("w:gdrive-linked"));
   triggerAuthChange();
+
+  // 5. Initial pull from user's sovereign Google Drive container
+  try {
+    const { pullAndMergeFromGoogleDrive } = await import("../../../shared/services/localDb");
+    await pullAndMergeFromGoogleDrive(true);
+  } catch (syncErr) {
+    console.warn("[Auth] Initial pull from Google Drive failed:", syncErr);
+  }
+
   return mockUser;
 }
 

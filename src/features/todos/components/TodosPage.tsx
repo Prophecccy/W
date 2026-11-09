@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useOutletContext } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
+import { SPRING_MODAL } from "../../../shared/constants/motion";
 import { Todo } from "../types";
 import { HabitGroup } from "../../habits/types";
 import { getTodos, getCompletedTodos, completeTodo, completeNumberedTodoFull, incrementNumberedTodo, deleteTodo } from "../services/todoService";
@@ -253,22 +255,7 @@ export function TodosPage() {
   const currentTodos = activeTodos.filter(t => !t.future || t.future <= today);
   const futureTodos = activeTodos.filter(t => t.future && t.future > today);
 
-  if (isFormOpen) {
-    return (
-      <div className="todos-page" style={{ height: "100%", overflowY: "auto" }}>
-         <TodoForm 
-            groups={groups} 
-            onClose={() => {
-              setIsFormOpen(false);
-              setTodoToEdit(undefined);
-            }} 
-            onSuccess={() => loadData(true)} 
-            dailyResetTime={userDoc?.settings?.dailyResetTime}
-            todoToEdit={todoToEdit}
-          />
-       </div>
-     );
-  }
+
 
   return (
     <div className="todos-page" style={{ 
@@ -337,19 +324,21 @@ export function TodosPage() {
               <div style={{ maxWidth: "800px", margin: "0 auto", width: "100%", display: "flex", flexDirection: "column" }}>
                 <section style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                   {layoutMode === "default" ? (
-                    currentTodos.map(todo => (
-                      <TodoCard 
-                        key={todo.id} 
-                        todo={todo} 
-                        onComplete={() => handleComplete(todo.id)}
-                        onClick={() => handleCardClick(todo.id)}
-                        onDelete={() => handleDelete(todo.id)}
-                        onEdit={() => handleEdit(todo)}
-                        onToggleExpand={() => setExpandedTodoIds(prev => ({ ...prev, [todo.id]: !prev[todo.id] }))}
-                        expanded={!!expandedTodoIds[todo.id]}
-                        dailyResetTime={userDoc?.settings?.dailyResetTime}
-                      />
-                    ))
+                    <AnimatePresence mode="popLayout" initial={false}>
+                      {currentTodos.map(todo => (
+                        <TodoCard 
+                          key={todo.id} 
+                          todo={todo} 
+                          onComplete={() => handleComplete(todo.id)}
+                          onClick={() => handleCardClick(todo.id)}
+                          onDelete={() => handleDelete(todo.id)}
+                          onEdit={() => handleEdit(todo)}
+                          onToggleExpand={() => setExpandedTodoIds(prev => ({ ...prev, [todo.id]: !prev[todo.id] }))}
+                          expanded={!!expandedTodoIds[todo.id]}
+                          dailyResetTime={userDoc?.settings?.dailyResetTime}
+                        />
+                      ))}
+                    </AnimatePresence>
                   ) : (
                     <div className="habits-grouped">
                       {groups.map(g => {
@@ -358,6 +347,7 @@ export function TodosPage() {
                         return (
                           <HabitGroupHeader key={g.id} title={g.name} count={groupTodos.length}>
                             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                              <AnimatePresence mode="popLayout" initial={false}>
                                {groupTodos.map(todo => (
                                 <TodoCard 
                                   key={todo.id} 
@@ -371,6 +361,7 @@ export function TodosPage() {
                                   dailyResetTime={userDoc?.settings?.dailyResetTime}
                                 />
                               ))}
+                              </AnimatePresence>
                             </div>
                           </HabitGroupHeader>
                         );
@@ -381,6 +372,7 @@ export function TodosPage() {
                          return (
                             <HabitGroupHeader title="UNGROUPED" count={ungrouped.length}>
                               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                                <AnimatePresence mode="popLayout" initial={false}>
                                  {ungrouped.map(todo => (
                                   <TodoCard 
                                     key={todo.id} 
@@ -394,6 +386,7 @@ export function TodosPage() {
                                     dailyResetTime={userDoc?.settings?.dailyResetTime}
                                   />
                                 ))}
+                                </AnimatePresence>
                               </div>
                             </HabitGroupHeader>
                          )
@@ -407,6 +400,7 @@ export function TodosPage() {
                     <section>
                        <h2 className="t-label" style={{ color: "var(--text-muted)", marginBottom: "16px" }}>[ UPCOMING ]</h2>
                        <div style={{ display: "flex", flexDirection: "column", gap: "12px", opacity: 0.6 }}>
+                         <AnimatePresence mode="popLayout" initial={false}>
                          {futureTodos.map(todo => (
                            <TodoCard 
                              key={todo.id} 
@@ -420,6 +414,7 @@ export function TodosPage() {
                              dailyResetTime={userDoc?.settings?.dailyResetTime}
                            />
                          ))}
+                         </AnimatePresence>
                        </div>
                     </section>
                   )}
@@ -461,13 +456,67 @@ export function TodosPage() {
         )}
       </div>
 
-      {isGroupManagerOpen && (
-        <div className="habits-modal-overlay" onClick={() => setIsGroupManagerOpen(false)}>
-          <div className="habits-modal-content" onClick={e => e.stopPropagation()}>
-            <GroupManager onClose={() => setIsGroupManagerOpen(false)} />
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {isFormOpen && (
+          <motion.div 
+            className="habits-modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={() => {
+              setIsFormOpen(false);
+              setTodoToEdit(undefined);
+            }}
+          >
+            <motion.div 
+              className="habits-modal-content"
+              style={{ maxWidth: "680px", width: "100%", padding: 0, background: "transparent", border: "none", boxShadow: "none" }}
+              initial={{ scale: 0.95, y: -10, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.96, y: -8, opacity: 0 }}
+              transition={SPRING_MODAL}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <TodoForm 
+                groups={groups} 
+                onClose={() => {
+                  setIsFormOpen(false);
+                  setTodoToEdit(undefined);
+                }} 
+                onSuccess={() => loadData(true)} 
+                dailyResetTime={userDoc?.settings?.dailyResetTime}
+                todoToEdit={todoToEdit}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isGroupManagerOpen && (
+          <motion.div 
+            className="habits-modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={() => setIsGroupManagerOpen(false)}
+          >
+            <motion.div 
+              className="habits-modal-content"
+              style={{ padding: "24px", background: "var(--bg-elevated)", borderRadius: "8px", maxWidth: "600px", width: "100%", maxHeight: "90vh", overflowY: "auto", border: "1px solid var(--border-subtle)" }}
+              initial={{ scale: 0.95, y: -10, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.96, y: -8, opacity: 0 }}
+              transition={SPRING_MODAL}
+              onClick={e => e.stopPropagation()}
+            >
+              <GroupManager onClose={() => setIsGroupManagerOpen(false)} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {showUndoToast && undoTodo && (
         <div className="habits-undo-toast" style={{

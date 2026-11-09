@@ -52,10 +52,66 @@
 
 .sleep-tube__fill {
   width: 100%;
-  background: var(--accent);
-  transition: height 0.6s cubic-bezier(0.19, 1, 0.22, 1), background-color 0.5s ease;
-  box-shadow: 0 0 10px var(--accent);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.45) 0%,
+    var(--accent) 6%,
+    var(--accent) 100%
+  );
+  position: relative;
+  transition: height 0.8s var(--ease-out-expo), width 0.8s var(--ease-out-expo), background-color 0.5s ease;
+  box-shadow: 0 0 14px var(--accent);
   border-radius: 2px;
+  animation: fuel-glow-pulse 4s ease-in-out infinite alternate;
+  overflow: visible;
+}
+
+.sleep-tube__fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    transparent 30%,
+    rgba(0, 0, 0, 0.2) 100%
+  );
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Living liquid meniscus wave */
+.sleep-tube__meniscus {
+  position: absolute;
+  top: 0;
+  left: -1px;
+  right: -1px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 8px #ffffff, 0 0 16px var(--accent);
+  border-radius: 2px 2px 0 0;
+  z-index: 2;
+  animation: meniscus-breathe 3s ease-in-out infinite alternate;
+}
+
+@keyframes meniscus-breathe {
+  0% {
+    opacity: 0.8;
+    box-shadow: 0 0 6px #ffffff, 0 0 12px var(--accent);
+  }
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 10px #ffffff, 0 0 22px var(--accent);
+  }
+}
+
+@keyframes fuel-glow-pulse {
+  0% {
+    box-shadow: 0 0 8px var(--accent);
+  }
+  100% {
+    box-shadow: 0 0 16px var(--accent), 0 0 4px rgba(255, 255, 255, 0.5);
+  }
 }
 
 .sleep-tube__fill.is-sleeping {
@@ -88,17 +144,43 @@
 
 /* ─── Widget Specific ─── */
 .sleep-tube--widget {
-  padding-right: 28px; /* Tighter padding for widget */
+  height: 100%;
+  min-height: unset;
+  padding-right: 26px; /* Space for marker text */
   gap: 8px;
-  max-height: none; /* Allows the tube height to scale dynamically with widget size */
+  max-height: none;
 }
 
 .sleep-tube--widget .sleep-tube__track {
-  width: 14px; /* Slimmer track */
+  width: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.6);
+  position: relative;
+}
+
+.sleep-tube--widget .sleep-tube__track.is-empty {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Ambient resting base indicator at 0% / sleeping state */
+.sleep-tube--widget .sleep-tube__track.is-empty::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent);
+  opacity: 0.45;
+  box-shadow: 0 0 8px var(--accent);
+  border-radius: 0 0 3px 3px;
 }
 
 .sleep-tube--widget .sleep-tube__marker {
-  width: 24px;
+  width: 22px;
 }
 
 .sleep-tube--widget .sleep-tube__marker span {
@@ -109,7 +191,16 @@
   font-size: 8px;
   line-height: 8px;
   height: 8px;
-  margin-left: 12px;
+  margin-left: 0;
+  text-align: center;
+}
+
+.sleep-tube__label-text--mobile {
+  display: none;
+}
+
+.sleep-tube__label-text--desktop {
+  display: inline;
 }
 
 .sleep-tube__mobile-percent {
@@ -117,6 +208,14 @@
 }
 
 @media (max-width: 768px) {
+  .sleep-tube__label-text--desktop {
+    display: none;
+  }
+
+  .sleep-tube__label-text--mobile {
+    display: inline;
+  }
+
   .sleep-tube:not(.sleep-tube--widget) {
     flex-direction: row;
     align-items: center;
@@ -126,20 +225,21 @@
     max-height: none !important;
     height: auto !important;
     padding: 10px 14px;
-    background: rgba(14, 15, 18, 0.85);
-    border: 1px solid var(--border-default);
-    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-card, 8px);
     margin-bottom: 12px;
     gap: 12px;
     padding-right: 14px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    box-shadow: none;
   }
 
   .sleep-tube:not(.sleep-tube--widget) .sleep-tube__label {
-    font-size: 8px;
-    letter-spacing: 1.5px;
+    font-size: 9px;
+    letter-spacing: 2px;
     white-space: nowrap;
     flex-shrink: 0;
+    color: var(--text-muted);
   }
 
   .sleep-tube:not(.sleep-tube--widget) .sleep-tube__track {
@@ -148,15 +248,34 @@
     width: 100%;
     flex-grow: 1;
     justify-content: flex-start;
-    border-radius: 5px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.6);
+    position: relative;
     overflow: hidden;
+  }
+
+  .sleep-tube:not(.sleep-tube--widget) .sleep-tube__track.is-empty::after,
+  .sleep-tube:not(.sleep-tube--widget) .sleep-tube__track.is-sleeping::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--accent);
+    opacity: 0.55;
+    box-shadow: 0 0 8px var(--accent);
+    border-radius: 3px 0 0 3px;
   }
 
   .sleep-tube:not(.sleep-tube--widget) .sleep-tube__fill {
     height: 100% !important;
     width: var(--fill-level, 0%) !important;
     box-shadow: 0 0 10px var(--accent);
-    border-radius: 5px;
+    border-radius: 3px;
+    background: var(--accent);
   }
 
   .sleep-tube:not(.sleep-tube--widget) .sleep-tube__marker {
@@ -172,9 +291,11 @@
     display: block;
     font-family: var(--font-mono);
     font-size: 11px;
+    font-variant-numeric: tabular-nums;
     color: var(--accent);
-    font-weight: bold;
+    font-weight: 700;
     flex-shrink: 0;
+    letter-spacing: 0.5px;
     text-shadow: 0 0 8px var(--accent);
   }
 }

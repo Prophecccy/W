@@ -10,7 +10,8 @@
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
   width: 100%;
   padding: 0 24px;
   margin-bottom: 24px;

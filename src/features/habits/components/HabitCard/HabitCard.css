@@ -1,10 +1,10 @@
 .habit-card {
   --card-accent: var(--accent); /* Overriden via style tag for limiters/custom colors */
-  background: rgba(12, 13, 15, 0.75);
+  background: rgba(18, 18, 26, 0.7);
   backdrop-filter: blur(12px) saturate(120%);
   -webkit-backdrop-filter: blur(12px) saturate(120%);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
+  border-radius: var(--radius-card, 8px);
   min-height: 80px;
   position: relative;
   display: flex;
@@ -14,26 +14,55 @@
   cursor: pointer;
   user-select: none;
   touch-action: pan-y;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.7);
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), 
-              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), 
-              filter 0.2s ease;
+  box-shadow: none;
+  transition: background 0.15s var(--ease-out-expo), 
+              border-color 0.15s var(--ease-out-expo), 
+              opacity 0.2s ease;
 }
-
-
 
 .habit-card:hover {
   background: rgba(24, 26, 30, 0.85) !important;
   backdrop-filter: blur(12px) saturate(120%);
   -webkit-backdrop-filter: blur(12px) saturate(120%);
-  border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
   z-index: 10;
 }
 
-.habit-card:active {
-  transform: scale(0.98);
+@media (hover: none) {
+  .habit-card:hover {
+    background: rgba(18, 18, 26, 0.7) !important;
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: none;
+  }
+  .habit-card::before {
+    display: none !important;
+  }
+}
+
+/* Linear-style cursor-tracking spotlight border beam */
+.habit-card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: radial-gradient(
+    180px circle at var(--mouse-x, -999px) var(--mouse-y, -999px),
+    var(--card-accent, rgba(91, 141, 239, 0.8)),
+    transparent 75%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  z-index: 5;
+}
+
+.habit-card:hover::before {
+  opacity: 0.9;
 }
 
 .habit-card--completed {
@@ -139,7 +168,10 @@
   position: absolute;
   top: 16px;
   right: 16px;
-  color: var(--text-muted);
+  color: #4ade80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .habit-card__progress-track {

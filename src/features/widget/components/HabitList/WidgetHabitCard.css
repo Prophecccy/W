@@ -3,36 +3,60 @@
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
-  /* Ghost Elevation: Projected Data look */
+  gap: 14px;
+  padding: 12px 16px;
+  margin-bottom: 10px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08); 
   border-radius: 12px;
-  box-shadow: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   cursor: pointer;
   user-select: none;
   overflow: hidden;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .widget-habit-card:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+/* Linear-style cursor-tracking spotlight border beam */
+.widget-habit-card::before {
+  content: "";
+  position: absolute;
+  inset: 0px;
+  border-radius: inherit;
+  padding: 1px;
+  background: radial-gradient(
+    140px circle at var(--mouse-x, -999px) var(--mouse-y, -999px),
+    var(--card-accent, rgba(91, 141, 239, 0.7)),
+    transparent 70%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 5;
+}
+
+.widget-habit-card:hover::before {
+  opacity: 1;
 }
 
 /* ─── Visual States Hierarchy ────────────────────────────── */
 
-/* 1. Active State (Default) is opacity 1.0 (inherits from root .widget-habit-card) */
-
 /* 2. Done Today State (Metric worked on but not completed) */
 .widget-habit-card.done-today {
-  opacity: 0.7;
+  opacity: 0.85;
 }
 
 .widget-habit-card.done-today .widget-habit-card__done-today {
   color: #4ade80;
-  opacity: 1.0; /* Ensure tag stays bright and green */
+  opacity: 1.0;
 }
 
 /* 3. Pending Undo State (Grace Period) */
@@ -46,7 +70,7 @@
   position: absolute;
   bottom: 0;
   left: 0;
-  height: 1px;
+  height: 2px;
   background: var(--card-accent, var(--accent));
   animation: undoTimer var(--undo-duration, 8000ms) linear forwards;
 }
@@ -60,17 +84,41 @@
   }
 }
 
-/* 4. Committed State (Fully Completed State) */
+/* 4. Committed / Completed State: Remastered Tactical Finished Row */
 .widget-habit-card.committed,
 .widget-habit-card.completed {
-  opacity: 0.5;
-  background: transparent;
-  border-color: transparent;
+  opacity: 0.65;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid rgba(74, 222, 128, 0.12);
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  box-shadow: none;
+}
+
+.widget-habit-card.committed:hover,
+.widget-habit-card.completed:hover {
+  opacity: 0.9;
+  background: rgba(74, 222, 128, 0.04);
+  border-color: rgba(74, 222, 128, 0.25);
 }
 
 .widget-habit-card.committed .widget-habit-card__icon,
 .widget-habit-card.completed .widget-habit-card__icon {
   color: #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.2);
+}
+
+.widget-habit-card.committed .widget-habit-card__title,
+.widget-habit-card.completed .widget-habit-card__title {
+  color: rgba(255, 255, 255, 0.65);
+  text-decoration: line-through;
+  text-decoration-color: rgba(74, 222, 128, 0.4);
 }
 
 /* ─── Limiter Accent ─────────────────────────────────────── */
@@ -87,93 +135,97 @@
   box-shadow: 0 0 15px rgba(232, 115, 108, 0.15) !important;
 }
 
-/* ─── Hold Fill Animation ────────────────────────────────── */
+/* ─── Hold Fill Animation (Accelerated Power Curve) ────────── */
 .widget-habit-card__hold-fill {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     90deg,
-    rgba(var(--accent-rgb, 91, 141, 239), 0.15) 0%,
-    rgba(var(--accent-rgb, 91, 141, 239), 0.15) 100%
+    rgba(var(--accent-rgb, 91, 141, 239), 0.2) 0%,
+    rgba(var(--accent-rgb, 91, 141, 239), 0.38) 100%
   );
-  animation: widgetHoldSweep 500ms linear forwards;
+  animation: widgetHoldSweep 500ms cubic-bezier(0.32, 0, 0.67, 1) forwards;
   pointer-events: none;
-}
-
-.widget-habit-card.limiter .widget-habit-card__hold-fill {
-  background: linear-gradient(
-    90deg,
-    rgba(232, 115, 108, 0.15) 0%,
-    rgba(232, 115, 108, 0.15) 100%
-  );
+  z-index: 1;
 }
 
 @keyframes widgetHoldSweep {
   from {
-    clip-path: inset(0 100% 0 0);
+    width: 0%;
   }
   to {
-    clip-path: inset(0 0 0 0);
+    width: 100%;
   }
 }
 
-/* ─── Icon ───────────────────────────────────────────────── */
+/* ─── Content Elements ───────────────────────────────────── */
 .widget-habit-card__icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  color: #ffffff;
   flex-shrink: 0;
-}
-
-/* ─── Title ──────────────────────────────────────────────── */
-.widget-habit-card__title {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: #f1f1f1;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.5px;
+  color: var(--card-accent, var(--accent));
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 2;
 }
 
 .widget-habit-card__text {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+  z-index: 2;
+}
+
+.widget-habit-card__title {
+  color: var(--text-primary);
+  font-weight: 500;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: var(--text-shadow-sharp);
 }
 
 .widget-habit-card__done-today {
-  color: #4ade80;
-  letter-spacing: 1px;
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  font-weight: 600;
 }
 
-.widget-habit-card.committed .widget-habit-card__title,
-.widget-habit-card.completed .widget-habit-card__title {
-  text-decoration: line-through;
-  color: var(--text-muted);
-}
-
-/* ─── Streak / Undo ──────────────────────────────────────── */
 .widget-habit-card__streak {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  z-index: 2;
 }
 
 .widget-habit-card__undo {
-  color: var(--accent);
-  font-weight: 600;
-  cursor: pointer;
+  color: var(--card-accent, var(--accent));
+  font-weight: 700;
+  font-size: 10px;
   letter-spacing: 1px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-shadow: var(--text-shadow-glow);
+}
+
+.widget-habit-card__undo:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #E8736C;
+  border-color: rgba(232, 115, 108, 0.3);
+  transform: scale(1.04);
 }
 
 .widget-habit-card--disabled {
-  opacity: 0.4 !important;
-  cursor: not-allowed !important;
-  pointer-events: none !important;
+  pointer-events: none;
+  opacity: 0.4;
 }

@@ -11,6 +11,7 @@ import {
   deactivateLockdown,
   resumeLockdownIfActive,
   updateSchedules,
+  syncActiveLockdownState,
 } from "../services/lockdownService";
 import { LockdownState, DEFAULT_LOCKDOWN_STATE, LockdownSchedule } from "../types";
 import { isTauri } from "../../../shared/utils/tauri";
@@ -98,6 +99,14 @@ export function useLockdown(): UseLockdownReturn {
       resumeLockdownIfActive(user.uid).then((resumed) => {
         if (resumed && isMountedRef.current) reload();
       });
+
+      // Synchronize schedule states immediately and on a 15-second heartbeat
+      syncActiveLockdownState(user.uid);
+      const syncInterval = setInterval(() => {
+        syncActiveLockdownState(user.uid);
+      }, 15000);
+
+      return () => clearInterval(syncInterval);
     }
   }, [user, reload]);
 
@@ -124,6 +133,8 @@ export function useLockdown(): UseLockdownReturn {
           app_title: string;
           matched_rule: string;
           pid: number;
+          hwnd?: number;
+          is_browser?: boolean;
           x: number;
           y: number;
           width: number;

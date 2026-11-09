@@ -6,6 +6,7 @@ import { useToast } from "../../../../shared/components/Toast/Toast";
 import { useAuthContext } from "../../../auth/context";
 import { GDriveLockout } from "../../../lockdown/components/GDriveLockout";
 import { GoogleDriveIcon } from "../../../../shared/components/GoogleDriveIcon/GoogleDriveIcon";
+import { useSpotlightBorder } from "../../../../shared/hooks/useSpotlightBorder";
 import "./DailyNote.css";
 
 interface DailyNoteProps {
@@ -36,6 +37,7 @@ export function DailyNote({ initialNote, dailyResetTime, date }: DailyNoteProps)
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const spotlight = useSpotlightBorder<HTMLDivElement>();
 
   // Load note directly from IndexedDB on boot/date change to avoid relying on stale props
   useEffect(() => {
@@ -298,14 +300,29 @@ export function DailyNote({ initialNote, dailyResetTime, date }: DailyNoteProps)
   const remaining = MAX_CHARS - note.length;
 
   return (
-    <div className="daily-note-container" style={{ position: "relative" }}>
+    <div 
+      className="daily-note-container" 
+      style={{ position: "relative" }}
+      onPointerEnter={spotlight.onPointerEnter}
+      onPointerMove={spotlight.onPointerMove}
+      onPointerLeave={spotlight.onPointerLeave}
+    >
       <div className="daily-note-header">
-        <span className="t-label">[ DAILY NOTE ]</span>
+        <div className="daily-note-header__title-row">
+          <span className="t-label daily-note-title">[ DAILY NOTE ]</span>
+          <button 
+            type="button"
+            className="daily-note-archive-btn daily-note-archive-btn--mobile t-meta"
+            onClick={() => navigate("/logbook")}
+          >
+            [ LOGBOOK ]
+          </button>
+        </div>
         <div className="daily-note-meta">
-          <span className="t-meta" style={{ color: isSaving ? 'var(--text-primary)' : 'var(--text-muted)', marginRight: '8px' }}>
+          <span className="t-meta daily-note-saving" style={{ color: isSaving ? 'var(--text-primary)' : 'var(--text-muted)' }}>
             {isSaving ? "SAVING..." : "SAVED"}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginRight: '16px' }}>
+          <div className="daily-note-sync" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <GoogleDriveIcon
               size={12}
               style={{
@@ -321,14 +338,15 @@ export function DailyNote({ initialNote, dailyResetTime, date }: DailyNoteProps)
                 fontWeight: syncStatus !== "synced" ? 600 : 'normal'
               }}
             >
-              {syncStatus === "synced" ? "[ BACKED UP ]" : syncStatus === "offline" ? "[ OFFLINE (PENDING BACKUP) ]" : "[ SAVED LOCALLY ]"}
+              {syncStatus === "synced" ? "[ BACKED UP ]" : syncStatus === "offline" ? "[ OFFLINE ]" : "[ SAVED LOCALLY ]"}
             </span>
           </div>
-          <span className="t-meta" style={{ color: remaining <= 50 ? 'var(--strike-red)' : 'var(--text-muted)' }}>
+          <span className="t-meta daily-note-count" style={{ color: remaining <= 50 ? 'var(--strike-red)' : 'var(--text-muted)' }}>
             {note.length} / {MAX_CHARS}
           </span>
           <button 
-            className="daily-note-archive-btn t-meta"
+            type="button"
+            className="daily-note-archive-btn daily-note-archive-btn--desktop t-meta"
             onClick={() => navigate("/logbook")}
           >
             [ LOGBOOK ]

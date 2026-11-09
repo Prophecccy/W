@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { isTauri, confirmDialog } from '../../../shared/utils/tauri';
 import { useNavigate, useOutletContext } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
+import { SPRING_MODAL } from '../../../shared/constants/motion';
 import { HabitCard } from './HabitCard/HabitCard';
 import { HabitForm } from './HabitForm/HabitForm';
 import { GroupManager } from './GroupManager/GroupManager';
@@ -10,7 +12,7 @@ import { HabitDetail } from './HabitDetail/HabitDetail';
 import { getHabits, createHabit, deleteHabit } from '../services/habitService';
 import { getGroups, createGroup, sanitizeGroupName } from '../services/groupService';
 import { getTodayLog, completeHabit, uncompleteHabit, getLogRange } from '../services/logService';
-import { isHabitScheduledToday, isHabitResting } from '../utils/scheduleEngine';
+import { isHabitScheduledToday, isHabitResting, getNextSpecificDueDate } from '../utils/scheduleEngine';
 import { getToday } from '../../../shared/utils/dateUtils';
 import { LucideIcon } from '../../../shared/components/IconPicker/LucideIcon';
 import { useRiskEngine } from '../hooks/useRiskEngine';
@@ -483,28 +485,30 @@ export function HabitsPage() {
             )}
             {(layoutMode === 'default' || layoutMode === 'custom') && (
               <div className="habits-grid">
-                {scheduled.map((h, index) => (
-                  <HabitCard disabled={isAppFrozen} 
-                    key={h.id} 
-                    habit={h} 
-                    isCompletedToday={false} 
-                    doneToday={(() => {
-                      const entry = log?.habits?.[h.id];
-                      const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
-                      if (h.type === 'limiter') return interactedToday;
-                      const isMulti = h.period === "weekly" || h.period === "monthly" || h.period === "interval";
-                      if (h.type === "standard" && isMulti) return interactedToday;
-                      return h.type === "metric" && isMulti && interactedToday;
-                    })()}
-                    onComplete={() => handleComplete(h.id)} 
-                    onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
-                    currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
-                    riskScore={riskScores[h.id]}
-                    tabIndex={0}
-                    onFocus={() => setFocusedIndex(index)}
-                    onKeyDown={(e) => handleCardKeyDown(e, h.id)}
-                  />
-                ))}
+                <AnimatePresence mode="popLayout" initial={false}>
+                  {scheduled.map((h, index) => (
+                    <HabitCard disabled={isAppFrozen} 
+                      key={h.id} 
+                      habit={h} 
+                      isCompletedToday={false} 
+                      doneToday={(() => {
+                        const entry = log?.habits?.[h.id];
+                        const interactedToday = (entry?.completions?.length ?? 0) > 0 || (entry?.value ?? 0) > 0;
+                        if (h.type === 'limiter') return interactedToday;
+                        const isMulti = h.period === "weekly" || h.period === "monthly" || h.period === "interval";
+                        if (h.type === "standard" && isMulti) return interactedToday;
+                        return h.type === "metric" && isMulti && interactedToday;
+                      })()}
+                      onComplete={() => handleComplete(h.id)} 
+                      onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
+                      currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
+                      riskScore={riskScores[h.id]}
+                      tabIndex={0}
+                      onFocus={() => setFocusedIndex(index)}
+                      onKeyDown={(e) => handleCardKeyDown(e, h.id)}
+                    />
+                  ))}
+                </AnimatePresence>
               </div>
             )}
 
@@ -516,6 +520,7 @@ export function HabitsPage() {
                   return (
                     <HabitGroupHeader key={g.id} title={g.name} count={groupHabits.length}>
                       <div className="habits-grid">
+                        <AnimatePresence mode="popLayout" initial={false}>
                          {groupHabits.map((h) => (
                            <HabitCard disabled={isAppFrozen}
                              key={h.id}
@@ -539,6 +544,7 @@ export function HabitsPage() {
                              onKeyDown={(e) => handleCardKeyDown(e, h.id)}
                            />
                         ))}
+                        </AnimatePresence>
                       </div>
                     </HabitGroupHeader>
                   );
@@ -550,6 +556,7 @@ export function HabitsPage() {
                    return (
                       <HabitGroupHeader title="UNGROUPED" count={ungrouped.length}>
                         <div className="habits-grid">
+                          <AnimatePresence mode="popLayout" initial={false}>
                            {ungrouped.map((h) => (
                              <HabitCard disabled={isAppFrozen}
                               key={h.id}
@@ -573,6 +580,7 @@ export function HabitsPage() {
                               onKeyDown={(e) => handleCardKeyDown(e, h.id)}
                             />
                            ))}
+                          </AnimatePresence>
                         </div>
                       </HabitGroupHeader>
                    )
@@ -586,14 +594,18 @@ export function HabitsPage() {
               <div className="habits-section">
                 <h3 className="habits-section-title t-label">[ UPCOMING ]</h3>
                 <div className="habits-grid" style={{ opacity: 0.55 }}>
+                  <AnimatePresence mode="popLayout" initial={false}>
                   {upcoming.map(h => {
                     const isResting = isHabitResting(h, userDoc?.settings?.dailyResetTime);
                     const isFuture = h.startDate && h.startDate > today;
+                    const nextSpecific = h.period === "specific_days" ? getNextSpecificDueDate(h, today) : null;
                     const upcomingStatus = isFuture
                       ? `STARTS ${h.startDate}`
                       : isResting
                         ? "RESTING"
-                        : "NOT SCHEDULED TODAY";
+                        : nextSpecific
+                          ? `NEXT: ${nextSpecific.dayLabel}`
+                          : "NOT SCHEDULED TODAY";
                     return (
                       <HabitCard disabled={isAppFrozen} 
                         key={h.id} 
@@ -619,6 +631,7 @@ export function HabitsPage() {
                       />
                     );
                   })}
+                  </AnimatePresence>
                 </div>
               </div>
             )}
@@ -627,6 +640,7 @@ export function HabitsPage() {
               <div className="habits-section">
                 <h3 className="habits-section-title t-label" style={{ color: 'var(--strike-red)' }}>[ LIMITERS ]</h3>
                 <div className="habits-grid">
+                  <AnimatePresence mode="popLayout" initial={false}>
                   {limiters.map(h => (
                     <HabitCard disabled={isAppFrozen} 
                       key={h.id} 
@@ -646,6 +660,7 @@ export function HabitsPage() {
                       onKeyDown={(e) => handleCardKeyDown(e, h.id)}
                     />
                   ))}
+                  </AnimatePresence>
                 </div>
               </div>
             )}
@@ -653,19 +668,21 @@ export function HabitsPage() {
             {completed.length > 0 && (
               <HabitGroupHeader title="COMPLETED" count={completed.length} defaultExpanded={false}>
                 <div className="habits-grid">
-                  {completed.map(h => (
-                    <HabitCard disabled={isAppFrozen} 
-                      key={h.id} 
-                      habit={h} 
-                      isCompletedToday={true} 
-                      doneToday={true}
-                      onComplete={() => handleComplete(h.id)} 
-                      onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
-                      currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
-                      tabIndex={0}
-                      onKeyDown={(e) => handleCardKeyDown(e, h.id)}
-                    />
-                  ))}
+                  <AnimatePresence mode="popLayout" initial={false}>
+                    {completed.map(h => (
+                      <HabitCard disabled={isAppFrozen} 
+                        key={h.id} 
+                        habit={h} 
+                        isCompletedToday={true} 
+                        doneToday={true}
+                        onComplete={() => handleComplete(h.id)} 
+                        onUndo={() => handleUndo(h.id)} onClick={() => setSelectedHabitId(h.id)}
+                        currentValue={isMultiDayMetric(h) ? getTotalInRange(periodLogs, h.id, getPeriodStart(h, today, userDoc?.settings?.weeklyResetDay ?? 1)) : (log?.habits?.[h.id]?.value || 0)}
+                        tabIndex={0}
+                        onKeyDown={(e) => handleCardKeyDown(e, h.id)}
+                      />
+                    ))}
+                  </AnimatePresence>
                 </div>
               </HabitGroupHeader>
             )}
@@ -673,28 +690,58 @@ export function HabitsPage() {
         )}
       </div>
 
-      {isFormOpen && (
-        <div className="habits-modal-overlay">
-          <div className="habits-modal-content">
-            <HabitForm 
-              groups={groups} 
-              onSubmit={handleCreateSubmit} 
-              onCancel={() => setIsFormOpen(false)} 
-              userResetTime={userDoc?.settings?.dailyResetTime}
-            />
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {isFormOpen && (
+          <motion.div 
+            className="habits-modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <motion.div 
+              className="habits-modal-content"
+              initial={{ scale: 0.95, y: -10, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.96, y: -8, opacity: 0 }}
+              transition={SPRING_MODAL}
+            >
+              <HabitForm 
+                groups={groups} 
+                onSubmit={handleCreateSubmit} 
+                onCancel={() => setIsFormOpen(false)} 
+                userResetTime={userDoc?.settings?.dailyResetTime}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {isGroupManagerOpen && (
-        <div className="habits-modal-overlay">
-          <div className="habits-modal-content" style={{ padding: "24px", background: "var(--bg-elevated)", borderRadius: "8px", maxWidth: "600px", width: "100%", maxHeight: "90vh", overflowY: "auto", border: "1px solid var(--border-subtle)" }}>
-            <GroupManager onClose={() => { setIsGroupManagerOpen(false); setRefreshKey(prev => prev + 1); }} />
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {isGroupManagerOpen && (
+          <motion.div 
+            className="habits-modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <motion.div 
+              className="habits-modal-content" 
+              style={{ padding: "24px", background: "var(--bg-elevated)", borderRadius: "8px", maxWidth: "600px", width: "100%", maxHeight: "90vh", overflowY: "auto", border: "1px solid var(--border-subtle)" }}
+              initial={{ scale: 0.95, y: -10, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.96, y: -8, opacity: 0 }}
+              transition={SPRING_MODAL}
+            >
+              <GroupManager onClose={() => { setIsGroupManagerOpen(false); setRefreshKey(prev => prev + 1); }} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {selectedHabitId && habits.find(h => h.id === selectedHabitId) && (
+      <AnimatePresence>
+        {selectedHabitId && habits.find(h => h.id === selectedHabitId) && (
         <HabitDetail
           habit={habits.find(h => h.id === selectedHabitId)!}
           onClose={() => setSelectedHabitId(null)}
@@ -723,6 +770,7 @@ export function HabitsPage() {
           }}
         />
       )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -789,7 +837,7 @@ function isHabitCompletedInPeriod(
   periodLogs: HabitLog[],
   userResetTime?: string
 ): boolean {
-  if (habit.period === "daily") {
+  if (habit.period === "daily" || habit.period === "specific_days") {
     return !!log?.habits?.[habit.id]?.completed;
   }
   if (habit.period === "weekly") {

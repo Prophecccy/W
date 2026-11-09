@@ -4,6 +4,8 @@ import { Todo } from "../../todos/types";
 import { getToday } from "../../../shared/utils/dateUtils";
 import { forceInteractive, sendStickyRegions } from "./StickyCanvas";
 import { LucideIcon } from "../../../shared/components/IconPicker/LucideIcon";
+import { useSpotlightBorder } from "../../../shared/hooks/useSpotlightBorder";
+import { playMechanicalClick, playSubtleThud } from "../../../shared/services/tactileAudioService";
 
 import "./StickyNote.css";
 
@@ -30,6 +32,25 @@ async function safeInvoke(cmd: string, args?: any) {
   }
 }
 
+
+function hexToRgb(hex?: string): string {
+  if (!hex) return "91, 141, 239";
+  const cleaned = hex.replace("#", "");
+  if (cleaned.length === 3) {
+    const r = parseInt(cleaned[0] + cleaned[0], 16);
+    const g = parseInt(cleaned[1] + cleaned[1], 16);
+    const b = parseInt(cleaned[2] + cleaned[2], 16);
+    return `${r}, ${g}, ${b}`;
+  }
+  if (cleaned.length === 6) {
+    const r = parseInt(cleaned.slice(0, 2), 16);
+    const g = parseInt(cleaned.slice(2, 4), 16);
+    const b = parseInt(cleaned.slice(4, 6), 16);
+    return `${r}, ${g}, ${b}`;
+  }
+  return "91, 141, 239";
+}
+
 export function StickyNote({
   todo,
   position,
@@ -43,6 +64,7 @@ export function StickyNote({
   const [completionState, setCompletionState] = useState<CompletionState>('idle');
   const [isExiting, setIsExiting] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const spotlight = useSpotlightBorder<HTMLDivElement>();
 
   const noteRef = useRef<HTMLDivElement>(null);
   const livePosRef = useRef(position);
@@ -124,10 +146,14 @@ export function StickyNote({
       if (!hasMoved && (Math.abs(dx) > 15 || Math.abs(dy) > 15)) {
         hasMoved = true;
         isDraggingRef.current = true;
-        // Direct DOM class manipulation — no React re-render
+        // Direct DOM class manipulation — zero React re-render mid-drag
         el.classList.add("sticky-note--dragging");
-        // Cancel hold
-        cancelHold();
+        el.classList.remove("sticky-note--holding");
+        // Clear hold timer directly without React setState to preserve inline transform
+        if (holdTimeoutRef.current) {
+          clearTimeout(holdTimeoutRef.current);
+          holdTimeoutRef.current = null;
+        }
       }
 
       if (hasMoved) {
@@ -220,6 +246,11 @@ export function StickyNote({
         }
       }
 
+      // ALWAYS clean up dragging classes and state on pointer up
+      el.classList.remove("sticky-note--dragging");
+      el.classList.remove("sticky-note--holding");
+      isDraggingRef.current = false;
+
       // ALWAYS release drag mode on pointer up
       safeInvoke("set_sticky_drag_mode", { dragging: false }).catch(() => {});
 
@@ -294,6 +325,7 @@ export function StickyNote({
 
   const triggerCompletion = (callback: () => void) => {
     cancelHold();
+    playMechanicalClick();
     setCompState('completing');
 
     const t = todoRef.current;
@@ -325,6 +357,7 @@ export function StickyNote({
   };
 
   const handleUndo = () => {
+    playSubtleThud();
     if (fillTimerRef.current) {
       clearTimeout(fillTimerRef.current);
       fillTimerRef.current = null;
@@ -381,6 +414,7 @@ export function StickyNote({
 
   const cardStyle = {
     "--card-accent": todo.color,
+    "--card-accent-rgb": hexToRgb(todo.color),
     left: `${pos.x}px`,
     top: `${pos.y}px`,
   } as React.CSSProperties;
@@ -403,10 +437,23 @@ export function StickyNote({
       ref={noteRef}
       className={finalClassName}
       style={cardStyle}
+      onPointerEnter={spotlight.onPointerEnter}
+      onPointerMove={spotlight.onPointerMove}
+      onPointerLeave={spotlight.onPointerLeave}
       onContextMenu={(e) => e.preventDefault()}
       draggable={false}
     >
-      {/* Hold / Complete / Undo fill overlay */}
+      {/* Dynamic accelerated hold fill */}
+      {isHolding && completionState === 'idle' && (
+        <motion.div
+          className="sticky-note__hold-fill"
+          initial={{ width: "0%" }}
+          animate={{ width: "100%" }}
+          transition={{ duration: HOLD_DURATION / 1000, ease: [0.32, 0, 0.67, 1] }}
+        />
+      )}
+
+      {/* Completion & Undo fill overlay */}
       {(completionState === 'completing' || completionState === 'undoable') && (
         <motion.div
           className={`sticky-note__fill ${
@@ -430,7 +477,28 @@ export function StickyNote({
 
       <div className={`sticky-note__content ${completionState === 'undoable' ? 'sticky-note__content--hidden' : ''}`}>
         <div className="sticky-note__header">
-          <div className="sticky-note__checkbox" />
+          <div className="sticky-note__checkbox-pod">
+            <div className={`sticky-note__checkbox ${completionState === 'completing' || completionState === 'undoable' ? 'sticky-note__checkbox--checked' : ''}`}>
+              {(completionState === 'completing' || completionState === 'undoable') && (
+                <motion.svg
+                  viewBox="0 0 14 14"
+                  className="sticky-note__check-svg"
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                >
+                  <polyline
+                    points="2.5 7 5.5 10 11.5 3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </motion.svg>
+              )}
+            </div>
+          </div>
           <div className="sticky-note__title" style={{ flex: 1 }}>{todo.title}</div>
           {todo.description && (
             <div style={{ color: "var(--text-muted)", display: "flex", alignItems: "center", marginLeft: "6px" }}>
@@ -471,12 +539,14 @@ export function StickyNote({
         <div className="sticky-note__divider" />
 
         <div className="sticky-note__footer">
-          <div className="sticky-note__footer-half">
-            INIT: {initiatedStr}
+          <div className="sticky-note__footer-chip">
+            <span className="sticky-note__chip-label">INIT</span>
+            <span className="sticky-note__chip-val">{initiatedStr}</span>
           </div>
           <div className="sticky-note__footer-divider" />
-          <div className={`sticky-note__footer-half ${isOverdue ? 'sticky-note__footer-half--overdue' : ''}`}>
-            {deadlineText ? deadlineText : "NO DEADLINE"}
+          <div className={`sticky-note__footer-chip ${isOverdue ? 'sticky-note__footer-chip--overdue' : ''}`}>
+            <span className="sticky-note__chip-label">{deadlineText ? 'DUE' : 'STATUS'}</span>
+            <span className="sticky-note__chip-val">{deadlineText ? deadlineText.replace('DUE: ', '') : 'NO DEADLINE'}</span>
           </div>
         </div>
       </div>

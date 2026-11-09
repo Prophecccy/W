@@ -4,7 +4,7 @@
   justify-content: space-between;
   height: 100%;
   box-sizing: border-box;
-  padding: 10px 16px;
+  padding: 8px 16px;
   background: transparent;
   border: none;
 }
@@ -14,17 +14,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 0;
-  flex: 1;
+  padding: 6px 0;
+  width: 100%;
 }
 
-.stats-deck__stat-item {
+.stats-deck__stat-cell {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   flex: 1;
-  gap: 6px;
+  gap: 5px;
 }
 
 .stats-deck__stat-label {
@@ -48,8 +48,8 @@
 .stats-deck__stat-divider {
   width: 1px;
   height: 24px;
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 4px rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
   flex-shrink: 0;
 }
 
@@ -67,19 +67,19 @@
 }
 
 .stats-deck__status {
-  color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .stats-deck__divider {
-  color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.15);
 }
 
 .stats-deck__strikes {
-  color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.25);
   transition: color 0.3s ease;
 }
 
 .stats-deck__strikes--active {
   color: var(--strike-red, #E8736C);
-  text-shadow: 0 0 10px rgba(232, 115, 108, 0.4);
+  text-shadow: 0 0 10px rgba(232, 115, 108, 0.5);
 }
