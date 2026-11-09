@@ -1044,6 +1044,29 @@ function mergeObject(local: any, remote: any): any {
     }
   }
 
+  // ── Multi-Device Freeze Reconciliation ──────────────────────────
+  const remoteLastActive = remote.lastActiveDate || "";
+  const localLastActive = local.lastActiveDate || "";
+
+  // If remote shows freeze is not active, but local was falsely auto-frozen by dormant absence:
+  if (remote.freeze && remote.freeze.active === false && local.freeze?.reason === "auto_absence") {
+    console.info("[LocalDB] Remote active state detected. Overriding false local auto-absence freeze.");
+    merged.freeze = {
+      ...(local.freeze || {}),
+      active: false,
+      reason: null,
+      startDate: null,
+      endDate: null,
+    };
+    if (remote.lastActiveDate) {
+      merged.lastActiveDate = remote.lastActiveDate;
+    }
+  } else if (remoteLastActive > localLastActive && remote.freeze) {
+    // Remote device is active much more recently; remote freeze state is authoritative
+    merged.freeze = { ...remote.freeze };
+    merged.lastActiveDate = remote.lastActiveDate;
+  }
+
   return merged;
 }
 

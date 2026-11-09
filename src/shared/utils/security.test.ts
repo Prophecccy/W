@@ -376,6 +376,30 @@ describe("Strike System Zen Mode & Cross-Device Disablement Architecture", () =>
     expect(content).toContain("SYNC COMPLETE: REFRESHING...");
     expect(content).toContain("window.location.reload()");
   });
+
+  it("verifies localDb.ts reconciles multi-device false auto-absence freezes", () => {
+    const localDbPath = path.resolve(__dirname, "../services/localDb.ts");
+    const content = fs.readFileSync(localDbPath, "utf-8");
+    expect(content).toContain("remote.freeze && remote.freeze.active === false && local.freeze?.reason === \"auto_absence\"");
+    expect(content).toContain("active: false");
+    expect(content).toContain("remoteLastActive > localLastActive && remote.freeze");
+  });
+
+  it("verifies Layout.tsx implements self-healing for false auto-absence freezes", () => {
+    const layoutPath = path.resolve(__dirname, "../../app/Layout.tsx");
+    const content = fs.readFileSync(layoutPath, "utf-8");
+    expect(content).toContain("doc.freeze?.reason === \"auto_absence\"");
+    expect(content).toContain("doc.lastActiveDate > doc.freeze.startDate");
+    expect(content).toContain("deactivateFreeze");
+  });
+
+  it("verifies Topbar.tsx provides one-click unfreeze directly from the frozen badge", () => {
+    const topbarPath = path.resolve(__dirname, "../components/Topbar/Topbar.tsx");
+    const content = fs.readFileSync(topbarPath, "utf-8");
+    expect(content).toContain("handleUnfreeze");
+    expect(content).toContain("deactivateFreeze");
+    expect(content).toContain("[ FROZEN — CLICK TO RESUME ]");
+  });
 });
 
 

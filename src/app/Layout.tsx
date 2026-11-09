@@ -110,6 +110,20 @@ function LayoutInner() {
         });
       }
 
+      // Self-healing: If an auto_absence freeze was triggered on this device, but lastActiveDate is newer
+      // than the freeze start date, it is a false freeze from a dormant browser. Deactivate immediately.
+      if (
+        doc.freeze?.active === true &&
+        doc.freeze?.reason === "auto_absence" &&
+        doc.lastActiveDate &&
+        doc.freeze?.startDate &&
+        doc.lastActiveDate > doc.freeze.startDate
+      ) {
+        import("../features/freeze/services/freezeService").then(({ deactivateFreeze }) => {
+          deactivateFreeze().catch(() => {});
+        });
+      }
+
       if (phase === "loading") {
         setPhase("processing");
       }

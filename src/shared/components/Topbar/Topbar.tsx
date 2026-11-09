@@ -41,6 +41,23 @@ export function Topbar({
   const [menuOpen, setMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const handleUnfreeze = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const { deactivateFreeze } = await import("../../../features/freeze/services/freezeService");
+      await deactivateFreeze();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("w:toast", {
+            detail: "[ HABITS RESUMED — FREEZE DEACTIVATED ]",
+          })
+        );
+      }
+    } catch (err) {
+      console.error("[Topbar] Failed to deactivate freeze:", err);
+    }
+  };
+
   useEffect(() => {
     setMenuOpen(false);
   }, [location.pathname]);
@@ -147,12 +164,13 @@ export function Topbar({
           </button>
           {isFrozen && (
             <button
+              type="button"
               className="topbar__freeze-indicator"
-              onClick={() => navigate("/settings?tab=data")}
-              title="Habits are currently frozen. Click to manage."
+              onClick={handleUnfreeze}
+              title="Habits are currently frozen. Click to resume all habits."
             >
               <Snowflake size={11} strokeWidth={2} />
-              <span>FROZEN</span>
+              <span>[ FROZEN — CLICK TO RESUME ]</span>
             </button>
           )}
 

@@ -1053,3 +1053,22 @@ Resolved an issue where opening the Web app after months of inactivity displayed
    - Added unit test suite in `security.test.ts` for Zen Mode immunity and cross-device sync resolution.
    - Zero TypeScript compiler errors (`npm run build`).
 
+## Batch 66 — Multi-Device Freeze Reconciliation & Instant One-Click Unfreeze
+
+Resolved an issue where opening the Web app after months of dormancy triggered a false `auto_absence` freeze locally (`[ FROZEN ]`), which subsequently clobbered the actively used Desktop app's `active: false` state during cloud sync:
+
+1. **Multi-Device Freeze Reconciliation (`localDb.ts`)**:
+   - In `mergeObject()`, added smart device authority rules for `freeze`:
+     - If `remote.freeze?.active === false` and `local.freeze?.reason === "auto_absence"`, the local auto-absence freeze is treated as a dormant false alarm and overridden with `merged.freeze.active = false`.
+     - If `remote.lastActiveDate > local.lastActiveDate`, the remote device is recognized as actively maintained, and its `freeze` state is given full authority over local state.
+
+2. **False Auto-Absence Self-Healing (`Layout.tsx`)**:
+   - On application startup / userDoc load, if `doc.freeze?.active === true && doc.freeze?.reason === "auto_absence"` but `doc.lastActiveDate > doc.freeze.startDate`, the app detects that the user was active after the freeze supposedly began and immediately calls `deactivateFreeze()` to self-heal.
+
+3. **Instant One-Click Unfreeze (`Topbar.tsx`)**:
+   - Updated the green `[ FROZEN ]` indicator in the Topbar: clicking it now directly deactivates the freeze via `deactivateFreeze()` and shows a confirmation toast (`[ HABITS RESUMED — FREEZE DEACTIVATED ]`), eliminating the previous erroneous navigation to `/settings?tab=data`.
+
+4. **Verification & Quality Gates**:
+   - 17 test files and 166 tests passing via Vitest (`npm test`).
+   - Zero TypeScript compiler errors (`npm run build`).
+
