@@ -7,6 +7,7 @@ import { getFreezeState, isDateInFreezeRange, checkAutoFreeze } from "../../free
 import { updateUserDoc, getUserDoc } from "../../auth/services/userService";
 import { db, auth, doc, updateDoc } from "../../../shared/config/firebase";
 import { getToday, formatDate } from "../../../shared/utils/dateUtils";
+import { isTauri } from "../../../shared/utils/tauri";
 
 // ─── Gap Processor ──────────────────────────────────────────────
 //
@@ -117,6 +118,18 @@ export async function processGap(
   if (lastActiveDate >= today) {
     logDebug("lastActiveDate is today or future, returning early.");
     return result;
+  }
+
+  // Defense-in-depth: In non-Tauri browser environments where Google Drive is linked,
+  // do not trigger multi-day gaps or auto-freezes if local storage has not verified sync with Drive recently.
+  if (typeof window !== "undefined" && !isTauri()) {
+    const isDriveLinked = localStorage.getItem("driveLinked") === "true";
+    const lastSyncStr = localStorage.getItem("w_gdrive_state_last_sync");
+    const lastSyncTime = lastSyncStr ? parseInt(lastSyncStr, 10) : 0;
+    if (isDriveLinked && (!lastSyncTime || Date.now() - lastSyncTime > 24 * 3600 * 1000)) {
+      logDebug("Drive is linked on Web but last cloud sync is older than 24 hours or missing. Bypassing gap processor to prevent false penalties on stale multi-device cache.");
+      return result;
+    }
   }
 
   // 1. Check for auto-freeze (≥ 3 day absence)

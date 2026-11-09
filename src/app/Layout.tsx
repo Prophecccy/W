@@ -197,9 +197,17 @@ function LayoutInner() {
         showToast(customEvent.detail);
       }
     };
+
+    const handleSessionExpired = () => {
+      showToast("[ GOOGLE DRIVE SESSION EXPIRED — PLEASE RE-LINK ]");
+    };
     
     window.addEventListener('w:toast', handleGlobalToast);
-    return () => window.removeEventListener('w:toast', handleGlobalToast);
+    window.addEventListener('w:gdrive-session-expired', handleSessionExpired);
+    return () => {
+      window.removeEventListener('w:toast', handleGlobalToast);
+      window.removeEventListener('w:gdrive-session-expired', handleSessionExpired);
+    };
   }, [showToast]);
 
   // Keep a ref of userDoc to avoid restarting/cancelling the gap processor on document updates
@@ -234,14 +242,31 @@ function LayoutInner() {
         if (isLinked) {
           try {
             const { pullAndMergeFromGoogleDrive } = await import("../shared/services/localDb");
-            await pullAndMergeFromGoogleDrive();
-            await userStore.reload();
-            if (userStore.userDoc) {
-              currentUserDoc = userStore.userDoc;
-              setUserDoc(currentUserDoc);
+            const syncSuccess = await pullAndMergeFromGoogleDrive(true);
+            if (syncSuccess) {
+              await userStore.reload();
+              if (userStore.userDoc) {
+                currentUserDoc = userStore.userDoc;
+                setUserDoc(currentUserDoc);
+              }
+            } else {
+              console.warn(
+                "[Layout] Pre-gap Google Drive sync failed or session expired. Bypassing gap processor to prevent false auto-freeze on stale multi-device cache."
+              );
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(
+                  new CustomEvent("w:toast", {
+                    detail: "[ GOOGLE DRIVE SYNC PENDING - RE-AUTHENTICATE TO SYNC ]",
+                  })
+                );
+              }
+              setPhase("ready");
+              return;
             }
           } catch (syncErr) {
-            console.warn("[Layout] Pre-gap Google Drive sync failed (proceeding with local state):", syncErr);
+            console.warn("[Layout] Pre-gap Google Drive sync failed:", syncErr);
+            setPhase("ready");
+            return;
           }
         }
 

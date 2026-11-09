@@ -1004,3 +1004,25 @@ Resolved sticky note visual gradient leakage and drag placement animation bugs:
    - 17 test files and 158 tests passing via Vitest (`npx vitest run`).
    - Zero TypeScript compiler errors with `npx tsc --noEmit`.
    - Release binary compiled (`npm run build:app`) and deployed to `C:\Users\unniu\AppData\Local\W\w-app.exe` (SHA256: `08CC5E5E731551223D14AC2E7D08D3CBC1BB2D9E413B776FB38D57EBD006C866`, running under PID `6944`).
+
+
+## Batch 64 — Cross-Device Cloud-Sync Gate & False Auto-Freeze Immunity
+
+Resolved an issue where opening the Web app after prolonged absence falsely displayed a multi-month Auto-Freeze (`[ WELCOME BACK ] 49 DAYS FROZEN`) even when the user was actively using the Desktop app daily:
+
+1. **Pre-Gap Verified Cloud-Sync Gate (`Layout.tsx`)**:
+   - In `runGapProcessor()`, when Google Drive is linked (`driveLinked === true`), `pullAndMergeFromGoogleDrive(true)` is now invoked with `force = true` to bypass stale cache headers.
+   - **Strict Execution Gate**: If `pullAndMergeFromGoogleDrive(true)` returns `false` (due to expired OAuth access tokens, network disconnect, or authentication error), the gap processor is **aborted immediately** (`setPhase("ready")`) instead of executing against an outdated local cache.
+   - Dispatches a toast notification: `"[ GOOGLE DRIVE SYNC PENDING - RE-AUTHENTICATE TO SYNC ]"` to prompt the user to re-link rather than falsely penalizing their account.
+
+2. **Web Session Expiry Telemetry (`googleDriveService.ts`, `Layout.tsx`)**:
+   - In `googleDriveService.ts`, when `/api/token` returns non-OK during background token refresh on Web, dispatches `w:gdrive-session-expired`.
+   - In `Layout.tsx`, registered listener for `w:gdrive-session-expired` that displays `"[ GOOGLE DRIVE SESSION EXPIRED — PLEASE RE-LINK ]"`.
+
+3. **Defense-in-Depth Gap Guard (`gapProcessor.ts`)**:
+   - Added a defense-in-depth guard in `processGap()`: in non-Tauri browser environments where Google Drive is linked, if the last verified cloud sync is older than 24 hours or missing, the gap processor skips execution to prevent desynchronized browser sessions from clobbering active desktop state.
+
+4. **Verification & Quality Gates**:
+   - 17 test files and 159 tests passing via Vitest (`npx vitest run`).
+   - Zero TypeScript compiler errors with `npm run build`.
+

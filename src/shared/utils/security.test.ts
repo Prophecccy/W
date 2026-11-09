@@ -293,6 +293,14 @@ describe("Real-Time Cross-Device Google Drive Sync Architecture", () => {
     expect(content).toContain('addEventListener("focus", triggerImmediateSync)');
     expect(content).toContain('document.addEventListener("visibilitychange", handleVisibilityChange)');
   });
+
+  it("verifies Layout.tsx gates processGap behind verified pullAndMergeFromGoogleDrive(true)", () => {
+    const layoutPath = path.resolve(__dirname, "../../app/Layout.tsx");
+    const content = fs.readFileSync(layoutPath, "utf-8");
+    expect(content).toContain("pullAndMergeFromGoogleDrive(true)");
+    expect(content).toContain("syncSuccess");
+    expect(content).toContain("Pre-gap Google Drive sync failed or session expired");
+  });
 });
 
 describe("Unified SSO & Sovereign State Ownership Security Architecture", () => {
