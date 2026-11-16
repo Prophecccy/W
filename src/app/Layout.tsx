@@ -262,6 +262,16 @@ function LayoutInner() {
         const isLinked = localStorage.getItem("driveLinked") === "true";
         if (isLinked) {
           try {
+            const { getValidAccessToken } = await import("../shared/services/googleDriveService");
+            const token = await getValidAccessToken();
+            if (!token) {
+              console.warn(
+                "[Layout] Pre-gap Google Drive sync failed or session expired. Bypassing gap processor to prevent false auto-freeze on stale multi-device cache."
+              );
+              setPhase("ready");
+              return;
+            }
+
             const { pullAndMergeFromGoogleDrive } = await import("../shared/services/localDb");
             const syncSuccess = await pullAndMergeFromGoogleDrive(true);
             if (syncSuccess) {
@@ -270,19 +280,6 @@ function LayoutInner() {
                 currentUserDoc = userStore.userDoc;
                 setUserDoc(currentUserDoc);
               }
-            } else {
-              console.warn(
-                "[Layout] Pre-gap Google Drive sync failed or session expired. Bypassing gap processor to prevent false auto-freeze on stale multi-device cache."
-              );
-              if (typeof window !== "undefined") {
-                window.dispatchEvent(
-                  new CustomEvent("w:toast", {
-                    detail: "[ GOOGLE DRIVE SYNC PENDING - RE-AUTHENTICATE TO SYNC ]",
-                  })
-                );
-              }
-              setPhase("ready");
-              return;
             }
           } catch (syncErr) {
             console.warn("[Layout] Pre-gap Google Drive sync failed:", syncErr);

@@ -258,10 +258,10 @@ export async function getValidAccessToken(): Promise<string | null> {
       } else {
         const errorText = await proxyRes.text();
         console.warn(`[GDrive Service] /api/token refresh failed (${proxyRes.status}):`, errorText);
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("w:gdrive-session-expired"));
-        }
         if (errorText.includes("invalid_grant")) {
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("w:gdrive-session-expired"));
+          }
           await clearOAuthTokens();
           return null;
         }
@@ -313,6 +313,9 @@ export async function getValidAccessToken(): Promise<string | null> {
         }
 
         if (isInvalidGrant) {
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("w:gdrive-session-expired"));
+          }
           await clearOAuthTokens();
         }
         return null;

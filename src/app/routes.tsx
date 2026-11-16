@@ -14,6 +14,7 @@ import { LogbookPage } from "../features/logs/components/LogbookPage";
 import { BlockOverlay } from "../features/lockdown/components/BlockOverlay";
 import { TodoCreatorPage } from "../features/todos/components/TodoCreatorPage";
 import { ManualPage } from "../features/manual";
+import { TrayMenuPage } from "../features/tray/components/TrayMenuPage";
 
 
 export const router = createBrowserRouter([
@@ -42,6 +43,10 @@ export const router = createBrowserRouter([
   {
     path: "/block-overlay",
     element: <BlockOverlay />,
+  },
+  {
+    path: "/tray-menu",
+    element: <TrayMenuPage />,
   },
   {
     path: "/todo-creator",

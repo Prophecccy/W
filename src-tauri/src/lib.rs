@@ -1,7 +1,6 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use tauri::{
-    Manager, Emitter,
-    menu::{Menu, MenuItem, PredefinedMenuItem},
+    Manager, Emitter, Position, PhysicalPosition,
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
 };
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -68,6 +67,110 @@ fn allow_app_close() {
 #[tauri::command]
 fn exit_app(app: tauri::AppHandle) {
     app.exit(0);
+}
+
+#[derive(serde::Serialize)]
+pub struct TrayState {
+    widget_visible: bool,
+    sticky_visible: bool,
+    version: String,
+}
+
+#[tauri::command]
+fn get_tray_state(app: tauri::AppHandle) -> TrayState {
+    let widget_visible = app.get_webview_window("widget")
+        .and_then(|w| w.is_visible().ok())
+        .unwrap_or(false);
+    let sticky_visible = app.get_webview_window("sticky-overlay")
+        .and_then(|w| w.is_visible().ok())
+        .unwrap_or(false);
+    let version = app.package_info().version.to_string();
+    TrayState {
+        widget_visible,
+        sticky_visible,
+        version,
+    }
+}
+
+#[tauri::command]
+fn tray_show_main(app: tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("tray-menu") {
+        let _ = win.hide();
+    }
+    if let Some(main_window) = app.get_webview_window("main") {
+        let _ = main_window.unminimize();
+        let _ = main_window.show();
+        let _ = main_window.set_focus();
+        #[cfg(target_os = "windows")]
+        if let Ok(hwnd) = main_window.hwnd() {
+            use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SetForegroundWindow, SW_RESTORE, SW_SHOW};
+            use windows::Win32::Foundation::HWND;
+            unsafe {
+                let h = HWND(hwnd.0 as *mut _);
+                let _ = ShowWindow(h, SW_RESTORE);
+                let _ = ShowWindow(h, SW_SHOW);
+                let _ = SetForegroundWindow(h);
+            }
+        }
+    }
+}
+
+#[tauri::command]
+fn tray_toggle_widget(app: tauri::AppHandle) -> bool {
+    let mut new_state = false;
+    if let Some(win) = app.get_webview_window("widget") {
+        if win.is_visible().unwrap_or(false) {
+            let _ = win.hide();
+            new_state = false;
+        } else {
+            let _ = win.show();
+            let _ = workerw::pin_widget_bottom(app.clone());
+            new_state = true;
+        }
+    }
+    if let Some(win) = app.get_webview_window("tray-menu") {
+        let _ = win.hide();
+    }
+    new_state
+}
+
+#[tauri::command]
+fn tray_toggle_sticky(app: tauri::AppHandle) -> bool {
+    let mut new_state = false;
+    if let Some(win) = app.get_webview_window("sticky-overlay") {
+        if win.is_visible().unwrap_or(false) {
+            let _ = win.hide();
+            new_state = false;
+        } else {
+            let _ = win.show();
+            let _ = workerw::pin_widget_bottom(app.clone());
+            new_state = true;
+        }
+    }
+    if let Some(win) = app.get_webview_window("tray-menu") {
+        let _ = win.hide();
+    }
+    new_state
+}
+
+#[tauri::command]
+fn tray_hide_menu(app: tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("tray-menu") {
+        let _ = win.hide();
+    }
+}
+
+#[tauri::command]
+fn tray_quit_app(app: tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("tray-menu") {
+        let _ = win.hide();
+    }
+    let _ = app.emit("w_quit_requested", ());
+    let app_clone = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        app_clone.exit(0);
+    });
 }
 
 
@@ -230,51 +333,6 @@ pub fn run() {
             }
 
             // ── System Tray ────────────────────────────────────────────────
-            let show_item = MenuItem::with_id(
-                app,
-                "show",
-                "[ Show W ]",
-                true,
-                None::<&str>,
-            )?;
-
-            let toggle_widget_item = MenuItem::with_id(
-                app,
-                "toggle_widget",
-                "[ Toggle Widget ]",
-                true,
-                None::<&str>,
-            )?;
-
-            let toggle_sticky_item = MenuItem::with_id(
-                app,
-                "toggle_sticky",
-                "[ Toggle Sticky Notes ]",
-                true,
-                None::<&str>,
-            )?;
-
-            let separator = PredefinedMenuItem::separator(app)?;
-
-            let quit_item = MenuItem::with_id(
-                app,
-                "quit",
-                "[ Quit 'W' ]",
-                true,
-                None::<&str>,
-            )?;
-
-            let tray_menu = Menu::with_items(
-                app,
-                &[
-                    &show_item,
-                    &toggle_widget_item,
-                    &toggle_sticky_item,
-                    &separator,
-                    &quit_item,
-                ],
-            )?;
-
             println!("[W SETUP] Checking default window icon...");
             let icon = match app.default_window_icon() {
                 Some(icon) => {
@@ -289,60 +347,79 @@ pub fn run() {
             };
 
             let _tray = TrayIconBuilder::with_id("main-tray")
-                .menu(&tray_menu)
-                .show_menu_on_left_click(false)     // left-click shows window, right-click opens menu
+                .show_menu_on_left_click(false)     // left-click shows window, right-click opens custom tray menu
                 .icon(icon)
                 .tooltip("W")
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    "show" => {
-                        if let Some(win) = app.get_webview_window("main") {
-                            let _ = win.show();
-                            let _ = win.set_focus();
-                        }
-                    }
-                    "toggle_widget" => {
-                        if let Some(win) = app.get_webview_window("widget") {
-                            if win.is_visible().unwrap_or(false) {
-                                let _ = win.hide();
-                            } else {
-                                let _ = win.show();
-                                let _ = workerw::pin_widget_bottom(app.clone());
-                            }
-                        }
-                    }
-                    "toggle_sticky" => {
-                        if let Some(win) = app.get_webview_window("sticky-overlay") {
-                            if win.is_visible().unwrap_or(false) {
-                                let _ = win.hide();
-                            } else {
-                                let _ = win.show();
-                                let _ = workerw::pin_widget_bottom(app.clone());
-                            }
-                        }
-                    }
-                    "quit" => {
-                        let _ = app.emit("w_quit_requested", ());
-                        let app_clone = app.clone();
-                        std::thread::spawn(move || {
-                            std::thread::sleep(std::time::Duration::from_secs(4));
-                            app_clone.exit(0);
-                        });
-                    }
-                    _ => {}
-                })
                 .on_tray_icon_event(|tray, event| {
-                    // Double-click on the tray icon opens the main window
-                    if let TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        button_state: tauri::tray::MouseButtonState::Up,
-                        ..
-                    } = event
-                    {
-                        let app = tray.app_handle();
-                        if let Some(win) = app.get_webview_window("main") {
-                            let _ = win.show();
-                            let _ = win.set_focus();
+                    match event {
+                        TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: tauri::tray::MouseButtonState::Up,
+                            ..
+                        } => {
+                            let app = tray.app_handle();
+                            if let Some(win) = app.get_webview_window("main") {
+                                let _ = win.unminimize();
+                                let _ = win.show();
+                                let _ = win.set_focus();
+                            }
                         }
+                        TrayIconEvent::Click {
+                            button: MouseButton::Right,
+                            button_state: tauri::tray::MouseButtonState::Up,
+                            position,
+                            ..
+                        } => {
+                            let app = tray.app_handle();
+                            if let Some(tray_win) = app.get_webview_window("tray-menu") {
+                                if tray_win.is_visible().unwrap_or(false) {
+                                    let _ = tray_win.hide();
+                                    return;
+                                }
+
+                                let scale_factor = tray_win.scale_factor().unwrap_or(1.0);
+                                let phys_w = (250.0 * scale_factor) as i32;
+                                let phys_h = (215.0 * scale_factor) as i32;
+
+                                let click_x = position.x as i32;
+                                let click_y = position.y as i32;
+
+                                let monitor = tray_win.current_monitor().ok().flatten().or_else(|| app.primary_monitor().ok().flatten());
+                                let (mon_x, mon_y, mon_w, mon_h) = if let Some(m) = monitor {
+                                    let p = m.position();
+                                    let s = m.size();
+                                    (p.x, p.y, s.width as i32, s.height as i32)
+                                } else {
+                                    (0, 0, 1920, 1080)
+                                };
+
+                                let mut target_x = click_x - (phys_w / 2);
+                                let mut target_y = click_y - phys_h - 10;
+
+                                if target_y < mon_y {
+                                    target_y = click_y + 10;
+                                }
+
+                                if target_x + phys_w > mon_x + mon_w - 10 {
+                                    target_x = mon_x + mon_w - phys_w - 10;
+                                }
+                                if target_x < mon_x + 10 {
+                                    target_x = mon_x + 10;
+                                }
+
+                                if target_y + phys_h > mon_y + mon_h - 10 {
+                                    target_y = mon_y + mon_h - phys_h - 10;
+                                }
+                                if target_y < mon_y + 10 {
+                                    target_y = mon_y + 10;
+                                }
+
+                                let _ = tray_win.set_position(Position::Physical(PhysicalPosition { x: target_x, y: target_y }));
+                                let _ = tray_win.show();
+                                let _ = tray_win.set_focus();
+                            }
+                        }
+                        _ => {}
                     }
                 })
                 .build(app)?;
@@ -370,10 +447,25 @@ pub fn run() {
             lockdown::close_blocked_tab,
             lockdown::update_lockdown_remaining,
             allow_app_close,
-            exit_app
+            exit_app,
+            get_tray_state,
+            tray_show_main,
+            tray_toggle_widget,
+            tray_toggle_sticky,
+            tray_hide_menu,
+            tray_quit_app
         ])
         .on_window_event(|window, event| {
             let label = window.label().to_string();
+
+            // Auto-dismiss tray menu popup when it loses focus (click outside)
+            if label == "tray-menu" {
+                if let tauri::WindowEvent::Focused(focused) = event {
+                    if !focused {
+                        let _ = window.hide();
+                    }
+                }
+            }
 
             // Closing the main or widget window hides it (sends to tray) instead of exiting
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

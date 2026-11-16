@@ -72,6 +72,22 @@
         "focus": true,
         "focusable": true,
         "closable": false
+      },
+      {
+        "label": "tray-menu",
+        "title": "W Tray",
+        "url": "/tray-menu",
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "width": 250,
+        "height": 215,
+        "visible": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "focus": true,
+        "focusable": true,
+        "resizable": false
       }
     ],
 

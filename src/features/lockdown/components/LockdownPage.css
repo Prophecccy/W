@@ -222,13 +222,14 @@
 
 .lockdown-presets {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 10px;
 }
 
 .lockdown-preset-container {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .lockdown-preset {
@@ -238,6 +239,7 @@
   border: 1px solid var(--border-default);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 4px;
+  min-width: 0;
 }
 
 .lockdown-preset:hover {
@@ -270,6 +272,7 @@
   color: var(--text-muted);
   cursor: pointer;
   transition: color 0.15s;
+  flex-shrink: 0;
 }
 
 .lockdown-preset__expand-btn:hover {
@@ -336,14 +339,16 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  flex: 1;
 }
 
 .lockdown-preset__name {
   font-family: "Departure Mono", monospace;
   font-size: 10px;
-  letter-spacing: 1.5px;
+  letter-spacing: 1.2px;
   color: var(--text-primary);
   text-align: left;
+  word-break: break-word;
 }
 
 .lockdown-preset__count {
@@ -351,6 +356,7 @@
   color: var(--text-muted);
   letter-spacing: 1px;
   text-align: left;
+  white-space: nowrap;
 }
 
 .lockdown-preset__check {
@@ -360,6 +366,7 @@
   transition: opacity 0.2s;
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .lockdown-preset--active .lockdown-preset__check {
@@ -938,12 +945,6 @@
   
   .telemetry-diagnostics {
     width: 100%;
-  }
-}
-
-@media (max-width: 900px) {
-  .lockdown-presets {
-    grid-template-columns: 1fr 1fr;
   }
 }
 

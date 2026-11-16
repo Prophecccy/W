@@ -7,7 +7,7 @@ import { initAudioOnUserGesture } from "./shared/services/tactileAudioService";
 initAudioOnUserGesture();
 
 // Transparent Tauri windows need body to be transparent from first paint
-const transparentRoutes = ["/sticky-canvas", "/widget"];
+const transparentRoutes = ["/sticky-canvas", "/widget", "/tray-menu"];
 const isTransparent = transparentRoutes.some(route => window.location.href.includes(route));
 if (isTransparent) {
   document.body.classList.add("transparent-window");

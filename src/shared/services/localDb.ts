@@ -908,11 +908,28 @@ export async function syncToGoogleDrive() {
     console.error("[LocalDB] Background state upload to Google Drive failed:", err);
   } finally {
     isSyncing = false;
+    if (hasPendingSync) {
+      hasPendingSync = false;
+      setTimeout(() => {
+        syncToGoogleDrive().catch(console.error);
+      }, 50);
+    }
   }
 }
 
 export async function pullAndMergeFromGoogleDrive(force = false): Promise<boolean> {
-  if (isSyncing) return false;
+  if (isSyncing) {
+    if (force) {
+      let waitCount = 0;
+      while (isSyncing && waitCount < 30) {
+        await new Promise((r) => setTimeout(r, 100));
+        waitCount++;
+      }
+      if (isSyncing) return false;
+    } else {
+      return false;
+    }
+  }
   const user = auth.currentUser;
   if (!user) return false;
 
@@ -1028,6 +1045,12 @@ export async function pullAndMergeFromGoogleDrive(force = false): Promise<boolea
     return false;
   } finally {
     isSyncing = false;
+    if (hasPendingSync) {
+      hasPendingSync = false;
+      setTimeout(() => {
+        syncToGoogleDrive().catch(console.error);
+      }, 50);
+    }
   }
 }
 

@@ -1,0 +1,232 @@
+/* ── Clean System Tray Menu ── */
+.tray-menu-wrapper {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+  background: transparent !important;
+  box-sizing: border-box;
+}
+
+.tray-menu-chassis {
+  width: 100%;
+  height: 100%;
+  background: rgba(14, 15, 18, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  box-shadow: 
+    0 12px 32px rgba(0, 0, 0, 0.8),
+    0 0 1px 1px rgba(255, 255, 255, 0.05) inset;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  font-family: 'Departure Mono', monospace;
+  color: #e8e8e8;
+  box-sizing: border-box;
+}
+
+/* Dynamic Moving RGB Rail */
+.tray-menu-rail {
+  height: 2px;
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    #E85D75 0%,
+    #5B8DEF 25%,
+    #4EAA7A 50%,
+    #E85D75 75%,
+    #5B8DEF 100%
+  );
+  background-size: 200% 100%;
+  animation: rgb-rail-flow 3s linear infinite;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px rgba(91, 141, 239, 0.4);
+}
+
+@keyframes rgb-rail-flow {
+  0% {
+    background-position: 0% 0%;
+  }
+  100% {
+    background-position: 200% 0%;
+  }
+}
+
+/* Header */
+.tray-menu-header {
+  padding: 10px 14px 8px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.tray-menu-title {
+  font-size: 13px;
+  letter-spacing: 1px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.tray-menu-version {
+  font-size: 11px;
+  color: #666666;
+  letter-spacing: 0.5px;
+}
+
+/* Menu Actions List */
+.tray-menu-body {
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  justify-content: center;
+}
+
+.tray-menu-item {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #cccccc;
+  font-family: 'Departure Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  outline: none;
+  transition: 
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease,
+    transform 0.08s ease;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Cursor-Tracking Spotlight Beam */
+.tray-menu-item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(
+    80px circle at var(--mouse-x, -999px) var(--mouse-y, -999px),
+    rgba(255, 255, 255, 0.08),
+    transparent 80%
+  );
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.tray-menu-item:hover::before {
+  opacity: 1;
+}
+
+.tray-menu-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.tray-menu-item:active {
+  transform: scale(0.985);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.tray-item-left {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.tray-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #777777;
+  transition: color 0.12s ease;
+}
+
+.tray-menu-item:hover .tray-item-icon {
+  color: #ffffff;
+}
+
+.tray-item-label {
+  font-weight: 500;
+}
+
+/* Status Pills */
+.tray-item-pill {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.tray-item-pill--active {
+  background: rgba(78, 170, 122, 0.14);
+  border: 1px solid rgba(78, 170, 122, 0.3);
+  color: #4EAA7A;
+}
+
+.tray-item-pill--hidden {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: #666666;
+}
+
+/* Separator */
+.tray-menu-separator {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 3px 0;
+  width: 100%;
+}
+
+/* Quit Danger Item */
+.tray-menu-item--danger {
+  color: #aaaaaa;
+}
+
+.tray-menu-item--danger .tray-item-icon {
+  color: #777777;
+}
+
+.tray-menu-item--danger:hover {
+  background: rgba(232, 115, 108, 0.1);
+  border-color: rgba(232, 115, 108, 0.25);
+  color: #E8736C;
+}
+
+.tray-menu-item--danger:hover .tray-item-icon {
+  color: #E8736C;
+}
+
+.tray-menu-item--danger::before {
+  background: radial-gradient(
+    80px circle at var(--mouse-x, -999px) var(--mouse-y, -999px),
+    rgba(232, 115, 108, 0.18),
+    transparent 80%
+  );
+}

@@ -257,11 +257,395 @@ graph TD
 
 ---
 
-## Modular File Map (Layout Structure)
-* `src/App.tsx` & `src/app/routes.tsx` — Application Router & shell navigation.
-* `src/app/Layout.tsx` — Phase-state loader UI (Loading → Processing → Ready).
-* `src/features/` — Feature modules: `dashboard`, `habits`, `todos`, `logs`, `analytics`, `manual`, `strikes`, `sticky-notes`, `lockdown`, `widget`, `freeze`, `auth`, `settings`, `updater`, `wallpaper`.
-* `src/shared/` — Reusable components, utility providers, and generic hooks.
+## Complete System Blueprint & Master Feature Reference (App, Web App, Companions & Engines)
+
+> **Audience:** Core Developers, Product Architects, and Executive Assistants.  
+> **Purpose:** Exhaustive, single-source-of-truth manual detailing every interface, companion window, mathematical engine, data pipeline, and responsive layout across the entire W ecosystem.
+
+```mermaid
+graph TB
+    subgraph Clients["Clients & Form Factors"]
+        Desktop["Desktop App (Tauri v2 / Win32)"]
+        WebApp["Web App (PWA / Vercel)"]
+        MobileWeb["Mobile Web (<= 768px Touch)"]
+    end
+
+    subgraph DesktopWindows["Tauri Multi-Window Matrix"]
+        W_Main["Main Command Center (/)"]
+        W_Widget["Desktop Widget (/widget)"]
+        W_Sticky["Sticky Canvas (/sticky-canvas)"]
+        W_Creator["Todo Creator (/todo-creator)"]
+        W_Tray["Tray HUD (/tray-menu)"]
+        W_Block["Block Overlay (/block-overlay)"]
+    end
+
+    subgraph CorePages["Command Center Pages"]
+        P_Dash["Dashboard (/)"]
+        P_Habits["Habits Forge (/habits)"]
+        P_Todos["Tactical Todos (/todos)"]
+        P_Manual["Field Manual (/manual)"]
+        P_Logs["Logbook Archive (/logbook)"]
+        P_Analytics["Analytics (/analytics)"]
+        P_Lockdown["Lockdown Engine (/lockdown)"]
+        P_Settings["Settings Control (/settings)"]
+    end
+
+    subgraph DataEngines["Underlying Storage & Engines"]
+        GDrive[("Google Drive (W_state.json)")]
+        IDB[("IndexedDB (idb-keyval)")]
+        Crypto["AES-256-GCM Encryption"]
+        Audio["Web Audio Haptic Synthesizer"]
+        SleepEngine["Circadian SleepTube Engine"]
+        StrikeEngine["Strike & Lockout System"]
+        NLP["Natural Language Parser"]
+    end
+
+    Desktop --> DesktopWindows
+    DesktopWindows --> CorePages
+    WebApp --> CorePages
+    MobileWeb --> CorePages
+    CorePages --> DataEngines
+    DataEngines <--> GDrive
+```
+
+---
+
+### 1. Executive Concept & The "Endfield" Cyber-Minimalist Aesthetic
+
+W is an industrial-grade Habit & Focus Forge benchmarked from high-precision military tactical HUDs and top-tier product architectures (Linear, Raycast, Apple HIG). It eliminates dopamine-trapping gamification in favor of raw mechanical accountability, ghost-elevated glass surfaces, and procedural tactile feedback.
+
+* **Departure Mono Typography**: Clean, high-legibility retro monospace font (`Departure Mono`, with `font-feature-settings: "tnum"` for strict tabular digit alignment).
+* **Bracketed Tactical Syntax**: Every interactive view, tab, pill, button, and telemetry indicator follows strict uppercase bracketed syntax: `[ NAME ]`, `[ OPEN ]`, `[ ACTIVE ]`, `[ ONLINE // v1.8.5 ]`.
+* **Ghost Elevation Surfaces**: Components float on obsidian black chassis (`rgba(14, 15, 18, 0.94)`) with 1px hairline micro-bevels (`rgba(255, 255, 255, 0.08)`), subtle inner glass highlights, and zero heavy drop shadows.
+* **Cursor Spotlight Beams (`useSpotlightBorder`)**: Hardware-accelerated pointer tracking casts a 70px luminous radial accent beam along the 1px perimeter of cards under the mouse cursor, throttled via `requestAnimationFrame` for 120 FPS performance.
+* **Procedural Web Audio Haptics (`tactileAudioService.ts`)**: 100% offline Web Audio API synthesizer generating instantaneous physical switch snaps with zero network/file asset overhead:
+  * `playMechanicalClick()`: Crisp 8ms metallic switch snap (buttons, checkboxes, navigation tabs).
+  * `playSubtleThud()`: 16ms resonant low-frequency pulse (deletions, cancellations, task undo).
+  * `playLockLatch()`: 35ms dual-detent mechanical latch (Lockdown activation/clearance).
+  * `playMilestoneChirp()`: 75ms dual-tone harmonic chime (level-ups, milestones).
+* **High-Tension Spring Physics (`motion.ts`)**: Pure Framer Motion critically damped springs:
+  * `SPRING_TACTILE`: `stiffness: 520, damping: 30, mass: 0.75` (buttons, checkboxes, micro-haptics).
+  * `SPRING_LAYOUT`: `stiffness: 380, damping: 32, mass: 1.0` (FLIP list reordering, deletions, grid reflow).
+  * `SPRING_MODAL`: `stiffness: 420, damping: 32, mass: 0.9` (dialogs, drawers, command palette).
+  * `SPRING_POP`: `stiffness: 580, damping: 26, mass: 0.7` (checkmark pops, badges).
+
+---
+
+### 2. Platform Matrix & Form Factors
+
+| Feature / Capability | Windows Desktop (Tauri v2) | Web Application (PWA / Vercel) | Mobile Web (`<= 768px`) |
+| :--- | :--- | :--- | :--- |
+| **Primary Shell** | Native Win32 + WebView2 Shell | Modern Browser PWA | Touch-Optimized Responsive Web |
+| **Executable / URL** | `C:\Users\unniu\AppData\Local\W\w-app.exe` | Hosted on Vercel (`https://...`) | Mobile Safari / Chrome Browser |
+| **Authentication Flow** | Loopback PKCE OAuth (Zero Secrets) | Serverless Token Proxy (`/api/token`) | Tri-Channel Popup / In-Place Exchange |
+| **Authoritative State Store**| User's Private Google Drive (`W_state.json`) | User's Private Google Drive (`W_state.json`) | User's Private Google Drive (`W_state.json`) |
+| **Offline Local Storage** | IndexedDB + Native `$APPDATA/notes/` | IndexedDB (`idb-keyval`) | IndexedDB (`idb-keyval`) |
+| **Encryption at Rest** | AES-256-GCM (`$APPDATA/note_key.json`) | AES-256-GCM (IndexedDB JWK key) | AES-256-GCM (IndexedDB JWK key) |
+| **Desktop Companion Widget** | Yes (`/widget` - Bottom Z-Order) | No (Desktop OS required) | No |
+| **Desktop Sticky Notes** | Yes (`/sticky-canvas` - Transparent) | No (Desktop OS required) | No |
+| **System Tray HUD Popup** | Yes (`/tray-menu` - Custom HUD) | No (Desktop OS required) | No |
+| **Lockdown OS App Blocker** | Yes (Win32 process & tab killer) | UI Mock / Telemetry only | UI Mock / Telemetry only |
+| **Navigation Shell** | 3-Tier Sidebar (Desktop / Rail / Drawer) | 3-Tier Sidebar (Desktop / Rail / Drawer) | Docked 3-Tier Flex Shell (`<MobileNav />`) |
+
+---
+
+### 3. The 6 Tauri Desktop Window Environments
+
+The desktop application leverages 6 specialized Tauri webview windows cooperating through native Rust Win32 bindings and cross-window IPC:
+
+1. **`main` — Main Command Center (`/`)**:
+   * Window: Canonical `1200x800` centered desktop window with custom titlebar and controls.
+   * Behavior: Closing sends to system tray (`api.prevent_close()`), unminimizes on single instance trigger or tray click.
+2. **`widget` — Desktop Overlay Widget (`/widget`)**:
+   * Window: Frameless, transparent, borderless companion (`460x620`, scalable `300-800` width, `400-900` height).
+   * Z-Order Guard (`workerw.rs`): Unowned top-level window with `GWLP_HWNDPARENT = 0`, permanently pinned to the desktop wallpaper level (`HWND_BOTTOM`) below all game and application windows. Detects dragging and temporarily lifts bottom-pinning to ensure smooth 60 FPS movement.
+   * Auto-Resizing: Automatically resizes its logical height based on active habits (fits up to 8 habits before enabling internal scrolling).
+   * Lockout Shield: Displays an opaque crimson cyber shield (`[ SYSTEM LOCKED ]`) during 5-strike lockouts, suspending completions until resolved.
+3. **`sticky-overlay` — Floating Desktop Sticky Notes (`/sticky-canvas`)**:
+   * Window: Virtual-desktop-spanning fullscreen transparent overlay (`maximized: false`, spanning all active monitors via `availableMonitors()`).
+   * Low-Level Hit Testing (`sticky_overlay.rs`): Employs a low-level Windows mouse hook (`WH_MOUSE_LL`). When the cursor is outside active sticky notes, the window is completely click-through (`WS_EX_TRANSPARENT`), allowing regular interaction with desktop icons and background apps. When the cursor enters a note bounding box, interactive focus engages instantly.
+   * Hardware Topology Watcher: Detects monitor connections/disconnections (`GetSystemMetrics(SM_CMONITORS)`). When a display changes, recalculates bounds and teleports notes to their saved positions without coordinate corruption.
+4. **`todo-creator` — Standalone Quick Todo Creator (`/todo-creator`)**:
+   * Window: Compact frameless popup window spawned instantly when clicking `[ + TODO ]` on the Desktop Widget.
+   * Zero Flash: Mounts hidden (`visible: false`), prepares React state and IndexedDB data, and displays and focuses in sub-milliseconds, allowing users to enter a task without opening the main app.
+5. **`tray-menu` — Cyber-Minimalist System Tray HUD (`/tray-menu`)**:
+   * Window: Custom borderless HUD popup (`260x290`, `alwaysOnTop: true`, `skipTaskbar: true`).
+   * Trigger: Right-clicking W's system tray icon computes cursor coordinates, clamps against monitor edges, positions the window above the tray, and reveals it.
+   * Blur Auto-Dismissal: `tauri::WindowEvent::Focused(false)` immediately hides the popup when clicking anywhere outside.
+   * Actions: `[ SHOW COMMAND CENTER ]`, `[ DESKTOP WIDGET ]` with live pill (`[ ACTIVE ]` / `[ HIDDEN ]`), `[ STICKY NOTES ]` with live pill (`[ ACTIVE ]` / `[ HIDDEN ]`), and `[ TERMINATE 'W' ]` with danger red hover state.
+6. **`block-overlay` — High-Integrity Lockdown Shield (`/block-overlay`)**:
+   * Window: Always-on-top, fullscreen transparent blocking interceptor spawned when a prohibited process or browser tab is brought to the foreground during Lockdown mode.
+
+---
+
+### 4. Comprehensive Page-by-Page Feature Matrix
+
+#### Page 1: Dashboard (`/`) — The Operational HUD
+* **Viewport Isolation**: Strictly locked to `100vh` on desktop; fluid vertical scrolling on mobile.
+* **SleepTube Waking Fuel Gauge**: Dynamic liquid meniscus cylinder tracking waking energy from `wakeUpTime` to `bedTime` with milestone ticks (100%, 75%, 50%, 25%, 0%), late-night owl buffer, and resting glow at 0%.
+* **Active Protocols Column**: Today's scheduled habits displaying category icon, title, streak flame counter, 500ms power-curve hold fill, and spring checkmark completion pop.
+* **Active Todos Column**: Priority-ranked tasks with checkbox completion and expandable inline details.
+* **Daily Note Footer**: Distraction-free inline journal with autosave indicator (`SAVED`), Google Drive cloud status (`[ BACKED UP ]`), character counter (`0 / 5000`), local AES-256-GCM encryption, and direct jump button to the Logbook Archive.
+* **Direct Habit Inspection Drawer**: Clicking any habit card on the Dashboard smoothly slides out the full `<HabitDetail>` drawer in-place without page navigation.
+
+#### Page 2: Habits Forge (`/habits`) — Protocol Engineering
+* **4 Operational Habit Types**:
+  1. **Standard Habit**: Binary checkoff (Did you do it or not?).
+  2. **Metric Habit**: Quantitative target with custom units (e.g., 50 Pushups, 2000 ml Water, 30 Pages). Features incremental logging (`+` button).
+  3. **Limiter Habit**: Ceiling constraint / habit of abstinence (e.g., $<2$ Coffees, $0$ Cigarettes). Exceeding the target triggers immediate limiter exceeded warnings and potential strikes.
+  4. **Specific Days Habit**: Discrete scheduling running strictly on selected weekdays (`daysOfWeek: [1, 3, 5]` for Mon/Wed/Fri). On non-scheduled days, vanishes from active views with zero rollover penalties and preserves streak continuity over rest days.
+* **5 Recurrence Periods**: `daily`, `weekly` (cumulative quota per week), `monthly`, `specific_days`, and `interval` (cooldown of $N$ days).
+* **View Filters**: `[ ALL ]`, `[ TODAY ]`, `[ GROUPED ]`, `[ UPCOMING ]` (with next due date badge, e.g. `NEXT: THU`), and `[ COMPLETED ]`.
+* **6-Step Habit Creation Wizard (`HabitForm`)**:
+  * Step 1: Protocol Name & Category Group.
+  * Step 2: Frequency Period & Scheduling Engine.
+  * Step 3: Type Calibration (Standard, Metric, Limiter) & Target Quantities.
+  * Step 4: Endpoint Calendar Bounds (Commencement Date & optional End Date).
+  * Step 5: Appearance & Icon Picker (Wide 1200px modal with 10 categories and 850 Lucide icons).
+  * Step 6: Confirmation & Verification.
+* **Habit Detail Deep Dive (`HabitDetail`)**:
+  * 28-day consistency activity heatmap with cell-level inspection.
+  * 14-day metric trend sparkline.
+  * Level & XP engine progress bar ($0-100\%$).
+  * Chronological completion history log.
+  * Live configuration editor allowing on-the-fly group reassignment.
+
+#### Page 3: Tactical Todos (`/todos`) — Priority Task Triage
+* **Dual Task Management**: Active Tasks board vs Completed Archive.
+* **Military Priority Hierarchy (P1 to P4)**:
+  * `[ P1 CRITICAL ]` (`#EF4444` Crimson): Non-negotiable priorities for today.
+  * `[ P2 HIGH ]` (`#F59E0B` Amber): Strategic high-impact initiatives.
+  * `[ P3 MEDIUM ]` (`#5B8DEF` Endfield Blue): Routine daily operations (default).
+  * `[ P4 LOW ]` (`#6B7280` Muted Gray): Backlog, ideas, and casual tasks.
+* **Standard vs Numbered Tasks**: Numbered todos (e.g. `0/10 Chapters`) feature quick incremental `+` buttons and auto-complete upon reaching the target value.
+* **Deadlines & Post-Deadline Behaviors**:
+  * Deadlines: `NONE`, `TODAY`, or `CUSTOM` (with custom retro console `DatePicker`).
+  * Post-Deadline Action: `KEEP ON BOARD` (retains task with overdue badge) vs `VANISH FROM BOARD` (silently purges task upon deadline expiry).
+* **Desktop Sticky Note Pinning**: Every todo card features a `[ PIN TO DESKTOP ]` toggle that immediately anchors the task as a physical floating sticky note on the Windows wallpaper.
+
+#### Page 4: Field Manual (`/manual`) — The Central Encyclopedia
+* **10 Comprehensive In-App Chapters**: Complete documentation covering Philosophy, Habits Matrix, Reset Timing, Strikes & Lockout, SleepTube, Todos, Desktop Companions, Logbook, Lockdown Engine, and Shortcuts.
+* **Terminal Search & Navigation**: Real-time topic search, anchor jump pills, callouts (`[ INFO ]`, `[ TIP ]`, `[ WARNING ]`, `[ RULE ]`), and keyboard shortcut tags (`<kbd>`).
+* **1-Click LLM Knowledge Exporter**: Dynamic button (`[ DOWNLOAD MANUAL .TXT ]`) compiling the entire 10-chapter manual and troubleshooting matrix into `W_COMMAND_CENTER_MANUAL_FOR_LLM.txt` for ingestion into ChatGPT, Claude, Gemini, or local LLMs.
+
+#### Page 5: Logbook Archive (`/logbook`) — Encrypted Journal History
+* **Chronological Timeline**: Collapsible accordion grouped by Year and Month, listing all historical daily journal notes.
+* **Client-Side Decryption**: Automatically decrypts AES-256-GCM records from IndexedDB or `$APPDATA/notes/`.
+* **System Log Purge**: Automatically filters out system placeholders (`[ AUTO-FREEZE ]`, `[ FROZEN ]`).
+* **Manual Recovery**: Header `[ SYNC FROM DRIVE ]` button forces on-demand sync-down from Google Drive.
+
+#### Page 6: Telemetry & Analytics (`/analytics`) — Performance Intelligence
+* **Master Consistency Score ($0-100\%$)**: Weighted algorithm aggregating habit completion rates, active streak multipliers, and strike penalty deductions.
+* **Monthly Activity Heatmap**: Responsive multi-level consistency grid ($0$ to $4$ levels of intensity) with prev/next month carousel navigation and hover inspection.
+* **Temporal Distribution Telemetry**:
+  * Peak completion time-of-day radar (Morning, Afternoon, Evening, Night).
+  * Day-of-week consistency chart (Monday through Sunday).
+* **Habit Metric Performance Breakdown**: Individual habit adherence scores, current streaks, best streaks, and total completion volume.
+
+#### Page 7: Lockdown Focus Engine (`/lockdown`) — Native Distraction Blocker
+* **Native Win32 Window Polling (`lockdown.rs`)**: Low-level thread monitoring active foreground windows via `SendMessageTimeoutW` (WM_GETTEXT) and `GetWindowThreadProcessId`.
+* **Two-Column Command Hub**:
+  * **Control Column**: Manual session launcher (presets: 15m, 25m, 45m, 60m, custom), active countdown timer, `STOP SCHEDULE` button, `DEACTIVATE MANUAL LOCKDOWN` button, and schedule manager.
+  * **Telemetry Column**: Real-time blocked target list, active violation log history, and preset blocklist selector (Gaming, Social Media, Streaming, Adult, Custom).
+* **Dual Rule Targeting**:
+  * Executable Rules (e.g. `discord.exe`, `steam.exe`): Intercepts and terminates process with user permission.
+  * Website / Browser Tab Rules (e.g. `youtube.com`, `reddit.com`, `twitter.com`): Detects browser window title, brings to foreground, and safely synthesizes `Ctrl + W` keystrokes to close the offending tab without killing the entire browser.
+* **Monotonic Anti-Tamper Timer**: Runs inside Rust using `std::time::Instant`. If system clock deviation ($>10$s) is detected, applies a severe 15-minute (+900s) focus penalty.
+
+#### Page 8: Settings Command Hub (`/settings`) — Configuration & Tuning
+* **Tactical 4-Column Tile Grid**: High-density navigation bar linking to 9 sub-modules:
+  1. **Profile & Account**: Google SSO status, authenticated email, account sign out.
+  2. **Schedule & Time**: Daily reset hour (default 04:00 AM for night owls), weekly reset day (Sunday/Monday), and timezone calibration.
+  3. **Discipline & Accountability**: Master Strike System toggle (`strikeSystemEnabled`), manual Freeze protocol toggle.
+  4. **Appearance**: Accent color palette (with custom color picker), Tactile Web Audio toggle, High Performance / Low Graphics mode (disables blur filters).
+  5. **Wallpapers**: Custom image upload, canvas cropping, dimming slider ($0-100\%$), blur slider ($0-20\text{px}$), stored locally in IndexedDB.
+  6. **Notifications**: Bedtime-anchored habit reminders (2 hours before SleepTube bedtime), strike warning notifications, lockout alerts.
+  7. **Lockdown**: Global blocklist defaults, tamper penalty rules, and scheduled autopilot triggers.
+  8. **Data & Cloud Sync**: Google Drive link status, manual push/pull, full JSON database backup, granular CSV export, and complete data purge.
+  9. **Desktop**: Autostart on boot (Windows registry / startup shortcut), taskbar behavior, and native version updater.
+
+---
+
+### 5. Mobile Web & Responsive Touch Architecture (`<= 768px`)
+
+When accessed on mobile browsers (iOS Safari, Android Chrome) or narrow viewports:
+
+1. **3-Tier Viewport-Locked Flex Shell (`Layout.css`)**:
+   * Layout converts to `position: fixed; inset: 0; display: flex; flex-direction: column; overflow: hidden;`.
+   * Topbar is fixed at top (`flex: none`), Content area scrolls internally (`flex: 1 1 0; min-height: 0; overflow-y: auto;`), and `<MobileNav />` is permanently docked at the base (`flex: none`) with `env(safe-area-inset-bottom)`.
+   * Mathematically guarantees the bottom navigation can never be pushed below the fold on any screen height.
+2. **Dual Navigation Redundancy**:
+   * Bottom Navigation: High-contrast 5-item bar (Dashboard, Habits, Todos, Analytics, Settings) with active indicator pills and `SPRING_TACTILE` tap response.
+   * Topbar Switcher: Tapping the page title in the Topbar opens a tactical dropdown (`[ DASHBOARD ] v`), enabling instant 1-tap switching from either the top or bottom of the screen.
+3. **Ergonomic Horizontal SleepTube Fuel Strip**:
+   * Replaces vertical desktop cylinder with a compact horizontal glass fuel strip (`[ FUEL 78% ]`).
+   * Ambient glowing base at 0% waking fuel. Prevents vertical scroll starvation on mobile displays.
+4. **Mobile Dashboard Full Vertical Scroll**:
+   * Unlike desktop's 100vh column clamping, mobile Dashboard enables natural full vertical scrolling (`height: 100%; overflow-y: auto; scrollbar-width: none;`). All habit cards, limiters, active todos, and the Daily Note footer flow sequentially without clipping.
+5. **Sticky Settings Tile Grid**:
+   * Settings navigation tiles dock sticky at `top: 0` (`position: sticky; z-index: 50;`) directly below the Topbar, allowing sub-page settings content to glide underneath without losing navigation access.
+6. **Mobile Suppression of Desktop Downloads**:
+   * Automatically detects mobile user agents and touch viewports $\le 900\text{px}$, completely suppressing the `[ GET DESKTOP APP ]` button to avoid UI squishing.
+
+---
+
+### 6. Core Mathematical & Operational Engines
+
+```mermaid
+flowchart LR
+    A["User Checkoff / Action"] --> B{"Engine Router"}
+    B -->|"Time & Circadian"| C["SleepTube Engine<br/>(wakeUpTime -> bedTime)"]
+    B -->|"XP & Leveling"| D["Level Engine<br/>(Level = sqrt(XP / 100))"]
+    B -->|"Discipline & Misses"| E["Strike Engine<br/>(Gap Processor -> 5 Strikes)"]
+    B -->|"Daily Rollover"| F["Streak Engine<br/>(History Walk & Grace Period)"]
+    B -->|"Commands"| G["NLP Parser<br/>(Offline Regex Regex & Exec)"]
+```
+
+1. **SleepTube Circadian Energy Engine (`useTimeLeft.ts`, `SleepTube.tsx`)**:
+   $$\text{Progress} = \frac{\text{CurrentTime} - \text{WakeUpTime}}{\text{BedTime} - \text{WakeUpTime}}, \quad \text{Fuel} = \max(0, \min(100, 100 \times (1 - \text{Progress})))$$
+   * 1-Hour Night-Owl Grace Buffer: After `bedTime`, user remains in `day-ended` phase (0% fuel) for 60 minutes before rolling into `sleeping` phase.
+2. **Strike & Lockout Discipline Engine (`gapProcessor.ts`, `strikeService.ts`, `punishmentService.ts`)**:
+   * Accrual: Each uncompleted scheduled habit on a past active day triggers exactly 1 strike point.
+   * Lockout Threshold: At 5 strikes (`strikes.current >= 5`), system enters full lockout (`isLocked = true`).
+   * Inline Penance: Viewport remains locked until user serves penance via `PunishmentModal`:
+     1. Increase difficulty: Permanently raises target of 1 metric habit by $+33\%$ (or $-33\%$ on limiter).
+     2. Add new non-negotiable habit.
+     3. Add new urgent todo.
+   * Zen Mode: Toggling `strikeSystemEnabled = false` purges strikes and eliminates all lockout UI app-wide.
+3. **Streak Continuity Engine (`streakEngine.ts`)**:
+   * Traverses completion history backwards day-by-day.
+   * Specific Days Habits: Automatically skips non-scheduled days without breaking streaks.
+   * Grace Period: Today is granted grace if scheduled but not yet completed, preventing streak breaks during active working hours.
+4. **Habit Leveling & XP Engine (`levelEngine.ts`)**:
+   $$\text{XP} = \text{TotalCompletions} \times 25, \quad \text{Level} = \lfloor\sqrt{\text{XP} / 100}\rfloor + 1$$
+   * Level progress percentage:
+     $$\text{Progress \%} = \frac{\text{XP} - \text{CurrentLevelXP}}{\text{NextLevelXP} - \text{CurrentLevelXP}} \times 100$$
+5. **Emergency Freeze Protocol (`freezeService.ts`)**:
+   * Manual Freeze: User-activated freeze for travel, illness, or emergency; suspends all strike accruals and pauses streaks.
+   * Auto-Absence Detection: Triggers if user is inactive for 3+ consecutive days; features multi-device authority reconciliation to prevent stale cloud freezes.
+6. **Natural Language Command Palette (`naturalLanguageParser.ts`, `Ctrl + K`)**:
+   * 100% offline regex & heuristic parser extracting intent, priority, recurrence, and dates without LLM API latency.
+   * Pattern: `"buy groceries tomorrow p1"` &rarr; Creates Todo with P1 priority and tomorrow's deadline.
+   * Pattern: `"workout every day"` &rarr; Creates Daily Habit.
+   * Pattern: `"delete workout"` &rarr; Directly purges habit/todo with confirmation toast and undo buffer.
+
+---
+
+### 7. Data Storage, Security & Cloud Sync Architecture
+
+```mermaid
+sequenceDiagram
+    participant UI as React UI (Webview / Browser)
+    participant DAL as DAL Storage Gate (localDb.ts)
+    participant IDB as Local IndexedDB / FS
+    participant Cloud as Google Drive (W_state.json)
+
+    UI->>DAL: setDoc / updateDoc (Payload)
+    DAL->>DAL: validateDocumentPayload() (Prototype Pollution Guard)
+    DAL->>IDB: Write to Local Storage
+    DAL->>UI: Dispatch CustomEvent ("w:data-synced") & Cross-Window IPC
+    Note over DAL,Cloud: 250ms Debounce Queue Drain
+    DAL->>Cloud: uploadStateToDrive() (Ownership Envelope v2)
+    Cloud-->>DAL: 200 OK (modifiedTime)
+```
+
+1. **Sovereign Google Drive Protocol (`localDb.ts`, `googleDriveService.ts`)**:
+   * Zero third-party cloud database reliance (Firebase Firestore eradicated).
+   * User's personal Google Drive folder (`W_Logbook/`) holds all state in `W_state.json`.
+   * Version 2 State Ownership Envelope:
+     ```json
+     {
+       "version": 2,
+       "ownerEmail": "user@gmail.com",
+       "ownerUid": "google-oauth2|123456",
+       "state": { ... }
+     }
+     ```
+   * Cross-account protection: Prevents merging cloud state if `ownerEmail` does not match active authenticated session.
+2. **Deterministic Timestamp Conflict Resolution (`updatedAt`)**:
+   * Every mutation on habits, completions, undos, and todos explicitly stamps `updatedAt: Date.now()`.
+   * Merging rules (`mergeDailyLog`, `mergeCollection`):
+     * If `remoteTime > localTime`, remote state wins (including undos and completions).
+     * If `localTime > remoteTime`, local state wins.
+     * Tombstones (`deleted: true`) strictly prevail over older item timestamps to prevent zombie resurrection.
+3. **Adaptive Polling & Caching Pipeline**:
+   * Adaptive intervals: 2.5s when window is focused; 10s when idle/minimized; immediate trigger on window `focus` or tab `visibilitychange`.
+   * Cached `stateFileId` directly checks HTTP `modifiedTime` metadata, saving ~66% of network queries.
+   * 250ms debounced push queue with `hasPendingSync` loop guard.
+4. **AES-256-GCM Note Encryption at Rest (`noteCrypto.ts`)**:
+   * Uses Web Crypto API (`SubtleCrypto`) with random 256-bit AES-GCM keys.
+   * Key Location: OS filesystem (`$APPDATA/note_key.json`) on Desktop; IndexedDB JWK on Web.
+   * Dual-write persistence: Desktop notes mirror to both IndexedDB and `$APPDATA/notes/${date}.json`, making notes 100% immune to webview cache clears or installer updates.
+
+---
+
+### 8. Tactical Keyboard Shortcuts Reference Table
+
+| Key Combination | Action / Trigger | Scope / View |
+| :--- | :--- | :--- |
+| <kbd>Ctrl</kbd> + <kbd>K</kbd> | Open Natural Language Command Palette | Global |
+| <kbd>Ctrl</kbd> + <kbd>/</kbd> | Open Field Manual Quick Viewer | Global |
+| <kbd>D</kbd> | Navigate to Dashboard (`/`) | Global (when not typing) |
+| <kbd>H</kbd> | Navigate to Habits Forge (`/habits`) | Global (when not typing) |
+| <kbd>T</kbd> | Navigate to Tactical Todos (`/todos`) | Global (when not typing) |
+| <kbd>A</kbd> | Navigate to Analytics (`/analytics`) | Global (when not typing) |
+| <kbd>L</kbd> | Navigate to Logbook Archive (`/logbook`) | Global (when not typing) |
+| <kbd>K</kbd> | Navigate to Lockdown Engine (`/lockdown`) | Global (when not typing) |
+| <kbd>S</kbd> | Navigate to Settings (`/settings`) | Global (when not typing) |
+| <kbd>M</kbd> | Navigate to Field Manual (`/manual`) | Global (when not typing) |
+| <kbd>Space</kbd> | Hold-to-Complete currently highlighted habit | Dashboard / Habits |
+| <kbd>Esc</kbd> | Dismiss active modal, drawer, or Command Palette | Modals / Drawers |
+| <kbd>Arrow Up</kbd> / <kbd>Down</kbd> | Browse items with mechanical switch audio | Command Palette / Forms |
+| <kbd>Enter</kbd> | Direct execution of selected command / action | Command Palette |
+
+---
+
+### 9. Modular File Architecture Map
+
+```
+W/
+├── src/
+│   ├── app/                    # Routing & Root Layout Shell
+│   │   ├── Layout.tsx          # Phase-state startup, gap processing, toast stack
+│   │   └── routes.tsx          # React Router v7 route definitions
+│   ├── features/               # Domain-Driven Feature Modules
+│   │   ├── dashboard/          # Viewport-locked HUD, SleepTube, Protocol Lists
+│   │   ├── habits/             # Habit Forge, HabitForm wizard, HabitDetail drawer
+│   │   ├── todos/              # Priority todos, numbered tasks, TodoCreatorPage
+│   │   ├── logs/               # Logbook archive, local log service, note crypto
+│   │   ├── analytics/          # Heatmaps, radar charts, consistency scoring
+│   │   ├── lockdown/           # Focus engine, scheduled rules, block overlay
+│   │   ├── manual/             # Field Manual chapters, LLM export engine
+│   │   ├── settings/           # 4-column tile grid, theme, wallpapers, sync
+│   │   ├── strikes/            # Strike system, LockoutOverlay, PunishmentModal
+│   │   ├── sticky-notes/       # StickyCanvas, StickyNote cards, placement store
+│   │   ├── tray/               # Custom borderless system tray HUD popup
+│   │   ├── widget/             # Desktop Overlay Widget companion app
+│   │   ├── freeze/             # Manual and auto-absence freeze protocols
+│   │   ├── auth/               # Google SSO, PKCE token exchange, AuthGuard
+│   │   ├── updater/            # Tauri desktop native updater hooks
+│   │   └── wallpaper/          # Custom wallpaper upload, crop, dim, blur
+│   └── shared/                 # Reusable Systems & Primitives
+│       ├── components/         # Topbar, Sidebar, MobileNav, DatePicker, Toast
+│       ├── constants/          # Motion spring tokens (SPRING_TACTILE, etc.)
+│       ├── hooks/              # useSpotlightBorder, useNotifications
+│       ├── services/           # localDb (DAL Gate), googleDriveService, tactileAudio
+│       └── utils/              # noteCrypto, security sanitizers, dateUtils
+└── src-tauri/                  # Native Rust Desktop Layer (Tauri v2)
+    ├── src/
+    │   ├── lib.rs              # Main entry, window event routing, IPC commands
+    │   ├── workerw.rs          # Win32 desktop bottom-pinning & z-order guard
+    │   ├── sticky_overlay.rs   # Low-level WH_MOUSE_LL mouse hook & hit-testing
+    │   └── lockdown.rs         # Win32 process & browser tab title polling
+    ├── capabilities/           # Security capabilities & window permissions
+    └── tauri.conf.json         # Window definitions (main, widget, sticky, tray)
+```
+
+---
+
+## Historical Engineering Batches & Changelog
+
+*(Batches 24 through 74 preserved chronologically below for audit and git forensics)*
 
 ---
 
@@ -1237,4 +1621,77 @@ Extended the deterministic conflict resolution and real-time synchronization eng
    - Added unit test suite in `src/shared/utils/security.test.ts` covering remote completion, remote restoration over local tombstone, local restoration over remote tombstone, and stale item deletion.
    - Vitest test suite: 17 test files, 178 tests passing.
    - Compiled and deployed native release binary to `C:\Users\unniu\AppData\Local\W\w-app.exe`.
+
+
+## Batch 74 — Clean Cyber-Minimalist System Tray HUD Menu Redesign
+
+Replaced the native Win32 context menu with a custom borderless tactical HUD window in Tauri v2, refined for pure minimalism:
+
+1. **Native Tray Decoupling & Borderless Window Architecture**:
+   - Registered `"tray-menu"` window definition in `src-tauri/tauri.conf.json` with dimensions `250x215`, `decorations: false`, `transparent: true`, `shadow: false`, `alwaysOnTop: true`, and `skipTaskbar: true`.
+   - Granted capabilities for `"tray-menu"` in `src-tauri/capabilities/default.json`.
+   - Removed `.menu(&tray_menu)` from `TrayIconBuilder` in `src-tauri/src/lib.rs` to prevent Windows from spawning the OS context menu on right click.
+   - Intercepted `TrayIconEvent::Click { button: MouseButton::Right, .. }`:
+     - Dynamically calculates the physical cursor position against monitor boundaries (clamped to prevent clipping off-screen).
+     - Positions the `"tray-menu"` popup directly above or adjacent to the tray icon with `set_position(...)` and displays it.
+   - Mapped `TrayIconEvent::Click { button: MouseButton::Left, .. }` to unminimize, show, and focus the main window.
+   - Implemented native context menu blur auto-dismissal: `tauri::WindowEvent::Focused(false)` on the `"tray-menu"` window immediately calls `window.hide()`.
+
+2. **IPC Native Control Commands (`src-tauri/src/lib.rs`)**:
+   - Implemented and registered commands:
+     - `get_tray_state`: Returns `{ widget_visible: bool, sticky_visible: bool, version: String }`.
+     - `tray_show_main`: Brings main Command Center to the foreground and dismisses tray menu.
+     - `tray_toggle_widget`: Toggles Desktop Widget visibility and bottom z-order pinning.
+     - `tray_toggle_sticky`: Toggles Sticky Notes overlay visibility.
+     - `tray_hide_menu`: Programmatically dismisses tray popup.
+     - `tray_quit_app`: Emits `w_quit_requested` and executes clean `app.exit(0)`.
+
+3. **Clean & Minimalist Frontend HUD (`src/features/tray/components/TrayMenuPage.tsx` & `.css`)**:
+   - Compact obsidian glass chassis (`rgba(14, 15, 18, 0.95)`, `backdrop-filter: blur(20px)`), 1px micro-border, and top dynamic moving RGB light rail (`linear-gradient` cycling seamlessly via `@keyframes rgb-rail-flow` with subtle neon underglow).
+   - Clean single-line header: `W` and `v1.8.5` (zero awkward text wrapping, zero fake sci-fi jargon).
+   - Removed redundant badges: Clean buttons for `Command Center` and `Quit W`.
+   - Simple, high-contrast status pills for `Desktop Widget` and `Sticky Notes` (`Visible` / `Hidden`).
+   - Dimensions tightened from 290px down to 215px, completely eliminating bottom dead space.
+   - Cursor spotlight beam hover tracking via `useSpotlightBorder`.
+   - Procedural Web Audio haptics: `playMechanicalClick()` on action clicks and `playSubtleThud()` on cancel/exit.
+   - Keyboard shortcut: `Escape` immediately closes the menu.
+
+4. **Testing & Verification**:
+   - Vitest test suite passing: 18 test files, 179 tests.
+   - TypeScript compiler verification: 0 errors (`npx tsc --noEmit`).
+   - Native release binary compiled (`npm run build:app`) and deployed to `C:\Users\unniu\AppData\Local\W\w-app.exe` (running live under PID `26732`).
+
+---
+
+### 75. Lockdown Presets Grid Responsiveness & Overflow Fix (2026-11-16)
+1. **Layout & Grid Overhaul (`src/features/lockdown/components/LockdownPage.css`)**:
+   - Replaced rigid 3-column layout (`grid-template-columns: 1fr 1fr 1fr`) in `.lockdown-presets` with an adaptive auto-fitting grid: `repeat(auto-fill, minmax(180px, 1fr))`.
+   - At standard 1200px window width (where the right inspect column is ~440px), the 6 preset cards now arrange in a balanced 2-column layout (3 rows of 2 cards) with ~215px per card, providing ample space.
+2. **Text & Action Icon Protection Against Clipping**:
+   - Added `min-width: 0` to `.lockdown-preset` and `.lockdown-preset-container` to prevent flex items from forcing horizontal overflow.
+   - Added `flex: 1` and `word-break: break-word` to `.lockdown-preset__info` and `.lockdown-preset__name`, ensuring labels like `ENTERTAINMENT`, `SHOPPING & TRADING`, and `NEWS & FEEDS` display in full without clipping.
+   - Added `flex-shrink: 0` to `.lockdown-preset__expand-btn` and `.lockdown-preset__check`, ensuring the chevron expand button and selection checkmark are always completely visible.
+   - Removed stale 900px breakpoint; retained 600px single-column fallback for narrow viewports.
+3. **Verification**:
+   - Zero TypeScript compiler errors (`npx tsc --noEmit`).
+   - 18 Vitest test suites passing (179 tests).
+   - Native release binary compiled (`npm run build:app`) and deployed to `C:\Users\unniu\AppData\Local\W\w-app.exe` (running live under PID `24456`).
+
+---
+
+### 76. Google Drive Sync Startup False Alarm & Multi-Device Sync Pipeline Fix (2026-11-16)
+1. **Startup False Alarm Resolution (`src/app/Layout.tsx`)**:
+   - Fixed pre-gap sync check: previously, if Google Drive files were already in sync and not modified, `pullAndMergeFromGoogleDrive(true)` returned `false`, which was mistakenly treated as "sync failed or session expired", triggering an annoying `[ GOOGLE DRIVE SYNC PENDING - RE-AUTHENTICATE TO SYNC ]` toast on every app startup.
+   - Permanently removed the intrusive `[ GOOGLE DRIVE SYNC PENDING ]` startup toast from `Layout.tsx` across both desktop and web platforms. Token checks guard the gap processor silently in the background without spamming toast notifications.
+2. **Race-Condition & Pending Sync Queue Repair (`src/shared/services/localDb.ts`)**:
+   - Fixed a critical race condition where `pullAndMergeFromGoogleDrive` and `syncToGoogleDrive` shared `isSyncing`. If a user completed a habit while a poll was active, `syncToGoogleDrive` flagged `hasPendingSync = true` and exited, but `pullAndMergeFromGoogleDrive` never executed pending syncs upon completion, stranding edits in local IndexedDB.
+   - Added `hasPendingSync` auto-triggering to `finally` blocks of both `syncToGoogleDrive` and `pullAndMergeFromGoogleDrive`, guaranteeing zero dropped sync updates.
+   - Added `isSyncing` wait-queue to `pullAndMergeFromGoogleDrive(force=true)` so forced pulls wait up to 3s for background polls to finish rather than failing immediately.
+3. **Verification & Deployment**:
+   - Zero TypeScript compiler errors (`npx tsc --noEmit`).
+   - 18 Vitest test suites passing (179 tests).
+   - Native release binary compiled (`npm run build:app`) and deployed to `C:\Users\unniu\AppData\Local\W\w-app.exe` (running live under PID `29728`).
+
+
+
 
