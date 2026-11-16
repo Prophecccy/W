@@ -114,7 +114,14 @@ export function TodosPage() {
           }
         });
 
-        return [unsubHabit, unsubTodo];
+        const unsubSynced = await listen("w_data_synced", () => {
+          if (active) loadData(true);
+        });
+        const unsubLocalDb = await listen("w_localdb_write", () => {
+          if (active) loadData(true);
+        });
+
+        return [unsubHabit, unsubTodo, unsubSynced, unsubLocalDb];
       } catch (err) {
         console.error("Failed to setup Tauri listeners in TodosPage:", err);
         return [];

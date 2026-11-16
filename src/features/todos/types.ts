@@ -84,4 +84,6 @@ export interface Todo {
   // Lifecycle
   createdAt: number; // epoch ms
   completedAt: number | null; // epoch ms
+  updatedAt?: number; // epoch ms for sync conflict resolution
+  deleted?: boolean; // tombstone for sync propagation
 }

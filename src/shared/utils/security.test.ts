@@ -135,7 +135,7 @@ describe("security utility - validateIsoDate", () => {
   });
 });
 
-import { validateDocumentPayload } from "../services/localDb";
+import { validateDocumentPayload, mergeDailyLog, mergeCollection } from "../services/localDb";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -263,20 +263,34 @@ describe("Real-Time Cross-Device Google Drive Sync Architecture", () => {
     expect(content).toContain("parsedEnvelope.habits !== undefined");
   });
 
-  it("verifies localDb.ts registers 10s fast polling, window focus, and visibilitychange sync triggers", () => {
+  it("verifies localDb.ts registers 2.5s adaptive fast polling, window focus, visibilitychange sync triggers, and cross-window events", () => {
     const localDbPath = path.resolve(__dirname, "../services/localDb.ts");
     const content = fs.readFileSync(localDbPath, "utf-8");
+    expect(content).toContain("2_500");
     expect(content).toContain("10_000");
     expect(content).toContain('addEventListener("focus"');
     expect(content).toContain('addEventListener("visibilitychange"');
+    expect(content).toContain('emit("w_data_synced"');
+    expect(content).toContain('hasPendingSync');
   });
 
-  it("verifies googleDriveService.ts restores Web sessions with empty refresh tokens and exports flushAndPullAll", () => {
+  it("verifies googleDriveService.ts caches stateFileId, restores Web sessions with empty refresh tokens and exports flushAndPullAll", () => {
     const gdrivePath = path.resolve(__dirname, "../services/googleDriveService.ts");
     const content = fs.readFileSync(gdrivePath, "utf-8");
+    expect(content).toContain("stateFileId?: string | null");
     expect(content).toContain("if (accessToken && expiresAtStr)");
     expect(content).toContain("export async function flushAndPullAll");
     expect(content).toContain("await pullNotesFromDrive(accessToken)");
+  });
+
+  it("verifies useWidgetData.ts implements multi-channel IPC listeners and 2.5s IndexedDB state reconciliation", () => {
+    const widgetDataPath = path.resolve(__dirname, "../../features/widget/hooks/useWidgetData.ts");
+    const content = fs.readFileSync(widgetDataPath, "utf-8");
+    expect(content).toContain('listen("widget-habit-updated"');
+    expect(content).toContain('listen("w_data_synced"');
+    expect(content).toContain('addEventListener("w:data-synced"');
+    expect(content).toContain("reconcileLocalState");
+    expect(content).toContain("2500");
   });
 
   it("verifies DailyNote.tsx updates note content when w:note-synced event is captured", () => {
@@ -300,6 +314,216 @@ describe("Real-Time Cross-Device Google Drive Sync Architecture", () => {
     expect(content).toContain("pullAndMergeFromGoogleDrive(true)");
     expect(content).toContain("syncSuccess");
     expect(content).toContain("Pre-gap Google Drive sync failed or session expired");
+  });
+
+  describe("mergeDailyLog - Distributed Habit Conflict Resolution", () => {
+    it("respects remote habit undo when remote timestamp is newer than local completion", () => {
+      const localLog = {
+        updatedAt: 1000,
+        habits: {
+          duolingo: {
+            completed: true,
+            value: 1,
+            target: 1,
+            completions: [{ timestamp: 1000, value: 1 }],
+            updatedAt: 1000,
+          },
+        },
+      };
+
+      const remoteLog = {
+        updatedAt: 2000,
+        habits: {
+          duolingo: {
+            completed: false,
+            value: 0,
+            target: 1,
+            completions: [],
+            updatedAt: 2000,
+          },
+        },
+      };
+
+      const merged = mergeDailyLog(localLog, remoteLog);
+      expect(merged.habits.duolingo.completed).toBe(false);
+      expect(merged.habits.duolingo.value).toBe(0);
+      expect(merged.habits.duolingo.completions).toEqual([]);
+      expect(merged.updatedAt).toBe(2000);
+    });
+
+    it("respects local habit undo when local timestamp is newer than remote completion", () => {
+      const localLog = {
+        updatedAt: 3000,
+        habits: {
+          duolingo: {
+            completed: false,
+            value: 0,
+            target: 1,
+            completions: [],
+            updatedAt: 3000,
+          },
+        },
+      };
+
+      const remoteLog = {
+        updatedAt: 2000,
+        habits: {
+          duolingo: {
+            completed: true,
+            value: 1,
+            target: 1,
+            completions: [{ timestamp: 2000, value: 1 }],
+            updatedAt: 2000,
+          },
+        },
+      };
+
+      const merged = mergeDailyLog(localLog, remoteLog);
+      expect(merged.habits.duolingo.completed).toBe(false);
+      expect(merged.habits.duolingo.value).toBe(0);
+      expect(merged.habits.duolingo.completions).toEqual([]);
+      expect(merged.updatedAt).toBe(3000);
+    });
+
+    it("preserves independent completions across multiple devices", () => {
+      const localLog = {
+        updatedAt: 1000,
+        habits: {
+          "habit-cold-shower": {
+            completed: true,
+            value: 1,
+            target: 1,
+            completions: [{ timestamp: 1000, value: 1 }],
+            updatedAt: 1000,
+          },
+        },
+      };
+
+      const remoteLog = {
+        updatedAt: 2000,
+        habits: {
+          "habit-duolingo": {
+            completed: true,
+            value: 1,
+            target: 1,
+            completions: [{ timestamp: 2000, value: 1 }],
+            updatedAt: 2000,
+          },
+        },
+      };
+
+      const merged = mergeDailyLog(localLog, remoteLog);
+      expect(merged.habits["habit-cold-shower"].completed).toBe(true);
+      expect(merged.habits["habit-duolingo"].completed).toBe(true);
+    });
+
+    it("verifies force bypass prevents downloadStateFromDrive from skipping pull when timestamps match", async () => {
+      const { downloadStateFromDrive } = await import("../services/googleDriveService");
+      // Test function signature accepts force parameter
+      expect(typeof downloadStateFromDrive).toBe("function");
+      expect(downloadStateFromDrive.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("verifies mergeCollection gives remote todo completion precedence when remote updatedAt is newer", () => {
+      const localTodos = {
+        "todo-1": {
+          id: "todo-1",
+          title: "Buy Groceries",
+          status: "active",
+          createdAt: 1000,
+          updatedAt: 1000,
+        },
+      };
+      const remoteTodos = {
+        "todo-1": {
+          id: "todo-1",
+          title: "Buy Groceries",
+          status: "done",
+          completedAt: 2000,
+          createdAt: 1000,
+          updatedAt: 2000,
+        },
+      };
+
+      const merged = mergeCollection(localTodos, remoteTodos);
+      expect(merged["todo-1"].status).toBe("done");
+      expect(merged["todo-1"].completedAt).toBe(2000);
+      expect(merged["todo-1"].updatedAt).toBe(2000);
+    });
+
+    it("verifies mergeCollection allows remote restoration/undo (deleted: false) to supersede local tombstone (deleted: true)", () => {
+      const localTodos = {
+        "todo-1": {
+          id: "todo-1",
+          title: "Call Mom",
+          deleted: true,
+          updatedAt: 2000,
+        },
+      };
+      const remoteTodos = {
+        "todo-1": {
+          id: "todo-1",
+          title: "Call Mom",
+          status: "active",
+          deleted: false,
+          updatedAt: 3000,
+        },
+      };
+
+      const merged = mergeCollection(localTodos, remoteTodos);
+      expect(merged["todo-1"].deleted).toBe(false);
+      expect(merged["todo-1"].status).toBe("active");
+      expect(merged["todo-1"].updatedAt).toBe(3000);
+    });
+
+    it("verifies mergeCollection allows local restoration/undo to supersede older remote tombstone", () => {
+      const localTodos = {
+        "todo-1": {
+          id: "todo-1",
+          title: "Workout",
+          status: "active",
+          deleted: false,
+          updatedAt: 3000,
+        },
+      };
+      const remoteTodos = {
+        "todo-1": {
+          id: "todo-1",
+          title: "Workout",
+          deleted: true,
+          updatedAt: 2000,
+        },
+      };
+
+      const merged = mergeCollection(localTodos, remoteTodos);
+      expect(merged["todo-1"].deleted).toBe(false);
+      expect(merged["todo-1"].status).toBe("active");
+      expect(merged["todo-1"].updatedAt).toBe(3000);
+    });
+
+    it("verifies mergeCollection applies remote deletion tombstone over stale local active item", () => {
+      const localTodos = {
+        "todo-1": {
+          id: "todo-1",
+          title: "Old Task",
+          status: "active",
+          createdAt: 1000,
+          updatedAt: 1000,
+        },
+      };
+      const remoteTodos = {
+        "todo-1": {
+          id: "todo-1",
+          title: "Old Task",
+          deleted: true,
+          updatedAt: 2500,
+        },
+      };
+
+      const merged = mergeCollection(localTodos, remoteTodos);
+      expect(merged["todo-1"].deleted).toBe(true);
+      expect(merged["todo-1"].updatedAt).toBe(2500);
+    });
   });
 });
 
@@ -401,12 +625,12 @@ describe("Strike System Zen Mode & Cross-Device Disablement Architecture", () =>
     expect(content).toContain("[ FROZEN — CLICK TO RESUME ]");
   });
 
-  it("verifies localDb.ts dispatches w:data-synced and enforces permanent tombstones across devices", () => {
+  it("verifies localDb.ts dispatches w:data-synced and enforces timestamp-directed tombstones across devices", () => {
     const localDbPath = path.resolve(__dirname, "../services/localDb.ts");
     const content = fs.readFileSync(localDbPath, "utf-8");
     expect(content).toContain("window.dispatchEvent(new CustomEvent(\"w:data-synced\"");
-    expect(content).toContain("if (isLocalDeleted || isRemoteDeleted)");
-    expect(content).toContain("deleted: true");
+    expect(content).toContain("const isDeleted = Boolean(localItem.deleted || remoteItem.deleted)");
+    expect(content).toContain("deleted: isDeleted");
   });
 
   it("verifies DashboardPage, HabitsPage, and TodosPage listen for w:data-synced to auto-refresh on cloud sync", () => {

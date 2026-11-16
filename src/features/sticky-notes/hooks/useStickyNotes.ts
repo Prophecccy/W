@@ -107,23 +107,21 @@ export function useStickyNotes(): StickyNotesReturn {
       });
 
       // Prune old completed/deleted positions from localStorage cache to prevent leaks
-      if (snapshot.metadata && !snapshot.metadata.fromCache) {
-        const activeIds = new Set(activeTodos.map(t => t.id));
-        try {
-          const cached = loadPositions();
-          let changed = false;
-          Object.keys(cached).forEach(id => {
-            if (!activeIds.has(id)) {
-              delete cached[id];
-              changed = true;
-            }
-          });
-          if (changed) {
-            localStorage.setItem("w_sticky_positions", JSON.stringify(cached));
+      const activeIds = new Set(activeTodos.map(t => t.id));
+      try {
+        const cached = loadPositions();
+        let changed = false;
+        Object.keys(cached).forEach(id => {
+          if (!activeIds.has(id)) {
+            delete cached[id];
+            changed = true;
           }
-        } catch (e) {
-          console.error("Failed to prune cached sticky positions:", e);
+        });
+        if (changed) {
+          localStorage.setItem("w_sticky_positions", JSON.stringify(cached));
         }
+      } catch (e) {
+        console.error("Failed to prune cached sticky positions:", e);
       }
 
       setTodos(activeTodos);

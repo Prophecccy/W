@@ -86,7 +86,16 @@ export function DashboardPage() {
           setRefreshTrigger(prev => prev + 1);
         });
 
-        return [unHabit, unTodo];
+        const unSynced = await listen("w_data_synced", () => {
+          console.log("Dashboard: Received w_data_synced event");
+          if (active) setRefreshTrigger(prev => prev + 1);
+        });
+        const unLocalDb = await listen("w_localdb_write", () => {
+          console.log("Dashboard: Received w_localdb_write event");
+          if (active) setRefreshTrigger(prev => prev + 1);
+        });
+
+        return [unHabit, unTodo, unSynced, unLocalDb];
       } catch (e) {
         console.error('Failed to setup listeners', e);
         return [];
@@ -273,7 +282,8 @@ export function DashboardPage() {
           completed: isCompleted,
           value: newValue,
           target,
-          completions: [...(existing?.completions ?? []), { timestamp: Date.now(), value: 1 }]
+          completions: [...(existing?.completions ?? []), { timestamp: Date.now(), value: 1 }],
+              updatedAt: Date.now(),
         };
 
         setPeriodLogs(prevPeriod => {
@@ -364,7 +374,7 @@ export function DashboardPage() {
             ? false
             : true;
 
-        const updatedHabitEntry = { ...existing, completions: newCompletions, value: newValue, completed: isCompleted };
+        const updatedHabitEntry = { ...existing, completions: newCompletions, value: newValue, completed: isCompleted, updatedAt: Date.now() };
 
         setPeriodLogs(prevPeriod => {
           const index = prevPeriod.findIndex(l => l.date === today);

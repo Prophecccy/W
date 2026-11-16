@@ -100,12 +100,26 @@ export function HabitsPage() {
       try {
         const { listen } = await import('@tauri-apps/api/event');
         if (!active) return () => {};
-        const unlisten = await listen('widget-habit-updated', () => {
+        const unlistenHabit = await listen('widget-habit-updated', () => {
           if (!active) return;
           console.log('HabitsPage: Received widget-habit-updated, refreshing...');
           setRefreshKey(prev => prev + 1);
         });
-        return unlisten;
+        const unlistenSynced = await listen('w_data_synced', () => {
+          if (!active) return;
+          console.log('HabitsPage: Received w_data_synced IPC, refreshing...');
+          setRefreshKey(prev => prev + 1);
+        });
+        const unlistenWrite = await listen('w_localdb_write', () => {
+          if (!active) return;
+          console.log('HabitsPage: Received w_localdb_write IPC, refreshing...');
+          setRefreshKey(prev => prev + 1);
+        });
+        return () => {
+          unlistenHabit();
+          unlistenSynced();
+          unlistenWrite();
+        };
       } catch (e) {
         console.error('HabitsPage: Failed to setup widget-habit-updated listener', e);
         return () => {};
@@ -251,7 +265,8 @@ export function HabitsPage() {
               completed: isCompleted,
               value: newValue,
               target,
-              completions: [...(existing?.completions ?? []), { timestamp: Date.now(), value: 1 }]
+              completions: [...(existing?.completions ?? []), { timestamp: Date.now(), value: 1 }],
+              updatedAt: Date.now(),
             }
           }
         };
@@ -334,11 +349,7 @@ export function HabitsPage() {
           }
         }
 
-        if (newCompletions.length === 0) {
-          delete newHabits[habitId];
-        } else {
-          newHabits[habitId] = { ...existing, completions: newCompletions, value: newValue, completed: isCompleted };
-        }
+        newHabits[habitId] = { ...existing, completions: newCompletions, value: newValue, completed: isCompleted, updatedAt: Date.now() };
         updatedLog = { ...prev, habits: newHabits };
         
         setPeriodLogs(prevLogs => {

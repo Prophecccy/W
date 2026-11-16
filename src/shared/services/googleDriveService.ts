@@ -24,6 +24,7 @@ export interface GDriveTokens {
 interface GDriveFolderCache {
   rootFolderId: string | null;
   yearFolderIds: Record<string, string>;
+  stateFileId?: string | null;
 }
 
 export interface OAuthSession {
@@ -87,9 +88,9 @@ export async function getSessionUserEmail(): Promise<string | null> {
 async function getFolderCache(): Promise<GDriveFolderCache> {
   try {
     const cached = await idbGet<GDriveFolderCache>(FOLDER_CACHE_KEY);
-    return cached || { rootFolderId: null, yearFolderIds: {} };
+    return cached || { rootFolderId: null, yearFolderIds: {}, stateFileId: null };
   } catch {
-    return { rootFolderId: null, yearFolderIds: {} };
+    return { rootFolderId: null, yearFolderIds: {}, stateFileId: null };
   }
 }
 
@@ -103,7 +104,7 @@ async function saveFolderCache(cache: GDriveFolderCache): Promise<void> {
 
 async function clearFolderCache(): Promise<void> {
   try {
-    await idbSet(FOLDER_CACHE_KEY, { rootFolderId: null, yearFolderIds: {} });
+    await idbSet(FOLDER_CACHE_KEY, { rootFolderId: null, yearFolderIds: {}, stateFileId: null });
   } catch (err) {
     console.error("Failed to clear folder cache:", err);
   }
@@ -630,13 +631,40 @@ async function uploadFileContent(
 export async function uploadStateToDrive(accessToken: string, content: string): Promise<string> {
   const fileName = "W_state.json";
   try {
-    const rootFolderId = await resolveAndConsolidateRootFolder(accessToken);
-    let fileId = await findFile(accessToken, fileName, rootFolderId);
+    const cache = await getFolderCache();
+    let rootFolderId = cache.rootFolderId;
+    let fileId = cache.stateFileId;
+
     if (!fileId) {
-      console.info("[GDrive Service] W_state.json does not exist on Drive. Creating new...");
-      fileId = await createEmptyFile(accessToken, fileName, rootFolderId);
+      if (!rootFolderId) {
+        rootFolderId = await resolveAndConsolidateRootFolder(accessToken);
+        cache.rootFolderId = rootFolderId;
+      }
+      fileId = await findFile(accessToken, fileName, rootFolderId);
+      if (!fileId) {
+        console.info("[GDrive Service] W_state.json does not exist on Drive. Creating new...");
+        fileId = await createEmptyFile(accessToken, fileName, rootFolderId);
+      }
+      cache.stateFileId = fileId;
+      await saveFolderCache(cache);
     }
-    const modifiedTime = await uploadFileContent(accessToken, fileId, content, "application/json");
+
+    let modifiedTime: string;
+    try {
+      modifiedTime = await uploadFileContent(accessToken, fileId, content, "application/json");
+    } catch (uploadErr) {
+      console.warn("[GDrive Service] Upload with cached fileId failed. Re-resolving file...", uploadErr);
+      rootFolderId = await resolveAndConsolidateRootFolder(accessToken);
+      cache.rootFolderId = rootFolderId;
+      fileId = await findFile(accessToken, fileName, rootFolderId);
+      if (!fileId) {
+        fileId = await createEmptyFile(accessToken, fileName, rootFolderId);
+      }
+      cache.stateFileId = fileId;
+      await saveFolderCache(cache);
+      modifiedTime = await uploadFileContent(accessToken, fileId, content, "application/json");
+    }
+
     console.info("[GDrive Service] Successfully uploaded W_state.json to Drive.");
     return modifiedTime;
   } catch (err) {
@@ -651,34 +679,68 @@ export async function uploadStateToDrive(accessToken: string, content: string): 
  */
 export async function downloadStateFromDrive(
   accessToken: string,
-  ifModifiedSince?: string
+  ifModifiedSince?: string,
+  force: boolean = false
 ): Promise<{ content: string; modifiedTime: string; notModified?: boolean } | null> {
   const fileName = "W_state.json";
   try {
-    const rootFolderId = await resolveAndConsolidateRootFolder(accessToken);
-    const fileId = await findFile(accessToken, fileName, rootFolderId);
+    const cache = await getFolderCache();
+    let rootFolderId = cache.rootFolderId;
+    let fileId = cache.stateFileId;
+
     if (!fileId) {
-      console.info("[GDrive Service] W_state.json not found on Drive.");
-      return null;
+      if (!rootFolderId) {
+        rootFolderId = await resolveAndConsolidateRootFolder(accessToken);
+        cache.rootFolderId = rootFolderId;
+      }
+      fileId = await findFile(accessToken, fileName, rootFolderId);
+      if (!fileId) {
+        console.info("[GDrive Service] W_state.json not found on Drive.");
+        return null;
+      }
+      cache.stateFileId = fileId;
+      await saveFolderCache(cache);
     }
 
     // 1. Get file metadata first to compare modifiedTime
     const metaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`;
-    const metaRes = await fetchWithRetry(metaUrl, {
+    let metaRes = await fetchWithRetry(metaUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
+
+    // If cached fileId is invalid/not found (404), bust cache and re-resolve
+    if (metaRes.status === 404) {
+      console.warn("[GDrive Service] Cached stateFileId returned 404. Refreshing cache...");
+      rootFolderId = await resolveAndConsolidateRootFolder(accessToken);
+      cache.rootFolderId = rootFolderId;
+      fileId = await findFile(accessToken, fileName, rootFolderId);
+      if (!fileId) {
+        cache.stateFileId = null;
+        await saveFolderCache(cache);
+        return null;
+      }
+      cache.stateFileId = fileId;
+      await saveFolderCache(cache);
+      metaRes = await fetchWithRetry(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+    }
+
     let modifiedTime = "";
     if (metaRes.ok) {
       const meta = await metaRes.json();
       modifiedTime = meta.modifiedTime || "";
     }
 
-    const checkTimestamp = ifModifiedSince || (typeof localStorage !== "undefined" ? localStorage.getItem("w_gdrive_state_modified_time") : null);
-    if (checkTimestamp && modifiedTime && checkTimestamp === modifiedTime) {
-      return { content: "", modifiedTime, notModified: true };
+    // If not forcing, check if the file was modified since last pull
+    if (!force) {
+      const checkTimestamp = ifModifiedSince || (typeof localStorage !== "undefined" ? localStorage.getItem("w_gdrive_state_modified_time") : null);
+      if (checkTimestamp && modifiedTime && checkTimestamp === modifiedTime) {
+        return { content: "", modifiedTime, notModified: true };
+      }
     }
 
-    // 2. Download file media content only if modified
+    // 2. Download file media content only if modified or forced
     const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
     const res = await fetchWithRetry(url, {
       headers: { Authorization: `Bearer ${accessToken}` },

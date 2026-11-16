@@ -73,6 +73,7 @@ export interface HabitLogEntry {
   value: number; // total value for the day
   target: number; // target for that day (copied from habit at log time)
   completions: CompletionEntry[]; // individual completion events
+  updatedAt?: number; // epoch ms when this habit entry was last modified
 }
 
 export interface HabitLog {

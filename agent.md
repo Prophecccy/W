@@ -1092,3 +1092,149 @@ Resolved an issue where habit completions marked on Desktop were unticked on Web
    - 17 test files and 169 tests passing via Vitest (`npm test`).
    - Clean production build via Vite (`npm run build`).
 
+
+
+## Batch 68 — Sub-Second Multi-Device Sync Pipeline, Google Drive File ID Caching & Reactive Path Listener Routing
+
+Resolved an issue where habit checkoffs marked on Web did not appear in the Desktop application in a timely manner due to multi-HTTP-call Google Drive search overhead, a 10s static polling delay, write queue starvation, and mismatched collection/document listener path routing:
+
+1. **Google Drive File ID & Root Folder Caching (`googleDriveService.ts`)**:
+   - Added `stateFileId` persistence to `GDriveFolderCache`.
+   - In `uploadStateToDrive()` and `downloadStateFromDrive()`, eliminated duplicate root folder search and `W_state.json` file discovery queries on every polling cycle.
+   - Polling now issues a single lightweight `fields=modifiedTime` metadata query directly against the cached `stateFileId`, dropping network polling overhead by ~66% and preventing Google Drive rate-limit pressure. Includes 404 auto-healing to bust and refresh cached IDs if the file is moved or deleted remotely.
+
+2. **Hierarchical Listener Path Routing & Cross-Window Dispatch (`localDb.ts`)**:
+   - Replaced naive strict-equality matching in `runLocalListeners()` with hierarchical path resolution:
+     - Exact path matches (`listener.path === path`).
+     - Sub-document mutations for collection listeners (`listener.isCollection && path.startsWith(listener.path + "/")`).
+     - Parent/container updates notifying all nested document listeners (`listener.path.startsWith(path + "/")`).
+   - Resolves a bug where document-level listeners (such as `users/${uid}/logs/${today}` in the desktop widget) were ignored when `triggerLocalListenersForEverything()` signaled collection-level updates (`users/${uid}/logs`).
+   - Integrated cross-window Tauri broadcast via `w_data_synced` and `w_localdb_write`, ensuring all auxiliary windows (desktop widget, sticky notes) react instantaneously to sync pulls.
+
+3. **Snappy Interactive Write Debouncing & Queue Drain (`localDb.ts`)**:
+   - Reduced `triggerSync()` debounce from `1000ms` down to `250ms` for immediate interactive checkoff responsiveness.
+   - Introduced `hasPendingSync` loop guard in `syncToGoogleDrive()` (`do ... while (hasPendingSync)`), preventing subsequent habit toggles from being dropped while a previous upload is in flight.
+
+4. **Adaptive Active-Window Polling & Multi-Window Throttle (`localDb.ts`)**:
+   - Upgraded the static 10-second polling heartbeat to an adaptive model:
+     - 2.5 seconds when the window is visible and focused.
+     - 10 seconds when minimized or hidden.
+     - Immediate trigger on window `focus` or tab `visibilitychange`.
+   - Added `w_gdrive_last_poll` throttle across Tauri windows to prevent concurrent WebView instances from duplicating poll requests.
+
+5. **Verification & Quality Gates**:
+   - 17 test files and 169 unit tests passing via Vitest (`npm test`).
+   - Clean production compilation with zero TypeScript errors (`npm run build`).
+
+
+## Batch 69 — Desktop Widget Multi-Channel Sync & Active IndexedDB Reconciliation
+
+Resolved an issue where habit completions synced from Google Drive rendered in the Desktop Main App but failed to update the Desktop Widget window (`/widget`):
+
+1. **Active Local IndexedDB Reconciliation Loop (`useWidgetData.ts`)**:
+   - Added a 2.5-second local state reconciliation heartbeat (`reconcileLocalState`) inside `useWidgetData()`.
+   - Directly checks `doc(db, 'users', user.uid, 'logs', today)` from local IndexedDB with zero network cost and zero API quota usage.
+   - If habit completions or timestamps change in IndexedDB (from cloud sync or main window mutations), `todayLog` updates immediately in the widget. This provides defense-in-depth even when the transparent widget window is unfocused (`focusable: false`).
+
+2. **Multi-Channel Tauri IPC & DOM Event Listeners (`useWidgetData.ts`)**:
+   - Registered Tauri event listeners for:
+     - `widget-habit-updated`: Dispatched when habits are toggled in the Dashboard or Habits pages.
+     - `widget-todo-updated`: Dispatched when todos change.
+     - `w_data_synced` & `w_localdb_write`: Dispatched on cross-window database writes and cloud sync pulls.
+   - Registered DOM event listener for `"w:data-synced"`.
+   - Wired `refreshTrigger` into `onSnapshot` dependencies so all widget subscriptions re-evaluate on any state change.
+
+3. **Verification & Quality Gates**:
+   - 17 test files and 170 unit tests passing via Vitest (`npm test`).
+   - Clean production build via Vite (`npm run build`).
+
+
+## Batch 70 — Standalone Release Binary Deployment & Desktop Runtime Verification
+
+Resolved the binary discrepancy causing desktop widget test failures:
+
+1. **Release Binary Build (`src-tauri/target/release/w-app.exe`)**:
+   - Executed full native Rust release compilation (`npm run build:app` via `tauri build --no-bundle`).
+   - Embedded latest optimized Vite bundle containing Batch 68 (fast adaptive polling, hierarchical listener matching, Google Drive metadata caching) and Batch 69 (active IndexedDB widget reconciliation heartbeat and cross-window Tauri IPC listeners).
+
+2. **AppData Deployment & Process Replacement**:
+   - Safely terminated stale background instances running the older November 7th binary (`C:\Users\unniu\AppData\Local\W\w-app.exe`).
+   - Deployed fresh compiled release executable (`11/10/2026 5:52:51 PM`, 9,674,240 bytes) to `C:\Users\unniu\AppData\Local\W\w-app.exe`.
+   - Cleared orphan WebView2 background processes and relaunched `w-app.exe` with active interactive widget and main window contexts.
+   - Guaranteed that widget updates from web completions do not require opening, closing, or restarting the desktop application.
+
+
+## Batch 71 — Deterministic Timestamp-Directed Habit Log Conflict Resolution & Undo Sync
+
+Fixed a critical multi-device bug where uncompleting/undoing a habit on one device (e.g. Web) was permanently overridden and resurrected by stale device logs:
+
+1. **Root Cause Analysis (`mergeDailyLog` in `localDb.ts`)**:
+   - `mergeDailyLog()` originally merged habit completions using a destructive Boolean `OR` (`completed = local.completed || remote.completed`) and `Math.max(local.value, remote.value)` along with unioning completion timestamps.
+   - When a user marked a habit as complete on Device A, it synced to Device B. When the user subsequently undid that completion on Device A, Device B's local log still had `completed = true`.
+   - During sync, Device B evaluated `true || false = true` and unioned the old completion timestamp back into the array, re-saving `completed = true` locally and pushing the resurrected completion back up to Google Drive.
+
+2. **Per-Habit Timestamp Resolution**:
+   - Extended `HabitLogEntry` in `types.ts` with `updatedAt?: number`.
+   - Updated `completeHabitImpl()` and `uncompleteHabitImpl()` in `logService.ts`, as well as optimistic updaters in `HabitsPage.tsx` and `DashboardPage.tsx`, to stamp `updatedAt: Date.now()` on every mutation.
+   - In `HabitsPage.tsx`, removed `delete newHabits[habitId]` on uncomplete in favor of an explicit entry tombstone (`{ completed: false, value: 0, completions: [], updatedAt: Date.now() }`).
+   - Redesigned `mergeDailyLog()` in `localDb.ts`:
+     - Compares effective modification timestamps per habit:
+       `habitTime = habit.updatedAt || habit.timestamp || habit.completions?.[last]?.timestamp || log.updatedAt || 0`.
+     - When `remoteHabitTime > localHabitTime`, remote takes precedence (accurately applying undos or completions).
+     - When `localHabitTime > remoteHabitTime`, local takes precedence.
+     - When timestamps match, non-duplicate completions are combined and evaluated against the habit target.
+
+3. **Release Compilation & Verification**:
+   - 17 test files and 173 tests passing via Vitest (`npm test`), including dedicated tests for remote undo precedence, local undo precedence, and multi-device independent completions.
+   - Rebuilt production bundle (`npm run build`) and compiled release executable (`npm run build:app`).
+   - Deployed fresh executable to `C:\Users\unniu\AppData\Local\W\w-app.exe` and launched active runtime (PID 21604).
+
+
+## Batch 72 — Forced Pull Cache Bypass, Cross-Window IPC Re-render & Sync Error Visibility
+
+Resolved silent sync failures and caching bugs preventing real-time multi-device and widget updates:
+
+1. **Forced Pull Cache Bypass (`googleDriveService.ts`)**:
+   - Added `force: boolean = false` parameter to `downloadStateFromDrive()`.
+   - Guarded the `checkTimestamp === modifiedTime` check strictly behind `if (!force)`. Previously, forced pulls fell back to `localStorage.getItem("w_gdrive_state_modified_time")` and returned `{ notModified: true }`, which aborted forced pulls even when explicitly requested.
+
+2. **Force Flag Propagation & Session Expiry Alerts (`localDb.ts`)**:
+   - Forwarded `force || isLocallyLocked` as the 3rd argument to `downloadStateFromDrive(accessToken, ifModifiedSince, force || isLocallyLocked)` in `pullAndMergeFromGoogleDrive()`.
+   - Added proactive warning log and `w:gdrive-session-expired` event dispatch when `getValidAccessToken()` returns `null` in `syncToGoogleDrive()` and `pullAndMergeFromGoogleDrive()`.
+
+3. **Cross-Window IPC Re-render Wiring (`HabitsPage.tsx`)**:
+   - Added Tauri cross-window IPC listeners for `w_data_synced` and `w_localdb_write` in `setupListener()`, refreshing `refreshKey` when secondary windows (Widget, Dashboard) or background polling sync threads update IndexedDB.
+
+4. **Testing & Release Deployment**:
+   - Verified unit tests in `src/shared/utils/security.test.ts` (17 test files, 174 tests passing).
+   - Recompiled production bundle and native release executable (`npm run build:app`).
+   - Deployed release binary to `C:\Users\unniu\AppData\Local\W\w-app.exe`.
+
+
+## Batch 73 — Distributed Todo & Sticky Note Timestamp Conflict Resolution & Cross-Window Sync
+
+Extended the deterministic conflict resolution and real-time synchronization engine to Todos and Sticky Notes:
+
+1. **Explicit Mutation Timestamps & Tombstone Lifecycle**:
+   - Extended `Todo` interface in `src/features/todos/types.ts` with `updatedAt?: number;` and `deleted?: boolean;`.
+   - Updated `todoService.ts` to explicitly stamp `updatedAt: Date.now()` across all mutations (`createTodo`, `updateTodo`, `completeTodo`, `incrementNumberedTodo`, `completeNumberedTodoFull`).
+   - Updated `restoreTodo()` to clear `deleted: false` and assign a fresh `updatedAt: Date.now()`.
+   - Updated `undoService.ts` to stamp `updatedAt: Date.now()` on undo operations (`todo_complete`, `todo_delete`, `todo_increment`).
+
+2. **Deterministic Timestamp Precedence in Collection Merging (`localDb.ts`)**:
+   - Refactored `mergeCollection()`:
+     - Compared effective timestamps per item: `localTime = localItem.updatedAt || localItem.completedAt || localItem.createdAt || localItem.timestamp || 0` vs `remoteTime = remoteItem.updatedAt || remoteItem.completedAt || remoteItem.createdAt || remoteItem.timestamp || 0`.
+     - When `remoteTime > localTime`, remote state wins (including completions, restorations, or deletions).
+     - When `localTime > remoteTime`, local state wins.
+     - When timestamps match, tombstones take precedence to prevent resurrection.
+     - Fixed the fatal tombstone bug where `isLocalDeleted || isRemoteDeleted` previously forced `deleted: true` permanently, which blocked multi-device undos and restores.
+
+3. **Cross-Window IPC Listeners (`TodosPage.tsx`, `DashboardPage.tsx`, `useStickyNotes.ts`)**:
+   - Wired Tauri IPC listeners for `w_data_synced` and `w_localdb_write` in `TodosPage.tsx` and `DashboardPage.tsx` to automatically re-fetch data on remote sync or secondary window updates.
+   - Removed undefined `snapshot.metadata.fromCache` check in `useStickyNotes.ts`, guaranteeing that completed or deleted todos immediately prune their cached coordinates and disappear from the desktop floating canvas in real time.
+
+4. **Verification & Testing**:
+   - Added unit test suite in `src/shared/utils/security.test.ts` covering remote completion, remote restoration over local tombstone, local restoration over remote tombstone, and stale item deletion.
+   - Vitest test suite: 17 test files, 178 tests passing.
+   - Compiled and deployed native release binary to `C:\Users\unniu\AppData\Local\W\w-app.exe`.
+

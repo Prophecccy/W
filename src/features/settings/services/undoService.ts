@@ -81,7 +81,7 @@ export async function undoAction(actionId: string): Promise<void> {
       const { updateTodo } = await import("../../todos/services/todoService");
       const todoId = action.reverseData.todoId as string;
       const prevNumbered = action.reverseData.prevNumbered as any;
-      const updates: any = { status: "active", completedAt: null };
+      const updates: any = { status: "active", completedAt: null, updatedAt: Date.now() };
       if (prevNumbered !== undefined) {
         updates.numbered = prevNumbered;
       }

@@ -153,6 +153,7 @@ async function completeHabitImpl(
     value: newValue,
     target: resolvedTarget,
     completions: [...existing.completions, entry],
+    updatedAt: Date.now(),
   };
 
   // Write log entry — update nested field if document exists, otherwise initialize document
@@ -395,6 +396,7 @@ async function uncompleteHabitImpl(
     completed: isCompleted,
     value: newValue,
     completions: newCompletions,
+    updatedAt: Date.now(),
   };
 
   await updateDoc(ref, {

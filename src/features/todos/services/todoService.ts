@@ -44,6 +44,7 @@ export async function createTodo(
     uid: uid(),
     status: "active",
     createdAt: Date.now(),
+    updatedAt: Date.now(),
     completedAt: null,
     order: todoData.order || Date.now(),
   };
@@ -62,7 +63,12 @@ export async function createTodo(
 }
 
 export async function restoreTodo(todo: Todo): Promise<void> {
-  await setDoc(todoDoc(todo.id), todo);
+  const restored: Todo = {
+    ...todo,
+    deleted: false,
+    updatedAt: Date.now(),
+  };
+  await setDoc(todoDoc(todo.id), restored);
   await notifyTodoUpdated();
 }
 
@@ -106,6 +112,7 @@ export async function updateTodo(todoId: string, updates: Partial<Todo>): Promis
   }
   delete safeUpdates.type; // Type is locked per rules
   delete safeUpdates.createdAt;
+  safeUpdates.updatedAt = Date.now();
 
   await updateDoc(todoDoc(todoId), safeUpdates);
   await notifyTodoUpdated();
@@ -157,6 +164,7 @@ export async function completeTodo(todoId: string): Promise<void> {
   const updates: any = {
     status: "done",
     completedAt: Date.now(),
+    updatedAt: Date.now(),
   };
 
   if (numbered) {
@@ -192,6 +200,7 @@ export async function incrementNumberedTodo(todoId: string, currentTodo: Todo): 
 
   await updateDoc(todoDoc(todoId), {
     "numbered.current": currentTodo.numbered.current,
+    updatedAt: Date.now(),
   });
 
   // Log to undo history
@@ -219,6 +228,7 @@ export async function completeNumberedTodoFull(todoId: string, currentTodo: Todo
     "numbered.current": currentTodo.numbered.target,
     status: "done",
     completedAt: Date.now(),
+    updatedAt: Date.now(),
   });
 
   // Log to undo history

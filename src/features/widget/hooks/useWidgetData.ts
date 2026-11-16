@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { db, collection, query, where, onSnapshot, doc, orderBy } from '../../../shared/config/firebase';
+import { db, collection, query, where, onSnapshot, doc, getDoc, orderBy } from '../../../shared/config/firebase';
 import { useAuthContext } from '../../auth/context';
 import { Habit, HabitLog } from '../../habits/types';
 import { User } from '../../../shared/types';
@@ -43,6 +43,103 @@ export function useWidgetData(): WidgetData {
     return getToday(undefined, cachedTime);
   });
 
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Active Multi-Channel Sync & Fast Reconciliation Loop
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    let unsubTauriEvents: (() => void)[] = [];
+
+    // 1. Direct local reconciliation function
+    const reconcileLocalState = async () => {
+      try {
+        const logRef = doc(db, 'users', user.uid, 'logs', today);
+        const snap = await getDoc(logRef);
+        if (!active) return;
+        if (snap.exists()) {
+          const freshLog = { date: today, uid: user.uid, ...snap.data() } as HabitLog;
+          setTodayLog((prev) => {
+            const prevStr = JSON.stringify(prev?.habits || {});
+            const freshStr = JSON.stringify(freshLog.habits || {});
+            if (prevStr !== freshStr) {
+              return freshLog;
+            }
+            return prev;
+          });
+        }
+      } catch (err) {
+        console.error("Widget local reconciliation error:", err);
+      }
+    };
+
+    // 2. DOM CustomEvent listener for intra-window or dispatched sync
+    const handleSyncEvent = () => {
+      setRefreshTrigger((prev) => prev + 1);
+      reconcileLocalState();
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("w:data-synced", handleSyncEvent);
+    }
+
+    // 3. Setup cross-window Tauri IPC listeners
+    async function setupTauriListeners() {
+      if (!isTauri()) return;
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        if (!active) return;
+
+        const unHabit = await listen("widget-habit-updated", () => {
+          setRefreshTrigger((prev) => prev + 1);
+          reconcileLocalState();
+        });
+
+        const unTodo = await listen("widget-todo-updated", () => {
+          setRefreshTrigger((prev) => prev + 1);
+          reconcileLocalState();
+        });
+
+        const unDataSynced = await listen("w_data_synced", () => {
+          setRefreshTrigger((prev) => prev + 1);
+          reconcileLocalState();
+        });
+
+        const unLocalWrite = await listen("w_localdb_write", () => {
+          setRefreshTrigger((prev) => prev + 1);
+          reconcileLocalState();
+        });
+
+        if (active) {
+          unsubTauriEvents = [unHabit, unTodo, unDataSynced, unLocalWrite];
+        } else {
+          unHabit();
+          unTodo();
+          unDataSynced();
+          unLocalWrite();
+        }
+      } catch (err) {
+        console.error("Failed to setup widget Tauri listeners:", err);
+      }
+    }
+
+    setupTauriListeners();
+
+    // 4. Background heartbeat: Reconcile with IndexedDB every 2.5 seconds (zero network overhead)
+    const reconciliationInterval = setInterval(() => {
+      reconcileLocalState();
+    }, 2500);
+
+    return () => {
+      active = false;
+      clearInterval(reconciliationInterval);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("w:data-synced", handleSyncEvent);
+      }
+      unsubTauriEvents.forEach((unsub) => unsub());
+    };
+  }, [user, today]);
+
   // Update today state when userDoc loads or dailyResetTime changes, and poll for midnight/reset rollover
   useEffect(() => {
     const dailyResetTime = userDoc?.settings?.dailyResetTime;
@@ -81,7 +178,7 @@ export function useWidgetData(): WidgetData {
     });
 
     return unsub;
-  }, [user, today]);
+  }, [user, today, refreshTrigger]);
 
   // Listen to today's log
   useEffect(() => {
@@ -101,7 +198,7 @@ export function useWidgetData(): WidgetData {
     });
 
     return unsub;
-  }, [user, today]);
+  }, [user, today, refreshTrigger]);
 
   useEffect(() => {
     if (!user) return;
@@ -131,7 +228,7 @@ export function useWidgetData(): WidgetData {
     });
 
     return unsub;
-  }, [user, habits, today, userDoc?.settings?.weeklyResetDay, userDoc?.settings?.dailyResetTime]);
+  }, [user, habits, today, userDoc?.settings?.weeklyResetDay, userDoc?.settings?.dailyResetTime, refreshTrigger]);
 
   // Listen to user doc (strikes, freeze, wallpapers)
   useEffect(() => {

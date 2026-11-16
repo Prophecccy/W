@@ -645,11 +645,17 @@ function triggerListeners(path: string) {
 function runLocalListeners(path: string) {
   for (const listener of activeListeners) {
     let matches = false;
-    if (listener.isCollection) {
-      matches = path.startsWith(listener.path + "/");
-    } else {
-      matches = listener.path === path;
+    if (listener.path === path) {
+      // 1. Exact match (document or collection)
+      matches = true;
+    } else if (listener.isCollection && path.startsWith(listener.path + "/")) {
+      // 2. A document inside this collection was modified
+      matches = true;
+    } else if (listener.path.startsWith(path + "/")) {
+      // 3. A parent path / container (e.g., "users/UID/logs" or "users/UID") was updated
+      matches = true;
     }
+
     if (matches) {
       triggerInitialLoad(listener);
     }
@@ -669,6 +675,7 @@ export function triggerLocalListenersForEverything(uid: string) {
 export function notifyDataChanged(uid: string) {
   triggerLocalListenersForEverything(uid);
   emit("w_localdb_write", { path: `users/${uid}` }).catch(() => {});
+  emit("w_data_synced", { uid }).catch(() => {});
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("w:data-synced", { detail: { uid } }));
   }
@@ -679,6 +686,16 @@ if (typeof window !== "undefined") {
     const payload = event.payload as { path: string };
     if (payload?.path) {
       runLocalListeners(payload.path);
+    }
+  }).catch(() => {});
+
+  listen("w_data_synced", (event) => {
+    const payload = event.payload as { uid: string };
+    if (payload?.uid) {
+      triggerLocalListenersForEverything(payload.uid);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("w:data-synced", { detail: payload }));
+      }
     }
   }).catch(() => {});
 }
@@ -819,17 +836,21 @@ export async function deleteUser(_user: LocalUser): Promise<void> {
 
 let syncTimeout: number | null = null;
 let isSyncing = false;
+let hasPendingSync = false;
 
 export function triggerSync() {
   if (syncTimeout) window.clearTimeout(syncTimeout);
   syncTimeout = window.setTimeout(async () => {
     syncTimeout = null;
     await syncToGoogleDrive();
-  }, 1000);
+  }, 250);
 }
 
 export async function syncToGoogleDrive() {
-  if (isSyncing) return;
+  if (isSyncing) {
+    hasPendingSync = true;
+    return;
+  }
   const user = auth.currentUser;
   if (!user) return;
 
@@ -838,46 +859,51 @@ export async function syncToGoogleDrive() {
 
   isSyncing = true;
   try {
-    const accessToken = await getValidAccessToken();
-    if (!accessToken) {
-      isSyncing = false;
-      return;
-    }
+    do {
+      hasPendingSync = false;
+      const accessToken = await getValidAccessToken();
+      if (!accessToken) {
+        console.warn("[LocalDB] State upload aborted: No valid access token. User must re-authenticate.");
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("w:gdrive-session-expired"));
+        }
+        break;
+      }
 
-    const uid = user.uid;
-    const userDoc = await idbGet(`w_doc_users/${uid}`);
-    if (!userDoc) {
-      isSyncing = false;
-      return;
-    }
+      const uid = user.uid;
+      const userDoc = await idbGet(`w_doc_users/${uid}`);
+      if (!userDoc) {
+        break;
+      }
 
-    const groups = await idbGet(`w_col_users/${uid}/groups`) || {};
-    const habits = await idbGet(`w_col_users/${uid}/habits`) || {};
-    const logs = await idbGet(`w_col_users/${uid}/logs`) || {};
-    const todos = await idbGet(`w_col_users/${uid}/todos`) || {};
-    const stickyNotes = await idbGet(`w_col_users/${uid}/sticky-notes`) || {};
-    const undoHistory = await idbGet(`w_col_users/${uid}/undoHistory`) || {};
+      const groups = await idbGet(`w_col_users/${uid}/groups`) || {};
+      const habits = await idbGet(`w_col_users/${uid}/habits`) || {};
+      const logs = await idbGet(`w_col_users/${uid}/logs`) || {};
+      const todos = await idbGet(`w_col_users/${uid}/todos`) || {};
+      const stickyNotes = await idbGet(`w_col_users/${uid}/sticky-notes`) || {};
+      const undoHistory = await idbGet(`w_col_users/${uid}/undoHistory`) || {};
 
-    const statePayload = {
-      version: 2,
-      ownerEmail: user.email || null,
-      ownerUid: user.uid,
-      user: userDoc,
-      groups,
-      habits,
-      logs,
-      todos,
-      stickyNotes,
-      undoHistory,
-      updatedAt: Date.now(),
-    };
+      const statePayload = {
+        version: 2,
+        ownerEmail: user.email || null,
+        ownerUid: user.uid,
+        user: userDoc,
+        groups,
+        habits,
+        logs,
+        todos,
+        stickyNotes,
+        undoHistory,
+        updatedAt: Date.now(),
+      };
 
-    const uploadContent = JSON.stringify(statePayload, null, 2);
-    const modifiedTime = await uploadStateToDrive(accessToken, uploadContent);
+      const uploadContent = JSON.stringify(statePayload, null, 2);
+      const modifiedTime = await uploadStateToDrive(accessToken, uploadContent);
 
-    localStorage.setItem("w_gdrive_state_last_sync", Date.now().toString());
-    localStorage.setItem("w_gdrive_state_modified_time", modifiedTime);
-    console.info("[LocalDB] State uploaded successfully at", new Date().toLocaleTimeString());
+      localStorage.setItem("w_gdrive_state_last_sync", Date.now().toString());
+      localStorage.setItem("w_gdrive_state_modified_time", modifiedTime);
+      console.info("[LocalDB] State uploaded successfully at", new Date().toLocaleTimeString());
+    } while (hasPendingSync);
   } catch (err) {
     console.error("[LocalDB] Background state upload to Google Drive failed:", err);
   } finally {
@@ -897,6 +923,10 @@ export async function pullAndMergeFromGoogleDrive(force = false): Promise<boolea
   try {
     const accessToken = await getValidAccessToken();
     if (!accessToken) {
+      console.warn("[LocalDB] State pull aborted: No valid access token. User must re-authenticate.");
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("w:gdrive-session-expired"));
+      }
       isSyncing = false;
       return false;
     }
@@ -910,7 +940,7 @@ export async function pullAndMergeFromGoogleDrive(force = false): Promise<boolea
       ? undefined
       : (localStorage.getItem("w_gdrive_state_modified_time") || undefined);
 
-    const remoteData = await downloadStateFromDrive(accessToken, ifModifiedSince);
+    const remoteData = await downloadStateFromDrive(accessToken, ifModifiedSince, force || isLocallyLocked);
     if (!remoteData || remoteData.notModified) {
       isSyncing = false;
       return false;
@@ -1073,53 +1103,89 @@ function mergeObject(local: any, remote: any): any {
   return merged;
 }
 
-function mergeDailyLog(localLog: any, remoteLog: any): any {
+export function mergeDailyLog(localLog: any, remoteLog: any): any {
   if (!localLog) return remoteLog;
   if (!remoteLog) return localLog;
 
+  const localDocTime = localLog.updatedAt || 0;
+  const remoteDocTime = remoteLog.updatedAt || 0;
+
   const mergedHabits: Record<string, any> = { ...(localLog.habits || {}) };
 
-  // Deep merge every habit completion entry
-  for (const [habitId, remoteHabitEntry] of Object.entries(remoteLog.habits || {})) {
-    const localHabitEntry = mergedHabits[habitId];
-    if (!localHabitEntry) {
-      mergedHabits[habitId] = remoteHabitEntry;
+  // Collect all habit keys from both local and remote
+  const allHabitIds = new Set<string>([
+    ...Object.keys(localLog.habits || {}),
+    ...Object.keys(remoteLog.habits || {}),
+  ]);
+
+  for (const habitId of allHabitIds) {
+    const localHabit = localLog.habits?.[habitId];
+    const remoteHabit = remoteLog.habits?.[habitId];
+
+    if (!localHabit && remoteHabit) {
+      mergedHabits[habitId] = remoteHabit;
+      continue;
+    }
+    if (localHabit && !remoteHabit) {
+      mergedHabits[habitId] = localHabit;
+      continue;
+    }
+
+    // Both sides have an entry for this habit.
+    // Calculate effective modification timestamp for each side.
+    const getHabitTime = (habit: any, fallbackDocTime: number): number => {
+      if (habit.updatedAt && typeof habit.updatedAt === "number") return habit.updatedAt;
+      if (habit.timestamp && typeof habit.timestamp === "number") return habit.timestamp;
+      const comps = Array.isArray(habit.completions) ? habit.completions : [];
+      if (comps.length > 0) {
+        const maxCompTime = Math.max(...comps.map((c: any) => c.timestamp || 0));
+        if (maxCompTime > 0) return maxCompTime;
+      }
+      return fallbackDocTime;
+    };
+
+    const localTime = getHabitTime(localHabit, localDocTime);
+    const remoteTime = getHabitTime(remoteHabit, remoteDocTime);
+
+    if (remoteTime > localTime) {
+      // Remote is strictly newer for this habit (e.g. undo on web, or completion on web)
+      mergedHabits[habitId] = remoteHabit;
+    } else if (localTime > remoteTime) {
+      // Local is strictly newer for this habit (e.g. undo on desktop, or completion on desktop)
+      mergedHabits[habitId] = localHabit;
     } else {
-      // If either side marked it completed, preserve the completion!
-      const isCompleted = Boolean((localHabitEntry as any).completed || (remoteHabitEntry as any).completed);
-      const localVal = Number((localHabitEntry as any).value ?? 0);
-      const remoteVal = Number((remoteHabitEntry as any).value ?? 0);
-      const maxVal = Math.max(localVal, remoteVal);
-
-      const localTime = (localHabitEntry as any).timestamp || 0;
-      const remoteTime = (remoteHabitEntry as any).timestamp || 0;
-      const base = remoteTime > localTime ? remoteHabitEntry : localHabitEntry;
-
-      // Merge completion timestamps if available
-      const localComps: any[] = Array.isArray((localHabitEntry as any).completions) ? (localHabitEntry as any).completions : [];
-      const remoteComps: any[] = Array.isArray((remoteHabitEntry as any).completions) ? (remoteHabitEntry as any).completions : [];
+      // Timestamps match. If completions differ, union non-duplicates.
+      const localComps: any[] = Array.isArray(localHabit.completions) ? localHabit.completions : [];
+      const remoteComps: any[] = Array.isArray(remoteHabit.completions) ? remoteHabit.completions : [];
       const compMap = new Map<number, any>();
       for (const c of [...localComps, ...remoteComps]) {
         if (c && c.timestamp) compMap.set(c.timestamp, c);
       }
+      const allComps = Array.from(compMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+      const target = localHabit.target ?? remoteHabit.target ?? 1;
+      const totalVal = allComps.reduce((sum, c) => sum + (Number(c.value) || 0), 0);
+      const isCompleted = localHabit.completed && remoteHabit.completed
+        ? true
+        : (localHabit.completed || remoteHabit.completed)
+          ? (allComps.length > 0 && totalVal >= target)
+          : false;
 
       mergedHabits[habitId] = {
-        ...base,
+        ...(remoteHabit || localHabit),
         completed: isCompleted,
-        value: maxVal > 0 ? maxVal : (base as any).value,
-        completions: compMap.size > 0 ? Array.from(compMap.values()) : (base as any).completions,
+        value: totalVal,
+        target,
+        completions: allComps,
+        updatedAt: localTime,
       };
     }
   }
 
-  const localTime = localLog.updatedAt || 0;
-  const remoteTime = remoteLog.updatedAt || 0;
-
   return {
-    ...(remoteTime > localTime ? localLog : remoteLog),
-    ...(remoteTime > localTime ? remoteLog : localLog),
+    ...(remoteDocTime > localDocTime ? localLog : remoteLog),
+    ...(remoteDocTime > localDocTime ? remoteLog : localLog),
     habits: mergedHabits,
-    updatedAt: Math.max(localTime, remoteTime),
+    updatedAt: Math.max(localDocTime, remoteDocTime),
   };
 }
 
@@ -1138,7 +1204,7 @@ function mergeLogsCollection(local: Record<string, any>, remote: Record<string, 
   return merged;
 }
 
-function mergeCollection(local: Record<string, any>, remote: Record<string, any>): Record<string, any> {
+export function mergeCollection(local: Record<string, any>, remote: Record<string, any>): Record<string, any> {
   const merged: Record<string, any> = { ...local };
   if (!remote) return merged;
 
@@ -1147,26 +1213,24 @@ function mergeCollection(local: Record<string, any>, remote: Record<string, any>
     if (!localItem) {
       merged[id] = remoteItem;
     } else {
-      const localTime = localItem.updatedAt || localItem.createdAt || localItem.timestamp || 0;
-      const remoteTime = remoteItem.updatedAt || remoteItem.createdAt || remoteItem.timestamp || 0;
+      const localTime = localItem.updatedAt || localItem.completedAt || localItem.createdAt || localItem.timestamp || 0;
+      const remoteTime = remoteItem.updatedAt || remoteItem.completedAt || remoteItem.createdAt || remoteItem.timestamp || 0;
 
-      // Tombstone defense: preserve deleted state across devices
-      const isLocalDeleted = localItem.deleted === true;
-      const isRemoteDeleted = remoteItem.deleted === true;
-
-      if (isLocalDeleted || isRemoteDeleted) {
-        // Tombstone rule: deletion across devices is authoritative.
-        // A dormant client waking up with stale items must NEVER resurrect an item deleted on another device.
-        const base = remoteTime > localTime ? { ...localItem, ...remoteItem } : { ...remoteItem, ...localItem };
-        merged[id] = {
-          ...base,
-          deleted: true,
-          updatedAt: Math.max(localTime, remoteTime),
-        };
+      if (remoteTime > localTime) {
+        // Remote is strictly newer (e.g. updated, completed, deleted, or restored on remote)
+        merged[id] = remoteItem;
+      } else if (localTime > remoteTime) {
+        // Local is strictly newer (e.g. updated, completed, deleted, or restored locally)
+        merged[id] = localItem;
       } else {
-        if (remoteTime > localTime) {
-          merged[id] = remoteItem;
-        }
+        // Timestamps match: if either is marked deleted, tombstone wins to prevent resurrection
+        const isDeleted = Boolean(localItem.deleted || remoteItem.deleted);
+        merged[id] = {
+          ...localItem,
+          ...remoteItem,
+          deleted: isDeleted,
+          updatedAt: localTime,
+        };
       }
     }
   }
@@ -1180,21 +1244,43 @@ if (typeof window !== "undefined") {
     pullAndMergeFromGoogleDrive();
   });
 
-  // Fast polling heartbeat: check for remote updates every 10 seconds
-  window.setInterval(() => {
-    pullAndMergeFromGoogleDrive();
-  }, 10_000);
+  // Adaptive fast polling heartbeat: check for remote updates
+  // 2.5s when visible/active, 10s when hidden/idle
+  let pollIntervalMs = 2_500;
+  let pollTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function scheduleNextPoll() {
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = setTimeout(async () => {
+      // Multi-window coordination: avoid duplicate concurrent polls across windows within 2s
+      const lastPoll = Number(localStorage.getItem("w_gdrive_last_poll") || 0);
+      const now = Date.now();
+      if (now - lastPoll >= 2000) {
+        localStorage.setItem("w_gdrive_last_poll", now.toString());
+        await pullAndMergeFromGoogleDrive();
+      }
+      scheduleNextPoll();
+    }, pollIntervalMs);
+  }
+
+  scheduleNextPoll();
 
   // Eager sync on window focus (e.g. switching from desktop app to browser or vice versa)
   window.addEventListener("focus", () => {
+    pollIntervalMs = 2_500;
     pullAndMergeFromGoogleDrive();
+    scheduleNextPoll();
   });
 
   // Eager sync on tab visibility change
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
+      pollIntervalMs = 2_500;
       pullAndMergeFromGoogleDrive();
+    } else {
+      pollIntervalMs = 10_000;
     }
+    scheduleNextPoll();
   });
 }
 
