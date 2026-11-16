@@ -32,6 +32,8 @@ import { UpdateHUD } from "../features/updater/components/UpdateHUD";
 import { initUpdater } from "../features/updater/hooks/useUpdateManager";
 import { useToast } from "../shared/components/Toast/Toast";
 import { useLockdown } from "../features/lockdown/hooks/useLockdown";
+import { useDeviceContext } from "../shared/hooks/useDeviceContext";
+import { MobileLayout } from "../mobile/layout/MobileLayout";
 import "./Layout.css";
 
 // ─── Startup phases ──────────────────────────────────────────────
@@ -43,6 +45,7 @@ type StartupPhase =
   | "ready";        // Normal operation
 
 function LayoutInner() {
+  const { isMobile } = useDeviceContext();
   const { user } = useAuthContext();
   const userStore = useUserStore();
   const navigate = useNavigate();
@@ -196,6 +199,7 @@ function LayoutInner() {
 
   // ── Initialize global toasts ─────────────────────────────────
   const { showToast } = useToast();
+  const lastSessionExpiredToastRef = useRef<number>(0);
   
   useEffect(() => {
 
@@ -220,6 +224,10 @@ function LayoutInner() {
     };
 
     const handleSessionExpired = () => {
+      const now = Date.now();
+      // Cooldown: at most once every 30 minutes to prevent repetitive audio or toast popups
+      if (now - lastSessionExpiredToastRef.current < 30 * 60 * 1000) return;
+      lastSessionExpiredToastRef.current = now;
       showToast("[ GOOGLE DRIVE SESSION EXPIRED — PLEASE RE-LINK ]");
     };
     
@@ -976,6 +984,67 @@ function LayoutInner() {
       setShowPunishment(false);
     }
   };
+
+  if (isMobile) {
+    return (
+      <div inert={isLocked ? true : undefined} style={{ display: "contents" }}>
+        <MobileLayout
+          userDoc={userDoc}
+          strikes={strikes}
+          globalStreak={globalStreak}
+          isLocked={isLocked}
+          habitsCount={paletteHabits.length}
+          todosCount={paletteTodos.length}
+          onOpenCommandPalette={toggleCommandPalette}
+        >
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+              style={{ width: "100%", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
+            >
+              <Outlet context={{ userDoc, gapResult }} />
+            </motion.div>
+          </AnimatePresence>
+        </MobileLayout>
+
+        <AnimatePresence>
+          {commandPaletteOpen && (
+            <CommandPalette
+              onClose={() => setCommandPaletteOpen(false)}
+              habits={paletteHabits}
+              todos={paletteTodos}
+              onCompleteHabit={handlePaletteCompleteHabit}
+              onOpenNewHabit={handlePaletteNewHabit}
+              onOpenNewTodo={handlePaletteNewTodo}
+              dailyResetTime={userDoc?.settings?.dailyResetTime}
+            />
+          )}
+        </AnimatePresence>
+
+        {(userDoc?.settings?.strikeSystemEnabled ?? true) && (
+          <StrikeWarningToast strikes={strikes} />
+        )}
+
+        {(userDoc?.settings?.strikeSystemEnabled ?? true) && isLocked && !showPunishment && (
+          <LockoutOverlay onResolve={() => setShowPunishment(true)} />
+        )}
+
+        {(userDoc?.settings?.strikeSystemEnabled ?? true) && showPunishment && (
+          <PunishmentModal
+            onConfirm={handlePunishment}
+            onCancel={() => setShowPunishment(false)}
+            userResetTime={userDoc?.settings?.dailyResetTime}
+          />
+        )}
+
+        <UpdateHUD />
+      </div>
+    );
+  }
 
   return (
     <div className="layout">

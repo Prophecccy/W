@@ -81,6 +81,23 @@ graph TD
     - **Tier 2 — Medium / Restored Desktop Rail (`769px – 1024px`)**: The main sidebar collapses into a 64px icon navigation rail (`grid-template-columns: 64px 1fr`), centering navigation icons and hiding text labels. Topbar left offset automatically updates to `left: 64px`. Dashboard reflows into a fluid 2-to-3 column grid (`max-content repeat(auto-fit, minmax(260px, 1fr))`) without clipping. Field Manual master sidebar condenses to 220px. SleepTube fuel gauge height scales fluidly (`max-height: clamp(200px, 42vh, 400px)`), eliminating vertical or horizontal overflow in windowed states.
     - **Tier 3 — Compact / Windowed & Mobile Drawer (`< 768px`)**: Layout converts to a full-width column (`left: 0; width: 100%`). The persistent sidebar transforms into a high-performance slide-out drawer (`position: absolute; width: min(280px, 85vw); z-index: 1000; transform: translateX(-100%)`). Topbar displays a tactical hamburger toggle `[ ☰ ]`. The slide-out drawer includes a frosted glass backdrop overlay (`.sidebar-drawer-backdrop`), auto-dismisses on route changes and <kbd>Esc</kbd> key presses, and features a dedicated close button `[ ✕ ]`. The Field Manual features a mobile module selector drawer and top action pills.
     - **Window State & Resizing Resilience**: All layouts utilize pure CSS fluid bounding (`minmax()`, `clamp()`, `min-width: 0`, and `flex-wrap: wrap`) rather than rigid pixel locks. When the user restores-down, maximizes, or arbitrarily resizes the desktop window, active React view states, form drafts, scroll offsets, and selections remain 100% stable without DOM remounting or clipping.
+  - **Dedicated Mobile & Android Architecture (`src/mobile/`)**:
+    - **Platform & Viewport Router Hook (`useDeviceContext.ts`, `deviceUtils.ts`)**: Pure deterministic evaluation detecting Android User Agents, mobile viewports (`<= 768px`), and touch devices (`<= 900px`). Reactively dispatches the dedicated `MobileLayout` on mobile and the full 4-column desktop layout on wide screens without layout jitter or flash.
+    - **Dedicated Mobile Shell (`MobileLayout.tsx`, `MobileLayout.css`)**: Implements an edge-to-edge, viewport-locked container (`100dvh`) taking into account Android safe-area insets (`env(safe-area-inset-top)` and `env(safe-area-inset-bottom)`). Houses the tactical mobile header (`[ W ]`, `ANDROID` build tag, live `[ FUEL % ]` status pill, and command search button), the inertial touch scroll stream, the floating tactical action button (FAB), and docked bottom navigation (`MobileNav`).
+    - **Native-Style Mobile Command Center (`MobileDashboard.tsx`, `MobileDashboard.css`)**: Replaces squished responsive desktop grids with a single-column, touch-first mobile dashboard:
+      1. *Horizontal Fuel Strip*: High-contrast waking fuel track with live operational percentage and sleep recovery status.
+      2. *Tactical Stats Deck*: 4-cell Ghost Elevation cluster (`DONE | PENDING | STRIKES | PROGRESS`).
+      3. *Segment Filter Switcher*: `[ ALL ]`, `[ HABITS ]`, `[ TODOS ]`, `[ LIMITERS ]` with spring tab transitions.
+      4. *Touch Card Stream*: Full-width habit and todo cards with 500ms hold-to-complete physics, mechanical audio synthesis, and checkmark pops.
+      5. *Daily Note Touch Card*: Integrated logbook note editor with live character count and Google Drive sync status.
+    - **Touch-First Bottom Sheet Engine (`BottomSheet.tsx`, `BottomSheet.css`)**: High-performance bottom drawer animated via `SPRING_MODAL`. Supports downward touch dragging (`PanInfo` velocity/offset check) with spring dismiss, blur backdrop, and hardware-style thud audio.
+    - **Mobile Quick-Add Sheet (`QuickAddSheet.tsx`, `QuickAddSheet.css`)**: Floating thumb-accessible FAB `[ + ]` triggers a streamlined bottom sheet allowing instantaneous creation of Habit protocols or Todo directives (with P1-P4 military priority tiers) without invoking desktop configuration dialogs. Scoped exclusively to the Dashboard (`/`) to preserve clean views across Settings and Logs.
+    - **Top-Docked Mobile Toasts & Deduplication (`Toast.tsx`, `Toast.css`)**: On mobile viewports (`<= 768px`), the notification HUD docks at `top: calc(54px + env(safe-area-inset-top))` rather than the bottom, preventing interference with thumb navigation tabs and bottom sheets. Enforces active message deduplication to block duplicate cloud alerts from stacking.
+    - **3-Stage Kinetic Animated Onboarding (`OnboardingFlow.tsx`, `OnboardingFlow.css`)**: Replaces heavy text paragraphs and data tables with an interactive, animated 3-stage protocol:
+      1. *Stage 1 (Waking Fuel)*: Kinetic cylinder depletion gauge with live burn rate simulation buttons (`[ 100% WAKE ]`, `[ 50% MIDDAY ]`, `[ 15% NIGHT ]`) and neon blue-to-crimson alert glow.
+      2. *Stage 2 (The Strike System)*: Interactive 5-strike breach drill with tactile cell tapping, crimson warning sparks (`#EF4444`), and lock latch audio.
+      3. *Stage 3 (Calibrate & Launch)*: Touch-friendly Wake/Sleep inputs and high-contrast, neon blue primary action buttons (`[ INITIALIZE COMMAND CENTER ]`), eradicating black-on-black button rendering issues.
+    - **Settings Horizontal Swipe Rail (`SettingsPage.css`)**: Replaces the bulky 3-row tile grid on mobile with a compact horizontal scrolling rail, reclaiming ~140px of vertical space for settings controls, with vertical card stacking for Habit Freeze.
   - **Mobile Web Architecture (`<= 768px`)**:
     - **3-Tier Docked Flex Shell (`Layout.css`)**: Layout converts to a viewport-locked flex column (`position: fixed; inset: 0; display: flex; flex-direction: column; overflow: hidden;`). Topbar is `flex: none`, Content is `flex: 1 1 0; min-height: 0; overflow-y: auto;`, and `<MobileNav />` is `flex: none` permanently docked at the container base with safe-area padding. This mathematically guarantees that the bottom navigation cannot be pushed below the fold on any screen height.
     - **Dual Navigation Redundancy**: In addition to the bottom `<MobileNav />`, the mobile Topbar features an interactive section switcher dropdown when tapping the page title (`[ DASHBOARD ] v`, `[ HABITS ] v`), providing instant 1-tap switching from either the top or bottom of the screen.
@@ -1691,6 +1708,23 @@ Replaced the native Win32 context menu with a custom borderless tactical HUD win
    - Zero TypeScript compiler errors (`npx tsc --noEmit`).
    - 18 Vitest test suites passing (179 tests).
    - Native release binary compiled (`npm run build:app`) and deployed to `C:\Users\unniu\AppData\Local\W\w-app.exe` (running live under PID `29728`).
+
+---
+
+### 77. Repeating Background Audio "Tick" Sound Elimination & Sync Backoff (2026-11-16)
+1. **Toast Audio Deduplication Fix (`src/shared/components/Toast/Toast.tsx`)**:
+   - Fixed root cause of repeated metallic "tick" audio: `showToast` previously executed `playMechanicalClick()` unconditionally before checking if an identical toast was already present in the active stack.
+   - Relocated `playMechanicalClick()` inside the `if (!prev.some(t => t.message === message))` block. The tactile sound now plays exclusively when a genuine new notification is displayed, completely eliminating phantom clicks on deduplicated events.
+2. **Sync Loop Backoff on Expired Session (`src/shared/services/localDb.ts`)**:
+   - Fixed runaway fast polling loop: when an unlinked or expired Google Drive session failed `getValidAccessToken()`, the 2.5s poll timer previously triggered repeatedly in an infinite loop, constantly dispatching `w:gdrive-session-expired`.
+   - Added `isSessionExpired` tracking and backoff logic to `localDb.ts`: immediately throttles the polling interval to 60s when `w:gdrive-session-expired` or `w:gdrive-unlinked` is detected, or when `!isLinked`. Restores rapid 2.5s polling immediately when `w:gdrive-linked` fires.
+3. **Session Expired Notification Cooldown (`src/app/Layout.tsx`)**:
+   - Added a 30-minute cooldown ref (`lastSessionExpiredToastRef`) to `handleSessionExpired` in `Layout.tsx`, preventing rapid event spamming across multiple windows or components.
+4. **Verification & Deployment**:
+   - Zero TypeScript compiler errors (`npx tsc --noEmit`).
+   - 19 Vitest test suites passing (188 tests).
+   - Native release binary compiled (`npm run build:app`) and deployed live to `C:\Users\unniu\AppData\Local\W\w-app.exe` (PID `24176`).
+
 
 
 

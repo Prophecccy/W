@@ -1263,18 +1263,37 @@ export function mergeCollection(local: Record<string, any>, remote: Record<strin
 // ─── Setup Auto-Sync Listeners ────────────────────────────────────
 
 if (typeof window !== "undefined") {
-  window.addEventListener("w:gdrive-linked", () => {
-    pullAndMergeFromGoogleDrive();
-  });
-
-  // Adaptive fast polling heartbeat: check for remote updates
-  // 2.5s when visible/active, 10s when hidden/idle
+  let isSessionExpired = false;
   let pollIntervalMs = 2_500;
   let pollTimer: ReturnType<typeof setTimeout> | null = null;
+
+  window.addEventListener("w:gdrive-linked", () => {
+    isSessionExpired = false;
+    pollIntervalMs = 2_500;
+    pullAndMergeFromGoogleDrive();
+    scheduleNextPoll();
+  });
+
+  window.addEventListener("w:gdrive-session-expired", () => {
+    isSessionExpired = true;
+    pollIntervalMs = 60_000; // Back off to 60s when session expires to prevent hammering
+  });
+
+  window.addEventListener("w:gdrive-unlinked", () => {
+    isSessionExpired = false;
+    pollIntervalMs = 60_000;
+  });
 
   function scheduleNextPoll() {
     if (pollTimer) clearTimeout(pollTimer);
     pollTimer = setTimeout(async () => {
+      const isLinked = localStorage.getItem("driveLinked") === "true";
+      if (!isLinked || isSessionExpired) {
+        // Stop high-frequency polling if not linked or session has expired
+        pollIntervalMs = 60_000;
+        scheduleNextPoll();
+        return;
+      }
       // Multi-window coordination: avoid duplicate concurrent polls across windows within 2s
       const lastPoll = Number(localStorage.getItem("w_gdrive_last_poll") || 0);
       const now = Date.now();
@@ -1290,16 +1309,20 @@ if (typeof window !== "undefined") {
 
   // Eager sync on window focus (e.g. switching from desktop app to browser or vice versa)
   window.addEventListener("focus", () => {
-    pollIntervalMs = 2_500;
-    pullAndMergeFromGoogleDrive();
-    scheduleNextPoll();
+    if (!isSessionExpired && localStorage.getItem("driveLinked") === "true") {
+      pollIntervalMs = 2_500;
+      pullAndMergeFromGoogleDrive();
+      scheduleNextPoll();
+    }
   });
 
   // Eager sync on tab visibility change
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
-      pollIntervalMs = 2_500;
-      pullAndMergeFromGoogleDrive();
+      pollIntervalMs = (!isSessionExpired && localStorage.getItem("driveLinked") === "true") ? 2_500 : 60_000;
+      if (!isSessionExpired && localStorage.getItem("driveLinked") === "true") {
+        pullAndMergeFromGoogleDrive();
+      }
     } else {
       pollIntervalMs = 10_000;
     }

@@ -38,18 +38,23 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const showToast = useCallback((message: string, options?: { actionLabel?: string; onAction?: () => void; duration?: number }) => {
-    playMechanicalClick();
-    const id = Math.random().toString(36).substring(2, 9);
-    const newToast: Toast = {
-      id,
-      message,
-      actionLabel: options?.actionLabel,
-      onAction: options?.onAction,
-      duration: options?.duration ?? 5000,
-      createdAt: Date.now(),
-    };
-
-    setToasts((prev) => [newToast, ...prev].slice(0, MAX_STACK));
+    setToasts((prev) => {
+      // Deduplicate: If an active toast with the same message already exists, do not stack a duplicate
+      if (prev.some((t) => t.message === message)) {
+        return prev;
+      }
+      playMechanicalClick();
+      const id = Math.random().toString(36).substring(2, 9);
+      const newToast: Toast = {
+        id,
+        message,
+        actionLabel: options?.actionLabel,
+        onAction: options?.onAction,
+        duration: options?.duration ?? 5000,
+        createdAt: Date.now(),
+      };
+      return [newToast, ...prev].slice(0, MAX_STACK);
+    });
   }, []);
 
   // Manage individual toast timers when not hovered
