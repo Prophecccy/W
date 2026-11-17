@@ -24,6 +24,9 @@ export interface WidgetData {
   scheduledLimiters: Habit[];
   completeHabit: (habitId: string, increment?: number) => Promise<void>;
   undoHabit: (habitId: string) => Promise<void>;
+  hideHabit: (habitId: string) => void;
+  restoreHiddenHabits: () => void;
+  hiddenHabitIds: string[];
 }
 
 export function useWidgetData(): WidgetData {
@@ -252,10 +255,50 @@ export function useWidgetData(): WidgetData {
     return unsub;
   }, [user]);
 
+  const [hiddenHabitIds, setHiddenHabitIds] = useState<string[]>(() => {
+    if (typeof localStorage === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem(`w_widget_hidden_habits_${today}`);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Re-read hidden habits on date change
+  useEffect(() => {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(`w_widget_hidden_habits_${today}`);
+      setHiddenHabitIds(raw ? JSON.parse(raw) : []);
+    } catch {
+      setHiddenHabitIds([]);
+    }
+  }, [today]);
+
+  const hideHabit = useCallback((habitId: string) => {
+    setHiddenHabitIds((prev) => {
+      if (prev.includes(habitId)) return prev;
+      const next = [...prev, habitId];
+      try {
+        localStorage.setItem(`w_widget_hidden_habits_${today}`, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, [today]);
+
+  const restoreHiddenHabits = useCallback(() => {
+    setHiddenHabitIds([]);
+    try {
+      localStorage.removeItem(`w_widget_hidden_habits_${today}`);
+    } catch {}
+  }, [today]);
+
   // Compute derived data
   const loading = userLoading || habitsLoading || logLoading || periodLoading;
   
   const scheduledHabits = habits.filter(h => {
+    if (hiddenHabitIds.includes(h.id)) return false;
     const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
     if (!isHabitScheduledToday(h, today, weeklyResetDay)) return false;
     if (isHabitResting(h, userDoc?.settings?.dailyResetTime)) return false;
@@ -280,6 +323,7 @@ export function useWidgetData(): WidgetData {
   });
 
   const scheduledLimiters = habits.filter(h => {
+    if (hiddenHabitIds.includes(h.id)) return false;
     const weeklyResetDay = userDoc?.settings?.weeklyResetDay ?? 1;
     return isHabitScheduledToday(h, today, weeklyResetDay) && 
       !isHabitResting(h, userDoc?.settings?.dailyResetTime) &&
@@ -373,5 +417,8 @@ export function useWidgetData(): WidgetData {
     scheduledLimiters,
     completeHabit,
     undoHabit,
+    hideHabit,
+    restoreHiddenHabits,
+    hiddenHabitIds,
   };
 }

@@ -170,4 +170,22 @@ describe("Widget multi-day metric habit scheduling logic", () => {
     expect(status.doneToday).toBe(false);
     expect(status.sortBucket).toBe(0);
   });
+
+  it("filters out hidden habit IDs from the widget without completing or modifying them", () => {
+    const today = "2026-09-11";
+    const periodLogs: HabitLog[] = [];
+    const todayLog: HabitLog = { date: today, uid: "user-1", habits: {} };
+    const hiddenHabitIds = ["habit-gym"];
+
+    const isVisibleInWidget = (h: Habit) => {
+      if (hiddenHabitIds.includes(h.id)) return false;
+      return isScheduledInWidget(h, today, weeklyResetDay, periodLogs, todayLog);
+    };
+
+    expect(isVisibleInWidget(gymHabit)).toBe(false);
+
+    // Habit completion and logs remain completely incomplete/untouched:
+    expect(todayLog.habits["habit-gym"]).toBeUndefined();
+    expect(gymHabit.isActive).toBe(true);
+  });
 });

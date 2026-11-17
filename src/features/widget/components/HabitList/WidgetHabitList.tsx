@@ -1,6 +1,9 @@
+import { useState, useCallback, useEffect } from 'react';
+import { EyeOff, Eye } from 'lucide-react';
 import { Habit, HabitLog } from '../../../habits/types';
 import { WidgetHabitCard } from './WidgetHabitCard';
 import { getPeriodStart, isMultiDayMetric, getTotalInRange } from '../../../../shared/utils/dateUtils';
+import { playMechanicalClick } from '../../../../shared/services/tactileAudioService';
 
 interface WidgetHabitListProps {
   today: string;
@@ -11,11 +14,69 @@ interface WidgetHabitListProps {
   weeklyResetDay: number;
   onComplete: (habitId: string, increment?: number) => void;
   onUndo: (habitId: string) => void;
+  onHideHabit?: (habitId: string) => void;
+  onRestoreHidden?: () => void;
+  hiddenCount?: number;
   isFrozen?: boolean;
   isLocked?: boolean;
 }
 
-export function WidgetHabitList({ today, scheduledHabits, scheduledLimiters, todayLog, periodLogs, weeklyResetDay, onComplete, onUndo, isFrozen = false, isLocked = false }: WidgetHabitListProps) {
+export function WidgetHabitList({
+  today,
+  scheduledHabits,
+  scheduledLimiters,
+  todayLog,
+  periodLogs,
+  weeklyResetDay,
+  onComplete,
+  onUndo,
+  onHideHabit,
+  onRestoreHidden,
+  hiddenCount = 0,
+  isFrozen = false,
+  isLocked = false,
+}: WidgetHabitListProps) {
+  const [contextMenu, setContextMenu] = useState<{
+    habitId: string;
+    title: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const handleCardContextMenu = useCallback((e: React.MouseEvent, habit: Habit) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Clamp menu coordinates within the widget window
+    const menuWidth = 170;
+    const menuHeight = 44;
+    const maxX = window.innerWidth - menuWidth - 8;
+    const maxY = window.innerHeight - menuHeight - 8;
+    const x = Math.min(Math.max(8, e.clientX), Math.max(8, maxX));
+    const y = Math.min(Math.max(8, e.clientY), Math.max(8, maxY));
+
+    setContextMenu({
+      habitId: habit.id,
+      title: habit.title,
+      x,
+      y,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleClickOutside = () => setContextMenu(null);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+    window.addEventListener('pointerdown', handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [contextMenu]);
+
   const getTarget = (habit: Habit) => {
     return habit.metric?.targetValue ?? 0;
   };
@@ -67,6 +128,7 @@ export function WidgetHabitList({ today, scheduledHabits, scheduledLimiters, tod
             completions={completions}
             onComplete={onComplete}
             onUndo={onUndo}
+            onContextMenu={handleCardContextMenu}
             disabled={isFrozen || isLocked}
           />
         );
@@ -112,10 +174,51 @@ export function WidgetHabitList({ today, scheduledHabits, scheduledLimiters, tod
                   completions={completions}
                   onComplete={onComplete}
                   onUndo={onUndo}
+                  onContextMenu={handleCardContextMenu}
                   disabled={isFrozen}
                 />
               );
             })}
+        </div>
+      )}
+
+      {/* Restore Hidden Habits Bar */}
+      {hiddenCount > 0 && onRestoreHidden && (
+        <div className="widget-habit-list__restore-bar">
+          <button
+            type="button"
+            className="widget-habit-list__restore-btn"
+            onClick={() => {
+              playMechanicalClick();
+              onRestoreHidden();
+            }}
+          >
+            <Eye size={12} strokeWidth={2.2} />
+            <span>[ {hiddenCount} HIDDEN · RESTORE ]</span>
+          </button>
+        </div>
+      )}
+
+      {/* Context Menu Popup */}
+      {contextMenu && (
+        <div
+          className="widget-habit-context-menu"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="widget-habit-context-menu__item"
+            onClick={() => {
+              const id = contextMenu.habitId;
+              setContextMenu(null);
+              playMechanicalClick();
+              onHideHabit?.(id);
+            }}
+          >
+            <EyeOff size={13} strokeWidth={2.5} />
+            <span>[ HIDE HABIT ]</span>
+          </button>
         </div>
       )}
     </div>

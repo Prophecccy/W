@@ -50,6 +50,9 @@ export function WidgetApp() {
     scheduledLimiters,
     completeHabit,
     undoHabit,
+    hideHabit,
+    restoreHiddenHabits,
+    hiddenHabitIds,
     habits,
     globalStreak,
     weeklyCompletions,
@@ -748,6 +751,9 @@ export function WidgetApp() {
               weeklyResetDay={userDoc?.settings?.weeklyResetDay ?? 1}
               onComplete={completeHabit}
               onUndo={undoHabit}
+              onHideHabit={hideHabit}
+              onRestoreHidden={restoreHiddenHabits}
+              hiddenCount={hiddenHabitIds.length}
               isFrozen={isFrozen}
               isLocked={isLocked}
             />

@@ -14,6 +14,7 @@ interface WidgetHabitCardProps {
   completions?: CompletionEntry[];
   onComplete: (habitId: string, increment: number) => void;
   onUndo: (habitId: string) => void;
+  onContextMenu?: (e: React.MouseEvent, habit: Habit) => void;
   disabled?: boolean;
 }
 
@@ -25,6 +26,7 @@ export function WidgetHabitCard({
   completions = [],
   onComplete,
   onUndo,
+  onContextMenu,
   disabled = false,
 }: WidgetHabitCardProps) {
   const [isHolding, setIsHolding] = useState(false);
@@ -79,6 +81,7 @@ export function WidgetHabitCard({
 
   const startHold = useCallback((e: PointerEvent<HTMLDivElement>) => {
     if (disabled) return;
+    if (e.button !== 0) return; // Prevent right-clicks from triggering hold
     if (e.target instanceof Element && e.target.closest('.widget-habit-card__undo')) {
       return;
     }
@@ -144,8 +147,9 @@ export function WidgetHabitCard({
     pointerStartCoordsRef.current = null;
   }, []);
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e: PointerEvent<HTMLDivElement>) => {
     if (disabled) return;
+    if (e.button !== 0) return;
     const isMetricLike = habit.type === 'metric' || habit.type === 'limiter';
     if (isHolding && holdTimeoutRef.current && !hasHeldRef.current) {
       // Short click/tap detection
@@ -197,6 +201,12 @@ export function WidgetHabitCard({
       onPointerEnter={spotlight.onPointerEnter}
       onPointerLeave={handlePointerLeave}
       onPointerCancel={cancelHold}
+      onContextMenu={(e) => {
+        if (disabled) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onContextMenu?.(e, habit);
+      }}
     >
       {/* Hold fill animation */}
       {isHolding && <div className="widget-habit-card__hold-fill" />}

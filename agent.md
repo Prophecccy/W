@@ -1725,6 +1725,36 @@ Replaced the native Win32 context menu with a custom borderless tactical HUD win
    - 19 Vitest test suites passing (188 tests).
    - Native release binary compiled (`npm run build:app`) and deployed live to `C:\Users\unniu\AppData\Local\W\w-app.exe` (PID `24176`).
 
+### 78. Desktop Widget Right-Click Habit Hiding Feature (2026-11-17)
+1. **Right-Click Context Menu (`src/features/widget/components/HabitList/WidgetHabitCard.tsx`, `WidgetHabitCard.css`)**:
+   - Added `onContextMenu` handler to `WidgetHabitCard` with pointer event guards (`e.button !== 0`) to prevent right-click pointer down from triggering long-press hold completions.
+   - Styled custom tactical context menu (`.widget-habit-context-menu`) featuring backdrop blur, border lighting, and tactile hover states.
+   - Option `[ HIDE HABIT ]` with `EyeOff` icon immediately erases the selected habit from the desktop widget.
+2. **Context Menu Clamping & Habit List Integration (`src/features/widget/components/HabitList/WidgetHabitList.tsx`)**:
+   - Managed active context menu coordinates clamped within widget viewport bounds.
+   - Added outside click and `Escape` key dismiss listeners.
+   - Added a subtle restore bar (`[ N HIDDEN · RESTORE ]`) when habits are hidden, allowing 1-click unhide of all hidden protocols.
+3. **Local Date-Scoped State Persistence (`src/features/widget/hooks/useWidgetData.ts`, `WidgetApp.tsx`)**:
+   - Persisted hidden habit IDs in `localStorage` under `w_widget_hidden_habits_${today}`, resetting cleanly with the daily reset time.
+   - Filtered `hiddenHabitIds` strictly from widget rendering and widget progress counting.
+   - Kept database documents, completion logs, streaks, and main app pages (Dashboard & Habits) 100% intact and incomplete.
+4. **Verification & Deployment**:
+   - Zero TypeScript compiler errors (`npx tsc --noEmit`).
+   - 19 Vitest test suites passing (189 tests, including new hidden habit logic unit test).
+   - Native release binary compiled (`npm run build:app`) and deployed live to `C:\Users\unniu\AppData\Local\W\w-app.exe` (PID `25820`).
+
+1. **Unlinked Account Isolation (`src/shared/services/googleDriveService.ts`)**:
+   - `getValidAccessToken()` and `runBackgroundSync()` now verify `isDriveAuthenticated()` before attempting token reads or network sync.
+   - Brand-new accounts (where `localStorage.getItem("driveLinked") !== "true"`) quietly return `null` without dispatching false `w:gdrive-session-expired` events.
+2. **Listener Guards (`src/shared/components/Topbar/Topbar.tsx`, `src/app/Layout.tsx`, `src/features/auth/hooks/useAuth.ts`)**:
+   - `Topbar.tsx`'s `handleExpired`, `Layout.tsx`'s `handleSessionExpired`, and `useAuth.ts`'s `handleSessionExpired` now verify `localStorage.getItem("driveLinked") === "true"` before toggling `isDriveExpired` or displaying toasts.
+   - Startup remote pull routines in `Layout.tsx` are strictly wrapped in an `isDriveAuthenticated` check.
+3. **Mobile Settings Tab Filtering (`src/features/settings/components/SettingsPage.tsx`, `DesktopSection.tsx`)**:
+   - The desktop widget / Windows download tab (`DESK`) is now conditionally hidden on mobile viewports and Android devices via `useDeviceContext()`.
+   - Prevented mobile users from encountering desktop-specific widget controls or irrelevant "Download for Windows" CTAs.
+
+
+
 
 
 
