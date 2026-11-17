@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Todo, TodoType, TodoPriority, PRIORITY_CONFIG } from "../../types";
+import { Pipette } from "lucide-react";
+import { Todo, TodoType } from "../../types";
 import { createTodo, updateTodo } from "../../services/todoService";
 import { HabitGroup } from "../../../habits/types";
 import { createGroup, sanitizeGroupName } from "../../../habits/services/groupService";
@@ -8,22 +9,23 @@ import { sanitizeText } from "../../../../shared/utils/security";
 import { DatePicker } from "../../../../shared/components/DatePicker/DatePicker";
 import "./TodoForm.css";
 
+export const TODO_STRIP_COLORS = [
+  "#5B8DEF", // Endfield Blue
+  "#4ADE80", // Emerald Green
+  "#E8736C", // Rose Red
+  "#F59E0B", // Amber Orange
+  "#C084FC", // Violet Purple
+  "#2DD4BF", // Cyan Teal
+  "#F472B6", // Pink
+  "#6B7280", // Slate Gray
+];
+
 interface TodoFormProps {
   onClose: () => void;
   onSuccess?: () => void;
   groups?: HabitGroup[];
   dailyResetTime?: string;
   todoToEdit?: Todo;
-}
-
-function getInitialPriority(todoToEdit?: Todo): TodoPriority {
-  if (todoToEdit?.priority) return todoToEdit.priority;
-  if (!todoToEdit) return "p3";
-  const c = todoToEdit.color?.toLowerCase();
-  if (c === "#ff4d4d" || c === "#ef4444") return "p1";
-  if (c === "#f59e0b" || c === "#facc15" || c === "#f97316") return "p2";
-  if (c === "#6b7280" || c === "#71717a" || c === "#888888") return "p4";
-  return "p3";
 }
 
 export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todoToEdit }: TodoFormProps) {
@@ -35,8 +37,8 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todo
   const [type, setType] = useState<TodoType>(todoToEdit?.type ?? "standard");
   const [targetInput, setTargetInput] = useState(todoToEdit?.numbered?.target ? String(todoToEdit.numbered.target) : "5");
 
-  // Priority Hierarchy (P1 to P4)
-  const [priority, setPriority] = useState<TodoPriority>(() => getInitialPriority(todoToEdit));
+  // Strip Color Selection
+  const [color, setColor] = useState<string>(() => todoToEdit?.color || "#5B8DEF");
 
   // Deadline selection
   const [deadlineMode, setDeadlineMode] = useState<"none" | "today" | "custom">(() => {
@@ -58,14 +60,6 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todo
   const [newGroupName, setNewGroupName] = useState("");
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleSelectPriority = (newPriority: TodoPriority) => {
-    setPriority(newPriority);
-    // P1 Critical: Non-negotiable priorities for today. If deadline not set, auto-suggest today.
-    if (newPriority === "p1" && deadlineMode === "none") {
-      setDeadlineMode("today");
-    }
-  };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -104,8 +98,7 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todo
       const todoData: any = {
         title: sanitizeText(title, 200),
         description: description ? sanitizeText(description, 2000) : "",
-        color: PRIORITY_CONFIG[priority].color,
-        priority: priority,
+        color: color || "#5B8DEF",
         deadline: deadlineVal,
         future: hasFutureDate && futureDate ? futureDate : null,
         group: finalGroup,
@@ -143,7 +136,7 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todo
       // Reset main input fields
       setTitle("");
       setDescription("");
-      setPriority("p3");
+      setColor("#5B8DEF");
       setDeadlineMode("none");
       setCustomDeadline("");
       setPostDeadlineAction("keep");
@@ -305,39 +298,42 @@ export function TodoForm({ onClose, onSuccess, groups = [], dailyResetTime, todo
           </div>
         )}
 
-        {/* Priority Hierarchy (P1 to P4) */}
-        <div className="todo-form__field todo-form__field--priority">
-          <div className="todo-form__priority-header">
-            <span className="t-meta">PRIORITY HIERARCHY</span>
-            <span
-              className="t-meta todo-form__priority-badge"
-              style={{ color: PRIORITY_CONFIG[priority].color }}
-            >
-              [ {PRIORITY_CONFIG[priority].label} ]
+        {/* Strip Color Selection */}
+        <div className="todo-form__field todo-form__field--color">
+          <div className="todo-form__color-header">
+            <span className="t-meta">STRIP COLOR</span>
+            <span className="t-meta todo-form__color-preview-badge" style={{ color }}>
+              [ {color.toUpperCase()} ]
             </span>
           </div>
-          <div className="todo-form__priority-grid">
-            {(["p1", "p2", "p3", "p4"] as TodoPriority[]).map((tierKey) => {
-              const tier = PRIORITY_CONFIG[tierKey];
-              const isSelected = priority === tierKey;
+          <div className="todo-form__color-grid">
+            {TODO_STRIP_COLORS.map((c) => {
+              const isSelected = color.toLowerCase() === c.toLowerCase();
               return (
                 <button
-                  key={tierKey}
+                  key={c}
                   type="button"
-                  className={`todo-form__priority-btn todo-form__priority-btn--${tierKey} ${isSelected ? "active" : ""}`}
-                  style={{ "--tier-color": tier.color } as React.CSSProperties}
-                  onClick={() => handleSelectPriority(tierKey)}
-                  title={tier.description}
+                  className={`todo-form__color-btn ${isSelected ? "active" : ""}`}
+                  style={{ "--swatch-color": c } as React.CSSProperties}
+                  onClick={() => setColor(c)}
+                  title={`Select strip color ${c}`}
                 >
-                  <span className="todo-form__priority-dot" style={{ backgroundColor: tier.color }} />
-                  <span className="todo-form__priority-label">{tier.label}</span>
+                  <span className="todo-form__color-dot" style={{ backgroundColor: c }} />
                 </button>
               );
             })}
+
+            {/* Custom Color Picker input */}
+            <label className="todo-form__custom-color-wrap" title="Custom color picker">
+              <input
+                type="color"
+                className="todo-form__custom-color-input"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+              />
+              <Pipette size={14} className="todo-form__pipette-icon" />
+            </label>
           </div>
-          <p className="todo-form__priority-desc t-meta">
-            {PRIORITY_CONFIG[priority].description}
-          </p>
         </div>
 
         {/* Commencement Date Selector */}

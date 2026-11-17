@@ -1,0 +1,139 @@
+/* ─── Dedicated Mobile Shell Layout ───────────────────────────── */
+.mobile-shell {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100%;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-primary, #0c0d0f);
+  color: var(--text-primary, #e2e8f0);
+  box-sizing: border-box;
+}
+
+/* ─── Mobile Header ───────────────────────────────────────────── */
+.mobile-shell__header {
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  padding-top: max(4px, env(safe-area-inset-top));
+  background: rgba(12, 13, 15, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  z-index: 50;
+}
+
+.mobile-shell__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobile-shell__logo {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: var(--text-primary);
+}
+
+.mobile-shell__build-tag {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--accent);
+}
+
+.mobile-shell__telemetry-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-rgb), 0.25);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: var(--text-shadow-glow);
+}
+
+.mobile-shell__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobile-shell__icon-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mobile-shell__icon-btn:active {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+/* ─── Scroll Content ──────────────────────────────────────────── */
+.mobile-shell__content {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px 14px 20px 14px;
+  scrollbar-width: none !important;
+}
+
+.mobile-shell__content::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* ─── Floating Tactical Action Button (FAB) ───────────────────── */
+.mobile-shell__fab {
+  position: fixed;
+  right: 18px;
+  bottom: calc(68px + env(safe-area-inset-bottom));
+  z-index: 90;
+  width: 52px;
+  height: 52px;
+  border-radius: 26px;
+  background: var(--accent);
+  color: #0b0c0e;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 6px 20px rgba(var(--accent-rgb), 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ─── Docked Footer ───────────────────────────────────────────── */
+.mobile-shell__footer {
+  flex-shrink: 0;
+  z-index: 50;
+  background: rgba(12, 13, 15, 0.96);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}

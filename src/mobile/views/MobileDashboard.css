@@ -1,0 +1,200 @@
+/* ─── Dedicated Native-Style Mobile Dashboard ─────────────────── */
+.mobile-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  padding-bottom: 24px;
+}
+
+.mobile-dashboard-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  color: var(--text-secondary);
+}
+
+/* ─── 1. Mobile Fuel Card ─────────────────────────────────────── */
+.mobile-dashboard__fuel-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.mobile-dashboard__fuel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mobile-dashboard__fuel-title {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+}
+
+.mobile-dashboard__fuel-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.8px;
+  text-shadow: var(--text-shadow-glow);
+  font-variant-numeric: tabular-nums;
+}
+
+.mobile-dashboard__fuel-badge.badge--sleep {
+  color: #93c5fd;
+}
+
+.mobile-dashboard__fuel-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mobile-dashboard__fuel-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.5);
+}
+
+.mobile-dashboard__fuel-bar.bar--critical {
+  background: #ef4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+}
+
+/* ─── 2. Mobile Telemetry Stats Deck ─────────────────────────── */
+.mobile-dashboard__stats-deck {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.mobile-stats-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.mobile-stats-cell__label {
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+}
+
+.mobile-stats-cell__value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.mobile-stats-cell__value.text-warning {
+  color: #ef4444;
+}
+
+.mobile-stats-divider {
+  width: 1px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+/* ─── 3. Mobile Filter Tabs ───────────────────────────────────── */
+.mobile-dashboard__tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px 0;
+}
+
+.mobile-dashboard__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-tab-btn {
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mobile-tab-btn:active {
+  transform: scale(0.96);
+}
+
+.mobile-tab-btn--active {
+  background: rgba(var(--accent-rgb), 0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.2);
+}
+
+/* ─── 4. Stream & Cards ───────────────────────────────────────── */
+.mobile-dashboard__stream {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.mobile-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mobile-section__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2px;
+}
+
+.mobile-cards-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mobile-empty-card {
+  padding: 24px 16px;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.mobile-section--note {
+  margin-top: 8px;
+}

@@ -270,87 +270,99 @@
   animation: todoFormSlideDown 0.2s ease-out;
 }
 
-/* Priority Hierarchy (P1 to P4) */
-.todo-form__priority-header {
+/* Strip Color Selector */
+.todo-form__color-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.todo-form__priority-badge {
+.todo-form__color-preview-badge {
   font-family: var(--font-mono);
   font-weight: 600;
   letter-spacing: 1px;
   font-size: 11px;
 }
 
-.todo-form__priority-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+.todo-form__color-grid {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-top: 6px;
+  flex-wrap: wrap;
 }
 
-@media (max-width: 520px) {
-  .todo-form__priority-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-.todo-form__priority-btn {
+.todo-form__color-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.01);
-  border: 1px solid var(--border-subtle);
-  padding: 10px 8px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.5px;
-  color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.2s ease;
-  user-select: none;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 0;
 }
 
-.todo-form__priority-btn:hover {
-  border-color: var(--tier-color, var(--text-secondary));
-  color: var(--text-primary);
+.todo-form__color-btn:hover {
+  border-color: var(--swatch-color);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-.todo-form__priority-btn.active {
-  border-color: var(--tier-color);
-  color: var(--tier-color);
-  background: color-mix(in srgb, var(--tier-color) 10%, transparent);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--tier-color) 25%, transparent);
+.todo-form__color-btn.active {
+  border-color: var(--swatch-color);
+  background: color-mix(in srgb, var(--swatch-color) 18%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--swatch-color) 40%, transparent);
 }
 
-.todo-form__priority-dot {
-  width: 8px;
-  height: 8px;
+.todo-form__color-dot {
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   display: inline-block;
-  flex-shrink: 0;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.todo-form__priority-btn.active .todo-form__priority-dot {
-  transform: scale(1.25);
-  box-shadow: 0 0 8px var(--tier-color);
+.todo-form__color-btn.active .todo-form__color-dot {
+  transform: scale(1.2);
+  box-shadow: 0 0 8px var(--swatch-color);
 }
 
-.todo-form__priority-label {
-  font-weight: 500;
-  white-space: nowrap;
+.todo-form__custom-color-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+  color: var(--text-muted);
 }
 
-.todo-form__priority-desc {
-  margin-top: 8px;
-  font-size: 11px;
-  color: var(--text-secondary);
-  line-height: 1.4;
-  opacity: 0.85;
+.todo-form__custom-color-wrap:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+  transform: translateY(-2px);
+}
+
+.todo-form__custom-color-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+.todo-form__pipette-icon {
+  opacity: 0.75;
 }
 
 .todo-form__field--future {

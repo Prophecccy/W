@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Todo, PRIORITY_CONFIG, TodoPriority } from "../../types";
+import { Todo } from "../../types";
 import { LucideIcon } from "../../../../shared/components/IconPicker/LucideIcon";
 import { getToday } from "../../../../shared/utils/dateUtils";
 import { SPRING_LAYOUT, SPRING_POP } from "../../../../shared/constants/motion";
@@ -17,17 +17,6 @@ interface TodoCardProps {
   onToggleExpand?: () => void;
   expanded?: boolean;
   dailyResetTime?: string;
-}
-
-function getTodoPriority(todo: Todo): TodoPriority {
-  if (todo.priority && PRIORITY_CONFIG[todo.priority]) {
-    return todo.priority;
-  }
-  const hex = (todo.color || "").toLowerCase();
-  if (hex === "#ef4444" || hex === "#ff4d4d") return "p1";
-  if (hex === "#f59e0b" || hex === "#facc15") return "p2";
-  if (hex === "#6b7280" || hex === "#71717a") return "p4";
-  return "p3";
 }
 
 export function TodoCard({ 
@@ -51,11 +40,8 @@ export function TodoCard({
   const isCompleted = todo.status === "done";
   const isClickable = todo.type === "numbered" || (!!todo.description && todo.description.trim() !== "");
 
-  const priorityTier = getTodoPriority(todo);
-  const priorityInfo = PRIORITY_CONFIG[priorityTier];
-
   const cardStyle = {
-    "--card-accent": todo.color || priorityInfo.color,
+    "--card-accent": todo.color || "#5B8DEF",
     cursor: isClickable ? "pointer" : "default",
   } as React.CSSProperties;
 
@@ -273,12 +259,6 @@ export function TodoCard({
 
         <div className="todo-card__footer">
           <div className="todo-card__badges">
-            <span
-              className="badge t-meta todo-card__priority-badge"
-              style={{ color: priorityInfo.color }}
-            >
-              [ {priorityInfo.shortLabel} ]
-            </span>
             <span className="badge t-meta">[ {todo.type.toUpperCase()} ]</span>
             {deadlineText && (
                <span className="badge t-meta" style={{ color: deadlineText === "OVERDUE" ? "var(--strike-red)" : "var(--text-secondary)" }}>

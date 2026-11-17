@@ -1743,6 +1743,24 @@ Replaced the native Win32 context menu with a custom borderless tactical HUD win
    - 19 Vitest test suites passing (189 tests, including new hidden habit logic unit test).
    - Native release binary compiled (`npm run build:app`) and deployed live to `C:\Users\unniu\AppData\Local\W\w-app.exe` (PID `25820`).
 
+---
+
+### 79. Todo Strip Color Selection & Priority System Decommissioning (2026-11-17)
+1. **Priority Hierarchy Removed & Strip Color Added (`src/features/todos/components/TodoForm/TodoForm.tsx`, `TodoForm.css`)**:
+   - Completely purged the `PRIORITY HIERARCHY` section (`P1 CRITICAL` through `P4 LOW`), its descriptions, and priority auto-suggestions.
+   - Introduced a dedicated **STRIP COLOR** selection interface featuring 8 tactical presets (`#5B8DEF` Blue, `#4ADE80` Emerald, `#E8736C` Rose, `#F59E0B` Amber, `#C084FC` Violet, `#2DD4BF` Teal, `#F472B6` Pink, `#6B7280` Slate) plus a native custom color picker input (`Pipette` icon).
+   - The selected color binds directly to `todo.color`.
+2. **Todo Card Visual Strip Overhaul (`src/features/todos/components/TodoCard/TodoCard.tsx`, `TodoCard.css`)**:
+   - Removed the `[ P1 ]`–`[ P4 ]` priority text badges from `TodoCard` footer.
+   - Added an authentic 3.5px solid vertical accent strip along the left edge of `.todo-card`, glowing with the assigned `--card-accent` color.
+3. **Mobile Quick-Add Sheet Color Parity (`src/mobile/components/QuickAddSheet/QuickAddSheet.tsx`)**:
+   - Replaced mobile priority buttons with color swatch chips, saving `todo.color` consistently across platforms.
+4. **Verification & Deployment**:
+   - Zero TypeScript compiler errors (`npx tsc --noEmit`).
+   - 19 Vitest test suites passing (189 tests).
+   - Native release binary compiled (`npm run build:app`) and deployed live to `C:\Users\unniu\AppData\Local\W\w-app.exe` (PID `13228`).
+
+
 1. **Unlinked Account Isolation (`src/shared/services/googleDriveService.ts`)**:
    - `getValidAccessToken()` and `runBackgroundSync()` now verify `isDriveAuthenticated()` before attempting token reads or network sync.
    - Brand-new accounts (where `localStorage.getItem("driveLinked") !== "true"`) quietly return `null` without dispatching false `w:gdrive-session-expired` events.
