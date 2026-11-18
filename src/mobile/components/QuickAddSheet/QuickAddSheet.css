@@ -1,4 +1,4 @@
-/* ─── Mobile Quick Add Sheet ──────────────────────────────────── */
+/* ─── Mobile Quick Add Sheet (Duolingo-Proportioned) ────────────── */
 .quick-add-sheet {
   display: flex;
   flex-direction: column;
@@ -8,31 +8,38 @@
 .quick-add__tabs {
   display: flex;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  background: #13151b;
   padding: 4px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
 }
 
 .quick-add__tab {
   flex: 1;
-  padding: 10px 12px;
+  height: 44px;
+  padding: 0 12px;
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: 9px;
   font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 1px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .quick-add__tab--active {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-primary);
-  font-weight: 700;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  background: #1e222e;
+  color: var(--accent);
+  font-weight: 900;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  border-bottom: 3px solid var(--accent);
 }
 
 .quick-add__form {
@@ -44,25 +51,27 @@
 .quick-add__field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .quick-add__label {
-  font-size: 9px;
-  letter-spacing: 1.5px;
-  color: rgba(255, 255, 255, 0.4);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: rgba(255, 255, 255, 0.5);
   text-transform: uppercase;
 }
 
 .quick-add__input {
   width: 100%;
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 12px 14px;
+  background: #13151b;
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 14px 16px;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-primary);
   outline: none;
   transition: border-color 0.15s ease, background 0.15s ease;
@@ -70,36 +79,53 @@
 
 .quick-add__input:focus {
   border-color: var(--accent);
-  background: rgba(255, 255, 255, 0.05);
+  background: #161922;
 }
 
 .quick-add__pill-row {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .quick-add__pill {
   flex: 1;
   min-width: 80px;
-  padding: 9px 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  height: 42px;
+  padding: 0 14px;
+  background: #14171f;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 3px solid rgba(0, 0, 0, 0.5);
+  border-radius: 10px;
   font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.15s ease;
-  text-align: center;
+  transition: all 0.12s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.quick-add__pill:active {
+  transform: translateY(2px);
+  border-bottom-width: 1.5px;
 }
 
 .quick-add__pill--active {
-  background: rgba(var(--accent-rgb), 0.1);
+  background: rgba(var(--accent-rgb), 0.15);
   border-color: var(--accent);
+  border-bottom: 3px solid var(--accent);
   color: var(--accent);
-  font-weight: 700;
+  font-weight: 800;
+}
+
+.quick-add__pill--active:active {
+  transform: translateY(2px);
+  border-bottom-width: 1.5px;
 }
 
 .quick-add__days-grid {
@@ -109,90 +135,122 @@
 }
 
 .quick-add__day-btn {
-  height: 38px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  height: 42px;
+  background: #14171f;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 3px solid rgba(0, 0, 0, 0.5);
+  border-radius: 9px;
   font-family: var(--font-mono);
   font-size: 11px;
+  font-weight: 800;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.quick-add__day-btn:active {
+  transform: translateY(2px);
+  border-bottom-width: 1.5px;
 }
 
 .quick-add__day-btn--selected {
-  background: rgba(var(--accent-rgb), 0.15);
+  background: rgba(var(--accent-rgb), 0.18);
   border-color: var(--accent);
+  border-bottom: 3px solid var(--accent);
   color: var(--accent);
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .quick-add__priority-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
 }
 
 .quick-add__priority-btn {
-  padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  height: 42px;
+  padding: 0 6px;
+  background: #14171f;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 3px solid rgba(0, 0, 0, 0.5);
+  border-radius: 10px;
   font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.8px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--text-muted);
   cursor: pointer;
-  text-align: center;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.quick-add__priority-btn:active {
+  transform: translateY(2px);
+  border-bottom-width: 1.5px;
 }
 
 .priority--p1.priority-btn--active {
-  background: rgba(239, 68, 68, 0.15);
+  background: rgba(239, 68, 68, 0.16);
   border-color: #EF4444;
+  border-bottom: 3px solid #EF4444;
   color: #EF4444;
-  font-weight: 700;
 }
 
 .priority--p2.priority-btn--active {
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(245, 158, 11, 0.16);
   border-color: #F59E0B;
+  border-bottom: 3px solid #F59E0B;
   color: #F59E0B;
-  font-weight: 700;
 }
 
 .priority--p3.priority-btn--active {
-  background: rgba(91, 141, 239, 0.15);
+  background: rgba(91, 141, 239, 0.16);
   border-color: #5B8DEF;
+  border-bottom: 3px solid #5B8DEF;
   color: #5B8DEF;
-  font-weight: 700;
 }
 
 .priority--p4.priority-btn--active {
-  background: rgba(107, 114, 128, 0.15);
+  background: rgba(107, 114, 128, 0.16);
   border-color: #6B7280;
+  border-bottom: 3px solid #6B7280;
   color: #D1D5DB;
-  font-weight: 700;
 }
 
 .quick-add__actions {
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .quick-add__submit-btn {
   width: 100%;
-  padding: 14px;
+  height: 52px;
+  padding: 0 16px;
   background: var(--accent);
-  border: none;
-  border-radius: 8px;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  border-bottom: 4px solid rgba(0, 0, 0, 0.35);
+  border-radius: 14px;
   font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 900;
   letter-spacing: 1.5px;
   color: #0b0c0e;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(var(--accent-rgb), 0.3);
-  transition: opacity 0.15s ease;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35), 0 6px 20px rgba(var(--accent-rgb), 0.45);
+  transition: all 0.12s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.quick-add__submit-btn:active {
+  transform: translateY(3px);
+  border-bottom-width: 1.5px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35), 0 2px 10px rgba(var(--accent-rgb), 0.3);
 }
 
 .quick-add__submit-btn:disabled {

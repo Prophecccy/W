@@ -76,3 +76,25 @@
 .toast__close:hover {
   color: var(--text-primary);
 }
+
+/* ─── Mobile Toast Repositioning (Top-docked) ─────────────────── */
+@media (max-width: 768px) {
+  .toast-container {
+    top: calc(54px + env(safe-area-inset-top));
+    bottom: unset;
+    flex-direction: column;
+    padding: 8px 14px;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+  }
+
+  .toast {
+    min-width: unset;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 14px;
+    font-size: 11px;
+  }
+}
+

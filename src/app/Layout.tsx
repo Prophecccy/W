@@ -224,6 +224,7 @@ function LayoutInner() {
     };
 
     const handleSessionExpired = () => {
+      if (localStorage.getItem("driveLinked") !== "true") return;
       const now = Date.now();
       // Cooldown: at most once every 30 minutes to prevent repetitive audio or toast popups
       if (now - lastSessionExpiredToastRef.current < 30 * 60 * 1000) return;
@@ -434,7 +435,16 @@ function LayoutInner() {
         }
 
         if (existing) {
-          await existing.show();
+          // WidgetApp automatically sets its saved coordinates and reveals itself.
+          // We provide a safety fallback after 800ms in case it hasn't revealed yet.
+          setTimeout(async () => {
+            try {
+              const current = await WebviewWindow.getByLabel("widget");
+              if (current && !(await current.isVisible())) {
+                await current.show();
+              }
+            } catch {}
+          }, 800);
         } else {
           const widget = new WebviewWindow("widget", {
             title: "Widget",
@@ -673,35 +683,37 @@ function LayoutInner() {
 
       if (isUnmounted) return;
 
-      // 2. Trigger GDrive sync background worker instantly to flush pending offline writes
-      try {
-        const { runBackgroundSync } = await import("../shared/services/googleDriveService");
-        await runBackgroundSync();
-      } catch (err) {
-        console.error("[Sync Engine] Initial background sync execution failed:", err);
-      }
-
-      if (isUnmounted) return;
-
-      // 2.5. Pull down any notes from Google Drive that are missing locally
-      try {
-        const { getValidAccessToken, pullNotesFromDrive } = await import("../shared/services/googleDriveService");
-        const accessToken = await getValidAccessToken();
-        if (accessToken) {
-          await pullNotesFromDrive(accessToken);
+      // 2. Trigger GDrive sync background worker and pull down remote data (only if linked)
+      if (localStorage.getItem("driveLinked") === "true") {
+        try {
+          const { runBackgroundSync } = await import("../shared/services/googleDriveService");
+          await runBackgroundSync();
+        } catch (err) {
+          console.error("[Sync Engine] Initial background sync execution failed:", err);
         }
-      } catch (err) {
-        console.error("[Sync Engine] Drive notes pull-down failed:", err);
-      }
 
-      if (isUnmounted) return;
+        if (isUnmounted) return;
 
-      // 2.7. Pull down and merge consolidated state from Google Drive
-      try {
-        const { pullAndMergeFromGoogleDrive } = await import("../shared/services/localDb");
-        await pullAndMergeFromGoogleDrive();
-      } catch (err) {
-        console.error("[Sync Engine] W_state.json pull-down/merge failed:", err);
+        // 2.5. Pull down any notes from Google Drive that are missing locally
+        try {
+          const { getValidAccessToken, pullNotesFromDrive } = await import("../shared/services/googleDriveService");
+          const accessToken = await getValidAccessToken();
+          if (accessToken) {
+            await pullNotesFromDrive(accessToken);
+          }
+        } catch (err) {
+          console.error("[Sync Engine] Drive notes pull-down failed:", err);
+        }
+
+        if (isUnmounted) return;
+
+        // 2.7. Pull down and merge consolidated state from Google Drive
+        try {
+          const { pullAndMergeFromGoogleDrive } = await import("../shared/services/localDb");
+          await pullAndMergeFromGoogleDrive();
+        } catch (err) {
+          console.error("[Sync Engine] W_state.json pull-down/merge failed:", err);
+        }
       }
 
       if (isUnmounted) return;

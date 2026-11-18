@@ -52,12 +52,20 @@ export function Sidebar({
   const [appVersion, setAppVersion] = useState('...');
 
   useEffect(() => {
+    const formatBetaVersion = (raw: string) => {
+      const clean = raw.replace(/-.*$/, '');
+      if (clean.startsWith('2.0')) {
+        return 'Beta.v.1.0';
+      }
+      return `Beta.v.${clean.replace(/\.0$/, '')}`;
+    };
+
     if (isTauri()) {
       import('@tauri-apps/api/app').then(({ getVersion }) =>
-        getVersion().then(v => setAppVersion(`Alpha.v.${v.replace(/-.*$/, '').replace(/\.0$/, '')}`))
-      ).catch(() => setAppVersion('Alpha'));
+        getVersion().then(v => setAppVersion(formatBetaVersion(v)))
+      ).catch(() => setAppVersion('Beta.v.1.0'));
     } else {
-      setAppVersion(`Alpha.v.${__APP_VERSION__.replace(/-.*$/, '').replace(/\.0$/, '')}`);
+      setAppVersion(formatBetaVersion(__APP_VERSION__));
     }
   }, []);
   const isWarning = strikeCount >= 3;

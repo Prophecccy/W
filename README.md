@@ -7,7 +7,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Tauri-v2-24C8DB?style=flat-square&logo=tauri" alt="Tauri">
   <img src="https://img.shields.io/badge/React-UI-61DAFB?style=flat-square&logo=react" alt="React">
-  <img src="https://img.shields.io/badge/Status-Active_Development-5B8DEF?style=flat-square" alt="Status">
+  <img src="https://img.shields.io/badge/Status-Beta_v1.0-4ADE80?style=flat-square" alt="Status">
 </p>
 
 <br>
@@ -47,8 +47,8 @@ Unlike standard to-do lists, [ W ] operates as a strict, OS-level dashboard desi
 
 Built for extreme performance and deep OS-level control.
 
-* **Core:** Tauri v2 (Rust)
-* **Frontend:** React (Vite / TypeScript)
+* **Core:** Tauri v2 (Rust) — Windows Desktop & Android Native
+* **Frontend:** React (Vite / TypeScript) with dedicated native-style Mobile Shell (`src/mobile/`)
 * **Styling:** Pure Vanilla CSS (No Tailwind, strict Design System Tokens)
 * **Data:** Local-first (IndexedDB) + Encrypted Google Drive Sync
 * **OS APIs:** `windows-rs` for Z-order manipulation and foreground window interception.

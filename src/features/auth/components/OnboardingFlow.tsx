@@ -1,10 +1,19 @@
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuthContext } from "../context";
 import { createUserDoc } from "../services/userService";
 import { useNavigate } from "react-router-dom";
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useToast } from "../../../shared/components/Toast/Toast";
 import { TimeInput } from "../../../shared/components/RadialTimePicker/TimeInput";
+import { SPRING_TACTILE, SPRING_POP } from "../../../shared/constants/motion";
+import {
+  playMechanicalClick,
+  playSubtleThud,
+  playLockLatch,
+  playMilestoneChirp,
+  playCompletionSound,
+} from "../../../shared/services/tactileAudioService";
 import "./OnboardingFlow.css";
 
 interface OnboardingFlowProps {
@@ -12,44 +21,60 @@ interface OnboardingFlowProps {
 }
 
 export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
-  const { user, error, signingIn, signIn, signOut, clearError, devSkip } = useAuthContext();
+  const { user, signingIn, signIn, signOut, devSkip } = useAuthContext();
   const navigate = useNavigate();
   const { showToast } = useToast();
 
-  const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__;
+  const isTauri = typeof window !== "undefined" && !!(window as any).__TAURI_INTERNALS__;
   const appWindow = isTauri ? getCurrentWindow() : null;
 
-  // Onboarding parameters state
-  const [step, setStep] = useState(1);
+  // Onboarding step (1 to 3)
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+
+  // Step 1: Kinetic Fuel State
+  const [demoFuel, setDemoFuel] = useState(75);
+
+  // Step 2: Interactive Strike State
+  const [demoStrikes, setDemoStrikes] = useState(2);
+
+  // Step 3: Calibration Parameters
   const [wakeTime, setWakeTime] = useState("07:00");
   const [sleepTime, setSleepTime] = useState("23:00");
   const [resetTime, setResetTime] = useState("04:00");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Highlighting active features on Step 2
-  const [hoveredProtocol, setHoveredProtocol] = useState<number | null>(null);
-
   const handleDrag = (e: React.PointerEvent) => {
-    // Allow dragging from any non-interactive element
-    if (e.target instanceof Element && (
-      e.target.closest('button') ||
-      e.target.closest('input') ||
-      e.target.closest('a')
-    )) return;
+    if (
+      e.target instanceof Element &&
+      (e.target.closest("button") || e.target.closest("input") || e.target.closest("a"))
+    )
+      return;
     try {
       getCurrentWindow().startDragging();
     } catch {
-      // Ignore if not running in Tauri
+      // Ignore if not in desktop Tauri
+    }
+  };
+
+  const handleStrikeTap = (index: number) => {
+    const nextStrikes = index + 1 === demoStrikes ? index : index + 1;
+    setDemoStrikes(nextStrikes);
+
+    if (nextStrikes >= 5) {
+      playLockLatch();
+    } else {
+      playSubtleThud();
+      playMilestoneChirp();
     }
   };
 
   const handleCompleteSetup = async () => {
     if (!user) return;
     setIsSubmitting(true);
+    playCompletionSound();
     try {
       const defaultTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      
-      // Perform atomic configuration write to Firestore
+
       const newDoc = await createUserDoc(user.uid, user.email, user.displayName, user.photoURL, {
         dailyResetTime: resetTime,
         timezone: defaultTz,
@@ -57,9 +82,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         bedTime: sleepTime,
       });
 
-      console.log("[OnboardingFlow] User document created successfully:", newDoc.uid);
-      
-      // Brief stabilization delay to ensure smooth transition
+      console.log("[OnboardingFlow] User initialized:", newDoc.uid);
       await new Promise((resolve) => setTimeout(resolve, 350));
 
       if (onComplete) {
@@ -67,280 +90,296 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       }
 
       navigate("/");
-      showToast("[ SYSTEM_INITIALIZED ] - Tactical parameters established.");
+      showToast("[ SYSTEM INITIALIZED ] - Operational parameters active.");
     } catch (err) {
-      console.error("[OnboardingFlow] handleCompleteSetup failed:", err);
-      showToast("Error establishing preferences. Please try again.");
+      console.error("[OnboardingFlow] Setup failed:", err);
+      showToast("Error establishing preferences. Please retry.");
       setIsSubmitting(false);
     }
   };
 
   return (
     <div className="onboarding-flow" onPointerDown={handleDrag}>
-      {/* Absolute Window Header Controls */}
+      {/* Window Close Control */}
       <div className="onboarding-flow__controls">
-        <button 
-          className="onboarding-flow__close-btn t-label" 
+        <button
+          type="button"
+          className="onboarding-flow__close-btn t-label"
           onClick={() => appWindow?.close()}
+          aria-label="Close"
         >
           [ X ]
         </button>
       </div>
 
       <div className="onboarding-flow__container">
+        {/* Progress Stepper Pills */}
+        <div className="onboarding-flow__stepper">
+          {[1, 2, 3].map((s) => (
+            <div
+              key={s}
+              className={`onboarding-flow__stepper-pill ${s <= step ? "stepper-pill--active" : ""}`}
+            />
+          ))}
+        </div>
+
         {/* Dynamic Header */}
-        <div className="onboarding-flow__header">
-          <div className="onboarding-flow__step-indicator t-label">
-            STEP {step} OF 5
-          </div>
+        <header className="onboarding-flow__header">
+          <span className="onboarding-flow__step-indicator t-label">STAGE {step} OF 3</span>
           <h1 className="onboarding-flow__title t-display">
-            {step === 1 && "[ DEVELOPER BRIEFING ]"}
-            {step === 2 && "[ CORE PROTOCOLS ]"}
-            {step === 3 && "[ SECURITY PROTOCOL ]"}
-            {step === 4 && "[ FUEL CALIBRATION ]"}
-            {step === 5 && "[ SYSTEM INITIALIZATION ]"}
+            {step === 1 && "[ WAKING FUEL ]"}
+            {step === 2 && "[ HARD ACCOUNTABILITY ]"}
+            {step === 3 && "[ CALIBRATE & LAUNCH ]"}
           </h1>
           <p className="onboarding-flow__subtitle t-meta">
-            {step === 1 && "READ AND ACKNOWLEDGE OPERATIONAL MANIFESTO."}
-            {step === 2 && "UNDERSTAND THE THREE CORE PILLARS OF THE W ARCHITECTURE."}
-            {step === 3 && "VERIFY DATA PROTECTION AND TRANSPARENCY PRINCIPLES."}
-            {step === 4 && "ESTABLISH DAILY TIME LIMITS AND STANDARD OPERATING CYCLE."}
-            {step === 5 && "ESTABLISH AUTHENTICATED PROTOCOL LINK."}
+            {step === 1 && "YOUR WAKING HOURS ARE A FINITE FUEL TANK. WATCH IT DRAIN IN REAL-TIME."}
+            {step === 2 && "INCOMPLETE DAILY HABITS ACCRUE STRIKES. 5 STRIKES = SYSTEM LOCKDOWN."}
+            {step === 3 && "ESTABLISH YOUR WAKE AND SLEEP OPERATING BOUNDARIES."}
           </p>
-        </div>
+        </header>
 
-        {/* Form Content / State Machine */}
+        {/* Dynamic Kinetic Stage Views */}
         <div className="onboarding-flow__content">
-          {/* STEP 1: Briefing Manifesto */}
-          {step === 1 && (
-            <div className="onboarding-flow__manifesto t-body">
-              Disclaimer: I am a solo developer building [ W ]. I have absolutely zero interest in your personal data. This is a tool for extreme self-sovereignty, raw focus, and hard accountability. Everything is designed to keep you in the zone, with zero ads, tracking, or surveillance. It is just you and your code.
-            </div>
-          )}
-
-          {/* STEP 2: Core Protocols */}
-          {step === 2 && (
-            <div className="onboarding-flow__protocols">
-              {[
-                {
-                  id: 1,
-                  name: "1. SLEEPTUBE",
-                  desc: "Tactical offline audio/video focus engine. Curate and stream local or selected offline tracks for high-concentration coding blocks without algorithms or distractors.",
-                },
-                {
-                  id: 2,
-                  name: "2. TACTICAL WORKSPACE",
-                  desc: "Complete desktop integration, overlays, and persistent focus HUD. Renders ambient tools like sticky notes and widgets directly embedded on your workspace background.",
-                },
-                {
-                  id: 3,
-                  name: "3. LOCKDOWN PROTOCOL",
-                  desc: "Ultra-strict app blocking, focus metrics, and custom strike system. Detects and blocks blacklisted distractions. Fulfills strict penalties if boundaries are breached.",
-                },
-              ].map((protocol) => (
-                <div
-                  key={protocol.id}
-                  className={`onboarding-flow__protocol-card ${
-                    hoveredProtocol === protocol.id ? "onboarding-flow__protocol-card--active" : ""
-                  }`}
-                  onMouseEnter={() => setHoveredProtocol(protocol.id)}
-                  onMouseLeave={() => setHoveredProtocol(null)}
-                >
-                  <div className="onboarding-flow__protocol-name t-label">
-                    {protocol.name}
-                  </div>
-                  <div className="onboarding-flow__protocol-desc t-body">
-                    {protocol.desc}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* STEP 3: Security Protocol Data Privacy Table */}
-          {step === 3 && (
-            <div className="onboarding-flow__table">
-              {/* Header */}
-              <div className="onboarding-flow__table-cell onboarding-flow__table-header t-label">DATA TYPE</div>
-              <div className="onboarding-flow__table-cell onboarding-flow__table-header t-label">SYSTEM STORAGE</div>
-              <div className="onboarding-flow__table-cell onboarding-flow__table-header t-label">TRANSPARENCY</div>
-
-              {/* Row 1 */}
-              <div className="onboarding-flow__table-cell t-data" style={{ color: "var(--text-primary)" }}>Local Storage</div>
-              <div className="onboarding-flow__table-cell t-body">Stored fully locally on machine</div>
-              <div className="onboarding-flow__table-cell t-body" style={{ color: "var(--accent)" }}>100% private, never leaves device.</div>
-
-              {/* Row 2 */}
-              <div className="onboarding-flow__table-cell t-data" style={{ color: "var(--text-primary)" }}>Sync Services</div>
-              <div className="onboarding-flow__table-cell t-body">Google Drive (Secure self-sovereign sync)</div>
-              <div className="onboarding-flow__table-cell t-body" style={{ color: "var(--accent)" }}>Direct client-side sync. Stored inside your own Drive container.</div>
-
-              {/* Row 3 */}
-              <div className="onboarding-flow__table-cell t-data" style={{ color: "var(--text-primary)" }}>System Usage</div>
-              <div className="onboarding-flow__table-cell t-body">Zero analytics / No server transmission</div>
-              <div className="onboarding-flow__table-cell t-body" style={{ color: "var(--accent)" }}>Strictly processed locally, absolute confidentiality.</div>
-            </div>
-          )}
-
-          {/* STEP 4: Calibration Settings */}
-          {step === 4 && (
-            <div className="onboarding-flow__calibration">
-              <div className="onboarding-flow__time-grid">
-                <div className="onboarding-flow__form-group">
-                  <label className="t-label">[ WAKE TIME ]</label>
-                  <p className="onboarding-flow__input-desc t-meta">
-                    ESTABLISH YOUR DAILY AWAKENING TIME.
-                  </p>
-                  <TimeInput
-                    value={wakeTime}
-                    onChange={(v) => setWakeTime(v)}
-                  />
-                </div>
-
-                <div className="onboarding-flow__form-group">
-                  <label className="t-label">[ BED TIME ]</label>
-                  <p className="onboarding-flow__input-desc t-meta">
-                    ESTABLISH YOUR SCHEDULED SLEEP TIMEOUT.
-                  </p>
-                  <TimeInput
-                    value={sleepTime}
-                    onChange={(v) => setSleepTime(v)}
-                  />
-                </div>
-              </div>
-
-              <div className="onboarding-flow__form-group" style={{ marginTop: "16px" }}>
-                <label className="t-label">[ DAILY RESET TIME ]</label>
-                <p className="onboarding-flow__input-desc t-meta">
-                  TIME FOR THE ACCUMULATED STRIKES AND TARGET COUNTS TO RESET (DEFAULT 04:00 AM).
-                </p>
-                <TimeInput
-                  value={resetTime}
-                  onChange={(v) => setResetTime(v)}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* STEP 5: System Initialization (Auth) */}
-          {step === 5 && (
-            <div className="onboarding-flow__auth animate-pulse">
-              {error && (
-                <div className="onboarding-flow__auth-error t-meta" onClick={clearError}>
-                  ⚠ {error} - CLICK TO DISMISS
-                </div>
-              )}
-
-              {user ? (
-                <>
-                  <div className="t-body accent-text" style={{ fontSize: "14px", marginBottom: "12px", textAlign: "center" }}>
-                    [ SYSTEM ACCREDITED: {user.email || "DEV_USER"} ]
-                  </div>
-                  <p className="t-meta" style={{ color: "var(--text-muted)", marginBottom: "24px", textAlign: "center" }}>
-                    YOUR PREFERENCES AND PROTOCOLS ARE CONFIGURED. CLICK BELOW TO INITIALIZE AND LAUNCH WORKSPACE.
-                  </p>
-                  <button
-                    className="onboarding-flow__auth-btn onboarding-flow__auth-btn--google t-label"
-                    onClick={handleCompleteSetup}
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? "[ RUNNING ENGINE... ]" : "[ LAUNCH SYSTEM ]"}
-                  </button>
-                  {!isSubmitting && (
-                    <button
-                      className="onboarding-flow__auth-btn onboarding-flow__auth-btn--dev t-label"
-                      onClick={async () => {
-                        try {
-                          await signOut();
-                          navigate("/login");
-                        } catch (err) {
-                          console.error("[OnboardingFlow] Sign out failed:", err);
-                        }
-                      }}
-                      style={{ marginTop: "12px", width: "100%", maxWidth: "320px" }}
+          <AnimatePresence mode="wait">
+            {/* ─── STAGE 1: WAKING FUEL GAUGE DEMO ─── */}
+            {step === 1 && (
+              <motion.div
+                key="step-1"
+                className="onboarding-stage"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={SPRING_TACTILE}
+              >
+                <div className="onboarding-fuel-display">
+                  <div className="onboarding-fuel-meta">
+                    <span className="t-label">[ DEPLETION GAUGE ]</span>
+                    <span
+                      className={`onboarding-fuel-percent t-data ${
+                        demoFuel <= 20 ? "fuel--critical" : ""
+                      }`}
                     >
-                      [ SWITCH ACCOUNT ]
-                    </button>
-                  )}
-                </>
-              ) : (
-                <>
-                  <button
-                    className="onboarding-flow__auth-btn onboarding-flow__auth-btn--google t-label"
-                    onClick={signIn}
-                    disabled={signingIn}
-                    style={signingIn ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
-                  >
-                    {signingIn ? "[ INITIALIZING GOOGLE AUTH... ]" : "[ SIGN IN WITH GOOGLE ]"}
-                  </button>
+                      {demoFuel}% {demoFuel <= 20 ? "CRITICAL" : "OPERATIONAL"}
+                    </span>
+                  </div>
 
-                  {window.location.hostname === "localhost" && (
+                  <div className="onboarding-fuel-track">
+                    <motion.div
+                      className={`onboarding-fuel-fill ${demoFuel <= 20 ? "fill--critical" : ""}`}
+                      animate={{ width: `${demoFuel}%` }}
+                      transition={SPRING_TACTILE}
+                    />
+                  </div>
+                </div>
+
+                <div className="onboarding-fuel-controls">
+                  <span className="t-meta" style={{ textAlign: "center", display: "block" }}>
+                    SIMULATE DAILY BURN RATE:
+                  </span>
+                  <div className="onboarding-pill-row">
                     <button
-                      className="onboarding-flow__auth-btn onboarding-flow__auth-btn--dev t-label"
-                      onClick={devSkip}
+                      type="button"
+                      className={`onboarding-pill-btn ${demoFuel === 100 ? "pill--selected" : ""}`}
+                      onClick={() => {
+                        playMechanicalClick();
+                        setDemoFuel(100);
+                      }}
+                    >
+                      [ 100% WAKE ]
+                    </button>
+                    <button
+                      type="button"
+                      className={`onboarding-pill-btn ${demoFuel === 50 ? "pill--selected" : ""}`}
+                      onClick={() => {
+                        playMechanicalClick();
+                        setDemoFuel(50);
+                      }}
+                    >
+                      [ 50% MIDDAY ]
+                    </button>
+                    <button
+                      type="button"
+                      className={`onboarding-pill-btn ${demoFuel === 15 ? "pill--selected" : ""}`}
+                      onClick={() => {
+                        playSubtleThud();
+                        setDemoFuel(15);
+                      }}
+                    >
+                      [ 15% NIGHT ]
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ─── STAGE 2: STRIKE DRILL DEMO ─── */}
+            {step === 2 && (
+              <motion.div
+                key="step-2"
+                className="onboarding-stage"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={SPRING_TACTILE}
+              >
+                <div
+                  className={`onboarding-strike-box ${demoStrikes >= 5 ? "strike-box--breach" : ""}`}
+                >
+                  <div className="onboarding-strike-meta">
+                    <span className="t-label">[ PENALTY TELEMETRY ]</span>
+                    <span
+                      className={`onboarding-strike-count t-data ${
+                        demoStrikes >= 4 ? "count--alert" : ""
+                      }`}
+                    >
+                      {demoStrikes} / 5 STRIKES
+                    </span>
+                  </div>
+
+                  <div className="onboarding-strikes-grid">
+                    {[0, 1, 2, 3, 4].map((i) => {
+                      const isArmed = i < demoStrikes;
+                      return (
+                        <motion.button
+                          key={i}
+                          type="button"
+                          className={`onboarding-strike-cell ${isArmed ? "strike-cell--armed" : ""}`}
+                          whileTap={{ scale: 0.92 }}
+                          transition={SPRING_POP}
+                          onClick={() => handleStrikeTap(i)}
+                          aria-label={`Strike ${i + 1}`}
+                        >
+                          ✕
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+
+                  <p className="onboarding-strike-status t-meta">
+                    {demoStrikes >= 5
+                      ? "⚠ FULL LOCKDOWN TRIGGERED: PENANCE MODAL ENFORCED."
+                      : "TAP STRIKE CELLS TO TEST THE BREACH WARNING SYSTEM."}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ─── STAGE 3: CALIBRATION & LAUNCH ─── */}
+            {step === 3 && (
+              <motion.div
+                key="step-3"
+                className="onboarding-stage"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={SPRING_TACTILE}
+              >
+                <div className="onboarding-time-grid">
+                  <div className="onboarding-time-card">
+                    <label className="t-label">[ WAKE TIME ]</label>
+                    <span className="t-meta">START FUEL DRAIN</span>
+                    <TimeInput value={wakeTime} onChange={(v) => setWakeTime(v)} />
+                  </div>
+
+                  <div className="onboarding-time-card">
+                    <label className="t-label">[ BED TIME ]</label>
+                    <span className="t-meta">EMPTY FUEL CEILING</span>
+                    <TimeInput value={sleepTime} onChange={(v) => setSleepTime(v)} />
+                  </div>
+                </div>
+
+                <div className="onboarding-reset-row">
+                  <label className="t-label">[ DAILY RESET TIME ]</label>
+                  <span className="t-meta">DEFAULT: 04:00 AM ROLLOVER</span>
+                  <TimeInput value={resetTime} onChange={(v) => setResetTime(v)} />
+                </div>
+
+                {/* Authentication / Authorization Gate */}
+                {!user && (
+                  <div className="onboarding-auth-gate">
+                    <button
+                      type="button"
+                      className="onboarding-google-btn t-label"
+                      onClick={signIn}
                       disabled={signingIn}
                     >
-                      [ DEV-SKIP LOGIN ]
+                      {signingIn ? "[ CONNECTING GOOGLE AUTH... ]" : "[ SIGN IN WITH GOOGLE ]"}
                     </button>
-                  )}
-                </>
-              )}
-            </div>
-          )}
+                    {typeof window !== "undefined" && window.location.hostname === "localhost" && (
+                      <button
+                        type="button"
+                        className="onboarding-dev-btn t-label"
+                        onClick={devSkip}
+                        disabled={signingIn}
+                      >
+                        [ DEV SKIP LOGIN ]
+                      </button>
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
-        {/* Dynamic Footer Controls */}
-        <div className="onboarding-flow__footer">
-          {step === 1 ? (
+        {/* High-Contrast Tactical Navigation Footer */}
+        <footer className="onboarding-flow__footer">
+          {step > 1 ? (
             <button
               type="button"
-              className="onboarding-flow__nav-btn t-label"
-              onClick={async () => {
-                try {
-                  await signOut();
-                  navigate("/login");
-                } catch (err) {
-                  console.error("[OnboardingFlow] Sign out failed:", err);
-                }
+              className="onboarding-nav-btn onboarding-nav-btn--back t-label"
+              onClick={() => {
+                playMechanicalClick();
+                setStep((prev) => (prev - 1) as 1 | 2);
               }}
-              disabled={isSubmitting}
-            >
-              [ SWITCH ACCOUNT ]
-            </button>
-          ) : step > 1 && step < 5 ? (
-            <button
-              type="button"
-              className="onboarding-flow__nav-btn t-label"
-              onClick={() => setStep(step - 1)}
               disabled={isSubmitting}
             >
               [ BACK ]
             </button>
           ) : (
-            <div />
-          )}
-
-          {step < 5 ? (
             <button
               type="button"
-              className="onboarding-flow__nav-btn onboarding-flow__nav-btn--primary t-label"
-              onClick={() => setStep(step + 1)}
+              className="onboarding-nav-btn onboarding-nav-btn--back t-label"
+              onClick={async () => {
+                playMechanicalClick();
+                try {
+                  await signOut();
+                  navigate("/login");
+                } catch (e) {
+                  console.error(e);
+                }
+              }}
             >
-              {step === 1 ? "[ PROCEED ]" : step === 3 ? "[ AGREE & PROCEED ]" : "[ NEXT ]"}
+              [ EXIT ]
             </button>
-          ) : (
-            // In step 5, back navigation is allowed unless submitting user doc
-            !isSubmitting && (
-              <button
-                type="button"
-                className="onboarding-flow__nav-btn t-label"
-                onClick={() => setStep(4)}
-              >
-                [ BACK ]
-              </button>
-            )
           )}
-        </div>
+
+          {step < 3 ? (
+            <motion.button
+              type="button"
+              className="onboarding-nav-btn onboarding-nav-btn--primary t-label"
+              whileTap={{ scale: 0.96 }}
+              transition={SPRING_TACTILE}
+              onClick={() => {
+                playMechanicalClick();
+                setStep((prev) => (prev + 1) as 2 | 3);
+              }}
+            >
+              {step === 1 ? "[ NEXT: STRIKES → ]" : "[ NEXT: CALIBRATE → ]"}
+            </motion.button>
+          ) : (
+            <motion.button
+              type="button"
+              className="onboarding-nav-btn onboarding-nav-btn--launch t-label"
+              whileTap={{ scale: 0.96 }}
+              transition={SPRING_TACTILE}
+              onClick={handleCompleteSetup}
+              disabled={!user || isSubmitting}
+            >
+              {isSubmitting ? "[ INITIALIZING SYSTEM... ]" : "[ LAUNCH COMMAND CENTER ]"}
+            </motion.button>
+          )}
+        </footer>
       </div>
     </div>
   );

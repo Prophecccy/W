@@ -18,6 +18,8 @@ import { User } from '../../../shared/types';
 import { SleepTube } from './SleepTube';
 import { isTauri, confirmDialog } from '../../../shared/utils/tauri';
 import { playMechanicalClick } from '../../../shared/services/tactileAudioService';
+import { useDeviceContext } from '../../../shared/hooks/useDeviceContext';
+import { MobileDashboard } from '../../../mobile/views/MobileDashboard';
 import './DashboardPage.css';
 
 interface DashboardOutlet {
@@ -27,7 +29,14 @@ interface DashboardOutlet {
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { userDoc } = useOutletContext<DashboardOutlet>();
+  const { userDoc, gapResult } = useOutletContext<DashboardOutlet>();
+  const { isMobile } = useDeviceContext();
+
+  // If operating on mobile or narrow touch viewport, render dedicated MobileDashboard
+  if (isMobile) {
+    return <MobileDashboard userDoc={userDoc} gapResult={gapResult} />;
+  }
+
   const [loading, setLoading] = useState(true);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [log, setLog] = useState<HabitLog | null>(null);

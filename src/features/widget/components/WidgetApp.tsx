@@ -131,6 +131,8 @@ export function WidgetApp() {
   // steal focus or push the window behind others mid-drag.
   const lastMonitorNameRef = useRef<string | null>(null);
   const currentSizeRef = useRef({ width: 460, height: 620 });
+  const isUserDraggingRef = useRef(false);
+  const isProgrammaticMovingRef = useRef(false);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     // Skip interactive children — but NOT the scroll container or lockout shield itself
@@ -142,6 +144,8 @@ export function WidgetApp() {
 
     // Only primary button (left click)
     if (e.button !== 0) return;
+
+    isUserDraggingRef.current = true;
 
     if (isTauri()) {
       // Use pre-cached module for instant drag response
@@ -373,17 +377,11 @@ export function WidgetApp() {
         if (Math.abs(currentSize.height - targetPhysical) > 2) {
           isAutoResizingRef.current = true;
           await win.setSize(new PhysicalSize(currentSize.width, targetPhysical));
+          currentSizeRef.current.height = targetPhysical;
           setTimeout(() => {
             isAutoResizingRef.current = false;
           }, 100);
-
-          const pos = await win.outerPosition();
-          saveWidgetPosition({
-            x: pos.x,
-            y: pos.y,
-            width: currentSize.width,
-            height: targetPhysical,
-          });
+          // Auto-resizing height to fit habit content does NOT overwrite saved window coordinates!
         }
       } catch {
         // Not in Tauri context
@@ -463,11 +461,17 @@ export function WidgetApp() {
         }
 
         isAutoResizingRef.current = true;
+        isProgrammaticMovingRef.current = true;
         await win.setPosition(new PhysicalPosition(displayX, displayY));
         await win.setSize(new PhysicalSize(saved.width, saved.height));
+        // Ensure window is revealed only after exact position & size have been applied
+        try {
+          await win.show();
+        } catch {}
         setTimeout(() => {
           isAutoResizingRef.current = false;
-        }, 150);
+          isProgrammaticMovingRef.current = false;
+        }, 500);
 
         setIsPositionInitialized(true);
 
@@ -492,7 +496,11 @@ export function WidgetApp() {
             if (targetMon && isFallbackPositionActive()) {
               console.log(`[WidgetApp] Monitor ${targetMon.name} reconnected! Restoring widget to target position (${saved.x}, ${saved.y})`);
               setFallbackPositionActive(false);
+              isProgrammaticMovingRef.current = true;
               await win.setPosition(new PhysicalPosition(saved.x, saved.y));
+              setTimeout(() => {
+                isProgrammaticMovingRef.current = false;
+              }, 500);
             }
           } catch (err) {
             console.error("[WidgetApp] Error handling monitors-changed:", err);
@@ -501,6 +509,13 @@ export function WidgetApp() {
 
         const unlistenM = await win.onMoved(async (pos: any) => {
           if (cleanup) return;
+          // Ignore movement events while programmatic positioning or startup alignment is running
+          if (isProgrammaticMovingRef.current) return;
+
+          // Reject Windows default startup cascade coordinate (64, 64) if user didn't initiate a drag
+          if (pos.payload.x === 64 && pos.payload.y === 64 && !isUserDraggingRef.current) {
+            return;
+          }
 
           lastPendingPositionRef.x = pos.payload.x;
           lastPendingPositionRef.y = pos.payload.y;
@@ -509,7 +524,9 @@ export function WidgetApp() {
 
           throttleTimer = setTimeout(async () => {
             throttleTimer = null;
+            isUserDraggingRef.current = false;
             if (cleanup) return;
+            if (isProgrammaticMovingRef.current) return;
 
             // User actively moved the widget: if they moved it while in fallback mode,
             // this establishes a new intentional placement.

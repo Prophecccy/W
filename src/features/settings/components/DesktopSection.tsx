@@ -4,9 +4,11 @@ import { isTauri, openExternalLink } from "../../../shared/utils/tauri";
 import { resetWidgetPosition } from "../../widget/services/widgetPositionStore";
 import { useToast } from "../../../shared/components/Toast/Toast";
 import { useUpdateManager } from "../../updater/hooks/useUpdateManager";
+import { useDeviceContext } from "../../../shared/hooks/useDeviceContext";
 import "./DesktopSection.css";
 
 export function DesktopSection() {
+  const { isMobile } = useDeviceContext();
   const { showToast } = useToast();
   const { phase, startUpdate, reboot } = useUpdateManager();
   const [isChecking, setIsChecking] = useState(false);
@@ -63,6 +65,10 @@ export function DesktopSection() {
     // Reset the spinner after a few seconds regardless
     setTimeout(() => setIsChecking(false), 5000);
   };
+
+  if (isMobile) {
+    return null;
+  }
 
   if (!inTauri) {
     return (

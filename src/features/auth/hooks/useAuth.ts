@@ -64,7 +64,9 @@ export function useAuth() {
     };
     const handleSessionExpired = () => {
       console.warn("[W Auth Hook] Google Drive session expired event captured.");
-      setIsDriveSessionExpired(true);
+      if (localStorage.getItem("driveLinked") === "true") {
+        setIsDriveSessionExpired(true);
+      }
     };
 
     window.addEventListener("w:gdrive-linked", handleLinked);

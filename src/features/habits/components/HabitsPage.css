@@ -228,18 +228,82 @@
 
   .habits-page__layout-toggle {
     flex: 1 1 auto;
-    justify-content: space-around;
+    height: 44px;
+    border-radius: 12px;
+    background: #14171f;
+    border: 1.5px solid rgba(255, 255, 255, 0.1);
+    padding: 3px;
+    box-sizing: border-box;
+  }
+
+  .habits-page__layout-toggle button {
+    height: 100%;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    border-radius: 9px;
   }
 
   .preset-btn {
-    padding: 6px 8px;
-    font-size: 8px;
+    height: 42px;
+    padding: 0 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    border-radius: 10px;
+    border: 1.5px solid rgba(255, 255, 255, 0.12);
+    border-bottom: 3px solid rgba(0, 0, 0, 0.4);
+    background: #151821;
+    color: var(--text-secondary);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    transition: all 0.12s ease;
+  }
+
+  .preset-btn:active {
+    transform: translateY(2px);
+    border-bottom-width: 1.5px;
   }
 
   .habits-page__add-btn,
   .habits-page__secondary-btn {
-    padding: 8px 12px;
-    font-size: 8px;
+    height: 46px;
+    padding: 0 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    border-radius: 12px;
+    border: 1.5px solid rgba(255, 255, 255, 0.14);
+    border-bottom: 3.5px solid rgba(0, 0, 0, 0.5);
+    background: #151821;
+    color: var(--text-primary);
+    box-shadow: 0 3px 0 rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+    transition: all 0.12s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .habits-page__add-btn:active,
+  .habits-page__secondary-btn:active {
+    transform: translateY(2px);
+    border-bottom-width: 1.5px;
+  }
+
+  .habits-page__add-btn {
+    background: var(--accent);
+    color: #0b0c0e;
+    border-color: rgba(255, 255, 255, 0.35);
+    border-bottom: 3.5px solid rgba(0, 0, 0, 0.35);
+    box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35), 0 4px 16px rgba(var(--accent-rgb), 0.35);
   }
 
   .habits-grid {

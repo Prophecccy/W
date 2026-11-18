@@ -316,11 +316,11 @@ button:active:not(.btn-action) {
 }
 
 @media (max-width: 768px) {
-  * {
+  *, *::-webkit-scrollbar, html::-webkit-scrollbar, body::-webkit-scrollbar {
     scrollbar-width: none !important;
     -ms-overflow-style: none !important;
   }
-  ::-webkit-scrollbar {
+  *::-webkit-scrollbar, html::-webkit-scrollbar, body::-webkit-scrollbar {
     display: none !important;
     width: 0 !important;
     height: 0 !important;

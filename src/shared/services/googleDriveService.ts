@@ -207,6 +207,11 @@ function isValidTokenString(token: unknown): boolean {
  * Retrieves a valid, unexpired access token. Automatically refreshes it if needed.
  */
 export async function getValidAccessToken(): Promise<string | null> {
+  // If user has not linked Google Drive, do not attempt to read or refresh tokens.
+  if (!isDriveAuthenticated()) {
+    return null;
+  }
+
   const session = await getOAuthSession();
   const accessToken = session?.accessToken;
   const expiresAt = session?.expiresAt || 0;
@@ -220,7 +225,7 @@ export async function getValidAccessToken(): Promise<string | null> {
   const refreshToken = session?.refreshToken;
   if (!refreshToken || !isValidTokenString(refreshToken)) {
     console.warn("[GDrive Service] Access token is expired/missing and no refresh token found.");
-    if (typeof window !== "undefined") {
+    if (isDriveAuthenticated() && typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("w:gdrive-session-expired"));
     }
     // Only automatically clear the OAuth state if running on Tauri desktop app.
@@ -964,6 +969,10 @@ let isSyncRunning = false;
  * Exits quietly if the user is not authenticated or offline.
  */
 export async function runBackgroundSync(): Promise<void> {
+  if (!isDriveAuthenticated()) {
+    return;
+  }
+
   if (isSyncRunning) {
     console.info("[GDrive Service] Sync is already running. Skipping trigger.");
     return;

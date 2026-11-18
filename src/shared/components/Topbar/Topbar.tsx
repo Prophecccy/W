@@ -61,7 +61,11 @@ export function Topbar({
     };
     checkStatus();
 
-    const handleExpired = () => setIsDriveExpired(true);
+    const handleExpired = () => {
+      if (localStorage.getItem("driveLinked") === "true") {
+        setIsDriveExpired(true);
+      }
+    };
     const handleLinked = () => setIsDriveExpired(false);
     const handleUnlinked = () => setIsDriveExpired(false);
 

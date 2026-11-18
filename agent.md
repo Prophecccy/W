@@ -1771,6 +1771,37 @@ Replaced the native Win32 context menu with a custom borderless tactical HUD win
    - The desktop widget / Windows download tab (`DESK`) is now conditionally hidden on mobile viewports and Android devices via `useDeviceContext()`.
    - Prevented mobile users from encountering desktop-specific widget controls or irrelevant "Download for Windows" CTAs.
 
+### 81. Desktop Widget PC Startup Position Persistence & Anti-Reset Architecture (2026-11-18)
+1. **Startup Auto-Resize Coordinate Isolation (`src/features/widget/components/WidgetApp.tsx`)**:
+   - Purged `const pos = await win.outerPosition(); saveWidgetPosition(...)` from `resizeToContent()`.
+   - Dynamic habit count height adjustments now strictly mutate window dimensions (`setSize`) and `currentSizeRef`, never querying OS coordinates or overwriting user-placed `(x, y)` on disk.
+2. **Move Event Drag Guards (`src/features/widget/components/WidgetApp.tsx`)**:
+   - Introduced `isUserDraggingRef` and `isProgrammaticMovingRef`.
+   - Blocked phantom move saves caused by Windows startup cascade (`64, 64`), DPI adjustments, display topology initialization, and WorkerW HWND_BOTTOM pinning.
+   - Restored widget coordinates and dimensions before revealing the window (`await win.show()`), preventing visual jumps or premature measuring at startup defaults.
+3. **Dual-Storage Synchronous Parity & Coordinate Recovery (`src/features/widget/services/widgetPositionStore.ts`)**:
+   - Mirrored Sticky Notes' resilient persistence model by combining synchronous `localStorage` caching with `BaseDirectory.AppData` JSON file storage.
+   - Built automatic coordinate reconciliation: rejects OS startup default cascade coordinates (`64, 64`) if valid user coordinates exist in either storage layer.
+4. **Window Launch Synchronization (`src/app/Layout.tsx`)**:
+   - Removed premature `.show()` call in `launchWidget()`, allowing `WidgetApp.tsx` to restore coordinates and settle before revealing itself. Added an 800ms fallback safety timer.
+5. **Verification & Deployment**:
+   - Automated unit tests: 5 tests in `widgetPositionStore.test.ts` passing; 191 total tests passing across 19 suites.
+   - Zero TypeScript compiler errors (`npx tsc --noEmit`).
+   - Release binary compiled (`npm run tauri build`) and deployed live to `C:\Users\unniu\AppData\Local\W\w-app.exe` (PID `24224`).
+
+### 82. Official Beta 1.0 Milestone Transition (2026-11-19)
+1. **SemVer & Package Version Synchronization (`src-tauri/tauri.conf.json`, `package.json`, `src-tauri/Cargo.toml`)**:
+   - Upgraded core application semver from `1.8.5` to `2.0.0`.
+   - Guaranteed full in-app auto-update compatibility: existing `1.8.5` desktop installs automatically identify `2.0.0` as a higher release and download the update via the Tauri updater without requiring manual re-installation.
+2. **UI Versioning Hierarchy (`src/shared/components/Sidebar/Sidebar.tsx`)**:
+   - Transitioned display version prefix from `Alpha.v.` to `Beta.v.`.
+   - Formatted version `2.0.0` dynamically to display as `Beta.v.1.0` in both Tauri desktop mode and web browser environments.
+3. **Automated CI/CD Workflow Calibration (`.github/workflows/tauri-release.yml`, `README.md`)**:
+   - Updated GitHub Actions release dispatch input to default to tag `Beta.v.1.0`.
+   - Added official Beta 1.0 changelog template covering multi-monitor widget persistence, right-click habit hiding, custom todo strip colors, and mobile tactile push plates.
+   - Updated repository status badge to `Beta_v1.0`.
+
+
 
 
 

@@ -13,6 +13,7 @@ import { DisciplineSection } from "./DisciplineSection";
 import { UndoHistory } from "./UndoHistory/UndoHistory";
 import { WallpaperPicker } from "../../wallpaper/components/WallpaperPicker/WallpaperPicker";
 import { Save, RotateCcw, User, Palette, Monitor, Clock, Bell, HardDrive, LogOut, AlertTriangle } from "lucide-react";
+import { useDeviceContext } from "../../../shared/hooks/useDeviceContext";
 
 import { useAuthContext } from "../../auth/context";
 
@@ -67,19 +68,38 @@ const DEFAULT_AESTHETICS: Aesthetics = {
 export function SettingsPage() {
   const { userDoc, loading } = useUserStore();
   const { signOut } = useAuthContext();
+  const { isMobile } = useDeviceContext();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<TabId>("account");
   const [draftSettings, setDraftSettings] = useState<Settings | null>(null);
   const [draftAesthetics, setDraftAesthetics] = useState<Aesthetics | null>(null);
+
+  const visibleTabs = useMemo(() => {
+    if (isMobile) {
+      return TABS.filter((t) => t.id !== "desktop");
+    }
+    return TABS;
+  }, [isMobile]);
 
   // Synchronize activeTab with URL tab query parameter if present
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const tabParam = searchParams.get("tab") as TabId;
     if (tabParam && ["account", "appearance", "desktop", "sleep-tube", "schedule", "discipline", "notifications", "data"].includes(tabParam)) {
-      setActiveTab(tabParam);
+      if (isMobile && tabParam === "desktop") {
+        setActiveTab("account");
+      } else {
+        setActiveTab(tabParam);
+      }
     }
-  }, [location.search]);
+  }, [location.search, isMobile]);
+
+  // Fallback to account tab if on desktop tab while in mobile mode
+  useEffect(() => {
+    if (isMobile && activeTab === "desktop") {
+      setActiveTab("account");
+    }
+  }, [isMobile, activeTab]);
 
   const lastBaseSettings = useRef<Settings | null>(null);
   const lastBaseAesthetics = useRef<Aesthetics | null>(null);
@@ -289,6 +309,7 @@ export function SettingsPage() {
           </>
         );
       case "desktop":
+        if (isMobile) return null;
         return <DesktopSection />;
       case "sleep-tube":
         return <SleepTubeSection settings={draftSettings} onUpdate={handleUpdateDraft} />;
@@ -316,7 +337,7 @@ export function SettingsPage() {
     <div className="settings-page">
       <div className="settings-page__layout">
         <div className="settings-sidebar">
-          {TABS.map(({ id, label, shortLabel, icon: Icon }) => (
+          {visibleTabs.map(({ id, label, shortLabel, icon: Icon }) => (
             <button
               key={id}
               className={`settings-tab ${activeTab === id ? "active" : ""}`}

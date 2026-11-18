@@ -78,4 +78,46 @@ describe('widgetPositionStore (Multi-Monitor Fallback & Persistence)', () => {
     expect(loaded.y).toBe(120);
     expect(loaded.monitorName).toBe('\\\\.\\DISPLAY2');
   });
+
+  it('rejects overwriting a valid user position with OS startup default (64, 64)', async () => {
+    // 1. User previously positioned widget at (1400, 350)
+    await saveWidgetPosition({
+      x: 1400,
+      y: 350,
+      width: 460,
+      height: 620,
+    }, true);
+
+    // 2. Windows boot sends an uninitialized cascade position (64, 64)
+    await saveWidgetPosition({
+      x: 64,
+      y: 64,
+      width: 460,
+      height: 620,
+    }, true);
+
+    // 3. Must preserve user position (1400, 350) and reject (64, 64)
+    const loaded = await loadWidgetPosition();
+    expect(loaded.x).toBe(1400);
+    expect(loaded.y).toBe(350);
+  });
+
+  it('synchronously persists to and recovers from localStorage', async () => {
+    await saveWidgetPosition({
+      x: 950,
+      y: 200,
+      width: 400,
+      height: 700,
+    }, true);
+
+    const raw = localStorage.getItem('widget_position.json');
+    expect(raw).toBeTruthy();
+    const parsed = JSON.parse(raw!);
+    expect(parsed.x).toBe(950);
+    expect(parsed.y).toBe(200);
+
+    const loaded = await loadWidgetPosition();
+    expect(loaded.x).toBe(950);
+    expect(loaded.y).toBe(200);
+  });
 });

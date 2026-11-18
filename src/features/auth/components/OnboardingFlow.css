@@ -1,12 +1,12 @@
-/* ─── Onboarding Flow Container ──────────────────────────────── */
+/* ─── Animated Tactical Onboarding Flow ──────────────────────── */
 .onboarding-flow {
   position: fixed;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100vw;
-  height: 100vh;
-  background-color: var(--bg-base);
-  color: var(--text-primary);
+  height: 100%;
+  height: 100dvh;
+  background-color: var(--bg-base, #08090a);
+  color: var(--text-primary, #ffffff);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -15,376 +15,464 @@
   z-index: 9999;
   overflow: hidden;
   user-select: none;
+  box-sizing: border-box;
 }
 
-/* Tauri window draggable context */
-.onboarding-flow__draggable-area {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1;
-}
-
-/* Onboarding Header controls (Close [ X ]) */
+/* Close Control */
 .onboarding-flow__controls {
   position: absolute;
-  top: 20px;
-  right: 20px;
+  top: max(16px, env(safe-area-inset-top));
+  right: 16px;
   z-index: 100;
 }
 
 .onboarding-flow__close-btn {
-  background: transparent;
-  border: 1px solid var(--border-subtle);
-  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-muted, #71717a);
   padding: 6px 12px;
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.15s ease;
 }
 
 .onboarding-flow__close-btn:hover {
-  border-color: var(--strike-red);
-  color: var(--strike-red);
-  text-shadow: 0 0 8px rgba(232, 115, 108, 0.4);
+  border-color: #ef4444;
+  color: #ef4444;
 }
 
-/* Steps Layout Inner Container */
+/* Stepper Pills */
+.onboarding-flow__stepper {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.onboarding-flow__stepper-pill {
+  flex: 1;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  transition: background 0.3s ease;
+}
+
+.onboarding-flow__stepper-pill.stepper-pill--active {
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.5);
+}
+
+/* Container */
 .onboarding-flow__container {
   width: 100%;
-  max-width: 680px;
-  max-height: 100vh;
+  max-width: 540px;
+  max-height: 94vh;
+  max-height: 94dvh;
   box-sizing: border-box;
-  padding: 40px;
+  padding: 32px;
   z-index: 10;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  opacity: 0;
-  animation: onboardingStepFadeIn 0.4s ease forwards;
+  background: rgba(18, 19, 23, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
-@keyframes onboardingStepFadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+/* Header */
+.onboarding-flow__header {
+  margin-bottom: 24px;
 }
 
-/* ─── Typography & Structure ─────────────────────────────────── */
 .onboarding-flow__step-indicator {
   color: var(--accent);
-  margin-bottom: 8px;
-  font-weight: 500;
+  font-size: 10px;
+  letter-spacing: 2px;
+  display: block;
+  margin-bottom: 6px;
 }
 
 .onboarding-flow__title {
-  margin-bottom: 16px;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
   color: var(--text-primary);
-  text-transform: uppercase;
+  margin-bottom: 8px;
 }
 
 .onboarding-flow__subtitle {
-  color: var(--text-muted);
-  margin-bottom: 32px;
-  line-height: 1.4;
-  text-transform: uppercase;
-}
-
-.onboarding-flow__content {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  margin-bottom: 24px;
-  padding-right: 8px;
-}
-
-/* Custom scrollbar matching dark industrial aesthetic */
-.onboarding-flow__content::-webkit-scrollbar {
-  width: 4px;
-}
-
-.onboarding-flow__content::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.01);
-}
-
-.onboarding-flow__content::-webkit-scrollbar-thumb {
-  background: var(--border-default);
-  border-radius: 2px;
-}
-
-.onboarding-flow__content::-webkit-scrollbar-thumb:hover {
-  background: var(--accent);
-}
-
-.onboarding-flow__manifesto {
-  line-height: 1.8;
   color: var(--text-secondary);
-  text-align: center;
-  max-width: 580px;
-  margin: 0 auto;
-  white-space: pre-wrap;
-}
-
-/* ─── Step 2: Protocols Feature List ────────────────────────── */
-.onboarding-flow__protocols {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.onboarding-flow__protocol-card {
-  border: 1px solid var(--border-default);
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 4px;
-  padding: 16px 20px;
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.onboarding-flow__protocol-card:hover,
-.onboarding-flow__protocol-card--active {
-  border-color: var(--accent);
-  background: rgba(91, 141, 239, 0.04);
-  box-shadow: 0 0 16px rgba(91, 141, 239, 0.08);
-}
-
-.onboarding-flow__protocol-name {
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-.onboarding-flow__protocol-desc {
-  color: var(--text-muted);
   font-size: 11px;
+  letter-spacing: 0.5px;
   line-height: 1.4;
 }
 
-/* ─── Step 3: Security Protocol Table ───────────────────────── */
-.onboarding-flow__table {
-  display: grid;
-  grid-template-columns: 140px 1fr 180px;
-  border-top: 1px solid var(--border-default);
-  border-left: 1px solid var(--border-default);
-  border-right: 1px solid var(--border-default);
-  background: rgba(255, 255, 255, 0.01);
+/* Content Area */
+.onboarding-flow__content {
+  flex: 1 1 auto;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   margin-bottom: 24px;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
-.onboarding-flow__table-header {
-  font-weight: 500;
+.onboarding-flow__content::-webkit-scrollbar {
+  display: none;
+}
+
+.onboarding-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+/* ─── Stage 1: Fuel Cylinder ─── */
+.onboarding-fuel-display {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 18px;
+  border-radius: 10px;
+}
+
+.onboarding-fuel-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.onboarding-fuel-percent {
+  font-size: 14px;
+  font-weight: 700;
   color: var(--accent);
-  background: rgba(255, 255, 255, 0.03);
+  text-shadow: var(--text-shadow-glow);
+  font-variant-numeric: tabular-nums;
 }
 
-.onboarding-flow__table-cell {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-default);
-  border-right: 1px solid var(--border-default);
-  line-height: 1.4;
+.onboarding-fuel-percent.fuel--critical {
+  color: #ef4444;
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
 }
 
-/* Remove right border on last column to preserve 1px grid */
-.onboarding-flow__table-cell:nth-child(3n) {
-  border-right: none;
+.onboarding-fuel-track {
+  width: 100%;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 7px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* ─── Step 4: Calibration Inputs ────────────────────────────── */
-.onboarding-flow__calibration {
+.onboarding-fuel-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 7px;
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.6);
+}
+
+.onboarding-fuel-fill.fill--critical {
+  background: #ef4444;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.7);
+}
+
+.onboarding-fuel-controls {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 10px;
 }
 
-.onboarding-flow__form-group {
+.onboarding-pill-row {
   display: flex;
-  flex-direction: column;
   gap: 8px;
 }
 
-.onboarding-flow__input-desc {
-  color: var(--text-muted);
+.onboarding-pill-btn {
+  flex: 1;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  font-family: var(--font-mono);
   font-size: 10px;
-  text-transform: none;
-  line-height: 1.4;
-}
-
-.onboarding-flow__time-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-
-.onboarding-flow__time-input-wrapper {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
-
-.onboarding-flow__time-input {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border-default);
-  border-radius: 4px;
-  padding: 12px 16px;
-  color: var(--text-primary);
-  font-size: 16px;
-  font-family: var(--font-mono), monospace;
-  outline: none;
-  transition: all 0.2s ease;
-  width: 100%;
-}
-
-.onboarding-flow__time-input:focus {
-  border-color: var(--accent);
-  background: rgba(91, 141, 239, 0.04);
-  box-shadow: 0 0 12px rgba(91, 141, 239, 0.1);
-}
-
-/* Custom time picker override */
-.onboarding-flow__time-input::-webkit-calendar-picker-indicator {
-  filter: invert(1) sepia(1) saturate(5) hue-rotate(200deg);
+  letter-spacing: 0.8px;
+  color: var(--text-secondary);
   cursor: pointer;
-}
-
-/* ─── Step 5: System Initialization (Auth) ─────────────────── */
-.onboarding-flow__auth {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  padding: 20px 0;
-}
-
-.onboarding-flow__auth-error {
-  border: 1px solid var(--strike-red);
-  background: rgba(232, 115, 108, 0.04);
-  color: var(--strike-red);
-  padding: 12px 20px;
-  border-radius: 4px;
-  width: 100%;
-  max-width: 400px;
+  transition: all 0.15s ease;
   text-align: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.onboarding-flow__auth-error:hover {
-  background: rgba(232, 115, 108, 0.08);
+.onboarding-pill-btn:active {
+  transform: scale(0.96);
 }
 
-.onboarding-flow__auth-btn {
-  width: 100%;
-  max-width: 320px;
-  padding: 14px 24px;
-  border-radius: 4px;
-  font-weight: 500;
-  text-align: center;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.onboarding-flow__auth-btn--google {
-  background: var(--accent);
-  color: var(--bg-base);
-  border: none;
-}
-
-.onboarding-flow__auth-btn--google:hover {
-  transform: translateY(-2px);
-  filter: brightness(1.15);
-  box-shadow: 0 8px 24px rgba(91, 141, 239, 0.4);
-}
-
-.onboarding-flow__auth-btn--google:active {
-  transform: translateY(0);
-}
-
-.onboarding-flow__auth-btn--dev {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-default);
-  color: var(--text-primary);
-  font-size: 10px;
-  opacity: 0.7;
-}
-
-.onboarding-flow__auth-btn--dev:hover {
+.onboarding-pill-btn.pill--selected {
+  background: rgba(var(--accent-rgb), 0.15);
   border-color: var(--accent);
   color: var(--accent);
-  opacity: 1;
-  text-shadow: 0 0 8px rgba(91, 141, 239, 0.3);
-  transform: translateY(-1px);
+  font-weight: 700;
 }
 
-/* Onboarding Footer Navigation */
+/* ─── Stage 2: Strike Drill ─── */
+.onboarding-strike-box {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 20px;
+  border-radius: 10px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.onboarding-strike-box.strike-box--breach {
+  border-color: #ef4444;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.03);
+}
+
+.onboarding-strike-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.onboarding-strike-count {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.onboarding-strike-count.count--alert {
+  color: #ef4444;
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+}
+
+.onboarding-strikes-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.onboarding-strike-cell {
+  height: 52px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.2);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.onboarding-strike-cell.strike-cell--armed {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: #ef4444;
+  color: #ef4444;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.45);
+}
+
+.onboarding-strike-status {
+  text-align: center;
+  line-height: 1.4;
+  min-height: 32px;
+}
+
+/* ─── Stage 3: Calibration & Launch ─── */
+.onboarding-time-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.onboarding-time-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 14px;
+  border-radius: 8px;
+}
+
+.onboarding-reset-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 14px;
+  border-radius: 8px;
+}
+
+.onboarding-auth-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.onboarding-google-btn {
+  width: 100%;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 700;
+  transition: all 0.15s ease;
+}
+
+.onboarding-google-btn:hover {
+  background: rgba(var(--accent-rgb), 0.15);
+}
+
+.onboarding-dev-btn {
+  width: 100%;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* ─── Navigation Footer ─── */
 .onboarding-flow__footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.onboarding-flow__nav-btn {
-  background: transparent;
-  border: 1px solid var(--border-default);
+.onboarding-nav-btn {
+  height: 50px;
+  padding: 0 24px;
+  border-radius: 12px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.onboarding-nav-btn--back {
+  background: #14171f;
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 3.5px solid rgba(0, 0, 0, 0.5);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.4);
   color: var(--text-secondary);
-  border-radius: 4px;
-  padding: 10px 20px;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.onboarding-flow__nav-btn:hover {
-  border-color: var(--text-primary);
+.onboarding-nav-btn--back:hover {
   color: var(--text-primary);
-  text-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
-  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
-.onboarding-flow__nav-btn:active {
-  transform: translateY(0);
+.onboarding-nav-btn--back:active {
+  transform: translateY(2px);
+  border-bottom-width: 1.5px;
 }
 
-.onboarding-flow__nav-btn--primary {
-  background: var(--text-primary);
-  color: var(--bg-base);
-  border: none;
-  font-weight: 500;
+/* High-Contrast Neon Primary Action Buttons (Chunky Mechanical Push-Plate) */
+.onboarding-nav-btn--primary,
+.onboarding-nav-btn--launch {
+  height: 52px;
+  padding: 0 28px;
+  background: var(--accent) !important;
+  color: #0b0c0e !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.4) !important;
+  border-bottom: 4px solid rgba(0, 0, 0, 0.35) !important;
+  font-weight: 900 !important;
+  font-size: 14px !important;
+  border-radius: 14px !important;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35), 0 6px 24px rgba(var(--accent-rgb), 0.45);
+  margin-left: auto;
 }
 
-.onboarding-flow__nav-btn--primary:hover {
-  background: var(--accent);
-  color: var(--bg-base);
-  text-shadow: none;
-  box-shadow: 0 0 16px rgba(91, 141, 239, 0.3);
+.onboarding-nav-btn--primary:hover,
+.onboarding-nav-btn--launch:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.35), 0 8px 28px rgba(var(--accent-rgb), 0.6);
 }
 
-/* High-fidelity layout responsive adjustments for small heights */
-@media (max-height: 720px) {
+.onboarding-nav-btn--primary:active,
+.onboarding-nav-btn--launch:active {
+  transform: translateY(3px);
+  border-bottom-width: 1.5px !important;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35), 0 4px 12px rgba(var(--accent-rgb), 0.4);
+}
+
+.onboarding-nav-btn--launch:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ─── Mobile Viewport Reflow ─── */
+@media (max-width: 768px) {
+  .onboarding-flow {
+    padding: 16px;
+  }
+
   .onboarding-flow__container {
+    max-width: 100%;
     padding: 24px 20px;
+    border-radius: 16px;
+    height: auto;
+    max-height: 94dvh;
   }
-  .onboarding-flow__subtitle {
-    margin-bottom: 16px;
+
+  .onboarding-flow__title {
+    font-size: 20px;
   }
-  .onboarding-flow__content {
-    margin-bottom: 16px;
-  }
-  .onboarding-flow__protocols {
+
+  .onboarding-time-grid {
+    grid-template-columns: 1fr;
     gap: 12px;
   }
-  .onboarding-flow__protocol-card {
-    padding: 12px 16px;
+
+  .onboarding-pill-row {
+    flex-direction: column;
+    gap: 8px;
   }
-  .onboarding-flow__table {
-    margin-bottom: 16px;
+
+  .onboarding-strikes-grid {
+    gap: 8px;
   }
-  .onboarding-flow__table-cell {
-    padding: 8px 12px;
+
+  .onboarding-strike-cell {
+    height: 52px;
+  }
+
+  .onboarding-nav-btn {
+    height: 52px;
+    padding: 0 20px;
+    font-size: 13px;
+    font-weight: 800;
   }
 }
