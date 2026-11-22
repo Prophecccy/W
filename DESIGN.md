@@ -899,7 +899,7 @@ To deliver 100% aesthetic, tactile, and physics parity without compromising mobi
    - Positioned directly below SleepTube with `COMPLETED`, `TOTAL`, and `PROGRESS` separated by clean 1px vertical hairline dividers (`rgba(255, 255, 255, 0.08)`), styled in `var(--accent)` with zero outer box borders or drop shadows.
 4. **Daily Note 2-Tier Telemetry Header**:
    - Row 1: `[ DAILY NOTE ]` (left) and `[ LOGBOOK ]` (right) with `white-space: nowrap`.
-   - Row 2: Status indicator (`SAVED`), Google Drive backup status (`[ BACKED UP ]`), and character count (`0 / 5000`) in a single horizontal telemetry row with tabular numbers.
+   - Row 2: Status indicator (`SAVED`), Google Drive backup status (`[ BACKED UP ]`), and character count (`0 / 20000`) in a single horizontal telemetry row with tabular numbers.
 5. **Touch-Optimized Tactical Cards & Spotlight Suppression**:
    - Minimum 44px–48px touch targets with Ghost Elevation (`rgba(18, 18, 26, 0.7)` chassis + 1px hairline border + 8px corners).
    - `@media (hover: none)` suppresses cursor spotlight beams on touch screens to prevent sticky hover artifacts.

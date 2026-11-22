@@ -1117,9 +1117,32 @@ function mergeObject(local: any, remote: any): any {
     if (remote.lastActiveDate) {
       merged.lastActiveDate = remote.lastActiveDate;
     }
+  } else if ((!remote.freeze || remote.freeze.active === false) && local.freeze?.reason === "auto_absence" && remoteLastActive >= (local.freeze.startDate || "")) {
+    console.info("[LocalDB] Remote active state without freeze detected. Overriding false local auto-absence freeze.");
+    merged.freeze = {
+      ...(local.freeze || {}),
+      active: false,
+      reason: null,
+      startDate: null,
+      endDate: null,
+    };
+    if (remote.lastActiveDate) {
+      merged.lastActiveDate = remote.lastActiveDate;
+    }
   } else if (remoteLastActive > localLastActive && remote.freeze) {
     // Remote device is active much more recently; remote freeze state is authoritative
     merged.freeze = { ...remote.freeze };
+    merged.lastActiveDate = remote.lastActiveDate;
+  } else if (remoteLastActive > localLastActive) {
+    if (local.freeze?.reason === "auto_absence") {
+      merged.freeze = {
+        ...(local.freeze || {}),
+        active: false,
+        reason: null,
+        startDate: null,
+        endDate: null,
+      };
+    }
     merged.lastActiveDate = remote.lastActiveDate;
   }
 

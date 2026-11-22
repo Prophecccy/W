@@ -348,6 +348,14 @@ async function completeHabitImpl(
     }
   }
 
+  // Real-time Activity Heartbeat: Touch lastActiveDate on user document
+  try {
+    const { updateInteractionDate } = await import("../../freeze/services/freezeService");
+    await updateInteractionDate(today);
+  } catch (err) {
+    // Non-fatal
+  }
+
   return updatesToReturn;
 }
 
@@ -574,6 +582,14 @@ async function uncompleteHabitImpl(
     } catch (e) {
       console.error("Failed to revert limiter strike:", e);
     }
+  }
+
+  // Real-time Activity Heartbeat: Touch lastActiveDate on user document
+  try {
+    const { updateInteractionDate } = await import("../../freeze/services/freezeService");
+    await updateInteractionDate(today);
+  } catch (err) {
+    // Non-fatal
   }
 
   return statsUpdate;

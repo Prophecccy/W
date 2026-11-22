@@ -207,6 +207,11 @@ export async function saveLocalNote(date: string, content: string): Promise<void
   await set(key, record);
   saveNoteToDisk(date, record).catch(() => {});
 
+  try {
+    const { updateInteractionDate } = await import("../../freeze/services/freezeService");
+    updateInteractionDate(date).catch(() => {});
+  } catch (e) {}
+
   if (typeof window !== "undefined") {
     window.dispatchEvent(
       new CustomEvent("w:note-saved", {

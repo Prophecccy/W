@@ -58,6 +58,11 @@ export async function createTodo(
     console.error("Failed to log todo_create:", err);
   }
 
+  try {
+    const { updateInteractionDate } = await import("../../freeze/services/freezeService");
+    updateInteractionDate().catch(() => {});
+  } catch (e) {}
+
   await notifyTodoUpdated();
   return todo.id;
 }
@@ -188,6 +193,10 @@ export async function completeTodo(todoId: string): Promise<void> {
   }
 
   await purgeOldCompletedTodos();
+  try {
+    const { updateInteractionDate } = await import("../../freeze/services/freezeService");
+    updateInteractionDate().catch(() => {});
+  } catch (e) {}
   await notifyTodoUpdated();
 }
 
@@ -243,6 +252,10 @@ export async function completeNumberedTodoFull(todoId: string, currentTodo: Todo
   }
 
   await purgeOldCompletedTodos();
+  try {
+    const { updateInteractionDate } = await import("../../freeze/services/freezeService");
+    updateInteractionDate().catch(() => {});
+  } catch (e) {}
   await notifyTodoUpdated();
 }
 

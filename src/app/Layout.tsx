@@ -120,7 +120,7 @@ function LayoutInner() {
         doc.freeze?.reason === "auto_absence" &&
         doc.lastActiveDate &&
         doc.freeze?.startDate &&
-        doc.lastActiveDate > doc.freeze.startDate
+        (doc.lastActiveDate > doc.freeze.startDate || doc.lastActiveDate >= doc.freeze.startDate)
       ) {
         import("../features/freeze/services/freezeService").then(({ deactivateFreeze }) => {
           deactivateFreeze().catch(() => {});
@@ -288,6 +288,25 @@ function LayoutInner() {
               if (userStore.userDoc) {
                 currentUserDoc = userStore.userDoc;
                 setUserDoc(currentUserDoc);
+
+                // Self-healing: if remote sync proved active state on another device, clear false auto_absence freeze
+                if (
+                  currentUserDoc.freeze?.active === true &&
+                  currentUserDoc.freeze?.reason === "auto_absence" &&
+                  currentUserDoc.lastActiveDate &&
+                  currentUserDoc.freeze?.startDate &&
+                  (currentUserDoc.lastActiveDate > currentUserDoc.freeze.startDate || currentUserDoc.lastActiveDate >= currentUserDoc.freeze.startDate)
+                ) {
+                  try {
+                    const { deactivateFreeze } = await import("../features/freeze/services/freezeService");
+                    await deactivateFreeze();
+                    await userStore.reload();
+                    if (userStore.userDoc) {
+                      currentUserDoc = userStore.userDoc;
+                      setUserDoc(currentUserDoc);
+                    }
+                  } catch (e) {}
+                }
               }
             }
           } catch (syncErr) {
@@ -819,6 +838,30 @@ function LayoutInner() {
       isUnmounted = true;
       if (backupTimer) clearTimeout(backupTimer);
     };
+  }, [phase, user, userDoc?.settings?.dailyResetTime]);
+
+  // ── Day Rollover & Heartbeat: Keep today reactive & run gap checks across midnight ──
+  useEffect(() => {
+    if (phase !== "ready" || !user) return;
+
+    const interval = setInterval(async () => {
+      const resetTime = userDoc?.settings?.dailyResetTime;
+      const currentToday = getToday(undefined, resetTime);
+      const lastActive = userDocRef.current?.lastActiveDate;
+
+      if (lastActive && lastActive < currentToday) {
+        console.info(`[Layout] Day rollover detected (lastActive: ${lastActive}, today: ${currentToday}). Running gap processor...`);
+        try {
+          const { processGap } = await import("../features/strikes/services/gapProcessor");
+          await processGap(lastActive, currentToday);
+          await userStore.reload();
+        } catch (e) {
+          console.error("[Layout] Day rollover gap processor failed:", e);
+        }
+      }
+    }, 60_000);
+
+    return () => clearInterval(interval);
   }, [phase, user, userDoc?.settings?.dailyResetTime]);
 
   // ── Phase 4: Load palette data (habits + todos for CommandPalette) reactively ──

@@ -105,7 +105,7 @@ graph TD
     - **Scrollbar Suppression**: Touch viewports suppress visible scrollbars globally (`scrollbar-width: none; ::-webkit-scrollbar { display: none; }`) while preserving fluid inertial touch scrolling.
     - **Mobile Dashboard Fuel Strip & Glass Track**: `SleepTube` automatically switches from a vertical pillar to an ergonomic horizontal fuel gauge with live numerical percentage on mobile (`[ FUEL ]`), glass cylinder track (`rgba(255, 255, 255, 0.03)` with 1px hairline border), and ambient resting glow when fuel is at 0% or during sleeping phases, preventing vertical scroll starvation.
     - **Ghost-Elevated Mobile Stats Deck**: Directly beneath the fuel gauge, the mobile dashboard features a dedicated three-column telemetry cluster (`COMPLETED | TOTAL | PROGRESS %`) separated by 1px vertical hairline dividers (`rgba(255, 255, 255, 0.08)`) with zero outer box borders or chunky drop shadows.
-    - **Daily Note 2-Tier Telemetry Header**: On mobile viewports, the Daily Note card splits into a 2-tier telemetry layout: Tier 1 houses the bracketed title `[ DAILY NOTE ]` and `[ LOGBOOK ]` button, while Tier 2 contains the autosave indicator (`SAVED`), Google Drive backup status (`[ BACKED UP ]`), and character counter (`0 / 5000`) with strict `white-space: nowrap` and tabular numerals to eliminate multi-line bracket wrapping.
+    - **Daily Note 2-Tier Telemetry Header**: On mobile viewports, the Daily Note card splits into a 2-tier telemetry layout: Tier 1 houses the bracketed title `[ DAILY NOTE ]` and `[ LOGBOOK ]` button, while Tier 2 contains the autosave indicator (`SAVED`), Google Drive backup status (`[ BACKED UP ]`), and character counter (`0 / 20000`) with strict `white-space: nowrap` and tabular numerals to eliminate multi-line bracket wrapping.
     - **Tactile Segment Switcher**: The mobile Dashboard renders category tabs (`[ ALL ]`, `[ HABITS ]`, `[ LIMITERS ]`, `[ TODOS ]`) with Ghost Elevation, minimum touch heights, active scale physics (`SPRING_TACTILE`), and zero squashing to allow focused single-handed task triage.
     - **Mobile Dashboard Full Vertical Scroll**: While the desktop dashboard remains strictly viewport-locked (`100vh`) with column-level internal scrollbars, the mobile dashboard (`<= 768px`) enables natural page-level vertical scrolling (`.dashboard-page { height: 100%; overflow-y: auto; scrollbar-width: none !important; }`). Inner containers (`.dashboard-page__content`, `.dashboard-grid`, `.dashboard-list`) release desktop height and overflow clamping (`overflow: visible; flex-grow: unset; min-height: auto;`), allowing all stacked habit cards, limiters, active todos, and the Daily Note footer to flow sequentially without clipping or scroll starvation.
     - **Settings Tactical Tile Grid**: The Settings page replaces the vertical sidebar with a compact 4-column tactical tile grid (`repeat(4, 1fr)`), fitting all 9 sub-navigation items in 3 rows without horizontal scroll. On mobile (`<= 768px`), the tile grid is docked sticky at `top: 0` (`position: sticky; z-index: 50;`) directly beneath the Topbar with a subtle dark backdrop and separation border. The parent `.settings-page` manages internal vertical scrolling (`overflow-y: auto`), allowing settings content to glide underneath the pinned navigation without hiding the sub-tabs. Individual tabs enforce `box-sizing: border-box`, inner outline offset (`outline-offset: -2px`), and zero horizontal overflow, ensuring active and focused states fit completely within mobile viewports without edge clipping.
@@ -402,7 +402,7 @@ The desktop application leverages 6 specialized Tauri webview windows cooperatin
 * **SleepTube Waking Fuel Gauge**: Dynamic liquid meniscus cylinder tracking waking energy from `wakeUpTime` to `bedTime` with milestone ticks (100%, 75%, 50%, 25%, 0%), late-night owl buffer, and resting glow at 0%.
 * **Active Protocols Column**: Today's scheduled habits displaying category icon, title, streak flame counter, 500ms power-curve hold fill, and spring checkmark completion pop.
 * **Active Todos Column**: Priority-ranked tasks with checkbox completion and expandable inline details.
-* **Daily Note Footer**: Distraction-free inline journal with autosave indicator (`SAVED`), Google Drive cloud status (`[ BACKED UP ]`), character counter (`0 / 5000`), local AES-256-GCM encryption, and direct jump button to the Logbook Archive.
+* **Daily Note Footer**: Distraction-free inline journal with autosave indicator (`SAVED`), Google Drive cloud status (`[ BACKED UP ]`), character counter (`0 / 20000`), local AES-256-GCM encryption, and direct jump button to the Logbook Archive.
 * **Direct Habit Inspection Drawer**: Clicking any habit card on the Dashboard smoothly slides out the full `<HabitDetail>` drawer in-place without page navigation.
 
 #### Page 2: Habits Forge (`/habits`) — Protocol Engineering
@@ -1789,17 +1789,21 @@ Replaced the native Win32 context menu with a custom borderless tactical HUD win
    - Zero TypeScript compiler errors (`npx tsc --noEmit`).
    - Release binary compiled (`npm run tauri build`) and deployed live to `C:\Users\unniu\AppData\Local\W\w-app.exe` (PID `24224`).
 
-### 82. Official Beta 1.0 Milestone Transition (2026-11-19)
-1. **SemVer & Package Version Synchronization (`src-tauri/tauri.conf.json`, `package.json`, `src-tauri/Cargo.toml`)**:
-   - Upgraded core application semver from `1.8.5` to `2.0.0`.
-   - Guaranteed full in-app auto-update compatibility: existing `1.8.5` desktop installs automatically identify `2.0.0` as a higher release and download the update via the Tauri updater without requiring manual re-installation.
-2. **UI Versioning Hierarchy (`src/shared/components/Sidebar/Sidebar.tsx`)**:
-   - Transitioned display version prefix from `Alpha.v.` to `Beta.v.`.
-   - Formatted version `2.0.0` dynamically to display as `Beta.v.1.0` in both Tauri desktop mode and web browser environments.
-3. **Automated CI/CD Workflow Calibration (`.github/workflows/tauri-release.yml`, `README.md`)**:
-   - Updated GitHub Actions release dispatch input to default to tag `Beta.v.1.0`.
-   - Added official Beta 1.0 changelog template covering multi-monitor widget persistence, right-click habit hiding, custom todo strip colors, and mobile tactile push plates.
-   - Updated repository status badge to `Beta_v1.0`.
+### 83. Multi-Device Cross-Client Auto-Freeze & Activity Heartbeat Defense (2026-11-22)
+1. **Log-Aware Auto-Freeze Verification (`src/features/freeze/services/freezeService.ts`)**:
+   - Re-architected `checkAutoFreeze` to inspect Firestore/IndexedDB habit logs and daily notes between `lastInteractionDate` and `today` prior to activating any `auto_absence` freeze.
+   - If active logs exist on a newer date (e.g. from an active desktop client or background tray instance), `checkAutoFreeze` self-heals `userDoc.lastActiveDate`, recalculates the real gap, and automatically bypasses false freezes if the true absence is $< 3$ days.
+   - Prevents stale web browser clients from falsely displaying `[ WELCOME BACK ]` when habits were completed daily on desktop.
+2. **Real-Time Activity Heartbeat (`src/features/habits/services/logService.ts`, `src/features/logs/services/localLogService.ts`, `src/features/todos/services/todoService.ts`)**:
+   - Enhanced `updateInteractionDate(dateOverride?)` in `freezeService.ts` to advance both `userDoc.lastActiveDate` and `freeze.lastInteractionDate`.
+   - Wired the heartbeat directly into `completeHabit`, `uncompleteHabit`, `saveLocalNote`, `createTodo`, and `completeTodo`, ensuring that every routine user interaction immediately marks the current date as active and schedules debounced Google Drive synchronization.
+3. **Multi-Device Authority & Remote Freeze State Reconciler (`src/shared/services/localDb.ts`, `src/app/Layout.tsx`)**:
+   - Fixed an edge-case in `mergeObject()` where an active remote client with no prior freeze history (`remote.freeze === undefined`) failed to override a false local `auto_absence` freeze on a dormant web client.
+   - Fixed the self-healing condition in `Layout.tsx` from `doc.lastActiveDate > doc.freeze.startDate` to include equality (`>=`), ensuring immediate automatic deactivation of false freezes triggered on the same day.
+   - Added a 60-second day-rollover monitor in `Layout.tsx` so long-running desktop background/tray instances proactively roll over `lastActiveDate` and process gaps across midnight boundaries.
+4. **Verification & Testing (`src/features/freeze/services/freezeService.test.ts`)**:
+   - Added unit test suite verifying log-aware auto-freeze bypass when cross-device logs exist, proper auto-freeze activation on genuine absences $\ge 3$ days, and synchronous interaction date updates.
+
 
 
 

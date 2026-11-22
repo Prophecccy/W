@@ -182,7 +182,85 @@ export async function checkAutoFreeze(
     return { triggered: false, frozenSince: null };
   }
 
-  // Auto-freeze retroactively: freeze started the day after last interaction
+  const userId = uid();
+  const todayD = new Date(todayDate);
+  const { collection, query, where, getDocs } = await import("../../../shared/config/firebase");
+  const logsRef = collection(db, "users", userId, "logs");
+  const yesterdayDate = new Date(todayD);
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const gapEndStr = formatDate(yesterdayDate);
+
+  // 1. Inspect actual log activity between lastInteractionDate and yesterday (cross-device activity check)
+  logDebug(`checkAutoFreeze: Querying logs between ${lastInteractionDate} and ${gapEndStr}...`);
+  const logsQuery = query(
+    logsRef,
+    where("date", ">=", lastInteractionDate),
+    where("date", "<=", gapEndStr)
+  );
+  const existingLogsSnap = await getDocs(logsQuery);
+  logDebug(`checkAutoFreeze: Logs query done. Count: ${existingLogsSnap.size}`);
+
+  const activeDates = new Set<string>();
+  existingLogsSnap.forEach((doc) => {
+    const data = doc.data();
+    const hasActivity = !!(
+      data.notes ||
+      (data.habits && Object.values(data.habits).some((h: any) => h.completed || (h.value && h.value > 0)))
+    );
+    if (hasActivity) {
+      activeDates.add(doc.id);
+    }
+  });
+
+  // Also check today's log for activity
+  try {
+    const todayLogRef = doc(db, "users", userId, "logs", today);
+    const todayLogSnap = await getDoc(todayLogRef);
+    if (todayLogSnap.exists()) {
+      const todayData = todayLogSnap.data();
+      if (
+        todayData.notes ||
+        (todayData.habits && Object.values(todayData.habits).some((h: any) => h.completed || (h.value && h.value > 0)))
+      ) {
+        activeDates.add(today);
+      }
+    }
+  } catch (e) {}
+
+  // If activity exists on a date newer than lastInteractionDate, recompute actual gap
+  let effectiveLastActive = lastInteractionDate;
+  if (activeDates.size > 0) {
+    const sortedActiveDates = Array.from(activeDates).sort();
+    const latestActive = sortedActiveDates[sortedActiveDates.length - 1];
+    if (latestActive > effectiveLastActive) {
+      effectiveLastActive = latestActive;
+    }
+  }
+
+  if (effectiveLastActive > lastInteractionDate) {
+    logDebug(`checkAutoFreeze: Detected active logs on ${effectiveLastActive} (newer than ${lastInteractionDate}).`);
+    const effectiveLastDate = new Date(effectiveLastActive + "T12:00:00");
+    const realGapDays = Math.round((todayDate.getTime() - effectiveLastDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Self-heal lastActiveDate and freeze.lastInteractionDate on userDoc
+    try {
+      await updateDoc(userRef(userId), {
+        lastActiveDate: effectiveLastActive,
+        "freeze.lastInteractionDate": effectiveLastActive,
+      });
+    } catch (e) {
+      logDebug(`checkAutoFreeze: Failed to self-heal lastActiveDate: ${e}`);
+    }
+
+    if (realGapDays < AUTO_FREEZE_THRESHOLD_DAYS) {
+      logDebug(`checkAutoFreeze: Real gap (${realGapDays} days) is less than threshold (${AUTO_FREEZE_THRESHOLD_DAYS}). Bypassing false auto-freeze.`);
+      return { triggered: false, frozenSince: null };
+    }
+
+    lastDate.setTime(effectiveLastDate.getTime());
+  }
+
+  // Auto-freeze retroactively: freeze started the day after last verified interaction
   const freezeStart = new Date(lastDate);
   freezeStart.setDate(freezeStart.getDate() + 1);
   const frozenSince = formatDate(freezeStart);
@@ -192,41 +270,16 @@ export async function checkAutoFreeze(
   logDebug("checkAutoFreeze: Freeze activated. Writing retroactive logs...");
 
   // Write retroactive log documents to Firestore for the gap days in a single batch
-  const userId = uid();
   let logDate = new Date(freezeStart);
-  const todayD = new Date(todayDate);
-  
-  const { collection, query, where, getDocs } = await import("../../../shared/config/firebase");
-  const logsRef = collection(db, "users", userId, "logs");
-  const gapStartStr = formatDate(freezeStart);
-  const yesterdayDate = new Date(todayD);
-  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-  const gapEndStr = formatDate(yesterdayDate);
 
-  logDebug(`checkAutoFreeze: Querying logs between ${gapStartStr} and ${gapEndStr}...`);
-  const logsQuery = query(
-    logsRef,
-    where("date", ">=", gapStartStr),
-    where("date", "<=", gapEndStr)
-  );
-  const existingLogsSnap = await getDocs(logsQuery);
-  logDebug(`checkAutoFreeze: Logs query done. Count: ${existingLogsSnap.size}`);
-  const existingDates = new Set<string>();
-  existingLogsSnap.forEach((doc) => {
-    const data = doc.data();
-    if (data.notes || (data.habits && Object.keys(data.habits).length > 0)) {
-      existingDates.add(doc.id);
-    }
-  });
-
-  logDebug(`checkAutoFreeze: Preparing batch writes for ${gapDays} potential days...`);
+  logDebug(`checkAutoFreeze: Preparing batch writes for potential gap days...`);
   let batch = writeBatch(db);
   let batchCount = 0;
 
   while (logDate < todayD) {
     const logDateStr = formatDate(logDate);
     
-    if (!existingDates.has(logDateStr)) {
+    if (!activeDates.has(logDateStr)) {
       const logDocRef = doc(db, "users", userId, "logs", logDateStr);
       
       // SECURITY: notes field is NEVER written to Firestore — local-only
@@ -303,10 +356,15 @@ export function isDateInFreezeRange(
 
 // ─── Update interaction date ─────────────────────────────────────
 
-export async function updateInteractionDate(): Promise<void> {
-  const userId = uid();
-  const today = getToday();
-  await updateDoc(userRef(userId), {
-    "freeze.lastInteractionDate": today,
-  });
+export async function updateInteractionDate(dateOverride?: string): Promise<void> {
+  try {
+    const userId = uid();
+    const today = dateOverride || getToday();
+    await updateDoc(userRef(userId), {
+      lastActiveDate: today,
+      "freeze.lastInteractionDate": today,
+    });
+  } catch {
+    // Gracefully ignore if unauthenticated or offline
+  }
 }

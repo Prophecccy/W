@@ -15,7 +15,7 @@ interface DailyNoteProps {
   date?: string;
 }
 
-const MAX_CHARS = 5000;
+const MAX_CHARS = 20000;
 const DEBOUNCE_MS = 500;
 
 export function DailyNote({ initialNote, dailyResetTime, date }: DailyNoteProps) {
@@ -254,7 +254,7 @@ export function DailyNote({ initialNote, dailyResetTime, date }: DailyNoteProps)
     let newVal = e.target.value;
     if (newVal.length > MAX_CHARS) {
       newVal = newVal.slice(0, MAX_CHARS);
-      showToast("[ TEXT TRUNCATED TO 5000 CHARS ]");
+      showToast(`[ TEXT TRUNCATED TO ${MAX_CHARS} CHARS ]`);
     }
     
     lastLocalEditTimeRef.current = Date.now();
