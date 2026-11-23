@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthContext } from "../context";
 import { createUserDoc } from "../services/userService";
@@ -98,6 +98,64 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     }
   };
 
+  // Auto-detect existing profile: If an existing user landed on OnboardingFlow before their cloud sync finished,
+  // automatically release them directly to the command center once the doc is found.
+  useEffect(() => {
+    if (!user) return;
+    let isMounted = true;
+    import("../services/userService").then(async ({ getUserDoc }) => {
+      try {
+        const existing = await getUserDoc(user.uid);
+        if (existing && isMounted) {
+          if (onComplete) {
+            await onComplete();
+          }
+          navigate("/");
+        }
+      } catch {
+        // No existing doc; keep showing onboarding
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [user, navigate, onComplete]);
+
+  const handleExitOrClose = async () => {
+    playMechanicalClick();
+    if (appWindow) {
+      try {
+        await appWindow.close();
+        return;
+      } catch {
+        // Fallback to web routing
+      }
+    }
+    // Web environment: check if user already has an existing user profile (e.g. restored from cloud)
+    if (user) {
+      try {
+        const { getUserDoc } = await import("../services/userService");
+        const existingDoc = await getUserDoc(user.uid);
+        if (existingDoc) {
+          if (onComplete) {
+            await onComplete();
+          }
+          navigate("/");
+          return;
+        }
+      } catch (err) {
+        console.warn("[OnboardingFlow] Check user doc error:", err);
+      }
+    }
+    // No profile exists, sign out to login screen
+    try {
+      await signOut();
+      navigate("/login");
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   return (
     <div className="onboarding-flow" onPointerDown={handleDrag}>
       {/* Window Close Control */}
@@ -105,7 +163,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         <button
           type="button"
           className="onboarding-flow__close-btn t-label"
-          onClick={() => appWindow?.close()}
+          onClick={handleExitOrClose}
           aria-label="Close"
         >
           [ X ]
@@ -340,15 +398,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             <button
               type="button"
               className="onboarding-nav-btn onboarding-nav-btn--back t-label"
-              onClick={async () => {
-                playMechanicalClick();
-                try {
-                  await signOut();
-                  navigate("/login");
-                } catch (e) {
-                  console.error(e);
-                }
-              }}
+              onClick={handleExitOrClose}
             >
               [ EXIT ]
             </button>

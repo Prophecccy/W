@@ -1,12 +1,16 @@
-import { useState, useEffect, useRef, ChangeEvent } from "react";
+import { useState, useEffect, useRef, useContext, ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { Mic, Square, Loader2, Sparkles, Cpu } from "lucide-react";
 import { saveLocalNote, getLocalNoteRecord } from "../../../logs/services/localLogService";
 import { getToday } from "../../../../shared/utils/dateUtils";
 import { useToast } from "../../../../shared/components/Toast/Toast";
 import { useAuthContext } from "../../../auth/context";
+import { UserStoreContext } from "../../../../shared/stores/userStore";
 import { GDriveLockout } from "../../../lockdown/components/GDriveLockout";
 import { GoogleDriveIcon } from "../../../../shared/components/GoogleDriveIcon/GoogleDriveIcon";
 import { useSpotlightBorder } from "../../../../shared/hooks/useSpotlightBorder";
+import { useAudioRecorder } from "../../hooks/useAudioRecorder";
+import { transcribeAudio, formatTranscribedText, TranscriptionMode } from "../../services/transcriptionService";
 import "./DailyNote.css";
 
 interface DailyNoteProps {
@@ -38,6 +42,115 @@ export function DailyNote({ initialNote, dailyResetTime, date }: DailyNoteProps)
   const { showToast } = useToast();
   const navigate = useNavigate();
   const spotlight = useSpotlightBorder<HTMLDivElement>();
+
+  // Voice dictation state
+  const userStore = useContext(UserStoreContext);
+  const preferredVoiceMode: TranscriptionMode = userStore?.userDoc?.settings?.voiceTranscriptionMode || "local";
+  const groqApiKey = userStore?.userDoc?.settings?.groqApiKey || "";
+
+  const [activeVoiceMode, setActiveVoiceMode] = useState<TranscriptionMode>(preferredVoiceMode);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcriptionStatus, setTranscriptionStatus] = useState("");
+
+  useEffect(() => {
+    if (userStore?.userDoc?.settings?.voiceTranscriptionMode) {
+      setActiveVoiceMode(userStore.userDoc.settings.voiceTranscriptionMode);
+    }
+  }, [userStore?.userDoc?.settings?.voiceTranscriptionMode]);
+
+  const {
+    isRecording,
+    durationSec,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+    isSupported: isMicSupported,
+  } = useAudioRecorder();
+
+  const handleToggleDictation = async () => {
+    if (isTranscribing) return;
+
+    if (isRecording) {
+      const audioBlob = await stopRecording();
+      if (!audioBlob || durationSec < 1) {
+        showToast("[ AUDIO TOO SHORT ]");
+        return;
+      }
+
+      setIsTranscribing(true);
+      setTranscriptionStatus("TRANSCRIBING...");
+
+      try {
+        const result = await transcribeAudio({
+          audioBlob,
+          mode: activeVoiceMode,
+          groqApiKey,
+          onProgress: (p) => {
+            if (p.message) {
+              setTranscriptionStatus(p.message.toUpperCase());
+            }
+          },
+        });
+
+        if (result.text && result.text.trim()) {
+          const formatted = formatTranscribedText(result.text, latestNoteRef.current.length, MAX_CHARS);
+          const currentText = latestNoteRef.current;
+          let updatedText = currentText;
+          if (currentText && currentText.trim()) {
+            updatedText = currentText.endsWith("\n") || currentText.endsWith(" ")
+              ? `${currentText}${formatted}`
+              : `${currentText}\n${formatted}`;
+          } else {
+            updatedText = formatted;
+          }
+
+          if (updatedText.length > MAX_CHARS) {
+            updatedText = updatedText.slice(0, MAX_CHARS);
+          }
+
+          lastLocalEditTimeRef.current = Date.now();
+          setNote(updatedText);
+          latestNoteRef.current = updatedText;
+          hasUnsavedChangesRef.current = true;
+          saveNote(updatedText);
+          showToast(`[ DICTATION APPENDED (${result.source.toUpperCase()}) ]`);
+        } else {
+          showToast("[ NO SPEECH DETECTED ]");
+        }
+      } catch (err: unknown) {
+        console.error("Dictation error:", err);
+        const errMsg = err instanceof Error ? err.message : String(err);
+        showToast(`[ DICTATION ERROR: ${errMsg} ]`);
+      } finally {
+        setIsTranscribing(false);
+        setTranscriptionStatus("");
+      }
+    } else {
+      if (!isMicSupported) {
+        showToast("[ MICROPHONE NOT SUPPORTED ]");
+        return;
+      }
+      if (activeVoiceMode === "groq" && !groqApiKey.trim()) {
+        showToast("[ CONFIGURE GROQ API KEY IN SETTINGS ]");
+        return;
+      }
+      const success = await startRecording();
+      if (success) {
+        showToast("[ RECORDING: SPEAK YOUR THOUGHTS ]");
+      }
+    }
+  };
+
+  const handleToggleVoiceMode = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isRecording || isTranscribing) return;
+    const nextMode: TranscriptionMode = activeVoiceMode === "local" ? "groq" : "local";
+    setActiveVoiceMode(nextMode);
+    if (userStore?.updateSettings) {
+      userStore.updateSettings({ voiceTranscriptionMode: nextMode }).catch(() => {});
+    }
+    showToast(`[ DICTATION MODE: ${nextMode.toUpperCase()} ]`);
+  };
 
   // Load note directly from IndexedDB on boot/date change to avoid relying on stale props
   useEffect(() => {
@@ -319,6 +432,68 @@ export function DailyNote({ initialNote, dailyResetTime, date }: DailyNoteProps)
           </button>
         </div>
         <div className="daily-note-meta">
+          {/* Voice Dictation Hub */}
+          <div className="daily-note-dictation">
+            <button
+              type="button"
+              className={`daily-note-dictate-btn ${isRecording ? "daily-note-dictate-btn--recording" : ""} ${isTranscribing ? "daily-note-dictate-btn--transcribing" : ""}`}
+              onClick={handleToggleDictation}
+              disabled={isTranscribing}
+              title={isRecording ? "Click to stop and transcribe" : "Click to dictate note"}
+            >
+              {isRecording ? (
+                <>
+                  <Square size={10} className="pulse-icon" fill="currentColor" />
+                  <span className="t-meta" style={{ color: "var(--strike-red)", fontWeight: 700 }}>
+                    [ STOP {Math.floor(durationSec / 60)}:{String(durationSec % 60).padStart(2, "0")} ]
+                  </span>
+                </>
+              ) : isTranscribing ? (
+                <>
+                  <Loader2 size={11} className="spin-icon" />
+                  <span className="t-meta" style={{ color: "var(--accent)" }}>
+                    [ {transcriptionStatus || "TRANSCRIBING..."} ]
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Mic size={11} />
+                  <span className="t-meta">[ DICTATE ]</span>
+                </>
+              )}
+            </button>
+
+            {!isRecording && !isTranscribing && (
+              <button
+                type="button"
+                className="daily-note-mode-btn t-meta"
+                onClick={handleToggleVoiceMode}
+                title={`Click to switch mode (Current: ${activeVoiceMode.toUpperCase()})`}
+              >
+                {activeVoiceMode === "local" ? (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                    <Cpu size={10} /> [ LOCAL ]
+                  </span>
+                ) : (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", color: "var(--accent)" }}>
+                    <Sparkles size={10} /> [ GROQ ]
+                  </span>
+                )}
+              </button>
+            )}
+
+            {isRecording && (
+              <button
+                type="button"
+                className="daily-note-cancel-btn t-meta"
+                onClick={cancelRecording}
+                title="Cancel recording"
+              >
+                [ ✕ ]
+              </button>
+            )}
+          </div>
+
           <span className="t-meta daily-note-saving" style={{ color: isSaving ? 'var(--text-primary)' : 'var(--text-muted)' }}>
             {isSaving ? "SAVING..." : "SAVED"}
           </span>

@@ -16,6 +16,8 @@ export interface Settings {
   bedTime: string; // e.g. "23:00"
   emptyTubeText: string;
   strikeSystemEnabled?: boolean;
+  voiceTranscriptionMode?: "local" | "groq";
+  groqApiKey?: string;
 }
 
 export interface Aesthetics {

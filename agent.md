@@ -105,7 +105,7 @@ graph TD
     - **Scrollbar Suppression**: Touch viewports suppress visible scrollbars globally (`scrollbar-width: none; ::-webkit-scrollbar { display: none; }`) while preserving fluid inertial touch scrolling.
     - **Mobile Dashboard Fuel Strip & Glass Track**: `SleepTube` automatically switches from a vertical pillar to an ergonomic horizontal fuel gauge with live numerical percentage on mobile (`[ FUEL ]`), glass cylinder track (`rgba(255, 255, 255, 0.03)` with 1px hairline border), and ambient resting glow when fuel is at 0% or during sleeping phases, preventing vertical scroll starvation.
     - **Ghost-Elevated Mobile Stats Deck**: Directly beneath the fuel gauge, the mobile dashboard features a dedicated three-column telemetry cluster (`COMPLETED | TOTAL | PROGRESS %`) separated by 1px vertical hairline dividers (`rgba(255, 255, 255, 0.08)`) with zero outer box borders or chunky drop shadows.
-    - **Daily Note 2-Tier Telemetry Header**: On mobile viewports, the Daily Note card splits into a 2-tier telemetry layout: Tier 1 houses the bracketed title `[ DAILY NOTE ]` and `[ LOGBOOK ]` button, while Tier 2 contains the autosave indicator (`SAVED`), Google Drive backup status (`[ BACKED UP ]`), and character counter (`0 / 20000`) with strict `white-space: nowrap` and tabular numerals to eliminate multi-line bracket wrapping.
+    - **Daily Note 2-Tier Telemetry Header**: On mobile viewports, the Daily Note card splits into a 2-tier telemetry layout: Tier 1 houses the bracketed title `[ DAILY NOTE ]` and `[ LOGBOOK ]` button, while Tier 2 contains voice dictation controls (`[ DICTATE ]`, `[ LOCAL ]` / `[ GROQ ]`), autosave indicator (`SAVED`), Google Drive backup status (`[ BACKED UP ]`), and character counter (`0 / 20000`) with strict `white-space: nowrap` and tabular numerals to eliminate multi-line bracket wrapping.
     - **Tactile Segment Switcher**: The mobile Dashboard renders category tabs (`[ ALL ]`, `[ HABITS ]`, `[ LIMITERS ]`, `[ TODOS ]`) with Ghost Elevation, minimum touch heights, active scale physics (`SPRING_TACTILE`), and zero squashing to allow focused single-handed task triage.
     - **Mobile Dashboard Full Vertical Scroll**: While the desktop dashboard remains strictly viewport-locked (`100vh`) with column-level internal scrollbars, the mobile dashboard (`<= 768px`) enables natural page-level vertical scrolling (`.dashboard-page { height: 100%; overflow-y: auto; scrollbar-width: none !important; }`). Inner containers (`.dashboard-page__content`, `.dashboard-grid`, `.dashboard-list`) release desktop height and overflow clamping (`overflow: visible; flex-grow: unset; min-height: auto;`), allowing all stacked habit cards, limiters, active todos, and the Daily Note footer to flow sequentially without clipping or scroll starvation.
     - **Settings Tactical Tile Grid**: The Settings page replaces the vertical sidebar with a compact 4-column tactical tile grid (`repeat(4, 1fr)`), fitting all 9 sub-navigation items in 3 rows without horizontal scroll. On mobile (`<= 768px`), the tile grid is docked sticky at `top: 0` (`position: sticky; z-index: 50;`) directly beneath the Topbar with a subtle dark backdrop and separation border. The parent `.settings-page` manages internal vertical scrolling (`overflow-y: auto`), allowing settings content to glide underneath the pinned navigation without hiding the sub-tabs. Individual tabs enforce `box-sizing: border-box`, inner outline offset (`outline-offset: -2px`), and zero horizontal overflow, ensuring active and focused states fit completely within mobile viewports without edge clipping.
@@ -402,7 +402,7 @@ The desktop application leverages 6 specialized Tauri webview windows cooperatin
 * **SleepTube Waking Fuel Gauge**: Dynamic liquid meniscus cylinder tracking waking energy from `wakeUpTime` to `bedTime` with milestone ticks (100%, 75%, 50%, 25%, 0%), late-night owl buffer, and resting glow at 0%.
 * **Active Protocols Column**: Today's scheduled habits displaying category icon, title, streak flame counter, 500ms power-curve hold fill, and spring checkmark completion pop.
 * **Active Todos Column**: Priority-ranked tasks with checkbox completion and expandable inline details.
-* **Daily Note Footer**: Distraction-free inline journal with autosave indicator (`SAVED`), Google Drive cloud status (`[ BACKED UP ]`), character counter (`0 / 20000`), local AES-256-GCM encryption, and direct jump button to the Logbook Archive.
+* **Daily Note Footer**: Distraction-free inline journal with hybrid speech-to-text voice dictation (100% offline local Whisper Tiny or instant Groq Whisper Large v3 cloud), autosave indicator (`SAVED`), Google Drive cloud status (`[ BACKED UP ]`), character counter (`0 / 20000`), local AES-256-GCM encryption, and direct jump button to the Logbook Archive.
 * **Direct Habit Inspection Drawer**: Clicking any habit card on the Dashboard smoothly slides out the full `<HabitDetail>` drawer in-place without page navigation.
 
 #### Page 2: Habits Forge (`/habits`) — Protocol Engineering
@@ -1803,6 +1803,22 @@ Replaced the native Win32 context menu with a custom borderless tactical HUD win
    - Added a 60-second day-rollover monitor in `Layout.tsx` so long-running desktop background/tray instances proactively roll over `lastActiveDate` and process gaps across midnight boundaries.
 4. **Verification & Testing (`src/features/freeze/services/freezeService.test.ts`)**:
    - Added unit test suite verifying log-aware auto-freeze bypass when cross-device logs exist, proper auto-freeze activation on genuine absences $\ge 3$ days, and synchronous interaction date updates.
+
+### 84. Mobile Web OAuth Cloud Sync Sequencing & Responsive Viewport Defense (2026-11-24)
+1. **Cloud-First OAuth Sequencing (`src/features/auth/services/authService.ts`)**:
+   - Re-ordered `processGoogleOAuthToken` to await `pullAndMergeFromGoogleDrive(true)` *before* emitting `triggerAuthChange()`.
+   - On a clean browser/phone login, IndexedDB is now populated with the user's sovereign Google Drive data and habits before `Layout.tsx` assesses user state, preventing false traps in the initial onboarding flow.
+2. **Dynamic Sync State-Machine Transition (`src/app/Layout.tsx`)**:
+   - Updated the user doc state machine to transition from both `"loading"` and `"onboarding"` to `"processing"` when `userStore.userDoc` arrives.
+   - If `driveLinked` is detected in `localStorage` upon initial load, `Layout.tsx` initiates an explicit pull from Google Drive rather than immediately dropping into first-time onboarding.
+3. **Onboarding Profile Auto-Detection & Web Window Controls (`src/features/auth/components/OnboardingFlow.tsx`)**:
+   - Added an automatic user document detection hook: if an existing user lands on onboarding before background cloud sync completes, `OnboardingFlow` releases them directly to the command center (`navigate("/")`) upon detecting their doc.
+   - Created `handleExitOrClose`: safely calls `appWindow.close()` on desktop, or verifies existing user documents to navigate to `/` on web, falling back to `signOut()` to `/login`.
+4. **Mobile Responsive Button & Stepper Styling (`src/features/auth/components/OnboardingFlow.css`)**:
+   - Fixed hardcoded desktop `!important` padding and large fonts on `.onboarding-nav-btn--primary` and `--launch`.
+   - In `@media (max-width: 768px)`, styled `.onboarding-flow__footer` with `width: 100%`, `gap: 8px`, `overflow: hidden`, and dynamic flex sizing (`flex: 1 1 auto; min-width: 0; text-overflow: ellipsis; height: 46px;`).
+   - Sized `.onboarding-nav-btn--back` with `flex: 0 0 auto; min-width: 72px; padding: 0 14px;`, guaranteeing buttons fit cleanly on mobile screens ($\ge 360\text{px}$) without horizontal clipping.
+
 
 
 

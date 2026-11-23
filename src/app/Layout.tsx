@@ -127,12 +127,38 @@ function LayoutInner() {
         });
       }
 
-      if (phase === "loading") {
+      if (phase === "loading" || phase === "onboarding") {
         setPhase("processing");
       }
     } else if (user) {
       if (phase === "loading") {
-        setPhase("onboarding");
+        const isDriveLinked = localStorage.getItem("driveLinked") === "true";
+        if (isDriveLinked) {
+          // If Google Drive is linked, give cloud sync an explicit chance to pull and populate IndexedDB
+          // before assuming this account has never completed onboarding.
+          Promise.all([
+            import("../shared/services/localDb"),
+            import("../features/auth/services/userService"),
+          ]).then(async ([{ pullAndMergeFromGoogleDrive }, { getUserDoc }]) => {
+            try {
+              const pulled = await pullAndMergeFromGoogleDrive(true);
+              if (pulled) {
+                const refreshedDoc = await getUserDoc(user.uid);
+                if (refreshedDoc) {
+                  setUserDoc(refreshedDoc);
+                  await userStore.reload();
+                  setPhase("processing");
+                  return;
+                }
+              }
+            } catch (e) {
+              console.warn("[Layout] Drive pull failed:", e);
+            }
+            setPhase("onboarding");
+          });
+        } else {
+          setPhase("onboarding");
+        }
       }
     }
   }, [user, userStore.loading, userStore.userDoc, phase]);

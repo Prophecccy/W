@@ -1,21 +1,52 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import { createBackup, getLastBackupDate, restoreBackup } from "../services/backupService";
 import { exportJSON, exportCSV } from "../services/exportService";
 import { useToast } from "../../../shared/components/Toast/Toast";
-import { Download, Database, FileJson, FileSpreadsheet, Trash2, RefreshCcw, Upload } from "lucide-react";
+import { Download, Database, FileJson, FileSpreadsheet, Trash2, RefreshCcw, Upload, Mic, Cpu, Sparkles } from "lucide-react";
 import { resetUserData, deleteUserAccountAndData } from "../../auth/services/userService";
 import { useAuthContext } from "../../auth/context";
 import { signOut } from "../../auth/services/authService";
+import { Settings } from "../../../shared/types";
+import { testGroqApiKey } from "../../habits/services/groqTranscription";
+import { UserStoreContext } from "../../../shared/stores/userStore";
 
-export function DataSection() {
+interface DataSectionProps {
+  settings?: Settings;
+  onUpdate?: (patch: Partial<Settings>) => void;
+}
+
+export function DataSection({ settings, onUpdate }: DataSectionProps = {}) {
   const { showToast } = useToast();
   const { user } = useAuthContext();
+  const userStore = useContext(UserStoreContext);
+  const activeSettings = settings || userStore?.userDoc?.settings;
+
   const [lastBackup, setLastBackup] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
 
   // States for confirmation
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // States for voice settings
+  const voiceMode = activeSettings?.voiceTranscriptionMode || "local";
+  const [groqKeyInput, setGroqKeyInput] = useState(activeSettings?.groqApiKey || "");
+  const [showKey, setShowKey] = useState(false);
+  const [isTestingKey, setIsTestingKey] = useState(false);
+
+  useEffect(() => {
+    if (activeSettings?.groqApiKey !== undefined) {
+      setGroqKeyInput(activeSettings.groqApiKey);
+    }
+  }, [activeSettings?.groqApiKey]);
+
+  const handleSettingsUpdate = (patch: Partial<Settings>) => {
+    if (onUpdate) {
+      onUpdate(patch);
+    } else if (userStore) {
+      userStore.updateSettings(patch);
+    }
+  };
 
   useEffect(() => {
     getLastBackupDate().then(setLastBackup);
@@ -224,6 +255,124 @@ export function DataSection() {
               <span>{loading === "csv" ? "..." : "[ EXPORT CSV ]"}</span>
             </button>
           </div>
+        </div>
+
+        {/* Speech-to-Text / Voice Dictation */}
+        <div className="settings-data__group">
+          <div className="settings-row" style={{ alignItems: "flex-start" }}>
+            <div className="settings-row__label">
+              <Mic size={14} strokeWidth={1.5} />
+              <div>
+                <span className="t-body">Daily Note Voice Dictation</span>
+                <p className="t-meta" style={{ marginTop: 2 }}>
+                  Choose between 100% offline on-device transcription or high-speed Groq Whisper.
+                </p>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className="settings-btn"
+                style={{
+                  backgroundColor: voiceMode === "local" ? "rgba(var(--accent-rgb, 91, 141, 239), 0.15)" : "transparent",
+                  borderColor: voiceMode === "local" ? "var(--accent)" : "rgba(255, 255, 255, 0.12)",
+                  color: voiceMode === "local" ? "var(--accent)" : "var(--text-secondary)",
+                }}
+                onClick={() => handleSettingsUpdate({ voiceTranscriptionMode: "local" })}
+              >
+                <Cpu size={12} strokeWidth={1.5} />
+                <span>[ LOCAL (OFFLINE) ]</span>
+              </button>
+              <button
+                type="button"
+                className="settings-btn"
+                style={{
+                  backgroundColor: voiceMode === "groq" ? "rgba(var(--accent-rgb, 91, 141, 239), 0.15)" : "transparent",
+                  borderColor: voiceMode === "groq" ? "var(--accent)" : "rgba(255, 255, 255, 0.12)",
+                  color: voiceMode === "groq" ? "var(--accent)" : "var(--text-secondary)",
+                }}
+                onClick={() => handleSettingsUpdate({ voiceTranscriptionMode: "groq" })}
+              >
+                <Sparkles size={12} strokeWidth={1.5} />
+                <span>[ GROQ CLOUD ]</span>
+              </button>
+            </div>
+          </div>
+
+          {voiceMode === "groq" ? (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label className="t-meta" style={{ color: "var(--text-secondary)" }}>
+                    GROQ API KEY (FREE TIER AVAILABLE)
+                  </label>
+                  <a
+                    href="https://console.groq.com/keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="t-meta"
+                    style={{ color: "var(--accent)", textDecoration: "underline" }}
+                  >
+                    [ GET FREE KEY ↗ ]
+                  </a>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    type={showKey ? "text" : "password"}
+                    value={groqKeyInput}
+                    onChange={(e) => {
+                      setGroqKeyInput(e.target.value);
+                      handleSettingsUpdate({ groqApiKey: e.target.value });
+                    }}
+                    placeholder="gsk_..."
+                    style={{
+                      flex: 1,
+                      fontFamily: "var(--font-mono)",
+                      fontSize: "12px",
+                      background: "rgba(255, 255, 255, 0.03)",
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
+                      borderRadius: "6px",
+                      padding: "6px 10px",
+                      color: "var(--text-primary)",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="settings-btn"
+                    onClick={() => setShowKey(!showKey)}
+                  >
+                    <span>{showKey ? "[ HIDE ]" : "[ SHOW ]"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-btn"
+                    disabled={isTestingKey || !groqKeyInput}
+                    onClick={async () => {
+                      setIsTestingKey(true);
+                      const res = await testGroqApiKey(groqKeyInput);
+                      setIsTestingKey(false);
+                      if (res.valid) {
+                        showToast("[ GROQ API KEY VERIFIED ]");
+                      } else {
+                        showToast(`[ KEY ERROR: ${res.error || "FAILED"} ]`);
+                      }
+                    }}
+                  >
+                    <span>{isTestingKey ? "..." : "[ TEST KEY ]"}</span>
+                  </button>
+                </div>
+                <p className="t-meta" style={{ color: "var(--text-muted)", fontSize: "11px" }}>
+                  Groq uses Whisper Large v3. Your key is stored locally in your encrypted profile and never shared.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+              <p className="t-meta" style={{ color: "var(--text-muted)", fontSize: "11px" }}>
+                [ 100% PRIVATE &amp; OFFLINE ]: Audio is processed directly in your browser/app using quantized Whisper Tiny. No audio data ever leaves your device. First run downloads ~40MB model weights into local browser cache.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Danger Zone */}

@@ -180,15 +180,18 @@ export async function processGoogleOAuthToken(
   // 4. Save OAuth tokens pinned to user email
   await saveOAuthTokens(accessToken, refreshToken || "", expiresInSeconds, email || undefined);
   window.dispatchEvent(new CustomEvent("w:gdrive-linked"));
-  triggerAuthChange();
 
-  // 5. Initial pull from user's sovereign Google Drive container
+  // 5. Initial pull from user's sovereign Google Drive container before notifying auth listeners
+  // This ensures existing users restoring on a fresh browser have their profile & habits in IndexedDB
+  // before Layout evaluates whether the account requires first-time Onboarding.
   try {
     const { pullAndMergeFromGoogleDrive } = await import("../../../shared/services/localDb");
     await pullAndMergeFromGoogleDrive(true);
   } catch (syncErr) {
     console.warn("[Auth] Initial pull from Google Drive failed:", syncErr);
   }
+
+  triggerAuthChange();
 
   return mockUser;
 }

@@ -57,6 +57,8 @@ const DEFAULT_SETTINGS: Settings = {
   bedTime: "23:00",
   emptyTubeText: "DEPLETED",
   strikeSystemEnabled: true,
+  voiceTranscriptionMode: "local",
+  groqApiKey: "",
 };
 
 const DEFAULT_AESTHETICS: Aesthetics = {
@@ -322,7 +324,7 @@ export function SettingsPage() {
       case "data":
         return (
           <>
-            <DataSection />
+            <DataSection settings={draftSettings} onUpdate={handleUpdateDraft} />
             <div className="settings-column">
               <UndoHistory />
             </div>
