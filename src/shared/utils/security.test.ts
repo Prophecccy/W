@@ -136,6 +136,12 @@ describe("security utility - validateIsoDate", () => {
 });
 
 import { validateDocumentPayload, mergeDailyLog, mergeCollection } from "../services/localDb";
+import { extractCode } from "../../features/auth/services/authService";
+import {
+  escapeDriveQueryLiteral,
+  isValidDriveId,
+  assertValidDriveId,
+} from "../services/googleDriveService";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -218,47 +224,51 @@ describe("Secrets Management - Static Secret Scanning", () => {
 });
 
 describe("OAuth Flow & Token Relay Architecture", () => {
-  it("verifies main.tsx implements early OAuth popup interception before mounting React Router", () => {
+  it("verifies main.tsx implements early BFF popup completion interception with zero innerHTML", () => {
     const mainPath = path.resolve(__dirname, "../../main.tsx");
     const content = fs.readFileSync(mainPath, "utf-8");
     expect(content).toContain("handleEarlyOAuthCallback");
-    expect(content).toContain("w:google-oauth-callback");
+    expect(content).toContain("/oauth-complete");
+    expect(content).toContain("w:bff-auth-complete");
     expect(content).toContain("w_oauth_response");
     expect(content).toContain("window.close()");
     expect(content).toContain("!handleEarlyOAuthCallback()");
+    expect(content).not.toMatch(/\.innerHTML\s*=/);
   });
 
-  it("verifies authService exports processGoogleOAuthToken and implements tri-channel message/storage/polling listeners", () => {
+  it("verifies authService uses BFF cookie auth on Web, enforces strict CSRF state on Desktop, and never reads VITE_GOOGLE_CLIENT_SECRET", () => {
     const authServicePath = path.resolve(__dirname, "../../features/auth/services/authService.ts");
     const content = fs.readFileSync(authServicePath, "utf-8");
     expect(content).toContain("export async function processGoogleOAuthToken");
-    expect(content).toContain('addEventListener("message"');
-    expect(content).toContain('addEventListener("storage"');
-    expect(content).toContain("w:google-oauth-callback");
-    expect(content).toContain("w_oauth_response");
+    expect(content).toContain("/api/auth/login");
+    expect(content).toContain("/api/auth/refresh");
+    expect(content).toContain("w:bff-auth-complete");
+    expect(content).toContain("if (!returnedState || returnedState !== expectedState)");
+    expect(content).not.toContain("VITE_GOOGLE_CLIENT_SECRET");
   });
 
-  it("verifies AuthGuard guards against premature redirect to /login when access_token is in URL hash", () => {
+  it("verifies AuthGuard guards against premature redirect during OAuth completion or signing-in", () => {
     const authGuardPath = path.resolve(__dirname, "../../features/auth/components/AuthGuard.tsx");
     const content = fs.readFileSync(authGuardPath, "utf-8");
-    expect(content).toContain("hasPendingOAuthToken");
-    expect(content).toContain('window.location.hash.includes("access_token=")');
+    expect(content).toContain("isPendingOAuth");
+    expect(content).toContain("/oauth-complete");
   });
 
-  it("verifies useAuth provides direct same-window OAuth redirect handling", () => {
+  it("verifies useAuth restores Web BFF HttpOnly cookie sessions and gates devSkip behind import.meta.env.DEV", () => {
     const useAuthPath = path.resolve(__dirname, "../../features/auth/hooks/useAuth.ts");
     const content = fs.readFileSync(useAuthPath, "utf-8");
-    expect(content).toContain('hash.includes("access_token=")');
-    expect(content).toContain("processGoogleOAuthToken");
-    expect(content).toContain("window.history.replaceState");
+    expect(content).toContain("restoreWebBffSession");
+    expect(content).toContain("import.meta.env.DEV");
+    expect(content).not.toContain('hash.includes("access_token=")');
+    expect(content).not.toContain('window.location.hostname === "localhost"');
   });
 });
 
 describe("Real-Time Cross-Device Google Drive Sync Architecture", () => {
-  it("verifies localDb.ts uploads state as clean cross-device JSON and supports legacy envelopes", () => {
+  it("verifies localDb.ts uploads state as clean cross-device JSON with integrity digest and supports legacy envelopes", () => {
     const localDbPath = path.resolve(__dirname, "../services/localDb.ts");
     const content = fs.readFileSync(localDbPath, "utf-8");
-    expect(content).toContain("JSON.stringify(statePayload, null, 2)");
+    expect(content).toContain("JSON.stringify({ ...statePayload, integritySha256 }, null, 2)");
     expect(content).toContain("parsedEnvelope.encrypted");
     expect(content).toContain("parsedEnvelope.habits !== undefined");
   });
@@ -274,11 +284,13 @@ describe("Real-Time Cross-Device Google Drive Sync Architecture", () => {
     expect(content).toContain('hasPendingSync');
   });
 
-  it("verifies googleDriveService.ts caches stateFileId, restores Web sessions with empty refresh tokens and exports flushAndPullAll", () => {
+  it("verifies googleDriveService.ts caches stateFileId, keeps Web access tokens in memory only via BFF refresh, and exports flushAndPullAll", () => {
     const gdrivePath = path.resolve(__dirname, "../services/googleDriveService.ts");
     const content = fs.readFileSync(gdrivePath, "utf-8");
     expect(content).toContain("stateFileId?: string | null");
-    expect(content).toContain("if (accessToken && expiresAtStr)");
+    expect(content).toContain("webMemoryAccessToken");
+    expect(content).toContain("/api/auth/refresh");
+    expect(content).not.toContain("VITE_GOOGLE_CLIENT_SECRET");
     expect(content).toContain("export async function flushAndPullAll");
     expect(content).toContain("await pullNotesFromDrive(accessToken)");
   });
@@ -540,7 +552,8 @@ describe("Unified SSO & Sovereign State Ownership Security Architecture", () => 
     const localDbPath = path.resolve(__dirname, "../services/localDb.ts");
     const content = fs.readFileSync(localDbPath, "utf-8");
     expect(content).toContain("remoteState.ownerEmail");
-    expect(content).toContain("remoteState.ownerEmail.toLowerCase().trim() !== user.email.toLowerCase().trim()");
+    expect(content).toContain("normalizedRemoteEmail !== normalizedLocalEmail");
+    expect(content).toContain("remoteState.ownerUid !== user.uid && !hasVerifiedEmailMatch");
     expect(content).toContain("SECURITY ABORT");
   });
 
@@ -652,6 +665,147 @@ describe("Strike System Zen Mode & Cross-Device Disablement Architecture", () =>
 
     expect(topbarContent).toContain("[ SYNC PENDING — RE-LINK ]");
     expect(accountContent).toContain("[ RE-LINK GOOGLE DRIVE ]");
+  });
+});
+
+describe("OWASP Hardening Regression Suite", () => {
+  it("enforces default-deny Firestore security rules", () => {
+    const rulesPath = path.resolve(__dirname, "../../../firestore.rules");
+    const content = fs.readFileSync(rulesPath, "utf-8");
+    const activeRules = content.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(activeRules).toContain("allow read, write: if false;");
+    expect(activeRules).not.toContain("request.auth");
+  });
+
+  it("extractCode rejects OAuth callbacks without an exact matching CSRF state", () => {
+    expect(
+      extractCode("http://127.0.0.1:41234/callback?code=auth-123&state=expected-state", "expected-state")
+    ).toBe("auth-123");
+    expect(
+      extractCode("http://127.0.0.1:41234/callback?code=auth-123", "expected-state")
+    ).toBeNull();
+    expect(
+      extractCode("http://127.0.0.1:41234/callback?code=auth-123&state=wrong-state", "expected-state")
+    ).toBeNull();
+  });
+
+  it("escapes Google Drive queries and rejects malformed or injected Drive IDs", () => {
+    expect(escapeDriveQueryLiteral("a' or trashed = false\\")).toBe("a\\' or trashed = false\\\\");
+    expect(isValidDriveId("1AbC_dEf-90123456")).toBe(true);
+    expect(isValidDriveId("abc' or '1'='1")).toBe(false);
+    expect(isValidDriveId("../secret")).toBe(false);
+    expect(() => assertValidDriveId("bad id /..", "test")).toThrow();
+  });
+
+  it("disables global Tauri exposure and splits per-window least-privilege capabilities", () => {
+    const tauriConfPath = path.resolve(__dirname, "../../../src-tauri/tauri.conf.json");
+    const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, "utf-8"));
+    expect(tauriConf.app.withGlobalTauri).toBe(false);
+
+    const capsDir = path.resolve(__dirname, "../../../src-tauri/capabilities");
+    expect(fs.existsSync(path.join(capsDir, "default.json"))).toBe(false);
+
+    for (const file of ["main.json", "widget.json", "sticky-overlay.json", "block-overlay.json", "tray-menu.json", "todo-creator.json"]) {
+      const fullPath = path.join(capsDir, file);
+      expect(fs.existsSync(fullPath)).toBe(true);
+      const raw = fs.readFileSync(fullPath, "utf-8");
+      expect(raw).not.toContain('"remote"');
+      expect(raw).not.toContain("localhost:1420");
+    }
+
+    const blockCaps = fs.readFileSync(path.join(capsDir, "block-overlay.json"), "utf-8");
+    expect(blockCaps).not.toContain("fs:allow");
+    expect(blockCaps).not.toContain("process:allow");
+
+    const widgetCaps = fs.readFileSync(path.join(capsDir, "widget.json"), "utf-8");
+    expect(widgetCaps).not.toContain("$APPDATA/**");
+    expect(widgetCaps).toContain("$APPDATA/widget_position.json");
+  });
+
+  it("verifies native Rust IPC modules validate caller window labels and protect secrets", () => {
+    const tauriSrc = path.resolve(__dirname, "../../../src-tauri/src");
+    for (const file of ["lib.rs", "lockdown.rs", "workerw.rs", "sticky_overlay.rs"]) {
+      const content = fs.readFileSync(path.join(tauriSrc, file), "utf-8");
+      expect(content).toContain("require_window_label");
+    }
+    const secureStore = fs.readFileSync(path.join(tauriSrc, "secure_store.rs"), "utf-8");
+    expect(secureStore).toContain("CryptProtectData");
+    expect(secureStore).toContain("require_main_window");
+    expect(secureStore).toContain(".https_only(true)");
+    expect(secureStore).toContain("TLS_1_2");
+    expect(secureStore).toContain("Policy::none()");
+
+    const securityAudit = fs.readFileSync(path.join(tauriSrc, "security_audit.rs"), "utf-8");
+    expect(securityAudit).toContain("sanitize_log_text");
+    expect(securityAudit).toContain("MAX_AUDIT_BYTES");
+    expect(securityAudit).toContain("w:security-alert");
+  });
+
+  it("gates localDb disk debug logs behind import.meta.env.DEV (OWASP A09)", () => {
+    const localDb = fs.readFileSync(path.resolve(__dirname, "../services/localDb.ts"), "utf-8");
+    expect(localDb).toContain("import.meta.env.DEV && typeof window");
+  });
+
+  it("strips groqApiKey from cloud state uploads and exports and checks ownerUid", () => {
+    const localDb = fs.readFileSync(path.resolve(__dirname, "../services/localDb.ts"), "utf-8");
+    expect(localDb).toContain("ownerUid");
+    expect(localDb).toContain("groqApiKey: _stripped");
+    expect(localDb).toContain("delete mergedUser.settings.groqApiKey");
+
+    const exportSvc = fs.readFileSync(
+      path.resolve(__dirname, "../../features/settings/services/exportService.ts"),
+      "utf-8"
+    );
+    expect(exportSvc).toContain("groqApiKey: _stripped");
+  });
+
+  it("enforces A08 payload integrity digests, pinned ML model hub, and CI security gates", () => {
+    const localDb = fs.readFileSync(path.resolve(__dirname, "../services/localDb.ts"), "utf-8");
+    expect(localDb).toContain("computePayloadSha256");
+    expect(localDb).toContain("verifyPayloadSha256");
+    expect(localDb).toContain("integritySha256");
+    expect(localDb).toContain("sanitizeStrikesShape");
+
+    const backupSvc = fs.readFileSync(
+      path.resolve(__dirname, "../../features/settings/services/backupService.ts"),
+      "utf-8"
+    );
+    expect(backupSvc).toContain("verifyPayloadSha256");
+    expect(backupSvc).toContain("integritySha256");
+    expect(backupSvc).toContain("sanitizeStrikesShape");
+
+    const exportSvc = fs.readFileSync(
+      path.resolve(__dirname, "../../features/settings/services/exportService.ts"),
+      "utf-8"
+    );
+    expect(exportSvc).toContain("computePayloadSha256");
+    expect(exportSvc).toContain("integritySha256");
+
+    const whisperLocal = fs.readFileSync(
+      path.resolve(__dirname, "../../features/habits/services/whisperLocal.ts"),
+      "utf-8"
+    );
+    expect(whisperLocal).toContain("ALLOWED_LOCAL_WHISPER_MODELS");
+    expect(whisperLocal).toContain('TRUSTED_HF_REMOTE_HOST = "https://huggingface.co/"');
+    expect(whisperLocal).toContain("env.allowLocalModels = false");
+
+    const ciWorkflow = fs.readFileSync(
+      path.resolve(__dirname, "../../../.github/workflows/ci.yml"),
+      "utf-8"
+    );
+    expect(ciWorkflow).toContain("contents: read");
+    expect(ciWorkflow).toContain("persist-credentials: false");
+    expect(ciWorkflow).toContain("npm run typecheck:api");
+    expect(ciWorkflow).toContain("npm test");
+    expect(ciWorkflow).toContain("npm run build");
+    expect(ciWorkflow).toContain("VITE_GOOGLE_CLIENT_SECRET");
+
+    const releaseWorkflow = fs.readFileSync(
+      path.resolve(__dirname, "../../../.github/workflows/tauri-release.yml"),
+      "utf-8"
+    );
+    expect(releaseWorkflow).toContain("persist-credentials: false");
+    expect(releaseWorkflow).toContain("npx tsc --noEmit && npm run typecheck:api && npm test");
   });
 });
 

@@ -9,6 +9,7 @@ import { signOut } from "../../auth/services/authService";
 import { Settings } from "../../../shared/types";
 import { testGroqApiKey } from "../../habits/services/groqTranscription";
 import { UserStoreContext } from "../../../shared/stores/userStore";
+import { loadLocalGroqKey, saveLocalGroqKey } from "../../../shared/utils/localSecretStorage";
 
 interface DataSectionProps {
   settings?: Settings;
@@ -30,15 +31,30 @@ export function DataSection({ settings, onUpdate }: DataSectionProps = {}) {
 
   // States for voice settings
   const voiceMode = activeSettings?.voiceTranscriptionMode || "local";
-  const [groqKeyInput, setGroqKeyInput] = useState(activeSettings?.groqApiKey || "");
+  const [groqKeyInput, setGroqKeyInput] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [isTestingKey, setIsTestingKey] = useState(false);
 
   useEffect(() => {
-    if (activeSettings?.groqApiKey !== undefined) {
-      setGroqKeyInput(activeSettings.groqApiKey);
-    }
-  }, [activeSettings?.groqApiKey]);
+    let active = true;
+    const uid = user?.uid;
+    if (!uid) return;
+
+    loadLocalGroqKey(uid).then(async (encryptedKey) => {
+      if (!active) return;
+      if (encryptedKey) {
+        setGroqKeyInput(encryptedKey);
+      } else if (activeSettings?.groqApiKey) {
+        // Migrate legacy plaintext groqApiKey into encrypted local vault and purge from userDoc
+        const legacy = activeSettings.groqApiKey;
+        setGroqKeyInput(legacy);
+        await saveLocalGroqKey(uid, legacy).catch(() => {});
+        await userStore?.updateSettings({ groqApiKey: "" }).catch(() => {});
+        if (onUpdate) onUpdate({ groqApiKey: "" });
+      }
+    });
+    return () => { active = false; };
+  }, [user?.uid]);
 
   const handleSettingsUpdate = (patch: Partial<Settings>) => {
     if (onUpdate) {
@@ -321,8 +337,11 @@ export function DataSection({ settings, onUpdate }: DataSectionProps = {}) {
                     type={showKey ? "text" : "password"}
                     value={groqKeyInput}
                     onChange={(e) => {
-                      setGroqKeyInput(e.target.value);
-                      handleSettingsUpdate({ groqApiKey: e.target.value });
+                      const nextKey = e.target.value;
+                      setGroqKeyInput(nextKey);
+                      if (user?.uid) {
+                        saveLocalGroqKey(user.uid, nextKey).catch(() => {});
+                      }
                     }}
                     placeholder="gsk_..."
                     style={{

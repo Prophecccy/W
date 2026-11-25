@@ -35,22 +35,22 @@ Unlike standard to-do lists, [ W ] operates as a strict, OS-level dashboard desi
 
 | [ DATA TYPE ] | [ STORAGE LOCATION ] | [ PURPOSE ] |
 | :--- | :--- | :--- |
-| **Account Credentials** | 🔒 Local (IndexedDB) | Local guest profile authentication. |
-| **Habits & Todos** | 🔒 Local (IndexedDB) | Local-first habits & todos storage. |
-| **Fuel Calibration** | 🔒 Local (IndexedDB) | Sleep/wake cycle configuration. |
-| **Google Drive Sync** | ☁️ Personal Cloud (GDrive) | Encrypted sync & backup of dashboard state. |
+| **Session & OAuth Secrets** | 🔒 HttpOnly AES-GCM Cookie (Web) / Windows DPAPI (Desktop) | Zero-localStorage OAuth session protection via Vercel BFF or native OS vault. |
+| **Habits, Todos & Fuel** | 🔒 Local (UID-Scoped IndexedDB) | Local-first encrypted/isolated dashboard state storage. |
+| **Google Drive Sync** | ☁️ Personal Cloud (GDrive) | Ownership-verified sync of habits & AES-256-GCM notes (`groqApiKey` excluded). |
+| **Local API Keys (Groq)** | 🔒 Local Encrypted Vault (DPAPI / Non-Extractable WebCrypto) | Strict device-only key storage; never leaves your device or enters backups. |
 | **Window Coordinates** | 🔒 Local (Disk) | Persistent layout memory. Never leaves your machine. |
-| **Lockdown Blocklists** | 🔒 Local (OS Level) | Native process blocking. Never leaves your machine. |
-| **App Settings & UI** | 🔒 Local (Disk) | Interface preferences and theme configurations. |
+| **Lockdown Blocklists** | 🔒 Local (OS Level) | Native process blocking with caller-window guards. Never leaves your machine. |
+| **Cloud Firestore Rules** | 🛡️ Default-Deny (`allow read, write: if false`) | Direct client database access disabled across all collections. |
 
 ## [ ARCHITECTURE ]
 
-Built for extreme performance and deep OS-level control.
+Built for extreme performance, zero-trust boundaries, and deep OS-level control.
 
-* **Core:** Tauri v2 (Rust) — Windows Desktop & Android Native
-* **Frontend:** React (Vite / TypeScript) with dedicated native-style Mobile Shell (`src/mobile/`)
+* **Core:** Tauri v2 (Rust) — Windows Desktop with per-window least-privilege capabilities, DPAPI vault (TLS 1.2+ zero-redirect token exchange), & rotating `security_audit.jsonl` alerting
+* **Web & API:** React (Vite / TypeScript) + Vercel Serverless BFF (`/api/auth/*`) with `v2` HKDF/AAD AES-256-GCM HttpOnly cookies, dynamic server-side RBAC/BOLA guards, & redacted security audit logging (`api/_lib/audit.ts`)
 * **Styling:** Pure Vanilla CSS (No Tailwind, strict Design System Tokens)
-* **Data:** Local-first (IndexedDB) + Encrypted Google Drive Sync
+* **Data & Integrity:** Local-first (UID-scoped IndexedDB, AAD-bound note/secret encryption) + canonical `integritySha256`-verified Backup/Google Drive Sync (Default-Deny `firestore.rules`) & security-gated GitHub Actions CI
 * **OS APIs:** `windows-rs` for Z-order manipulation and foreground window interception.
 
 ## [ DEPLOYMENT ]

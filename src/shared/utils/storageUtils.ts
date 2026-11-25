@@ -1,27 +1,24 @@
 import { set, get, del } from 'idb-keyval';
 import { Wallpapers } from '../types';
+import { auth } from '../services/localDb';
 
-/**
- * Prefix for wallpaper keys in IndexedDB to avoid collisions.
- */
-const WP_PREFIX = 'wallpaper_';
+const LEGACY_WP_PREFIX = 'wallpaper_';
 const channel = new BroadcastChannel('w_channel');
 
-// Static tracking map to hold active Object URLs for each slot, preventing memory leaks
 const activeUrls = new Map<string, string>();
 
-/**
- * Save a wallpaper blob to IndexedDB.
- */
+function getScopedWallpaperKey(slot: keyof Wallpapers): string {
+  const uid = (auth.currentUser?.uid || 'local_user').replace(/[^A-Za-z0-9_-]/g, '_');
+  return `wallpaper_${uid}_${slot}`;
+}
+
 export async function setLocalWallpaper(slot: keyof Wallpapers, blob: Blob): Promise<string> {
-  const key = `${WP_PREFIX}${slot}`;
+  const key = getScopedWallpaperKey(slot);
   await set(key, blob);
-  
-  // Notify other windows/tabs
+
   channel.postMessage({ type: 'WALLPAPER_CHANGED' });
   window.dispatchEvent(new Event('wallpaper-changed'));
 
-  // Revoke previous URL to release it from RAM
   const oldUrl = activeUrls.get(slot);
   if (oldUrl) {
     URL.revokeObjectURL(oldUrl);
@@ -32,12 +29,20 @@ export async function setLocalWallpaper(slot: keyof Wallpapers, blob: Blob): Pro
   return url;
 }
 
-/**
- * Retrieve a wallpaper from IndexedDB and return as an object URL.
- */
 export async function getLocalWallpaper(slot: keyof Wallpapers): Promise<string | null> {
-  const key = `${WP_PREFIX}${slot}`;
-  const blob = await get<Blob>(key);
+  const key = getScopedWallpaperKey(slot);
+  let blob = await get<Blob>(key);
+
+  if (!blob) {
+    const legacyKey = `${LEGACY_WP_PREFIX}${slot}`;
+    const legacyBlob = await get<Blob>(legacyKey);
+    if (legacyBlob) {
+      blob = legacyBlob;
+      await set(key, legacyBlob).catch(() => {});
+      await del(legacyKey).catch(() => {});
+    }
+  }
+
   if (!blob) {
     const oldUrl = activeUrls.get(slot);
     if (oldUrl) {
@@ -47,7 +52,6 @@ export async function getLocalWallpaper(slot: keyof Wallpapers): Promise<string 
     return null;
   }
 
-  // Revoke previous URL before creating a new one
   const oldUrl = activeUrls.get(slot);
   if (oldUrl) {
     URL.revokeObjectURL(oldUrl);
@@ -58,18 +62,14 @@ export async function getLocalWallpaper(slot: keyof Wallpapers): Promise<string 
   return url;
 }
 
-/**
- * Remove a wallpaper from IndexedDB.
- */
 export async function removeLocalWallpaper(slot: keyof Wallpapers): Promise<void> {
-  const key = `${WP_PREFIX}${slot}`;
+  const key = getScopedWallpaperKey(slot);
   await del(key);
-  
-  // Notify other windows/tabs
+  await del(`${LEGACY_WP_PREFIX}${slot}`).catch(() => {});
+
   channel.postMessage({ type: 'WALLPAPER_CHANGED' });
   window.dispatchEvent(new Event('wallpaper-changed'));
 
-  // Revoke active URL
   const oldUrl = activeUrls.get(slot);
   if (oldUrl) {
     URL.revokeObjectURL(oldUrl);
@@ -77,13 +77,10 @@ export async function removeLocalWallpaper(slot: keyof Wallpapers): Promise<void
   }
 }
 
-/**
- * Helper to fetch all wallpapers at once.
- */
 export async function getAllLocalWallpapers(): Promise<Wallpapers> {
   const desktop = await getLocalWallpaper("desktop");
   const widget = await getLocalWallpaper("widget");
   const mobile = await getLocalWallpaper("mobile");
-  
+
   return { desktop, widget, mobile };
 }

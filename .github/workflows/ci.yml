@@ -6,12 +6,17 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -20,11 +25,18 @@ jobs:
 
       - run: npm ci
 
-      - name: TypeScript Check
-        run: npx tsc --noEmit
+      - name: TypeScript Check (App + API)
+        run: npx tsc --noEmit && npm run typecheck:api
 
-      - name: Unit Tests
+      - name: Unit & Security Tests
         run: npm test
 
-      - name: Build
-        run: npx vite build
+      - name: Production Build
+        run: npm run build
+
+      - name: Bundle Secret Scan
+        run: |
+          if grep -rnE "GOCSPX-|VITE_GOOGLE_CLIENT_SECRET|BEGIN PRIVATE KEY" dist/assets/; then
+            echo "ERROR: Secret detected in production bundle!"
+            exit 1
+          fi

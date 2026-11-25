@@ -11,6 +11,7 @@ import { GoogleDriveIcon } from "../../../../shared/components/GoogleDriveIcon/G
 import { useSpotlightBorder } from "../../../../shared/hooks/useSpotlightBorder";
 import { useAudioRecorder } from "../../hooks/useAudioRecorder";
 import { transcribeAudio, formatTranscribedText, TranscriptionMode } from "../../services/transcriptionService";
+import { loadLocalGroqKey } from "../../../../shared/utils/localSecretStorage";
 import "./DailyNote.css";
 
 interface DailyNoteProps {
@@ -44,9 +45,22 @@ export function DailyNote({ initialNote, dailyResetTime, date }: DailyNoteProps)
   const spotlight = useSpotlightBorder<HTMLDivElement>();
 
   // Voice dictation state
+  const { user } = useAuthContext();
   const userStore = useContext(UserStoreContext);
   const preferredVoiceMode: TranscriptionMode = userStore?.userDoc?.settings?.voiceTranscriptionMode || "local";
-  const groqApiKey = userStore?.userDoc?.settings?.groqApiKey || "";
+  const [groqApiKey, setGroqApiKey] = useState(userStore?.userDoc?.settings?.groqApiKey || "");
+
+  useEffect(() => {
+    let active = true;
+    const uid = user?.uid;
+    if (!uid) return;
+    loadLocalGroqKey(uid).then((localKey) => {
+      if (active && localKey) {
+        setGroqApiKey(localKey);
+      }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [user?.uid]);
 
   const [activeVoiceMode, setActiveVoiceMode] = useState<TranscriptionMode>(preferredVoiceMode);
   const [isTranscribing, setIsTranscribing] = useState(false);

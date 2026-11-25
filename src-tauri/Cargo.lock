@@ -4935,6 +4935,8 @@ dependencies = [
 name = "w-app"
 version = "2.0.0"
 dependencies = [
+ "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "tauri",
@@ -4949,6 +4951,7 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tauri-plugin-updater",
  "tokio",
+ "url",
  "windows 0.58.0",
 ]
 

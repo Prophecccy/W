@@ -1,6 +1,7 @@
 import { get as idbGet, set as idbSet } from "idb-keyval";
 import { emit, listen } from "@tauri-apps/api/event";
-import { decryptNote } from "../utils/noteCrypto";
+import { decryptNote, resetEncryptionKeyCache } from "../utils/noteCrypto";
+import { computePayloadSha256, sanitizeStrikesShape, verifyPayloadSha256 } from "../utils/integrity";
 import { 
   getValidAccessToken, 
   uploadStateToDrive, 
@@ -94,11 +95,23 @@ function cleanPathSegments(segments: (string | undefined | null)[]): string[] {
     .filter((s) => s.length > 0 && s !== "." && s !== "..");
 }
 
+function generateCryptoId(): string {
+  if (typeof crypto !== "undefined") {
+    if (typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    if (typeof crypto.getRandomValues === "function") {
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    }
+  }
+  throw new Error("Cryptographically secure random generator is unavailable.");
+}
+
 export function doc(dbOrCol: any, ...pathSegments: string[]): DocumentReference {
   if (dbOrCol && dbOrCol.type === "collection") {
-    const id = typeof crypto !== "undefined" && crypto.randomUUID 
-      ? crypto.randomUUID() 
-      : Math.random().toString(36).substring(2) + Date.now().toString(36);
+    const id = generateCryptoId();
     const path = `${dbOrCol.path}/${id}`;
     return { type: "document", id, path };
   }
@@ -178,7 +191,7 @@ function scheduleLogFlush() {
 }
 
 function localDbLogDebug(msg: string) {
-  if (typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__) {
+  if (import.meta.env.DEV && typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__) {
     const logLine = `[${new Date().toISOString()}] [localDb]: ${msg}`;
     localDbLogQueue.push(logLine);
     scheduleLogFlush();
@@ -273,12 +286,19 @@ export function arrayUnion(...elements: any[]) {
   return new ArrayUnionFieldValue(elements);
 }
 
+const DANGEROUS_PROTO_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 function setNestedField(obj: any, path: string, value: any) {
   const keys = path.split(".");
+  for (const seg of keys) {
+    if (!seg || DANGEROUS_PROTO_KEYS.has(seg)) {
+      throw new Error(`[localDb Security] Blocked dangerous nested key segment "${seg}".`);
+    }
+  }
   let current = obj;
   for (let i = 0; i < keys.length - 1; i++) {
     const k = keys[i];
-    if (!(k in current) || current[k] == null || typeof current[k] !== "object") {
+    if (!Object.prototype.hasOwnProperty.call(current, k) || current[k] == null || typeof current[k] !== "object") {
       current[k] = {};
     }
     current = current[k];
@@ -410,7 +430,10 @@ export function validateDocumentPayload<T = any>(data: unknown, path: string): T
     }
     const clean: Record<string, any> = {};
     for (const [key, value] of Object.entries(current)) {
-      if (key === "__proto__" || key === "constructor" || key === "prototype") {
+      if (
+        DANGEROUS_PROTO_KEYS.has(key) ||
+        (depth === 0 && key.includes(".") && key.split(".").some((seg) => DANGEROUS_PROTO_KEYS.has(seg)))
+      ) {
         console.warn(`[localDb Security] Prototype pollution key "${key}" neutralized at path "${path}".`);
         continue;
       }
@@ -759,9 +782,12 @@ export const auth = {
     if (!userStr) return null;
     try {
       const u = JSON.parse(userStr);
+      if (!u || typeof u.uid !== "string" || !u.uid.trim()) {
+        return null;
+      }
       return {
         ...u,
-        getIdToken: async () => "mock-token",
+        getIdToken: async () => "",
       };
     } catch {
       return null;
@@ -790,6 +816,9 @@ function triggerAuthChange() {
 }
 
 export async function signInAnonymously(_authInstance: any) {
+  if (!import.meta.env.DEV) {
+    throw new Error("Anonymous sign-in is disabled outside development builds.");
+  }
   const mockUser: LocalUser = {
     uid: "local-user",
     email: null,
@@ -799,7 +828,7 @@ export async function signInAnonymously(_authInstance: any) {
       lastSignInTime: new Date().toISOString(),
       creationTime: new Date().toISOString(),
     },
-    getIdToken: async () => "mock-token",
+    getIdToken: async () => "",
   };
   localStorage.setItem("w_auth_user", JSON.stringify(mockUser));
   triggerAuthChange();
@@ -813,7 +842,8 @@ export async function signOut() {
   localStorage.removeItem("w_gdrive_state_modified_time");
   localStorage.removeItem("w_gdrive_state_last_sync");
   
-  // Clear OAuth credentials
+  // Clear OAuth credentials and in-memory crypto key handles
+  resetEncryptionKeyCache();
   const { clearOAuthTokens } = await import("./googleDriveService");
   await clearOAuthTokens();
 
@@ -871,9 +901,16 @@ export async function syncToGoogleDrive() {
       }
 
       const uid = user.uid;
-      const userDoc = await idbGet(`w_doc_users/${uid}`);
-      if (!userDoc) {
+      const rawUserDoc = await idbGet(`w_doc_users/${uid}`);
+      if (!rawUserDoc) {
         break;
+      }
+
+      // Security: Never sync local API credentials (groqApiKey) to cloud Drive state
+      const userDoc = { ...rawUserDoc };
+      if (userDoc.settings && typeof userDoc.settings === "object") {
+        const { groqApiKey: _stripped, ...safeSettings } = userDoc.settings;
+        userDoc.settings = safeSettings;
       }
 
       const groups = await idbGet(`w_col_users/${uid}/groups`) || {};
@@ -896,8 +933,9 @@ export async function syncToGoogleDrive() {
         undoHistory,
         updatedAt: Date.now(),
       };
+      const integritySha256 = await computePayloadSha256(statePayload);
 
-      const uploadContent = JSON.stringify(statePayload, null, 2);
+      const uploadContent = JSON.stringify({ ...statePayload, integritySha256 }, null, 2);
       const modifiedTime = await uploadStateToDrive(accessToken, uploadContent);
 
       localStorage.setItem("w_gdrive_state_last_sync", Date.now().toString());
@@ -997,15 +1035,39 @@ export async function pullAndMergeFromGoogleDrive(force = false): Promise<boolea
       return false;
     }
 
-    // ─── Ownership Guard: Prevent Cross-Account State Pollution ───
-    if (
-      remoteState.ownerEmail &&
-      user.email &&
-      remoteState.ownerEmail.toLowerCase().trim() !== user.email.toLowerCase().trim()
-    ) {
-      console.error(
-        `[LocalDB] SECURITY ABORT: Remote state owner '${remoteState.ownerEmail}' does not match authenticated user '${user.email}'. Halting sync to prevent cross-account data clobbering.`
-      );
+    // ─── Integrity Verification (OWASP A08) ───
+    if (typeof remoteState.integritySha256 === "string") {
+      const { integritySha256, ...unsignedState } = remoteState;
+      const digestValid = await verifyPayloadSha256(unsignedState, integritySha256);
+      if (!digestValid) {
+        console.error("[LocalDB] SECURITY ABORT: Remote state integritySha256 verification failed.");
+        isSyncing = false;
+        return false;
+      }
+    }
+
+    const normalizedRemoteEmail = typeof remoteState.ownerEmail === "string"
+      ? remoteState.ownerEmail.toLowerCase().trim()
+      : "";
+    const normalizedLocalEmail = typeof user.email === "string"
+      ? user.email.toLowerCase().trim()
+      : "";
+
+    if (normalizedRemoteEmail && normalizedLocalEmail && normalizedRemoteEmail !== normalizedLocalEmail) {
+      console.error("[LocalDB] SECURITY ABORT: Remote state ownerEmail does not match authenticated user.");
+      isSyncing = false;
+      return false;
+    }
+
+    const hasVerifiedEmailMatch = Boolean(normalizedRemoteEmail && normalizedLocalEmail && normalizedRemoteEmail === normalizedLocalEmail);
+    if (remoteState.ownerUid && user.uid && remoteState.ownerUid !== user.uid && !hasVerifiedEmailMatch) {
+      console.error("[LocalDB] SECURITY ABORT: Remote state ownerUid mismatch without verified email match.");
+      isSyncing = false;
+      return false;
+    }
+
+    if (remoteState.version === 2 && !normalizedRemoteEmail) {
+      console.error("[LocalDB] SECURITY ABORT: v2 remote state missing ownerEmail.");
       isSyncing = false;
       return false;
     }
@@ -1018,14 +1080,29 @@ export async function pullAndMergeFromGoogleDrive(force = false): Promise<boolea
     const localUndoHistory = await idbGet(`w_col_users/${uid}/undoHistory`) || {};
 
     const mergedUser = mergeObject(localUserDoc, remoteState.user);
-    const mergedGroups = mergeCollection(localGroups, remoteState.groups);
-    const mergedHabits = mergeCollection(localHabits, remoteState.habits);
-    const mergedLogs = mergeLogsCollection(localLogs, remoteState.logs);
-    const mergedTodos = mergeCollection(localTodos, remoteState.todos);
-    const mergedStickyNotes = mergeCollection(localStickyNotes, remoteState.stickyNotes);
-    const mergedUndoHistory = mergeCollection(localUndoHistory, remoteState.undoHistory);
+    if (mergedUser && typeof mergedUser === "object") {
+      // Preserve local-only groqApiKey if present; never accept remote groqApiKey injection
+      if (mergedUser.settings && typeof mergedUser.settings === "object") {
+        delete mergedUser.settings.groqApiKey;
+        if (localUserDoc?.settings?.groqApiKey) {
+          mergedUser.settings.groqApiKey = localUserDoc.settings.groqApiKey;
+        }
+      }
+      const boundedStrikes = sanitizeStrikesShape(mergedUser.strikes);
+      if (boundedStrikes) {
+        mergedUser.strikes = boundedStrikes;
+      }
+    }
 
-    await idbSet(`w_doc_users/${uid}`, mergedUser);
+    const sanitizedUser = mergedUser ? validateDocumentPayload(mergedUser, `users/${uid}`) : null;
+    const mergedGroups = validateDocumentPayload(mergeCollection(localGroups, remoteState.groups), `users/${uid}/groups`);
+    const mergedHabits = validateDocumentPayload(mergeCollection(localHabits, remoteState.habits), `users/${uid}/habits`);
+    const mergedLogs = validateDocumentPayload(mergeLogsCollection(localLogs, remoteState.logs), `users/${uid}/logs`);
+    const mergedTodos = validateDocumentPayload(mergeCollection(localTodos, remoteState.todos), `users/${uid}/todos`);
+    const mergedStickyNotes = validateDocumentPayload(mergeCollection(localStickyNotes, remoteState.stickyNotes), `users/${uid}/sticky-notes`);
+    const mergedUndoHistory = validateDocumentPayload(mergeCollection(localUndoHistory, remoteState.undoHistory), `users/${uid}/undoHistory`);
+
+    await idbSet(`w_doc_users/${uid}`, sanitizedUser);
     await idbSet(`w_col_users/${uid}/groups`, mergedGroups);
     await idbSet(`w_col_users/${uid}/habits`, mergedHabits);
     await idbSet(`w_col_users/${uid}/logs`, mergedLogs);

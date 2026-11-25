@@ -1,46 +1,33 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // ── User documents ─────────────────────────────────────────────
-    match /users/{uid} {
-      // READ: any authenticated user (including anonymous) can read their own doc
-      allow read: if request.auth != null && request.auth.uid == uid;
-
-      // CREATE: authenticated user can create their own doc
-      // Uses request.resource.data.uid (the INCOMING data) since no doc exists yet.
-      // This handles both Google Auth and Anonymous Auth (dev-skip).
-      allow create: if request.auth != null
-                    && request.auth.uid == uid
-                    && request.resource.data.uid == uid;
-
-      // UPDATE: owner only, and read-only fields (uid, createdAt) cannot be modified
-      allow update: if request.auth != null
-                    && request.auth.uid == uid
-                    && request.resource.data.uid == resource.data.uid
-                    && request.resource.data.createdAt == resource.data.createdAt;
-
-      // DELETE: owner only
-      allow delete: if request.auth != null && request.auth.uid == uid;
-
-      // ── Logs subcollection — NOTES CONTENT BLOCKED ──────────────────
-      // Daily notes are local-only (IndexedDB + Google Drive).
-      // Firestore REJECTS any write containing actual note text.
-      // This is the server-side "rock" — you can't hack what won't store it.
-      match /logs/{logId} {
-        allow read: if request.auth != null && request.auth.uid == uid;
-        allow write: if request.auth != null
-                     && request.auth.uid == uid
-                     && (!request.resource.data.keys().hasAny(['notes'])
-                         || request.resource.data.notes == ""
-                         || request.resource.data.notes == null);
-      }
-
-      // ── All other subcollections (habits, todos, groups, etc.) ───
-      match /{subcollection}/{docId} {
-        allow read, write: if request.auth != null && request.auth.uid == uid
-                           && subcollection != 'logs';
-      }
+    // ── Default-Deny Security Posture ────────────────────────────────
+    // [ W ] is local-first (IndexedDB + Google Drive W_state.json).
+    // Firestore is decommissioned; all direct client reads and writes
+    // are explicitly denied to prevent unauthorized access or abuse.
+    match /{document=**} {
+      allow read, write: if false;
     }
+
+    // ── Reference Template (ONLY if Firestore is ever re-enabled) ────
+    // Never use wildcard subcollections (`/{subcollection}/{docId}`) and
+    // never allow clients to self-assign roles (`role`, `isAdmin`).
+    //
+    // match /users/{uid} {
+    //   allow read: if request.auth != null
+    //               && request.auth.token.firebase.sign_in_provider != 'anonymous'
+    //               && request.auth.uid == uid;
+    //   allow create, update: if request.auth != null
+    //                         && request.auth.uid == uid
+    //                         && request.resource.data.keys().hasOnly([
+    //                              'uid', 'email', 'displayName', 'settings',
+    //                              'aesthetics', 'wallpapers', 'strikes', 'freeze',
+    //                              'lockdown', 'lastActiveDate', 'hasOnboarded', 'createdAt'
+    //                            ])
+    //                         && !request.resource.data.keys().hasAny(['role', 'isAdmin', 'plan']);
+    // }
+    // match /admin/{docId} {
+    //   allow read, write: if request.auth != null && request.auth.token.role == 'admin';
+    // }
   }
 }

@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "tray-menu",
+  "description": "Least-privilege capability for the system tray popup menu",
+  "windows": ["tray-menu"],
+  "permissions": [
+    "core:default",
+    "core:event:default"
+  ]
+}

@@ -96,7 +96,11 @@ use tauri::Manager;
 
 /// Pin the widget to the bottom of the Z-order (behind everything else).
 #[tauri::command]
-pub fn embed_widget_in_desktop(app: tauri::AppHandle) -> Result<(), String> {
+pub fn embed_widget_in_desktop(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    crate::require_window_label(&window, &["main", "widget"])?;
     #[cfg(target_os = "windows")]
     {
         if let Some(widget_window) = app.get_webview_window("widget") {
@@ -122,7 +126,11 @@ pub fn embed_widget_in_desktop(app: tauri::AppHandle) -> Result<(), String> {
 
 /// Unpin the widget from the bottom.
 #[tauri::command]
-pub fn detach_widget_from_desktop(app: tauri::AppHandle) -> Result<(), String> {
+pub fn detach_widget_from_desktop(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    crate::require_window_label(&window, &["main"])?;
     #[cfg(target_os = "windows")]
     {
         if let Some(widget_window) = app.get_webview_window("widget") {
@@ -141,9 +149,8 @@ pub fn detach_widget_from_desktop(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Re-pin widget to bottom after a drag or focus event.
-#[tauri::command]
-pub fn pin_widget_bottom(app: tauri::AppHandle) -> Result<(), String> {
+/// Internal helper to re-pin widget and sticky overlay to bottom of Z-order.
+pub(crate) fn pin_widget_bottom_inner(app: &tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         use windows::Win32::UI::WindowsAndMessaging::{
@@ -183,9 +190,25 @@ pub fn pin_widget_bottom(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Re-pin widget to bottom after a drag or focus event.
+#[tauri::command]
+pub fn pin_widget_bottom(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    crate::require_window_label(&window, &["main", "widget"])?;
+    pin_widget_bottom_inner(&app)
+}
+
 /// Move the widget window by (dx, dy) pixels — fully native, no async.
 #[tauri::command]
-pub fn move_widget_by(app: tauri::AppHandle, dx: i32, dy: i32) -> Result<(), String> {
+pub fn move_widget_by(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    dx: i32,
+    dy: i32,
+) -> Result<(), String> {
+    crate::require_window_label(&window, &["widget"])?;
     // Validate bounds: prevent integer overflow or offscreen coordinate corruption
     if dx.abs() > 4000 || dy.abs() > 4000 {
         return Err("Move delta exceeds allowable display boundaries (-4000..4000)".to_string());

@@ -27,6 +27,7 @@ static POLLING_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::Ato
 static BLOCKLIST: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static END_TIME: Mutex<Option<std::time::Instant>> = Mutex::new(None);
 static BLOCKED_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
+static BLOCKED_HWNDS: Mutex<Vec<isize>> = Mutex::new(Vec::new());
 static TAB_CLOSE_SUPPRESSION_UNTIL: Mutex<Option<std::time::Instant>> = Mutex::new(None);
 static POLLING_THREAD: Mutex<Option<thread::JoinHandle<()>>> = Mutex::new(None);
 
@@ -448,6 +449,17 @@ fn start_polling(app_handle: tauri::AppHandle) -> Result<(), String> {
                             }
                         }
 
+                        if info.hwnd != 0 {
+                            if let Ok(mut hwnds) = BLOCKED_HWNDS.lock() {
+                                if !hwnds.contains(&info.hwnd) {
+                                    hwnds.push(info.hwnd);
+                                    if hwnds.len() > 50 {
+                                        hwnds.remove(0);
+                                    }
+                                }
+                            }
+                        }
+
                         let _ = app_handle.emit("lockdown-block", payload);
                     } else {
                         // Non-blocked, non-self window has focus
@@ -502,10 +514,12 @@ fn stop_polling() {
 
 #[tauri::command]
 pub fn start_lockdown_monitor(
+    window: tauri::WebviewWindow,
     app: tauri::AppHandle,
     blocklist: Vec<String>,
     remaining_secs: Option<u64>,
 ) -> Result<(), String> {
+    crate::require_window_label(&window, &["main"])?;
     eprintln!(
         "[lockdown] start_lockdown_monitor called with {} items (remaining: {:?}s)",
         blocklist.len(),
@@ -524,6 +538,10 @@ pub fn start_lockdown_monitor(
     pids.clear();
     drop(pids);
 
+    let mut hwnds = BLOCKED_HWNDS.lock().map_err(|_| "BLOCKED_HWNDS mutex is poisoned".to_string())?;
+    hwnds.clear();
+    drop(hwnds);
+
     let mut end_guard = END_TIME.lock().map_err(|_| "END_TIME mutex is poisoned".to_string())?;
     if let Some(secs) = remaining_secs {
         *end_guard = Some(std::time::Instant::now() + std::time::Duration::from_secs(secs));
@@ -537,7 +555,8 @@ pub fn start_lockdown_monitor(
 }
 
 #[tauri::command]
-pub fn stop_lockdown_monitor() -> Result<(), String> {
+pub fn stop_lockdown_monitor(window: tauri::WebviewWindow) -> Result<(), String> {
+    crate::require_window_label(&window, &["main"])?;
     eprintln!("[lockdown] stop_lockdown_monitor called");
     let mut end_guard = END_TIME.lock().map_err(|_| "END_TIME mutex is poisoned".to_string())?;
     *end_guard = None;
@@ -547,12 +566,20 @@ pub fn stop_lockdown_monitor() -> Result<(), String> {
     pids.clear();
     drop(pids);
 
+    let mut hwnds = BLOCKED_HWNDS.lock().map_err(|_| "BLOCKED_HWNDS mutex is poisoned".to_string())?;
+    hwnds.clear();
+    drop(hwnds);
+
     stop_polling();
     Ok(())
 }
 
 #[tauri::command]
-pub fn update_lockdown_blocklist(blocklist: Vec<String>) -> Result<(), String> {
+pub fn update_lockdown_blocklist(
+    window: tauri::WebviewWindow,
+    blocklist: Vec<String>,
+) -> Result<(), String> {
+    crate::require_window_label(&window, &["main"])?;
     eprintln!(
         "[lockdown] update_lockdown_blocklist called with {} items",
         blocklist.len()
@@ -592,7 +619,11 @@ pub fn update_lockdown_blocklist(blocklist: Vec<String>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn update_lockdown_remaining(remaining_secs: Option<u64>) -> Result<(), String> {
+pub fn update_lockdown_remaining(
+    window: tauri::WebviewWindow,
+    remaining_secs: Option<u64>,
+) -> Result<(), String> {
+    crate::require_window_label(&window, &["main"])?;
     eprintln!("[lockdown] update_lockdown_remaining called: {:?}", remaining_secs);
     let mut end_guard = END_TIME.lock().map_err(|_| "END_TIME mutex is poisoned".to_string())?;
     if let Some(secs) = remaining_secs {
@@ -607,38 +638,125 @@ pub fn update_lockdown_remaining(remaining_secs: Option<u64>) -> Result<(), Stri
 
 /// Debug command: fires a fake lockdown-block event to test the overlay pipeline.
 #[tauri::command]
-pub fn test_lockdown_block(app: tauri::AppHandle) -> Result<(), String> {
-    eprintln!("[lockdown] test_lockdown_block — firing fake event");
-    
-    // Safety check: only allow test in debug mode or if lockdown is active
-    let active = LOCKDOWN_RUNNING.load(Ordering::SeqCst);
-    if !active {
-        return Err("Lockdown is not active. Test event ignored.".to_string());
+pub fn test_lockdown_block(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = (&window, &app);
+        return Err("Debug lockdown test command is disabled in release builds".to_string());
     }
+    #[cfg(debug_assertions)]
+    {
+        crate::require_window_label(&window, &["main"])?;
+        eprintln!("[lockdown] test_lockdown_block — firing fake event");
 
-    let payload = BlockPayload {
-        app_title: "TEST APP".to_string(),
-        matched_rule: "test".to_string(),
-        pid: 0,
-        hwnd: 0,
-        is_browser: false,
-        x: 100,
-        y: 100,
-        width: 800,
-        height: 600,
-    };
-    app.emit("lockdown-block", payload)
-        .map_err(|e| format!("emit failed: {}", e))?;
-    eprintln!("[lockdown] test_lockdown_block — event emitted OK");
-    Ok(())
+        // Safety check: only allow test when lockdown is active
+        let active = LOCKDOWN_RUNNING.load(Ordering::SeqCst);
+        if !active {
+            return Err("Lockdown is not active. Test event ignored.".to_string());
+        }
+
+        let payload = BlockPayload {
+            app_title: "TEST APP".to_string(),
+            matched_rule: "test".to_string(),
+            pid: 0,
+            hwnd: 0,
+            is_browser: false,
+            x: 100,
+            y: 100,
+            width: 800,
+            height: 600,
+        };
+        app.emit("lockdown-block", payload)
+            .map_err(|e| format!("emit failed: {}", e))?;
+        eprintln!("[lockdown] test_lockdown_block — event emitted OK");
+        Ok(())
+    }
 }
 
 /// Close only the active tab of a blocked browser window using synthesized Ctrl+W keystroke.
 #[tauri::command]
-pub fn close_blocked_tab(app: tauri::AppHandle, hwnd: isize, pid: u32) -> Result<(), String> {
+pub fn close_blocked_tab(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    hwnd: isize,
+    pid: u32,
+) -> Result<(), String> {
+    crate::require_window_label(&window, &["block-overlay"])?;
+    if !LOCKDOWN_RUNNING.load(Ordering::SeqCst) {
+        return Err("Lockdown monitor is not active".to_string());
+    }
+
+    let own_pid = std::process::id();
+    if hwnd == 0 || pid == 0 || pid == own_pid {
+        return Err("Invalid blocked tab target".to_string());
+    }
+
+    let is_blocked_pid = BLOCKED_PIDS
+        .lock()
+        .map_err(|_| "BLOCKED_PIDS mutex is poisoned".to_string())?
+        .contains(&pid);
+    if !is_blocked_pid {
+        crate::security_audit::record(
+            Some(&app),
+            "HIGH",
+            "LOCKDOWN_IPC_DENIED",
+            window.label(),
+            "close_blocked_tab_pid_not_blocked",
+        );
+        return Err("PID is not in the blocked list".to_string());
+    }
+
+    let is_blocked_hwnd = BLOCKED_HWNDS
+        .lock()
+        .map_err(|_| "BLOCKED_HWNDS mutex is poisoned".to_string())?
+        .contains(&hwnd);
+    if !is_blocked_hwnd {
+        crate::security_audit::record(
+            Some(&app),
+            "HIGH",
+            "LOCKDOWN_IPC_DENIED",
+            window.label(),
+            "close_blocked_tab_hwnd_not_blocked",
+        );
+        return Err("Window handle is not in the blocked list".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::UI::WindowsAndMessaging::{GetWindowThreadProcessId, IsWindow};
+
+        match platform::get_exe_name_by_pid(pid) {
+            Some(exe) if is_browser_process(&exe) => {}
+            _ => return Err("Target PID is no longer an active browser process".to_string()),
+        }
+
+        let target_hwnd = HWND(hwnd as *mut _);
+        unsafe {
+            if !IsWindow(target_hwnd).as_bool() {
+                return Err("Target window is no longer valid".to_string());
+            }
+            let mut actual_pid: u32 = 0;
+            GetWindowThreadProcessId(target_hwnd, Some(&mut actual_pid));
+            if actual_pid != pid {
+                crate::security_audit::record(
+                    Some(&app),
+                    "HIGH",
+                    "LOCKDOWN_PID_MISMATCH",
+                    window.label(),
+                    "close_blocked_tab_hwnd_pid_mismatch",
+                );
+                return Err("Window handle PID does not match blocked PID".to_string());
+            }
+        }
+    }
+
     eprintln!("[lockdown] close_blocked_tab called for HWND {:X}, PID {}", hwnd, pid);
 
-    // 1. Immediately activate tab-close suppression for 2.5 seconds to prevent race conditions
+    // 1. Activate tab-close suppression for 2.5 seconds only after caller and target are verified
     if let Ok(mut guard) = TAB_CLOSE_SUPPRESSION_UNTIL.lock() {
         *guard = Some(std::time::Instant::now() + Duration::from_millis(2500));
     }
@@ -660,10 +778,6 @@ pub fn close_blocked_tab(app: tauri::AppHandle, hwnd: isize, pid: u32) -> Result
             SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
             KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CONTROL, SetFocus,
         };
-
-        if hwnd == 0 {
-            return Err("Invalid window handle (0)".to_string());
-        }
 
         let target_hwnd = HWND(hwnd as *mut _);
 
@@ -787,7 +901,14 @@ pub fn close_blocked_tab(app: tauri::AppHandle, hwnd: isize, pid: u32) -> Result
 
 /// Kill a blocked process by PID. Called when the user clicks "Close" on the overlay.
 #[tauri::command]
-pub fn kill_blocked_process(pid: u32) -> Result<(), String> {
+pub fn kill_blocked_process(
+    window: tauri::WebviewWindow,
+    pid: u32,
+) -> Result<(), String> {
+    crate::require_window_label(&window, &["block-overlay"])?;
+    if !LOCKDOWN_RUNNING.load(Ordering::SeqCst) {
+        return Err("Lockdown monitor is not active".to_string());
+    }
     eprintln!("[lockdown] kill_blocked_process called for PID {}", pid);
 
     // Safety: never allow killing our own process
@@ -802,6 +923,13 @@ pub fn kill_blocked_process(pid: u32) -> Result<(), String> {
     drop(pids);
 
     if !is_blocked {
+        crate::security_audit::record(
+            Some(window.app_handle()),
+            "HIGH",
+            "LOCKDOWN_IPC_DENIED",
+            window.label(),
+            "kill_blocked_process_pid_not_blocked",
+        );
         return Err("PID is not in the blocked list".to_string());
     }
 

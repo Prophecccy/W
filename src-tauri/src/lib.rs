@@ -9,6 +9,8 @@ use std::sync::OnceLock;
 mod workerw;
 mod sticky_overlay;
 mod lockdown;
+mod secure_store;
+mod security_audit;
 
 static ALLOW_CLOSE: AtomicBool = AtomicBool::new(false);
 static HIDDEN_OWNER_HWND: OnceLock<isize> = OnceLock::new();
@@ -59,14 +61,37 @@ pub fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-#[tauri::command]
-fn allow_app_close() {
-    ALLOW_CLOSE.store(true, Ordering::SeqCst);
+pub(crate) fn require_window_label(
+    window: &tauri::WebviewWindow,
+    allowed: &[&str],
+) -> Result<(), String> {
+    let label = window.label();
+    if allowed.iter().any(|candidate| *candidate == label) {
+        Ok(())
+    } else {
+        security_audit::record(
+            Some(window.app_handle()),
+            "HIGH",
+            "IPC_UNAUTHORIZED_WINDOW",
+            label,
+            &format!("allowed={:?}", allowed),
+        );
+        Err(format!("Unauthorized IPC caller window: {label}"))
+    }
 }
 
 #[tauri::command]
-fn exit_app(app: tauri::AppHandle) {
+fn allow_app_close(window: tauri::WebviewWindow) -> Result<(), String> {
+    require_window_label(&window, &["main"])?;
+    ALLOW_CLOSE.store(true, Ordering::SeqCst);
+    Ok(())
+}
+
+#[tauri::command]
+fn exit_app(window: tauri::WebviewWindow, app: tauri::AppHandle) -> Result<(), String> {
+    require_window_label(&window, &["main"])?;
     app.exit(0);
+    Ok(())
 }
 
 #[derive(serde::Serialize)]
@@ -77,7 +102,11 @@ pub struct TrayState {
 }
 
 #[tauri::command]
-fn get_tray_state(app: tauri::AppHandle) -> TrayState {
+fn get_tray_state(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+) -> Result<TrayState, String> {
+    require_window_label(&window, &["tray-menu"])?;
     let widget_visible = app.get_webview_window("widget")
         .and_then(|w| w.is_visible().ok())
         .unwrap_or(false);
@@ -85,15 +114,19 @@ fn get_tray_state(app: tauri::AppHandle) -> TrayState {
         .and_then(|w| w.is_visible().ok())
         .unwrap_or(false);
     let version = app.package_info().version.to_string();
-    TrayState {
+    Ok(TrayState {
         widget_visible,
         sticky_visible,
         version,
-    }
+    })
 }
 
 #[tauri::command]
-fn tray_show_main(app: tauri::AppHandle) {
+fn tray_show_main(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    require_window_label(&window, &["tray-menu"])?;
     if let Some(win) = app.get_webview_window("tray-menu") {
         let _ = win.hide();
     }
@@ -113,10 +146,15 @@ fn tray_show_main(app: tauri::AppHandle) {
             }
         }
     }
+    Ok(())
 }
 
 #[tauri::command]
-fn tray_toggle_widget(app: tauri::AppHandle) -> bool {
+fn tray_toggle_widget(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+) -> Result<bool, String> {
+    require_window_label(&window, &["tray-menu"])?;
     let mut new_state = false;
     if let Some(win) = app.get_webview_window("widget") {
         if win.is_visible().unwrap_or(false) {
@@ -124,18 +162,22 @@ fn tray_toggle_widget(app: tauri::AppHandle) -> bool {
             new_state = false;
         } else {
             let _ = win.show();
-            let _ = workerw::pin_widget_bottom(app.clone());
+            let _ = workerw::pin_widget_bottom_inner(&app);
             new_state = true;
         }
     }
     if let Some(win) = app.get_webview_window("tray-menu") {
         let _ = win.hide();
     }
-    new_state
+    Ok(new_state)
 }
 
 #[tauri::command]
-fn tray_toggle_sticky(app: tauri::AppHandle) -> bool {
+fn tray_toggle_sticky(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+) -> Result<bool, String> {
+    require_window_label(&window, &["tray-menu"])?;
     let mut new_state = false;
     if let Some(win) = app.get_webview_window("sticky-overlay") {
         if win.is_visible().unwrap_or(false) {
@@ -143,25 +185,34 @@ fn tray_toggle_sticky(app: tauri::AppHandle) -> bool {
             new_state = false;
         } else {
             let _ = win.show();
-            let _ = workerw::pin_widget_bottom(app.clone());
+            let _ = workerw::pin_widget_bottom_inner(&app);
             new_state = true;
         }
     }
     if let Some(win) = app.get_webview_window("tray-menu") {
         let _ = win.hide();
     }
-    new_state
+    Ok(new_state)
 }
 
 #[tauri::command]
-fn tray_hide_menu(app: tauri::AppHandle) {
+fn tray_hide_menu(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    require_window_label(&window, &["tray-menu"])?;
     if let Some(win) = app.get_webview_window("tray-menu") {
         let _ = win.hide();
     }
+    Ok(())
 }
 
 #[tauri::command]
-fn tray_quit_app(app: tauri::AppHandle) {
+fn tray_quit_app(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    require_window_label(&window, &["tray-menu"])?;
     if let Some(win) = app.get_webview_window("tray-menu") {
         let _ = win.hide();
     }
@@ -171,6 +222,7 @@ fn tray_quit_app(app: tauri::AppHandle) {
         std::thread::sleep(std::time::Duration::from_millis(500));
         app_clone.exit(0);
     });
+    Ok(())
 }
 
 
@@ -453,7 +505,12 @@ pub fn run() {
             tray_toggle_widget,
             tray_toggle_sticky,
             tray_hide_menu,
-            tray_quit_app
+            tray_quit_app,
+            secure_store::secure_store_set,
+            secure_store::secure_store_get,
+            secure_store::secure_store_delete,
+            secure_store::oauth_exchange_desktop_code,
+            secure_store::oauth_refresh_desktop_token
         ])
         .on_window_event(|window, event| {
             let label = window.label().to_string();
@@ -516,7 +573,7 @@ pub fn run() {
                             }
                         } else {
                             // Immediately push to bottom when window loses focus
-                            let _ = workerw::pin_widget_bottom(window.app_handle().clone());
+                            let _ = workerw::pin_widget_bottom_inner(&window.app_handle());
                         }
                     }
                     tauri::WindowEvent::Moved(_) => {

@@ -1,11 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "default",
-  "description": "Capability for the main window, sticky overlay, and widget",
-  "windows": ["main", "sticky-overlay", "widget", "block-overlay", "todo-creator", "tray-menu"],
-  "remote": {
-    "urls": ["http://localhost:1420", "http://localhost:1420/**"]
-  },
+  "identifier": "main",
+  "description": "Least-privilege capability for the primary W Command Center window",
+  "windows": ["main"],
   "permissions": [
     "core:default",
     "opener:default",
@@ -17,40 +14,47 @@
     "fs:allow-appdata-write",
     {
       "identifier": "fs:allow-read",
-      "allow": [{ "path": "$APPDATA/**" }]
+      "allow": [{ "path": "$APPDATA/**" }],
+      "deny": [{ "path": "$APPDATA/.vault" }, { "path": "$APPDATA/.vault/**" }]
     },
     {
       "identifier": "fs:allow-write",
-      "allow": [{ "path": "$APPDATA/**" }]
+      "allow": [{ "path": "$APPDATA/**" }],
+      "deny": [{ "path": "$APPDATA/.vault" }, { "path": "$APPDATA/.vault/**" }]
     },
     {
       "identifier": "fs:allow-exists",
-      "allow": [{ "path": "$APPDATA/**" }]
+      "allow": [{ "path": "$APPDATA/**" }],
+      "deny": [{ "path": "$APPDATA/.vault" }, { "path": "$APPDATA/.vault/**" }]
     },
     {
       "identifier": "fs:allow-mkdir",
-      "allow": [{ "path": "$APPDATA/**" }]
+      "allow": [{ "path": "$APPDATA/**" }],
+      "deny": [{ "path": "$APPDATA/.vault" }, { "path": "$APPDATA/.vault/**" }]
     },
     {
       "identifier": "fs:allow-read-text-file",
-      "allow": [{ "path": "$APPDATA/**" }]
+      "allow": [{ "path": "$APPDATA/**" }],
+      "deny": [{ "path": "$APPDATA/.vault" }, { "path": "$APPDATA/.vault/**" }]
     },
     {
       "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "$APPDATA/**" }]
+      "allow": [{ "path": "$APPDATA/**" }],
+      "deny": [{ "path": "$APPDATA/.vault" }, { "path": "$APPDATA/.vault/**" }]
     },
     {
       "identifier": "fs:allow-read-dir",
-      "allow": [{ "path": "$APPDATA/**" }]
+      "allow": [{ "path": "$APPDATA/**" }],
+      "deny": [{ "path": "$APPDATA/.vault" }, { "path": "$APPDATA/.vault/**" }]
     },
     {
       "identifier": "fs:allow-remove",
-      "allow": [{ "path": "$APPDATA/**" }]
+      "allow": [{ "path": "$APPDATA/**" }],
+      "deny": [{ "path": "$APPDATA/.vault" }, { "path": "$APPDATA/.vault/**" }]
     },
     "core:window:allow-show",
     "core:window:allow-hide",
     "core:window:allow-close",
-    "core:window:allow-set-ignore-cursor-events",
     "core:window:allow-available-monitors",
     "core:window:allow-set-fullscreen",
     "core:window:allow-set-always-on-bottom",

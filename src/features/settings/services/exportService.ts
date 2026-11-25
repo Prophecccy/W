@@ -1,4 +1,5 @@
 import { db, auth, collection, getDocs } from "../../../shared/config/firebase";
+import { computePayloadSha256 } from "../../../shared/utils/integrity";
 import { getUserDoc } from "../../auth/services/userService";
 import { getLocalNoteHistory } from "../../logs/services/localLogService";
 
@@ -20,7 +21,12 @@ async function getAllCollectionData(collectionName: string): Promise<Record<stri
 
 export async function exportJSON(): Promise<boolean> {
   const userId = uid();
-  const userDoc = await getUserDoc(userId);
+  const rawUserDoc = await getUserDoc(userId);
+  const userDoc = rawUserDoc ? { ...rawUserDoc } : rawUserDoc;
+  if (userDoc?.settings && typeof userDoc.settings === "object") {
+    const { groqApiKey: _stripped, ...safeSettings } = userDoc.settings;
+    userDoc.settings = safeSettings as typeof userDoc.settings;
+  }
   const habits = await getAllCollectionData("habits");
   const todos = await getAllCollectionData("todos");
   const logs = await getAllCollectionData("logs");
@@ -28,7 +34,7 @@ export async function exportJSON(): Promise<boolean> {
   const stickyNotes = await getAllCollectionData("sticky-notes");
   const dailyNotes = await getLocalNoteHistory();
 
-  const data = {
+  const unsigned = {
     exportedAt: new Date().toISOString(),
     user: userDoc,
     habits,
@@ -38,6 +44,8 @@ export async function exportJSON(): Promise<boolean> {
     "sticky-notes": stickyNotes,
     dailyNotes,
   };
+  const integritySha256 = await computePayloadSha256(unsigned);
+  const data = { ...unsigned, integritySha256 };
 
   const json = JSON.stringify(data, null, 2);
   const now = new Date();
@@ -158,11 +166,17 @@ export async function exportCSV(): Promise<boolean> {
 
 // ─── Utilities ──────────────────────────────────────────────────
 
-function escapeCSV(value: string): string {
-  if (value.includes(",") || value.includes('"') || value.includes("\n") || value.includes("\r")) {
-    return `"${value.replace(/"/g, '""')}"`;
+const CSV_FORMULA_PREFIX_REGEX = /^[\s\u0000]*[=+\-@\t\r]/;
+
+export function escapeCSV(value: string): string {
+  const withoutNulls = value.replace(/\0/g, "");
+  const safe = CSV_FORMULA_PREFIX_REGEX.test(withoutNulls)
+    ? `'${withoutNulls}`
+    : withoutNulls;
+  if (safe.includes(",") || safe.includes('"') || safe.includes("\n") || safe.includes("\r")) {
+    return `"${safe.replace(/"/g, '""')}"`;
   }
-  return value;
+  return safe;
 }
 
 async function saveFileAs(content: string, filename: string, mimeType: string, ext: string): Promise<boolean> {

@@ -5,15 +5,72 @@ import {
   saveDownloadedNote
 } from "../../features/logs/services/localLogService";
 import { getToday } from "../utils/dateUtils";
+import { validateIsoDate } from "../utils/security";
 import { get as idbGet, set as idbSet } from "idb-keyval";
 import { isTauri } from "../utils/tauri";
 
-const REFRESH_TOKEN_KEY = "w_gdrive_refresh_token";
-const ACCESS_TOKEN_KEY = "w_gdrive_access_token";
-const EXPIRES_AT_KEY = "w_gdrive_expires_at";
+const DRIVE_ID_REGEX = /^[A-Za-z0-9_-]{8,128}$/;
+
+/**
+ * Escapes backslashes and single quotes before interpolating values into Drive API `q=` strings.
+ */
+export function escapeDriveQueryLiteral(value: string): string {
+  return value
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'");
+}
+
+/**
+ * Validates that a Google Drive file/folder ID matches Drive's safe identifier grammar.
+ */
+export function isValidDriveId(id: unknown): id is string {
+  return typeof id === "string" && DRIVE_ID_REGEX.test(id);
+}
+
+export function assertValidDriveId(id: unknown, context: string): string {
+  if (!isValidDriveId(id)) {
+    throw new Error(`[GDrive Security] Rejected malformed Drive ID for ${context}.`);
+  }
+  return id;
+}
+
 const USER_EMAIL_KEY = "w_gdrive_user_email";
 const FOLDER_CACHE_KEY = "w_gdrive_folder_cache";
 const TOKENS_FILE = "gdrive_session.json";
+
+// Legacy localStorage token keys scrubbed on init/logout so tokens never persist in Web localStorage
+const LEGACY_TOKEN_KEYS = [
+  "w_gdrive_refresh_token",
+  "w_gdrive_access_token",
+  "w_gdrive_expires_at",
+];
+
+// In-memory ephemeral access token for Web/Mobile BFF sessions (refresh token lives solely in HttpOnly cookie)
+let webMemoryAccessToken: string | null = null;
+let webMemoryExpiresAt = 0;
+
+export function setWebMemoryToken(accessToken: string, expiresInSeconds: number): void {
+  webMemoryAccessToken = accessToken;
+  const safeTtl = Number.isFinite(expiresInSeconds) && expiresInSeconds > 0 ? expiresInSeconds : 3600;
+  webMemoryExpiresAt = Date.now() + safeTtl * 1000;
+}
+
+export function clearWebMemoryToken(): void {
+  webMemoryAccessToken = null;
+  webMemoryExpiresAt = 0;
+}
+
+function scrubLegacyWebTokenStorage(): void {
+  if (typeof localStorage === "undefined") return;
+  for (const key of LEGACY_TOKEN_KEYS) {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
+  }
+}
 
 export interface GDriveTokens {
   accessToken: string;
@@ -36,6 +93,7 @@ export interface OAuthSession {
 
 let cachedSession: OAuthSession | null = null;
 let isSessionInitialized = false;
+let refreshTokenInFlight: Promise<string | null> | null = null;
 
 // Helper to asynchronously initialize the session cache from file or localStorage
 async function ensureSessionInitialized(): Promise<void> {
@@ -43,33 +101,28 @@ async function ensureSessionInitialized(): Promise<void> {
 
   if (isTauri()) {
     try {
-      const { exists, readTextFile, BaseDirectory } = await import("@tauri-apps/plugin-fs");
-      if (await exists(TOKENS_FILE, { baseDir: BaseDirectory.AppData })) {
-        const contents = await readTextFile(TOKENS_FILE, { baseDir: BaseDirectory.AppData });
-        cachedSession = JSON.parse(contents) as OAuthSession;
-        console.info("[GDrive Service] OAuth session loaded from AppData secure storage.");
+      const { invoke } = await import("@tauri-apps/api/core");
+      const dpapiContents = await invoke<string | null>("secure_store_get", { key: "gdrive_session" });
+      if (dpapiContents) {
+        cachedSession = JSON.parse(dpapiContents) as OAuthSession;
+        console.info("[GDrive Service] OAuth session loaded from DPAPI vault.");
+      } else {
+        // One-time migration from legacy plaintext AppData file into DPAPI vault
+        const { exists, readTextFile, remove, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+        if (await exists(TOKENS_FILE, { baseDir: BaseDirectory.AppData })) {
+          const contents = await readTextFile(TOKENS_FILE, { baseDir: BaseDirectory.AppData });
+          cachedSession = JSON.parse(contents) as OAuthSession;
+          await invoke("secure_store_set", { key: "gdrive_session", value: contents }).catch(() => {});
+          await remove(TOKENS_FILE, { baseDir: BaseDirectory.AppData }).catch(() => {});
+          console.info("[GDrive Service] Migrated legacy OAuth session into DPAPI vault.");
+        }
       }
     } catch (e) {
-      console.error("[GDrive Service] Failed to load OAuth session from AppData:", e);
+      console.error("[GDrive Service] Failed to load OAuth session from DPAPI vault:", e);
     }
   } else {
-    try {
-      const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-      const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-      const expiresAtStr = localStorage.getItem(EXPIRES_AT_KEY);
-      const userEmail = localStorage.getItem(USER_EMAIL_KEY);
-      if (accessToken && expiresAtStr) {
-        cachedSession = {
-          accessToken,
-          refreshToken: refreshToken || "",
-          expiresAt: parseInt(expiresAtStr, 10),
-          userEmail: userEmail || null,
-        };
-        console.info("[GDrive Service] OAuth session loaded from localStorage fallback.");
-      }
-    } catch (e) {
-      console.error("[GDrive Service] Failed to load OAuth session from localStorage:", e);
-    }
+    // Web/Mobile uses HttpOnly BFF cookies + in-memory access tokens; scrub any legacy plaintext tokens
+    scrubLegacyWebTokenStorage();
   }
 
   isSessionInitialized = true;
@@ -88,7 +141,22 @@ export async function getSessionUserEmail(): Promise<string | null> {
 async function getFolderCache(): Promise<GDriveFolderCache> {
   try {
     const cached = await idbGet<GDriveFolderCache>(FOLDER_CACHE_KEY);
-    return cached || { rootFolderId: null, yearFolderIds: {}, stateFileId: null };
+    if (!cached || typeof cached !== "object") {
+      return { rootFolderId: null, yearFolderIds: {}, stateFileId: null };
+    }
+    const safeYearFolderIds: Record<string, string> = {};
+    if (cached.yearFolderIds && typeof cached.yearFolderIds === "object") {
+      for (const [yr, id] of Object.entries(cached.yearFolderIds)) {
+        if (/^\d{4}$/.test(yr) && isValidDriveId(id)) {
+          safeYearFolderIds[yr] = id;
+        }
+      }
+    }
+    return {
+      rootFolderId: isValidDriveId(cached.rootFolderId) ? cached.rootFolderId : null,
+      yearFolderIds: safeYearFolderIds,
+      stateFileId: isValidDriveId(cached.stateFileId) ? cached.stateFileId : null,
+    };
   } catch {
     return { rootFolderId: null, yearFolderIds: {}, stateFileId: null };
   }
@@ -140,21 +208,19 @@ export async function saveOAuthTokens(
 
   if (isTauri()) {
     try {
-      const { writeTextFile, BaseDirectory } = await import("@tauri-apps/plugin-fs");
-      await writeTextFile(TOKENS_FILE, JSON.stringify(cachedSession), { baseDir: BaseDirectory.AppData });
-      console.info("[GDrive Service] OAuth session saved to AppData.");
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("secure_store_set", {
+        key: "gdrive_session",
+        value: JSON.stringify(cachedSession),
+      });
+      console.info("[GDrive Service] OAuth session sealed in DPAPI vault.");
     } catch (e) {
-      console.error("[GDrive Service] Failed to save OAuth session to AppData:", e);
+      console.error("[GDrive Service] Failed to save OAuth session to DPAPI vault:", e);
     }
   } else {
-    try {
-      localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-      localStorage.setItem(REFRESH_TOKEN_KEY, finalRefreshToken);
-      localStorage.setItem(EXPIRES_AT_KEY, expiresAt.toString());
-      console.info("[GDrive Service] OAuth session saved to localStorage fallback.");
-    } catch (e) {
-      console.error("[GDrive Service] Failed to save OAuth session to localStorage:", e);
-    }
+    // Web/Mobile keeps only ephemeral access tokens in JS memory; refresh token stays in HttpOnly cookie
+    setWebMemoryToken(accessToken, expiresIn);
+    scrubLegacyWebTokenStorage();
   }
 
   window.dispatchEvent(new CustomEvent("w:gdrive-linked"));
@@ -171,26 +237,43 @@ export function isDriveAuthenticated(): boolean {
  * Clear cached Google Drive credentials (e.g. on logout).
  */
 export async function clearOAuthTokens(): Promise<void> {
+  const prevSession = cachedSession;
   cachedSession = null;
   isSessionInitialized = true;
+  clearWebMemoryToken();
   localStorage.setItem("driveLinked", "false");
+  localStorage.removeItem(USER_EMAIL_KEY);
+  scrubLegacyWebTokenStorage();
 
   if (isTauri()) {
     try {
+      const tokenToRevoke = prevSession?.refreshToken || prevSession?.accessToken;
+      if (tokenToRevoke && isValidTokenString(tokenToRevoke)) {
+        await fetch("https://oauth2.googleapis.com/revoke", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ token: tokenToRevoke }),
+        }).catch(() => {});
+      }
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("secure_store_delete", { key: "gdrive_session" }).catch(() => {});
       const { exists, remove, BaseDirectory } = await import("@tauri-apps/plugin-fs");
       if (await exists(TOKENS_FILE, { baseDir: BaseDirectory.AppData })) {
         await remove(TOKENS_FILE, { baseDir: BaseDirectory.AppData });
       }
-      console.info("[GDrive Service] OAuth session file deleted from AppData.");
+      console.info("[GDrive Service] OAuth session deleted from DPAPI vault.");
     } catch (e) {
       console.error("[GDrive Service] Failed to delete OAuth session file:", e);
     }
   } else {
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-    localStorage.removeItem(EXPIRES_AT_KEY);
-    localStorage.removeItem(USER_EMAIL_KEY);
-    console.info("[GDrive Service] OAuth session removed from localStorage fallback.");
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+    } catch {
+      /* ignore network errors on logout */
+    }
   }
 
   await clearFolderCache();
@@ -207,9 +290,52 @@ function isValidTokenString(token: unknown): boolean {
  * Retrieves a valid, unexpired access token. Automatically refreshes it if needed.
  */
 export async function getValidAccessToken(): Promise<string | null> {
-  // If user has not linked Google Drive, do not attempt to read or refresh tokens.
   if (!isDriveAuthenticated()) {
     return null;
+  }
+
+  // Web/Mobile: keep refresh tokens strictly in HttpOnly cookies; hold short-lived access token in memory only
+  if (!isTauri()) {
+    if (webMemoryAccessToken && isValidTokenString(webMemoryAccessToken) && webMemoryExpiresAt > Date.now() + 60000) {
+      return webMemoryAccessToken;
+    }
+
+    if (refreshTokenInFlight) {
+      return refreshTokenInFlight;
+    }
+
+    refreshTokenInFlight = (async () => {
+      try {
+        const bffRes = await fetch("/api/auth/refresh", {
+          method: "POST",
+          credentials: "same-origin",
+        });
+
+        if (bffRes.ok) {
+          const bffData = await bffRes.json();
+          if (bffData?.accessToken && isValidTokenString(bffData.accessToken)) {
+            setWebMemoryToken(bffData.accessToken, bffData.expiresIn || 3600);
+            return bffData.accessToken;
+          }
+        } else if (bffRes.status === 401) {
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("w:gdrive-session-expired"));
+          }
+          await clearOAuthTokens();
+          return null;
+        }
+      } catch (err) {
+        console.warn("[GDrive Service] /api/auth/refresh failed:", err);
+      }
+
+      return null;
+    })();
+
+    try {
+      return await refreshTokenInFlight;
+    } finally {
+      refreshTokenInFlight = null;
+    }
   }
 
   const session = await getOAuthSession();
@@ -221,125 +347,70 @@ export async function getValidAccessToken(): Promise<string | null> {
     return accessToken;
   }
 
-  // Otherwise, we need a refresh token to request a new access token
-  const refreshToken = session?.refreshToken;
-  if (!refreshToken || !isValidTokenString(refreshToken)) {
-    console.warn("[GDrive Service] Access token is expired/missing and no refresh token found.");
-    if (isDriveAuthenticated() && typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("w:gdrive-session-expired"));
-    }
-    // Only automatically clear the OAuth state if running on Tauri desktop app.
-    if (isDriveAuthenticated() && isTauri()) {
-      console.warn("[GDrive Service] Session is marked as authenticated but session file/token is missing. Clearing OAuth state.");
-      await clearOAuthTokens();
-    }
-    return null;
+  if (refreshTokenInFlight) {
+    return refreshTokenInFlight;
   }
 
-  console.info("[GDrive Service] Access token expired or missing. Refreshing...");
-
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-  if (!clientId) {
-    console.error("[GDrive Service] VITE_GOOGLE_CLIENT_ID environment variable is missing.");
-    return null;
-  }
-
-  let data: any = null;
-
-  // On Web, proxy through /api/token to use server-side GOOGLE_CLIENT_SECRET
-  if (!isTauri()) {
-    try {
-      const proxyRes = await fetch("/api/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          grant_type: "refresh_token",
-          refresh_token: refreshToken,
-        }),
-      });
-
-      if (proxyRes.ok) {
-        data = await proxyRes.json();
-      } else {
-        const errorText = await proxyRes.text();
-        console.warn(`[GDrive Service] /api/token refresh failed (${proxyRes.status}):`, errorText);
-        if (errorText.includes("invalid_grant")) {
-          if (typeof window !== "undefined") {
-            window.dispatchEvent(new CustomEvent("w:gdrive-session-expired"));
-          }
-          await clearOAuthTokens();
-          return null;
-        }
+  refreshTokenInFlight = (async () => {
+    // Otherwise, we need a refresh token to request a new access token on Desktop
+    const refreshToken = session?.refreshToken;
+    if (!refreshToken || !isValidTokenString(refreshToken)) {
+      console.warn("[GDrive Service] Access token is expired/missing and no refresh token found.");
+      if (isDriveAuthenticated() && typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("w:gdrive-session-expired"));
       }
-    } catch (proxyErr) {
-      console.warn("[GDrive Service] /api/token proxy call unreachable, attempting direct fallback:", proxyErr);
-    }
-  }
-
-  // Direct call fallback (used on Tauri desktop or if clientSecret is inlined)
-  if (!data) {
-    const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET;
-    const refreshParams: Record<string, string> = {
-      client_id: clientId,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    };
-
-    if (clientSecret) {
-      refreshParams.client_secret = clientSecret;
-    }
-
-    try {
-      const response = await fetch("https://oauth2.googleapis.com/token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams(refreshParams),
-      });
-
-      if (!response.ok) {
-        let isInvalidGrant = false;
-        try {
-          const errorText = await response.text();
-          console.error(`[GDrive Service] Token refresh failed: ${response.status}`, errorText);
-          try {
-            const parsed = JSON.parse(errorText);
-            if (parsed.error === "invalid_grant") {
-              isInvalidGrant = true;
-            }
-          } catch {
-            if (errorText.includes("invalid_grant")) {
-              isInvalidGrant = true;
-            }
-          }
-        } catch (e) {
-          console.error("[GDrive Service] Failed to read token refresh error response:", e);
-        }
-
-        if (isInvalidGrant) {
-          if (typeof window !== "undefined") {
-            window.dispatchEvent(new CustomEvent("w:gdrive-session-expired"));
-          }
-          await clearOAuthTokens();
-        }
-        return null;
+      if (isDriveAuthenticated() && isTauri()) {
+        console.warn("[GDrive Service] Session is marked as authenticated but session file/token is missing. Clearing OAuth state.");
+        await clearOAuthTokens();
       }
-
-      data = await response.json();
-    } catch (err) {
-      console.error("[GDrive Service] Network error during direct token refresh:", err);
       return null;
     }
+
+    console.info("[GDrive Service] Access token expired or missing. Refreshing...");
+
+    const clientId = import.meta.env.VITE_GOOGLE_DESKTOP_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      console.error("[GDrive Service] VITE_GOOGLE_CLIENT_ID environment variable is missing.");
+      return null;
+    }
+
+    let data: any = null;
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      data = await invoke("oauth_refresh_desktop_token", {
+        clientId,
+        refreshToken,
+      });
+    } catch (err) {
+      const errText = err instanceof Error ? err.message : String(err);
+      console.error("[GDrive Service] Native token refresh failed:", errText);
+      if (errText.includes("invalid_grant")) {
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("w:gdrive-session-expired"));
+        }
+        await clearOAuthTokens();
+      }
+      return null;
+    }
+
+    if (!data?.access_token || !isValidTokenString(data.access_token)) {
+      return null;
+    }
+
+    const newAccessToken = data.access_token;
+    const newExpiresIn = data.expires_in || 3600;
+
+    await saveOAuthTokens(newAccessToken, data.refresh_token || refreshToken, newExpiresIn);
+
+    console.info("[GDrive Service] Access token refreshed successfully.");
+    return newAccessToken;
+  })();
+
+  try {
+    return await refreshTokenInFlight;
+  } finally {
+    refreshTokenInFlight = null;
   }
-
-  const newAccessToken = data.access_token;
-  const newExpiresIn = data.expires_in || 3600;
-
-  await saveOAuthTokens(newAccessToken, data.refresh_token || refreshToken, newExpiresIn);
-
-  console.info("[GDrive Service] Access token refreshed successfully.");
-  return newAccessToken;
 }
 
 /**
@@ -423,13 +494,14 @@ async function listGoogleDriveFiles(
  * Deletes a file or folder on Google Drive.
  */
 async function deleteFileOrFolder(accessToken: string, fileId: string): Promise<void> {
-  const url = `https://www.googleapis.com/drive/v3/files/${fileId}`;
+  const safeFileId = assertValidDriveId(fileId, "deleteFileOrFolder");
+  const url = `https://www.googleapis.com/drive/v3/files/${safeFileId}`;
   const res = await fetchWithRetry(url, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!res.ok) {
-    console.warn(`[GDrive Service] Failed to delete file/folder ${fileId}: ${res.statusText}`);
+    console.warn(`[GDrive Service] Failed to delete file/folder ${safeFileId}: ${res.statusText}`);
   }
 }
 
@@ -437,11 +509,14 @@ async function deleteFileOrFolder(accessToken: string, fileId: string): Promise<
  * Merges files and folders from a duplicate source folder into a target folder.
  */
 async function mergeFolders(accessToken: string, sourceFolderId: string, targetFolderId: string): Promise<void> {
-  const query = `'${sourceFolderId}' in parents and trashed = false`;
+  const safeSourceId = assertValidDriveId(sourceFolderId, "mergeFolders.source");
+  const safeTargetId = assertValidDriveId(targetFolderId, "mergeFolders.target");
+  const query = `'${safeSourceId}' in parents and trashed = false`;
   const items = await listGoogleDriveFiles(accessToken, query, "id,name,mimeType,modifiedTime");
 
   for (const item of items) {
-    const targetQuery = `'${targetFolderId}' in parents and name = '${item.name}' and trashed = false`;
+    const safeItemId = assertValidDriveId(item.id, "mergeFolders.item");
+    const targetQuery = `'${safeTargetId}' in parents and name = '${escapeDriveQueryLiteral(item.name)}' and trashed = false`;
     const targetUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(targetQuery)}&fields=files(id,name,mimeType,modifiedTime)`;
     const targetRes = await fetch(targetUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -456,27 +531,28 @@ async function mergeFolders(accessToken: string, sourceFolderId: string, targetF
     }
 
     if (targetItem) {
+      const safeTargetItemId = assertValidDriveId(targetItem.id, "mergeFolders.targetItem");
       if (item.mimeType === "application/vnd.google-apps.folder" && targetItem.mimeType === "application/vnd.google-apps.folder") {
-        await mergeFolders(accessToken, item.id, targetItem.id);
+        await mergeFolders(accessToken, safeItemId, safeTargetItemId);
       } else {
         const sourceTime = item.modifiedTime ? new Date(item.modifiedTime).getTime() : 0;
         const targetTime = targetItem.modifiedTime ? new Date(targetItem.modifiedTime).getTime() : 0;
 
         if (sourceTime > targetTime) {
-          const moveUrl = `https://www.googleapis.com/drive/v3/files/${item.id}?addParents=${targetFolderId}&removeParents=${sourceFolderId}`;
+          const moveUrl = `https://www.googleapis.com/drive/v3/files/${safeItemId}?addParents=${safeTargetId}&removeParents=${safeSourceId}`;
           const moveRes = await fetch(moveUrl, {
             method: "PATCH",
             headers: { Authorization: `Bearer ${accessToken}` },
           });
           if (moveRes.ok) {
-            await deleteFileOrFolder(accessToken, targetItem.id);
+            await deleteFileOrFolder(accessToken, safeTargetItemId);
           }
         } else {
-          await deleteFileOrFolder(accessToken, item.id);
+          await deleteFileOrFolder(accessToken, safeItemId);
         }
       }
     } else {
-      const moveUrl = `https://www.googleapis.com/drive/v3/files/${item.id}?addParents=${targetFolderId}&removeParents=${sourceFolderId}`;
+      const moveUrl = `https://www.googleapis.com/drive/v3/files/${safeItemId}?addParents=${safeTargetId}&removeParents=${safeSourceId}`;
       await fetch(moveUrl, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -484,7 +560,7 @@ async function mergeFolders(accessToken: string, sourceFolderId: string, targetF
     }
   }
 
-  await deleteFileOrFolder(accessToken, sourceFolderId);
+  await deleteFileOrFolder(accessToken, safeSourceId);
 }
 
 /**
@@ -492,9 +568,11 @@ async function mergeFolders(accessToken: string, sourceFolderId: string, targetF
  * If parentId is not provided, searches in 'root'.
  */
 async function findFolder(accessToken: string, folderName: string, parentId?: string): Promise<string | null> {
-  let query = `name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+  const safeName = escapeDriveQueryLiteral(folderName);
+  let query = `name = '${safeName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
   if (parentId) {
-    query += ` and '${parentId}' in parents`;
+    const safeParentId = assertValidDriveId(parentId, "findFolder.parentId");
+    query += ` and '${safeParentId}' in parents`;
   } else {
     query += ` and 'root' in parents`;
   }
@@ -571,7 +649,9 @@ async function createFolder(accessToken: string, folderName: string, parentId?: 
  * Searches for a file named fileName inside a parent folder.
  */
 async function findFile(accessToken: string, fileName: string, parentId: string): Promise<string | null> {
-  const query = `name = '${fileName}' and '${parentId}' in parents and trashed = false`;
+  const safeParentId = assertValidDriveId(parentId, "findFile.parentId");
+  const safeName = escapeDriveQueryLiteral(fileName);
+  const query = `name = '${safeName}' and '${safeParentId}' in parents and trashed = false`;
   const files = await listGoogleDriveFiles(accessToken, query, "id");
   return files.length > 0 ? files[0].id : null;
 }
@@ -580,10 +660,11 @@ async function findFile(accessToken: string, fileName: string, parentId: string)
  * Creates a blank metadata-only file on Google Drive inside a parent folder.
  */
 async function createEmptyFile(accessToken: string, fileName: string, parentId: string): Promise<string> {
+  const safeParentId = assertValidDriveId(parentId, "createEmptyFile.parentId");
   const url = "https://www.googleapis.com/drive/v3/files";
   const body = {
     name: fileName,
-    parents: [parentId],
+    parents: [safeParentId],
     mimeType: fileName.endsWith(".json") ? "application/json" : "text/markdown",
   };
 
@@ -614,7 +695,8 @@ async function uploadFileContent(
   content: string,
   mimeType: string = "text/markdown"
 ): Promise<string> {
-  const url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=modifiedTime`;
+  const safeFileId = assertValidDriveId(fileId, "uploadFileContent");
+  const url = `https://www.googleapis.com/upload/drive/v3/files/${safeFileId}?uploadType=media&fields=modifiedTime`;
   
   const res = await fetchWithRetry(url, {
     method: "PATCH",
@@ -711,6 +793,7 @@ export async function downloadStateFromDrive(
     }
 
     // 1. Get file metadata first to compare modifiedTime
+    fileId = assertValidDriveId(fileId, "downloadStateFromDrive.meta");
     const metaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`;
     let metaRes = await fetchWithRetry(metaUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -727,6 +810,7 @@ export async function downloadStateFromDrive(
         await saveFolderCache(cache);
         return null;
       }
+      fileId = assertValidDriveId(fileId, "downloadStateFromDrive.resolved");
       cache.stateFileId = fileId;
       await saveFolderCache(cache);
       metaRes = await fetchWithRetry(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`, {
@@ -858,6 +942,8 @@ export async function pullNotesFromDrive(accessToken: string, skipDate?: string)
         if (!match) continue;
 
         const dateStr = match[1];
+        if (!validateIsoDate(dateStr)) continue;
+        if (!isValidDriveId(file.id)) continue;
 
         // If explicitly requested to skip (e.g. today's note has active typing deferred)
         if (skipDate && dateStr === skipDate) {

@@ -2,11 +2,16 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { getLocalNoteHistory } from "./localLogService";
 
 const fakeDb = new Map<string, any>();
+let mockUid = "test_user_123";
 
 vi.mock("idb-keyval", () => ({
   get: vi.fn((key: string) => Promise.resolve(fakeDb.get(key))),
   set: vi.fn((key: string, val: any) => {
     fakeDb.set(key, val);
+    return Promise.resolve();
+  }),
+  del: vi.fn((key: string) => {
+    fakeDb.delete(key);
     return Promise.resolve();
   }),
   keys: vi.fn(() => Promise.resolve(Array.from(fakeDb.keys()))),
@@ -16,7 +21,11 @@ vi.mock("idb-keyval", () => ({
 }));
 
 vi.mock("../../../shared/config/firebase", () => ({
-  auth: { currentUser: { uid: "test_user_123" } },
+  auth: {
+    get currentUser() {
+      return { uid: mockUid };
+    },
+  },
 }));
 
 vi.mock("../../../shared/utils/noteCrypto", () => ({
@@ -38,6 +47,7 @@ vi.mock("../../../shared/utils/noteCrypto", () => ({
 describe("localLogService - getLocalNoteHistory", () => {
   beforeEach(() => {
     fakeDb.clear();
+    mockUid = "test_user_123";
   });
 
   it("returns decrypted notes sorted by date descending", async () => {
@@ -115,5 +125,29 @@ describe("localLogService - getLocalNoteHistory", () => {
     expect(retrieved).toBe("Testing daily note save");
 
     await expect(flushAllNotesToDisk()).resolves.not.toThrow();
+  });
+
+  it("isolates notes across distinct authenticated UIDs (prevents local BOLA/IDOR cross-account leak)", async () => {
+    const { saveLocalNote } = await import("./localLogService");
+    mockUid = "user_alpha";
+    await saveLocalNote("2026-09-10", "Alpha private note");
+
+    mockUid = "user_beta";
+    await saveLocalNote("2026-09-10", "Beta private note");
+
+    const betaHistory = await getLocalNoteHistory();
+    expect(betaHistory).toHaveLength(1);
+    expect(betaHistory[0].notes).toBe("Beta private note");
+
+    mockUid = "user_alpha";
+    const alphaHistory = await getLocalNoteHistory();
+    expect(alphaHistory).toHaveLength(1);
+    expect(alphaHistory[0].notes).toBe("Alpha private note");
+  });
+
+  it("rejects path-traversal dates on note save/read", async () => {
+    const { saveLocalNote, getLocalNote } = await import("./localLogService");
+    await expect(saveLocalNote("../secret", "hacked")).rejects.toThrow("Invalid note date");
+    await expect(getLocalNote("../secret")).resolves.toBe("");
   });
 });

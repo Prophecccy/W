@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { auth, LocalUser as FirebaseUser, signInAnonymously } from "../../../shared/config/firebase";
-import { signInWithGoogle, signOut, onAuthStateChanged } from "../services/authService";
+import { signInWithGoogle, signOut, onAuthStateChanged, restoreWebBffSession } from "../services/authService";
+import { isTauri } from "../../../shared/utils/tauri";
 
 export function useAuth() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -80,37 +81,45 @@ export function useAuth() {
     };
   }, []);
 
-  // Direct same-window OAuth callback handler (e.g. mobile browsers or popup-blocked navigation)
+  // Hydrate Web/Mobile BFF HttpOnly cookie session on mount (including same-window redirect callbacks)
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const hash = window.location.hash || "";
-    if (!hash || !hash.includes("access_token=")) return;
+    if (typeof window === "undefined" || isTauri()) return;
+    if (window.location.pathname === "/oauth-complete") return;
 
-    // OAuth popups are intercepted and closed immediately by main.tsx
-    if (window.opener || window.name === "google-login") return;
+    const searchParams = new URLSearchParams(window.location.search);
+    const authError = searchParams.get("auth_error");
+    if (authError) {
+      setError(`Google OAuth error (${authError}). Please try again.`);
+      searchParams.delete("auth_error");
+      const cleanQuery = searchParams.toString();
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + (cleanQuery ? `?${cleanQuery}` : "")
+      );
+    }
 
-    const handleDirectCallback = async () => {
-      try {
-        const hashParams = new URLSearchParams(hash.startsWith("#") ? hash.substring(1) : hash);
-        const accessToken = hashParams.get("access_token");
-        const expiresIn = hashParams.get("expires_in");
-        if (accessToken) {
-          setSigningIn(true);
-          const { processGoogleOAuthToken } = await import("../services/authService");
-          await processGoogleOAuthToken(accessToken, expiresIn ? parseInt(expiresIn, 10) : undefined);
+    let active = true;
+    setSigningIn(true);
+    restoreWebBffSession()
+      .then((restoredUser) => {
+        if (!active) return;
+        if (restoredUser) {
+          setUser(restoredUser);
           setIsDriveLinked(true);
-          // Scrub access token from URL history cleanly without reloading
-          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+          setIsDriveSessionExpired(false);
         }
-      } catch (err) {
-        console.error("[W Auth Hook] Direct OAuth hash handling failed:", err);
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setSigningIn(false);
-      }
-    };
+      })
+      .finally(() => {
+        if (active) {
+          setSigningIn(false);
+          setLoading(false);
+        }
+      });
 
-    handleDirectCallback();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -172,23 +181,18 @@ export function useAuth() {
   const clearError = useCallback(() => setError(null), []);
 
   const devSkip = useCallback(async () => {
-    if (window.location.hostname === "localhost") {
-      try {
-        // Use real Firebase Anonymous Auth — creates a genuine auth session
-        // so Firestore operations receive a valid request.auth token.
-        const result = await signInAnonymously(auth);
-        localStorage.setItem("w-auth-mock", "true");
-        console.log("[W Auth] Dev-skip: anonymous sign-in successful, uid:", result.user.uid);
-        // onAuthStateChanged listener will pick up the user automatically
-      } catch (err) {
-        console.error("[W Auth] Dev-skip anonymous sign-in failed:", err);
-      }
+    if (!import.meta.env.DEV) return;
+    try {
+      const result = await signInAnonymously(auth);
+      localStorage.setItem("w-auth-mock", "true");
+      console.log("[W Auth] Dev-skip: anonymous sign-in successful, uid:", result.user.uid);
+    } catch (err) {
+      console.error("[W Auth] Dev-skip anonymous sign-in failed:", err);
     }
   }, []);
 
   useEffect(() => {
-    // Auto-restore: if previously dev-skipped and no user yet, sign in anonymously again
-    if (window.location.hostname === "localhost" && localStorage.getItem("w-auth-mock") && !user && !loading && !restoringRef.current) {
+    if (import.meta.env.DEV && localStorage.getItem("w-auth-mock") && !user && !loading && !restoringRef.current) {
       restoringRef.current = true;
       signInAnonymously(auth).catch((err) => {
         console.error("[W Auth] Dev-skip auto-restore failed:", err);

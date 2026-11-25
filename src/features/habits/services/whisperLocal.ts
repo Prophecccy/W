@@ -64,6 +64,9 @@ export async function decodeAudioBlob(blob: Blob): Promise<Float32Array> {
   }
 }
 
+const ALLOWED_LOCAL_WHISPER_MODELS = new Set(["onnx-community/whisper-tiny.en"]);
+const TRUSTED_HF_REMOTE_HOST = "https://huggingface.co/";
+
 /**
  * Lazy-loads the Whisper pipeline and runs transcription entirely on-device.
  */
@@ -73,12 +76,18 @@ export async function transcribeWithLocalWhisper(
 ): Promise<string> {
   onProgress?.({ status: "loading-runtime", message: "Initializing AI runtime..." });
 
+  const targetModel = "onnx-community/whisper-tiny.en";
+  if (!ALLOWED_LOCAL_WHISPER_MODELS.has(targetModel)) {
+    throw new Error("Untrusted Whisper model identifier.");
+  }
+
   // Dynamically import @huggingface/transformers to keep initial bundle tiny
   const { pipeline, env } = await import("@huggingface/transformers");
 
-  // Configure environment for browser client execution
+  // Pin remote host explicitly to verified HuggingFace Hub and disable untrusted local model loading
   env.allowRemoteModels = true;
   env.allowLocalModels = false;
+  env.remoteHost = TRUSTED_HF_REMOTE_HOST;
   if (typeof window !== "undefined" && "caches" in window) {
     env.useBrowserCache = true;
   } else {
@@ -113,7 +122,7 @@ export async function transcribeWithLocalWhisper(
 
       cachedPipeline = await pipeline(
         "automatic-speech-recognition",
-        "onnx-community/whisper-tiny.en",
+        targetModel,
         {
           device,
           dtype: "q8",

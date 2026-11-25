@@ -1,5 +1,5 @@
-import { isTauri } from "../../../shared/utils/tauri";
-import { saveOAuthTokens } from "../../../shared/services/googleDriveService";
+import { isMobileWeb, isTauri } from "../../../shared/utils/tauri";
+import { saveOAuthTokens, setWebMemoryToken } from "../../../shared/services/googleDriveService";
 import { LocalUser, auth, onAuthStateChanged as localOnAuthStateChanged, signOut as localSignOut } from "../../../shared/services/localDb";
 
 const AUTH_SUCCESS_HTML = `
@@ -14,7 +14,6 @@ const AUTH_SUCCESS_HTML = `
             --bg: #08090a;
             --text: #e8e8e8;
             --text-secondary: #888888;
-            --accent: #ffffff;
         }
         body {
             background-color: var(--bg);
@@ -30,92 +29,100 @@ const AUTH_SUCCESS_HTML = `
             overflow: hidden;
             -webkit-font-smoothing: antialiased;
         }
-        .container {
-            text-align: center;
-            animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .logo {
-            font-size: 48px;
-            letter-spacing: -3px;
-            font-weight: 500;
-            margin-bottom: 32px;
-            opacity: 0.9;
-        }
-        .success-circle {
-            width: 56px;
-            height: 56px;
-            border: 1.5px solid rgba(255, 255, 255, 0.1);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 40px;
-            position: relative;
-        }
-        .success-circle::after {
-            content: '';
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            border: 1.5px solid #fff;
-            animation: ripple 2s infinite;
-        }
-        .status {
-            font-size: 10px;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            color: var(--text-secondary);
-            margin-bottom: 12px;
-        }
-        .instruction {
-            font-size: 13px;
-            letter-spacing: -0.2px;
-            color: var(--text-secondary);
-            opacity: 0.5;
-        }
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes ripple {
-            0% { transform: scale(1); opacity: 0.5; }
-            100% { transform: scale(1.6); opacity: 0; }
-        }
-        .checkmark {
-            stroke: #fff;
-            stroke-dasharray: 48;
-            stroke-dashoffset: 48;
-            animation: draw 0.6s cubic-bezier(0.65, 0, 0.45, 1) 0.3s forwards;
-        }
-        @keyframes draw {
-            to { stroke-dashoffset: 0; }
-        }
+        .container { text-align: center; }
+        .logo { font-size: 48px; letter-spacing: -3px; font-weight: 500; margin-bottom: 32px; opacity: 0.9; }
+        .status { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 12px; }
+        .instruction { font-size: 13px; letter-spacing: -0.2px; color: var(--text-secondary); opacity: 0.5; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="success-circle">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M5 13L9 17L19 7" class="checkmark" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-        </div>
         <div class="logo">[ W ]</div>
         <div class="status">Authentication Successful</div>
         <div class="instruction">You can safely close this window now.</div>
     </div>
-    <script>
-        setTimeout(() => {
-            window.close();
-        }, 5000);
-    </script>
 </body>
 </html>
 `;
 
+interface VerifiedUserIdentity {
+  sub: string;
+  email: string | null;
+  name?: string | null;
+  picture?: string | null;
+}
+
 function triggerAuthChange() {
   const customEvent = new CustomEvent("w:auth-changed");
   window.dispatchEvent(customEvent);
+}
+
+async function purgePreviousAccountIfChanged(nextUid: string, nextEmail: string | null): Promise<void> {
+  const existingUserStr = localStorage.getItem("w_auth_user");
+  if (!existingUserStr) return;
+
+  try {
+    const existingUser = JSON.parse(existingUserStr);
+    const prevUid = typeof existingUser?.uid === "string" ? existingUser.uid : null;
+    const prevEmail = typeof existingUser?.email === "string" ? existingUser.email.toLowerCase() : null;
+    const normalizedNextEmail = nextEmail ? nextEmail.toLowerCase() : null;
+
+    const uidChanged = Boolean(prevUid && prevUid !== nextUid);
+    const emailChanged = Boolean(prevEmail !== normalizedNextEmail);
+
+    if (uidChanged || emailChanged) {
+      console.warn(`[Auth] Account switch detected (${prevUid || "none"} -> ${nextUid}). Purging local cache.`);
+      try {
+        const { resetEncryptionKeyCache } = await import("../../../shared/utils/noteCrypto");
+        resetEncryptionKeyCache();
+        const { clear: idbClear } = await import("idb-keyval");
+        await idbClear();
+      } catch (clearErr) {
+        console.error("[Auth] Failed to purge IDB cache on account switch:", clearErr);
+      }
+      localStorage.removeItem("w-auth-mock");
+      localStorage.removeItem("w_gdrive_state_modified_time");
+      localStorage.removeItem("w_gdrive_state_last_sync");
+      localStorage.removeItem("w_gdrive_last_poll");
+    }
+  } catch {
+    /* ignore malformed cached user */
+  }
+}
+
+async function commitUserSession(identity: VerifiedUserIdentity, pullDrive: boolean): Promise<LocalUser> {
+  await purgePreviousAccountIfChanged(identity.sub, identity.email);
+
+  const sessionUser: LocalUser = {
+    uid: identity.sub,
+    email: identity.email,
+    displayName: identity.name || null,
+    photoURL: identity.picture || null,
+    metadata: {
+      lastSignInTime: new Date().toISOString(),
+      creationTime: new Date().toISOString(),
+    },
+    getIdToken: async () => "",
+  };
+
+  localStorage.setItem("w_auth_user", JSON.stringify(sessionUser));
+  localStorage.setItem("driveLinked", "true");
+  if (identity.email) {
+    localStorage.setItem("w_gdrive_user_email", identity.email);
+  }
+  window.dispatchEvent(new CustomEvent("w:gdrive-linked"));
+
+  if (pullDrive) {
+    try {
+      const { pullAndMergeFromGoogleDrive } = await import("../../../shared/services/localDb");
+      await pullAndMergeFromGoogleDrive(true);
+    } catch (syncErr) {
+      console.warn("[Auth] Initial pull from Google Drive failed:", syncErr);
+    }
+  }
+
+  triggerAuthChange();
+  return sessionUser;
 }
 
 export async function signInWithGoogle(): Promise<LocalUser> {
@@ -129,7 +136,8 @@ export async function processGoogleOAuthToken(
   accessToken: string,
   expiresIn?: number,
   refreshToken?: string,
-  _idToken?: string
+  idToken?: string,
+  expectedNonce?: string
 ): Promise<LocalUser> {
   const expiresInSeconds = expiresIn && !isNaN(expiresIn) ? expiresIn : 3600;
 
@@ -141,59 +149,112 @@ export async function processGoogleOAuthToken(
     throw new Error(`Failed to fetch user info from Google (HTTP ${userInfoRes.status})`);
   }
   const userInfo = await userInfoRes.json();
-  const email = userInfo.email || null;
+  if (!userInfo?.sub || typeof userInfo.sub !== "string") {
+    throw new Error("Google userinfo missing valid subject identifier.");
+  }
+  if (userInfo.email && userInfo.email_verified === false) {
+    throw new Error("Google account email is not verified.");
+  }
 
-  // 2. Identity Guard: Detect account switch and prevent cross-account data bleed
-  const existingUserStr = localStorage.getItem("w_auth_user");
-  if (existingUserStr) {
-    try {
-      const existingUser = JSON.parse(existingUserStr);
-      if (existingUser?.email && email && existingUser.email.toLowerCase() !== email.toLowerCase()) {
-        console.warn(`[Auth] Account switch detected: Previous was '${existingUser.email}', now logging in as '${email}'. Purging local cache.`);
-        try {
-          const { clear: idbClear } = await import("idb-keyval");
-          await idbClear();
-        } catch (clearErr) {
-          console.error("[Auth] Failed to purge IDB cache on account switch:", clearErr);
-        }
-      }
-    } catch {
-      // ignore parse error
+  // 2. Validate id_token claims (subject, audience, issuer, expiry, and nonce)
+  if (idToken) {
+    const clientId = import.meta.env.VITE_GOOGLE_DESKTOP_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const parts = idToken.split(".");
+    if (parts.length !== 3) {
+      throw new Error("Malformed OAuth id_token received.");
     }
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+    if (payload?.sub !== userInfo.sub) {
+      throw new Error("OAuth identity mismatch between id_token and userinfo.");
+    }
+    if (clientId && payload?.aud !== clientId) {
+      throw new Error("OAuth audience mismatch in id_token.");
+    }
+    if (payload?.iss !== "https://accounts.google.com" && payload?.iss !== "accounts.google.com") {
+      throw new Error("OAuth issuer mismatch in id_token.");
+    }
+    if (typeof payload?.exp !== "number" || payload.exp * 1000 <= Date.now()) {
+      throw new Error("OAuth id_token has expired.");
+    }
+    if (expectedNonce && payload?.nonce !== expectedNonce) {
+      throw new Error("OAuth nonce mismatch in id_token.");
+    }
+  } else if (expectedNonce) {
+    throw new Error("Missing OAuth id_token for nonce verification.");
   }
 
-  // 3. Establish LocalUser representation
-  const mockUser: LocalUser = {
-    uid: userInfo.sub,
-    email: email,
-    displayName: userInfo.name || null,
-    photoURL: userInfo.picture || null,
-    metadata: {
-      lastSignInTime: new Date().toISOString(),
-      creationTime: new Date().toISOString(),
-    },
-    getIdToken: async () => "mock-token",
-  };
+  const email = userInfo.email || null;
+  await purgePreviousAccountIfChanged(userInfo.sub, email);
 
-  localStorage.setItem("w_auth_user", JSON.stringify(mockUser));
-
-  // 4. Save OAuth tokens pinned to user email
   await saveOAuthTokens(accessToken, refreshToken || "", expiresInSeconds, email || undefined);
-  window.dispatchEvent(new CustomEvent("w:gdrive-linked"));
 
-  // 5. Initial pull from user's sovereign Google Drive container before notifying auth listeners
-  // This ensures existing users restoring on a fresh browser have their profile & habits in IndexedDB
-  // before Layout evaluates whether the account requires first-time Onboarding.
-  try {
-    const { pullAndMergeFromGoogleDrive } = await import("../../../shared/services/localDb");
-    await pullAndMergeFromGoogleDrive(true);
-  } catch (syncErr) {
-    console.warn("[Auth] Initial pull from Google Drive failed:", syncErr);
+  return commitUserSession(
+    {
+      sub: userInfo.sub,
+      email,
+      name: userInfo.name || null,
+      picture: userInfo.picture || null,
+    },
+    true
+  );
+}
+
+/**
+ * Hydrates a Web/Mobile user session strictly from the server-sealed HttpOnly BFF cookie.
+ */
+export async function hydrateWebBffSession(pullDrive = true): Promise<LocalUser> {
+  const res = await fetch("/api/auth/refresh", {
+    method: "POST",
+    credentials: "same-origin",
+  });
+
+  if (!res.ok) {
+    const errPayload = await res.json().catch(() => ({}));
+    throw new Error(errPayload?.error || `Session refresh failed (HTTP ${res.status})`);
   }
 
-  triggerAuthChange();
+  const data = await res.json();
+  if (!data?.user?.uid || !data?.accessToken) {
+    throw new Error("Incomplete BFF session response.");
+  }
 
-  return mockUser;
+  setWebMemoryToken(data.accessToken, data.expiresIn || 3600);
+
+  return commitUserSession(
+    {
+      sub: data.user.uid,
+      email: data.user.email || null,
+      name: data.user.displayName || null,
+      picture: data.user.photoURL || null,
+    },
+    pullDrive
+  );
+}
+
+/**
+ * Checks whether the Web/Mobile browser already holds a valid HttpOnly BFF session cookie
+ * (for example after a page refresh or a mobile same-window OAuth redirect).
+ */
+export async function restoreWebBffSession(): Promise<LocalUser | null> {
+  if (isTauri()) return auth.currentUser;
+
+  try {
+    const res = await fetch("/api/auth/session", {
+      method: "GET",
+      credentials: "same-origin",
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data?.authenticated || !data?.user?.uid) {
+      return null;
+    }
+
+    return await hydrateWebBffSession(true);
+  } catch (err) {
+    console.warn("[Auth] Failed to restore Web BFF session:", err);
+    return null;
+  }
 }
 
 function generateCodeVerifier(): string {
@@ -223,39 +284,28 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
 }
 
 async function signInWithGoogleWeb(): Promise<LocalUser> {
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-  if (!clientId) {
-    throw new Error("VITE_GOOGLE_CLIENT_ID is not set in environment");
+  // Mobile browsers routinely block popups; use same-window BFF redirect cleanly
+  if (isMobileWeb()) {
+    window.location.assign("/api/auth/login?mode=redirect&returnTo=/");
+    return new Promise<LocalUser>(() => {});
   }
-  const redirectUri = window.location.origin;
-  const state = crypto.randomUUID();
-  const codeVerifier = generateCodeVerifier();
-  const codeChallenge = await generateCodeChallenge(codeVerifier);
 
-  const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-  authUrl.searchParams.set("client_id", clientId);
-  authUrl.searchParams.set("redirect_uri", redirectUri);
-  authUrl.searchParams.set("response_type", "code");
-  authUrl.searchParams.set("scope", "openid email profile https://www.googleapis.com/auth/drive.file");
-  authUrl.searchParams.set("state", state);
-  authUrl.searchParams.set("access_type", "offline");
-  authUrl.searchParams.set("prompt", "consent select_account");
-  authUrl.searchParams.set("code_challenge", codeChallenge);
-  authUrl.searchParams.set("code_challenge_method", "S256");
-
-  // Clean any stale oauth responses before opening popup
   try {
     localStorage.removeItem("w_oauth_response");
   } catch {
     /* ignore storage errors */
   }
 
-  const popup = window.open(authUrl.toString(), "google-login", "width=500,height=600");
-  if (!popup) throw new Error("Popup blocked by browser.");
+  const popup = window.open("/api/auth/login?mode=popup", "google-login", "width=500,height=600");
+  if (!popup) {
+    // Popup blocked on desktop browser — seamlessly fall back to same-window BFF redirect
+    window.location.assign("/api/auth/login?mode=redirect&returnTo=/");
+    return new Promise<LocalUser>(() => {});
+  }
 
   return new Promise<LocalUser>((resolve, reject) => {
     let resolved = false;
-    let checkInterval: NodeJS.Timeout | null = null;
+    let checkInterval: ReturnType<typeof setInterval> | null = null;
 
     const cleanup = () => {
       resolved = true;
@@ -269,7 +319,7 @@ async function signInWithGoogleWeb(): Promise<LocalUser> {
       }
     };
 
-    const handlePayload = async (data: any) => {
+    const handlePayload = async (data: { type?: string; status?: string }) => {
       if (resolved) return;
       cleanup();
 
@@ -277,182 +327,65 @@ async function signInWithGoogleWeb(): Promise<LocalUser> {
         try {
           popup.close();
         } catch {
-          /* ignore close errors */
+          /* ignore */
         }
       }
 
-      if (data.error) {
-        reject(new Error(`Google OAuth Error: ${data.errorDescription || data.error}`));
+      if (data.status !== "ok") {
+        reject(new Error(`Google authentication failed (${data.status || "cancelled"}).`));
         return;
       }
 
-      // If we received an authorization code, exchange it for tokens (including refresh_token)
-      if (data.code) {
-        try {
-          let tokenData: any = null;
-
-          // Attempt 1: Call Vercel Serverless Token Proxy (/api/token) to keep client_secret secure
-          try {
-            const proxyRes = await fetch("/api/token", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                code: data.code,
-                code_verifier: codeVerifier,
-                redirect_uri: redirectUri,
-                grant_type: "authorization_code",
-              }),
-            });
-
-            if (proxyRes.ok) {
-              tokenData = await proxyRes.json();
-            } else {
-              const errPayload = await proxyRes.json().catch(() => ({}));
-              console.warn("[Auth] /api/token responded with status:", proxyRes.status, errPayload);
-            }
-          } catch (proxyErr) {
-            console.warn("[Auth] /api/token proxy call unreachable, attempting local fallback:", proxyErr);
-          }
-
-          // Attempt 2: Direct call fallback (used in local development or when clientSecret is inlined)
-          if (!tokenData) {
-            const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET;
-            const tokenParams: Record<string, string> = {
-              client_id: clientId,
-              redirect_uri: redirectUri,
-              code: data.code,
-              code_verifier: codeVerifier,
-              grant_type: "authorization_code",
-            };
-
-            if (clientSecret) {
-              tokenParams.client_secret = clientSecret;
-            }
-
-            const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
-              },
-              body: new URLSearchParams(tokenParams),
-            });
-
-            if (!tokenRes.ok) {
-              const errorText = await tokenRes.text();
-              let parsedErr: any = null;
-              try { parsedErr = JSON.parse(errorText); } catch {}
-              if (parsedErr?.error_description?.includes("client_secret is missing")) {
-                throw new Error("Missing GOOGLE_CLIENT_SECRET in Vercel. Please add GOOGLE_CLIENT_SECRET in Vercel Project Settings > Environment Variables.");
-              }
-              throw new Error(`Token exchange failed (HTTP ${tokenRes.status}): ${errorText || "Unknown error"}`);
-            }
-
-            tokenData = await tokenRes.json();
-          }
-
-          const accessToken = tokenData.access_token;
-          const refreshToken = tokenData.refresh_token;
-          const idToken = tokenData.id_token;
-          const expiresIn = tokenData.expires_in || 3600;
-
-          if (!accessToken) {
-            throw new Error("Missing access_token in token exchange response.");
-          }
-
-          const user = await processGoogleOAuthToken(accessToken, expiresIn, refreshToken || "", idToken);
-          resolve(user);
-          return;
-        } catch (exchangeErr) {
-          reject(exchangeErr instanceof Error ? exchangeErr : new Error(String(exchangeErr)));
-          return;
-        }
+      try {
+        const user = await hydrateWebBffSession(true);
+        resolve(user);
+      } catch (err) {
+        reject(err instanceof Error ? err : new Error(String(err)));
       }
-
-      if (data.accessToken) {
-        try {
-          const user = await processGoogleOAuthToken(data.accessToken, data.expiresIn);
-          resolve(user);
-        } catch (err) {
-          reject(err instanceof Error ? err : new Error(String(err)));
-        }
-        return;
-      }
-
-      reject(new Error("No authorization code or access token received from Google."));
     };
 
-    // Channel 1: postMessage listener (instant in same-origin popup)
+    // Channel 1: postMessage from same-origin /oauth-complete popup
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
-      if (event.data?.type === "w:google-oauth-callback") {
+      if (event.source && event.source !== popup) return;
+      if (event.data?.type === "w:bff-auth-complete") {
         handlePayload(event.data);
       }
     };
     window.addEventListener("message", onMessage);
 
-    // Channel 2: Storage event listener (fires across tabs/popups sharing localStorage)
+    // Channel 2: Storage event fallback across tabs sharing same origin
     const onStorage = (event: StorageEvent) => {
       if (event.key === "w_oauth_response" && event.newValue) {
         try {
           const parsed = JSON.parse(event.newValue);
-          if (parsed?.type === "w:google-oauth-callback") {
+          if (parsed?.type === "w:bff-auth-complete") {
             handlePayload(parsed);
           }
         } catch {
-          /* ignore JSON parse errors */
+          /* ignore */
         }
       }
     };
     window.addEventListener("storage", onStorage);
 
-    // Channel 3: Polling interval (fallback and popup.closed detector)
-    checkInterval = setInterval(async () => {
+    // Channel 3: Polling fallback and manual popup close detector
+    checkInterval = setInterval(() => {
       if (resolved) return;
 
-      // 3a. Check if response was stored in localStorage
       try {
         const stored = localStorage.getItem("w_oauth_response");
         if (stored) {
           const parsed = JSON.parse(stored);
-          if (parsed?.type === "w:google-oauth-callback") {
+          if (parsed?.type === "w:bff-auth-complete") {
             handlePayload(parsed);
             return;
           }
         }
       } catch {
-        /* ignore storage read error */
+        /* ignore */
       }
 
-      // 3b. Direct location check on popup if accessible
-      try {
-        if (!popup.closed && popup.location?.href?.startsWith(redirectUri)) {
-          const hash = popup.location.hash || "";
-          const search = popup.location.search || "";
-          const hashParams = new URLSearchParams(hash.startsWith("#") ? hash.substring(1) : hash);
-          const searchParams = new URLSearchParams(search);
-
-          const code = searchParams.get("code") || hashParams.get("code");
-          const accessToken = hashParams.get("access_token") || searchParams.get("access_token");
-          const error = hashParams.get("error") || searchParams.get("error");
-          const errorDesc = hashParams.get("error_description") || searchParams.get("error_description");
-          const expiresIn = hashParams.get("expires_in") || searchParams.get("expires_in");
-
-          if (code || accessToken || error) {
-            handlePayload({
-              code,
-              accessToken,
-              expiresIn: expiresIn ? parseInt(expiresIn, 10) : 3600,
-              error,
-              errorDescription: errorDesc,
-            });
-            return;
-          }
-        }
-      } catch {
-        // Cross-origin checks fail while popup is on Google's domains; safe to ignore
-      }
-
-      // 3c. Detect user closing the popup manually without completing auth
       if (popup.closed) {
         cleanup();
         reject(new Error("Login popup closed by user."));
@@ -461,14 +394,13 @@ async function signInWithGoogleWeb(): Promise<LocalUser> {
   });
 }
 
-
 async function signInWithGoogleDesktop(): Promise<LocalUser> {
   console.info("[W Auth] Starting desktop OAuth flow...");
 
   const oauthPlugin = await import("@fabianlars/tauri-plugin-oauth");
   const { openUrl } = await import("@tauri-apps/plugin-opener");
 
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const clientId = import.meta.env.VITE_GOOGLE_DESKTOP_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID;
   if (!clientId) {
     throw new Error("VITE_GOOGLE_CLIENT_ID is not set in environment");
   }
@@ -477,10 +409,11 @@ async function signInWithGoogleDesktop(): Promise<LocalUser> {
   const codeChallenge = await generateCodeChallenge(codeVerifier);
 
   const port = await oauthPlugin.start({
-    response: AUTH_SUCCESS_HTML
+    response: AUTH_SUCCESS_HTML,
   });
   const redirectUri = `http://localhost:${port}`;
   const state = crypto.randomUUID();
+  const nonce = crypto.randomUUID();
 
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.searchParams.set("client_id", clientId);
@@ -488,6 +421,7 @@ async function signInWithGoogleDesktop(): Promise<LocalUser> {
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("scope", "openid email profile https://www.googleapis.com/auth/drive.file");
   authUrl.searchParams.set("state", state);
+  authUrl.searchParams.set("nonce", nonce);
   authUrl.searchParams.set("access_type", "offline");
   authUrl.searchParams.set("prompt", "consent select_account");
   authUrl.searchParams.set("code_challenge", codeChallenge);
@@ -506,6 +440,10 @@ async function signInWithGoogleDesktop(): Promise<LocalUser> {
   }, 120_000);
 
   const unlisten = await oauthPlugin.onUrl((url: string) => {
+    // Ignore spurious browser resource requests on loopback (e.g. /favicon.ico)
+    if (!url.includes("code=") && !url.includes("error=")) {
+      return;
+    }
     clearTimeout(timeout);
     resolveToken(url);
   });
@@ -523,49 +461,58 @@ async function signInWithGoogleDesktop(): Promise<LocalUser> {
 
   const code = extractCode(callbackUrl, state);
   if (!code) {
-    throw new Error("No authorization code received from Google. Please try again.");
+    throw new Error("Invalid OAuth state or missing authorization code. Please try again.");
   }
 
-  const tokenParams: Record<string, string> = {
-    client_id: clientId,
-    redirect_uri: redirectUri,
-    code: code,
-    code_verifier: codeVerifier,
-    grant_type: "authorization_code",
-  };
+  let tokenData: any = null;
+  if (isTauri()) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    tokenData = await invoke("oauth_exchange_desktop_code", {
+      clientId,
+      code,
+      codeVerifier,
+      redirectUri,
+    });
+  } else {
+    // Public PKCE exchange path for non-Tauri unit test environments only
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        code,
+        code_verifier: codeVerifier,
+        grant_type: "authorization_code",
+      }),
+    });
 
-  const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET;
-  if (clientSecret) {
-    tokenParams.client_secret = clientSecret;
+    if (!tokenRes.ok) {
+      throw new Error(`Token exchange failed (HTTP ${tokenRes.status}).`);
+    }
+
+    tokenData = await tokenRes.json();
   }
 
-  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams(tokenParams),
-  });
-
-  if (!tokenRes.ok) {
-    const errorText = await tokenRes.text();
-    throw new Error(`Token exchange failed (HTTP ${tokenRes.status}): ${errorText || "Unknown error"}`);
-  }
-
-  const tokenData = await tokenRes.json();
-  const accessToken = tokenData.access_token;
-  const refreshToken = tokenData.refresh_token;
-  const idToken = tokenData.id_token;
-  const expiresIn = tokenData.expires_in || 3600;
+  const accessToken = tokenData?.access_token;
+  const refreshToken = tokenData?.refresh_token;
+  const idToken = tokenData?.id_token;
+  const expiresIn = tokenData?.expires_in || 3600;
 
   if (!accessToken) {
     throw new Error("Missing access_token in token exchange response.");
   }
 
-  return processGoogleOAuthToken(accessToken, expiresIn, refreshToken || "", idToken);
+  return processGoogleOAuthToken(accessToken, expiresIn, refreshToken || "", idToken, nonce);
 }
 
-function extractCode(url: string, expectedState: string): string | null {
+/**
+ * Extracts authorization code ONLY when the OAuth `state` parameter is present
+ * and strictly matches `expectedState` (OWASP API2:2023 CSRF defense).
+ */
+export function extractCode(url: string, expectedState: string): string | null {
   let params: URLSearchParams;
   try {
     if (url.includes("#")) {
@@ -575,7 +522,7 @@ function extractCode(url: string, expectedState: string): string | null {
       const parsed = url.startsWith("http") ? new URL(url) : new URL(url, "http://localhost");
       params = parsed.searchParams;
     }
-  } catch (err) {
+  } catch {
     try {
       const queryPart = url.includes("?") ? url.split("?")[1] : url;
       params = new URLSearchParams(queryPart);
@@ -585,7 +532,7 @@ function extractCode(url: string, expectedState: string): string | null {
   }
 
   const returnedState = params.get("state");
-  if (returnedState && returnedState !== expectedState) {
+  if (!returnedState || returnedState !== expectedState) {
     return null;
   }
 
@@ -607,7 +554,7 @@ export function onAuthStateChanged(
     cb(auth.currentUser);
   };
   window.addEventListener("w:auth-changed", handleAuthChange);
-  
+
   const unsub = localOnAuthStateChanged(authInstanceOrCallback, callback);
   return () => {
     unsub();
@@ -620,8 +567,6 @@ export async function migrateFirestoreToLocal(
   _googleAccessToken?: string,
   _googleIdToken?: string
 ): Promise<void> {
-  // Legacy Firestore migration is permanently disabled.
-  // Google Drive (W_state.json) is the sovereign state repository.
   const migratedKey = `w_migrated_v2_${uid}`;
   localStorage.setItem(migratedKey, "true");
 }

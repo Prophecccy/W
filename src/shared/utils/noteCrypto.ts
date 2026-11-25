@@ -1,46 +1,41 @@
 /**
  * ─── LAYER 6: AES-256-GCM ENCRYPTION AT REST ────────────────────
  *
- * Encrypts Daily Note content before it enters IndexedDB and decrypts
- * on read.  The encryption key is a random 256-bit AES-GCM key stored
- * **separately** in Tauri's $APPDATA (OS filesystem), while the
- * ciphertext lives in the browser's IndexedDB — so an attacker needs
- * access to BOTH storage locations to decrypt anything.
+ * Encrypts Daily Notes and local API secrets before persisting to IndexedDB.
  *
- * Web Crypto API — zero external dependencies.
+ * - Tauri Desktop: AES-256-GCM key is persisted inside Windows DPAPI vault
+ *   (`secure_store.rs` -> `$APPDATA/.vault/note_key.dpapi`), migrating any
+ *   legacy plaintext `$APPDATA/note_key.json`.
+ * - Web / Mobile: Non-extractable `CryptoKey` (`extractable: false`) is stored
+ *   directly in IndexedDB via WebCrypto structured clone — never exported as
+ *   plaintext JWK to `localStorage`.
  */
 
+import { get as idbGet, set as idbSet } from "idb-keyval";
 import { isTauri } from "./tauri";
 
-// ─── Types ──────────────────────────────────────────────────────
-
 export interface EncryptedPayload {
+  /** Version 2 payloads enforce context AAD binding */
+  v?: 2;
   /** Base64-encoded 12-byte initialization vector */
   iv: string;
   /** Base64-encoded AES-256-GCM ciphertext */
   ct: string;
 }
 
-// ─── Module State ───────────────────────────────────────────────
-
-import { get as idbGet, set as idbSet } from "idb-keyval";
-
-const KEY_FILE = "note_key.json";
+const LEGACY_KEY_FILE = "note_key.json";
 const WEB_KEY_STORE = "w_note_crypto_key";
 let cachedKey: CryptoKey | null = null;
 let initPromise: Promise<void> | null = null;
 
-// ─── Initialisation ─────────────────────────────────────────────
-
 /**
- * Must be called once during app startup (after auth resolves), or automatically
- * lazily-invoked before any encrypt/decrypt operation.
- * Generates or loads the per-device AES-256-GCM key.
- *
- * - Tauri: persists the key as JWK in `$APPDATA/note_key.json`.
- * - Web:   persists the key as JWK in IndexedDB (`w_note_crypto_key`)
- *          with localStorage backup, so notes persist across page reloads.
+ * Clears in-memory CryptoKey references on sign-out or account switch.
  */
+export function resetEncryptionKeyCache(): void {
+  cachedKey = null;
+  initPromise = null;
+}
+
 export function initEncryptionKey(): Promise<void> {
   if (initPromise) return initPromise;
 
@@ -54,8 +49,6 @@ export function initEncryptionKey(): Promise<void> {
       console.info("[noteCrypto] Encryption key initialised.");
     } catch (err) {
       console.error("[noteCrypto] Failed to initialise encryption key:", err);
-      // Encryption will gracefully degrade — reads still work because
-      // the decrypt path returns plaintext for unencrypted records.
       cachedKey = null;
     }
   })();
@@ -69,39 +62,31 @@ async function ensureKey(): Promise<CryptoKey | null> {
   return cachedKey;
 }
 
-// ─── Encrypt / Decrypt ──────────────────────────────────────────
-
-/**
- * Encrypts a plaintext note string.
- * Returns `null` if the key isn't available (graceful degradation).
- */
 export async function encryptNote(
-  plaintext: string
+  plaintext: string,
+  aadContext?: string
 ): Promise<EncryptedPayload | null> {
   const key = await ensureKey();
   if (!key) return null;
 
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encoded = new TextEncoder().encode(plaintext);
+  const algorithm: AesGcmParams = aadContext
+    ? { name: "AES-GCM", iv, additionalData: new TextEncoder().encode(aadContext) }
+    : { name: "AES-GCM", iv };
 
-  const cipherBuffer = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
-    key,
-    encoded
-  );
+  const cipherBuffer = await crypto.subtle.encrypt(algorithm, key, encoded);
 
   return {
+    ...(aadContext ? { v: 2 as const } : {}),
     iv: uint8ToBase64(iv),
     ct: uint8ToBase64(new Uint8Array(cipherBuffer)),
   };
 }
 
-/**
- * Decrypts an encrypted payload back to plaintext.
- * Returns `null` on failure (key missing, corrupted data, etc.).
- */
 export async function decryptNote(
-  payload: EncryptedPayload
+  payload: EncryptedPayload,
+  aadContext?: string
 ): Promise<string | null> {
   const key = await ensureKey();
   if (!key) return null;
@@ -109,6 +94,33 @@ export async function decryptNote(
   try {
     const iv = base64ToUint8(payload.iv);
     const ct = base64ToUint8(payload.ct);
+
+    if (payload.v === 2) {
+      if (!aadContext) {
+        console.error("[noteCrypto] Missing required AAD context for v2 encrypted payload.");
+        return null;
+      }
+      const plainBuffer = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv, additionalData: new TextEncoder().encode(aadContext) },
+        key,
+        ct
+      );
+      return new TextDecoder().decode(plainBuffer);
+    }
+
+    // Legacy payloads without v: 2 try context AAD first if supplied, then fall back to AAD-less
+    if (aadContext) {
+      try {
+        const plainWithAad = await crypto.subtle.decrypt(
+          { name: "AES-GCM", iv, additionalData: new TextEncoder().encode(aadContext) },
+          key,
+          ct
+        );
+        return new TextDecoder().decode(plainWithAad);
+      } catch {
+        // Fallback to legacy un-bound AAD decryption below
+      }
+    }
 
     const plainBuffer = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv },
@@ -123,9 +135,6 @@ export async function decryptNote(
   }
 }
 
-/**
- * Type guard: checks whether a stored record contains an encrypted payload.
- */
 export function isEncryptedRecord(
   record: unknown
 ): record is { encrypted: EncryptedPayload } {
@@ -136,78 +145,131 @@ export function isEncryptedRecord(
   return typeof enc.iv === "string" && typeof enc.ct === "string";
 }
 
-// ─── Tauri Key Persistence ──────────────────────────────────────
+// ─── Tauri DPAPI Vault Key Persistence ──────────────────────────
 
 async function loadOrCreateTauriKey(): Promise<CryptoKey> {
-  const { exists, readTextFile, writeTextFile, BaseDirectory } = await import(
-    "@tauri-apps/plugin-fs"
-  );
+  const { invoke } = await import("@tauri-apps/api/core");
 
-  // Try loading an existing key
-  if (await exists(KEY_FILE, { baseDir: BaseDirectory.AppData })) {
-    const jwkJson = await readTextFile(KEY_FILE, {
-      baseDir: BaseDirectory.AppData,
-    });
-    const jwk = JSON.parse(jwkJson) as JsonWebKey;
-    return crypto.subtle.importKey("jwk", jwk, "AES-GCM", true, [
-      "encrypt",
-      "decrypt",
-    ]);
-  }
-
-  // First run — generate and persist
-  const key = await crypto.subtle.generateKey(
-    { name: "AES-GCM", length: 256 },
-    true, // extractable so we can export to JWK
-    ["encrypt", "decrypt"]
-  );
-
-  const jwk = await crypto.subtle.exportKey("jwk", key);
-  await writeTextFile(KEY_FILE, JSON.stringify(jwk), {
-    baseDir: BaseDirectory.AppData,
-  });
-
-  console.info("[noteCrypto] New encryption key generated and saved to $APPDATA.");
-  return key;
-}
-
-// ─── Web Key Persistence ────────────────────────────────────────
-
-async function loadOrCreateWebKey(): Promise<CryptoKey> {
-  // 1. Try loading existing key from IndexedDB or localStorage
+  // 1. Try Windows DPAPI vault first
   try {
-    let jwk = await idbGet<JsonWebKey>(WEB_KEY_STORE);
-    if (!jwk && typeof localStorage !== "undefined") {
-      const stored = localStorage.getItem(WEB_KEY_STORE);
-      if (stored) {
-        try {
-          jwk = JSON.parse(stored) as JsonWebKey;
-        } catch {}
-      }
-    }
-
-    if (jwk) {
-      return await crypto.subtle.importKey("jwk", jwk, "AES-GCM", true, [
+    const dpapiJson = await invoke<string | null>("secure_store_get", { key: "note_key" });
+    if (dpapiJson) {
+      const jwk = JSON.parse(dpapiJson) as JsonWebKey;
+      return crypto.subtle.importKey("jwk", jwk, "AES-GCM", false, [
         "encrypt",
         "decrypt",
       ]);
     }
   } catch (err) {
+    console.warn("[noteCrypto] DPAPI note_key read unavailable, checking legacy file:", err);
+  }
+
+  // 2. Migrate legacy plaintext $APPDATA/note_key.json into DPAPI and delete plaintext file
+  try {
+    const { exists, readTextFile, remove, BaseDirectory } = await import(
+      "@tauri-apps/plugin-fs"
+    );
+    if (await exists(LEGACY_KEY_FILE, { baseDir: BaseDirectory.AppData })) {
+      const jwkJson = await readTextFile(LEGACY_KEY_FILE, {
+        baseDir: BaseDirectory.AppData,
+      });
+      const jwk = JSON.parse(jwkJson) as JsonWebKey;
+      const key = await crypto.subtle.importKey("jwk", jwk, "AES-GCM", false, [
+        "encrypt",
+        "decrypt",
+      ]);
+      await invoke("secure_store_set", { key: "note_key", value: jwkJson }).catch(() => {});
+      await remove(LEGACY_KEY_FILE, { baseDir: BaseDirectory.AppData }).catch(() => {});
+      console.info("[noteCrypto] Migrated legacy note_key.json into DPAPI vault.");
+      return key;
+    }
+  } catch (err) {
+    console.warn("[noteCrypto] Legacy note_key migration check failed:", err);
+  }
+
+  // 3. First run — generate extractable once to persist inside DPAPI vault, then re-import non-extractable
+  const tempKey = await crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt", "decrypt"]
+  );
+  const jwk = await crypto.subtle.exportKey("jwk", tempKey);
+  await invoke("secure_store_set", { key: "note_key", value: JSON.stringify(jwk) });
+  console.info("[noteCrypto] New encryption key generated and sealed in DPAPI vault.");
+
+  return crypto.subtle.importKey("jwk", jwk, "AES-GCM", false, [
+    "encrypt",
+    "decrypt",
+  ]);
+}
+
+// ─── Web Non-Extractable CryptoKey Persistence ──────────────────
+
+function isCryptoKey(val: unknown): val is CryptoKey {
+  return (
+    typeof val === "object" &&
+    val !== null &&
+    "type" in val &&
+    "algorithm" in val &&
+    "usages" in val
+  );
+}
+
+async function loadOrCreateWebKey(): Promise<CryptoKey> {
+  try {
+    const storedIdb = await idbGet<CryptoKey | JsonWebKey>(WEB_KEY_STORE);
+
+    // Modern non-extractable CryptoKey stored via IndexedDB structured clone
+    if (isCryptoKey(storedIdb)) {
+      if (typeof localStorage !== "undefined") {
+        localStorage.removeItem(WEB_KEY_STORE);
+      }
+      return storedIdb;
+    }
+
+    // Legacy JWK in IndexedDB or localStorage -> import as non-extractable, upgrade IDB, wipe localStorage
+    let legacyJwk: JsonWebKey | null = storedIdb && typeof storedIdb === "object" ? storedIdb : null;
+    if (!legacyJwk && typeof localStorage !== "undefined") {
+      const storedLs = localStorage.getItem(WEB_KEY_STORE);
+      if (storedLs) {
+        try {
+          legacyJwk = JSON.parse(storedLs) as JsonWebKey;
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
+    if (legacyJwk) {
+      const nonExtractable = await crypto.subtle.importKey(
+        "jwk",
+        legacyJwk,
+        "AES-GCM",
+        false,
+        ["encrypt", "decrypt"]
+      );
+      await idbSet(WEB_KEY_STORE, nonExtractable);
+      if (typeof localStorage !== "undefined") {
+        localStorage.removeItem(WEB_KEY_STORE);
+      }
+      console.info("[noteCrypto] Upgraded legacy JWK to non-extractable CryptoKey.");
+      return nonExtractable;
+    }
+  } catch (err) {
     console.warn("[noteCrypto] Failed to load existing Web encryption key, generating fresh:", err);
   }
 
-  // 2. First run on Web — generate and persist key
+  // First run on Web — generate non-extractable CryptoKey directly
   const key = await crypto.subtle.generateKey(
     { name: "AES-GCM", length: 256 },
-    true, // extractable so we can export to JWK
+    false,
     ["encrypt", "decrypt"]
   );
 
   try {
-    const jwk = await crypto.subtle.exportKey("jwk", key);
-    await idbSet(WEB_KEY_STORE, jwk);
+    await idbSet(WEB_KEY_STORE, key);
     if (typeof localStorage !== "undefined") {
-      localStorage.setItem(WEB_KEY_STORE, JSON.stringify(jwk));
+      localStorage.removeItem(WEB_KEY_STORE);
     }
     console.info("[noteCrypto] New Web encryption key generated and persisted.");
   } catch (err) {

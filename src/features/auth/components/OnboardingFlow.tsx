@@ -363,7 +363,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                     >
                       {signingIn ? "[ CONNECTING GOOGLE AUTH... ]" : "[ SIGN IN WITH GOOGLE ]"}
                     </button>
-                    {typeof window !== "undefined" && window.location.hostname === "localhost" && (
+                    {import.meta.env.DEV && (
                       <button
                         type="button"
                         className="onboarding-dev-btn t-label"

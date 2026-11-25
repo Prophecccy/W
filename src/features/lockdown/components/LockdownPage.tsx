@@ -460,7 +460,9 @@ export function LockdownPage() {
     const blocklist = Array.from(new Set([...scheduleApps, ...scheduleCustoms])).map((item) => sanitizeText(item, 100));
 
     const newSchedule = {
-      id: Math.random().toString(36).substring(2, 9),
+      id: typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID().slice(0, 12)
+        : Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join(""),
       name: cleanName,
       enabled: true,
       startTime: scheduleStartTime,

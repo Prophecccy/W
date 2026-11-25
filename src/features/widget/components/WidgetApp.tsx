@@ -14,7 +14,6 @@ import { getLocalWallpaper } from '../../../shared/utils/storageUtils';
 import { isTauri } from '../../../shared/utils/tauri';
 import { SleepTube } from '../../dashboard/components/SleepTube';
 import { ProgressCircle } from '../../../shared/components/ProgressCircle/ProgressCircle';
-import { syncActiveLockdownState } from '../../lockdown/services/lockdownService';
 import { processGap } from '../../strikes/services/gapProcessor';
 import { getTotalInRange, getPeriodStart, isMultiDayMetric } from '../../../shared/utils/dateUtils';
 import { initAudioOnUserGesture, playMechanicalClick } from '../../../shared/services/tactileAudioService';
@@ -86,19 +85,8 @@ export function WidgetApp() {
   }, []);
 
   // ─── Background Lockdown Scheduler ─────────────────────────
-  useEffect(() => {
-    if (loading || !userDoc?.uid) return;
-
-    // Run sync immediately
-    syncActiveLockdownState(userDoc.uid);
-
-    // Run sync every 15 seconds
-    const interval = setInterval(() => {
-      syncActiveLockdownState(userDoc.uid);
-    }, 15000);
-
-    return () => clearInterval(interval);
-  }, [loading, userDoc?.uid]);
+  // Lockdown monitor polling is centralized in Layout (main window) so the widget
+  // does not require lockdown monitor IPC privileges.
 
   // ─── Background Gap/Strikes Processor ──────────────────────
   const gapProcessorStarted = useRef(false);

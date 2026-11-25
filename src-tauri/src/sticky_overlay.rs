@@ -220,7 +220,11 @@ pub struct JsRect {
 
 /// Start the polling thread that toggles click-through on the sticky overlay.
 #[tauri::command]
-pub fn start_sticky_hit_test(app: tauri::AppHandle) -> Result<(), String> {
+pub fn start_sticky_hit_test(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    crate::require_window_label(&window, &["main", "sticky-overlay"])?;
     let overlay = app
         .get_webview_window("sticky-overlay")
         .ok_or("sticky-overlay window not found")?;
@@ -254,7 +258,8 @@ pub fn start_sticky_hit_test(app: tauri::AppHandle) -> Result<(), String> {
 
 /// Stop the polling thread.
 #[tauri::command]
-pub fn stop_sticky_hit_test() -> Result<(), String> {
+pub fn stop_sticky_hit_test(window: tauri::WebviewWindow) -> Result<(), String> {
+    crate::require_window_label(&window, &["main", "sticky-overlay"])?;
     stop_polling();
     Ok(())
 }
@@ -262,7 +267,11 @@ pub fn stop_sticky_hit_test() -> Result<(), String> {
 /// Update the sticky note bounding boxes for hit-testing.
 /// Coordinates must be in physical (screen) pixels.
 #[tauri::command]
-pub fn update_sticky_regions(regions: Vec<JsRect>) -> Result<(), String> {
+pub fn update_sticky_regions(
+    window: tauri::WebviewWindow,
+    regions: Vec<JsRect>,
+) -> Result<(), String> {
+    crate::require_window_label(&window, &["main", "sticky-overlay"])?;
     // Defense: limit regions to prevent memory exhaustion and validate coordinate geometry
     const MAX_REGIONS: usize = 50;
     const MAX_COORD: i32 = 10_000;
@@ -298,7 +307,11 @@ pub fn update_sticky_regions(regions: Vec<JsRect>) -> Result<(), String> {
 /// Called on pointerDown to ensure the first click registers
 /// even if the polling thread hasn't caught up yet.
 #[tauri::command]
-pub fn force_sticky_interactive(app: tauri::AppHandle) -> Result<(), String> {
+pub fn force_sticky_interactive(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    crate::require_window_label(&window, &["main", "sticky-overlay"])?;
     if IS_IGNORING.load(Ordering::Relaxed) {
         if let Some(window) = app.get_webview_window("sticky-overlay") {
             #[cfg(target_os = "windows")]
@@ -320,7 +333,12 @@ pub fn force_sticky_interactive(app: tauri::AppHandle) -> Result<(), String> {
 /// Toggle drag mode. When dragging, the overlay stays interactive
 /// regardless of cursor position to prevent stutter.
 #[tauri::command]
-pub fn set_sticky_drag_mode(app: tauri::AppHandle, dragging: bool) -> Result<(), String> {
+pub fn set_sticky_drag_mode(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    dragging: bool,
+) -> Result<(), String> {
+    crate::require_window_label(&window, &["main", "sticky-overlay"])?;
     DRAG_MODE.store(dragging, Ordering::SeqCst);
 
     if dragging {

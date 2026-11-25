@@ -3,6 +3,8 @@
  * Uses Groq's high-speed Whisper Large v3 endpoint for instant dictation.
  */
 
+import { sanitizeText } from "../../../shared/utils/security";
+
 export interface GroqTranscriptionOptions {
   apiKey: string;
   language?: string;
@@ -28,10 +30,14 @@ export async function transcribeWithGroq(
   formData.append("temperature", "0");
 
   if (language) {
-    formData.append("language", language);
+    const safeLang = language.trim();
+    if (!/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,4})?$/.test(safeLang)) {
+      throw new Error("Invalid transcription language code.");
+    }
+    formData.append("language", safeLang);
   }
   if (prompt) {
-    formData.append("prompt", prompt);
+    formData.append("prompt", sanitizeText(prompt, 500));
   }
 
   const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
@@ -46,9 +52,10 @@ export async function transcribeWithGroq(
     let errorDetail = "";
     try {
       const errJson = await response.json();
-      errorDetail = errJson.error?.message || response.statusText;
+      errorDetail = sanitizeText(String(errJson.error?.message || response.statusText || ""), 180);
     } catch {
-      errorDetail = await response.text();
+      const rawText = await response.text().catch(() => "");
+      errorDetail = sanitizeText(rawText, 180);
     }
 
     if (response.status === 401) {

@@ -112,7 +112,7 @@ export function LoginPage() {
             {signingIn ? "[ CONNECTING PROTOCOL... ]" : "[ SIGN IN WITH GOOGLE ]"}
           </button>
 
-          {window.location.hostname === "localhost" && (
+          {import.meta.env.DEV && (
             <button 
               className="login-page__btn login-page__btn--dev t-label" 
               onClick={devSkip}

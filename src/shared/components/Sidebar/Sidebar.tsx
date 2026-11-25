@@ -190,7 +190,7 @@ export function Sidebar({
           <a 
             href="https://github.com/Prophecccy/W/releases/latest"
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             className="sidebar__download-btn"
           >
             <Download size={14} />

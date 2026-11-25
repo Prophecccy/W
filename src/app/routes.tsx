@@ -1,3 +1,4 @@
+import { ReactNode } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { Layout } from "./Layout";
 import { DashboardPage } from "../features/dashboard/components/DashboardPage";
@@ -15,7 +16,17 @@ import { BlockOverlay } from "../features/lockdown/components/BlockOverlay";
 import { TodoCreatorPage } from "../features/todos/components/TodoCreatorPage";
 import { ManualPage } from "../features/manual";
 import { TrayMenuPage } from "../features/tray/components/TrayMenuPage";
+import { isTauri } from "../shared/utils/tauri";
 
+/**
+ * Prevents web/mobile browsers from navigating to desktop-only Tauri sub-window routes.
+ */
+function DesktopOnlyGuard({ children }: { children: ReactNode }) {
+  if (!isTauri()) {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+}
 
 export const router = createBrowserRouter([
   {
@@ -23,37 +34,53 @@ export const router = createBrowserRouter([
     element: <LoginPage />,
   },
   {
+    path: "/oauth-complete",
+    element: <Navigate to="/" replace />,
+  },
+  {
     path: "/sticky-canvas",
     element: (
-      <AuthGuard>
-        <StickyCanvas />
-      </AuthGuard>
+      <DesktopOnlyGuard>
+        <AuthGuard>
+          <StickyCanvas />
+        </AuthGuard>
+      </DesktopOnlyGuard>
     ),
   },
-
-
   {
     path: "/widget",
     element: (
-      <AuthGuard>
-        <WidgetApp />
-      </AuthGuard>
+      <DesktopOnlyGuard>
+        <AuthGuard>
+          <WidgetApp />
+        </AuthGuard>
+      </DesktopOnlyGuard>
     ),
   },
   {
     path: "/block-overlay",
-    element: <BlockOverlay />,
+    element: (
+      <DesktopOnlyGuard>
+        <BlockOverlay />
+      </DesktopOnlyGuard>
+    ),
   },
   {
     path: "/tray-menu",
-    element: <TrayMenuPage />,
+    element: (
+      <DesktopOnlyGuard>
+        <TrayMenuPage />
+      </DesktopOnlyGuard>
+    ),
   },
   {
     path: "/todo-creator",
     element: (
-      <AuthGuard>
-        <TodoCreatorPage />
-      </AuthGuard>
+      <DesktopOnlyGuard>
+        <AuthGuard>
+          <TodoCreatorPage />
+        </AuthGuard>
+      </DesktopOnlyGuard>
     ),
   },
   {
@@ -76,12 +103,10 @@ export const router = createBrowserRouter([
         path: "todos",
         element: <TodosPage />,
       },
-
       {
         path: "analytics",
         element: <AnalyticsPage />,
       },
-
       {
         path: "logbook",
         element: <LogbookPage />,
@@ -105,4 +130,3 @@ export const router = createBrowserRouter([
     element: <Navigate to="/" replace />,
   },
 ]);
-

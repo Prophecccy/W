@@ -5,21 +5,20 @@ import { useAuthContext } from "../context";
 const TRANSPARENT_ROUTES = ["/sticky-canvas", "/widget", "/alarm-popup"];
 
 export function AuthGuard({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuthContext();
+  const { user, loading, signingIn } = useAuthContext();
   const location = useLocation();
   const isTransparentWindow = TRANSPARENT_ROUTES.includes(location.pathname);
 
-  // If there's an OAuth access token in the hash, wait for token processing instead of bouncing to login
-  const hasPendingOAuthToken = typeof window !== "undefined" && window.location.hash.includes("access_token=");
+  const isPendingOAuth = location.pathname === "/oauth-complete" || signingIn;
 
-  if (loading || (!user && hasPendingOAuthToken)) {
+  if (loading || (!user && isPendingOAuth)) {
     // For transparent windows, show nothing (invisible) while auth loads
     if (isTransparentWindow) {
       return <div style={{ background: "transparent" }} />;
     }
     return (
       <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span className="t-meta">{hasPendingOAuthToken ? "AUTHENTICATING CREDENTIALS..." : "LOADING APP..."}</span>
+        <span className="t-meta">{isPendingOAuth ? "AUTHENTICATING CREDENTIALS..." : "LOADING APP..."}</span>
       </div>
     );
   }

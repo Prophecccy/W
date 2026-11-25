@@ -1,6 +1,21 @@
 import { db, auth, collection, getDocs, doc, setDoc, writeBatch } from "../../../shared/config/firebase";
+import { validateDocumentPayload } from "../../../shared/services/localDb";
+import { computePayloadSha256, sanitizeStrikesShape, verifyPayloadSha256 } from "../../../shared/utils/integrity";
+import { validateIsoDate } from "../../../shared/utils/security";
 import { getUserDoc } from "../../auth/services/userService";
 import { getLocalNoteHistory, saveDownloadedNote } from "../../logs/services/localLogService";
+
+const SAFE_DOC_ID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
+
+function sanitizeExportedUser(userDoc: any): any {
+  if (!userDoc || typeof userDoc !== "object") return userDoc;
+  const clone = { ...userDoc };
+  if (clone.settings && typeof clone.settings === "object") {
+    const { groqApiKey: _stripped, ...safeSettings } = clone.settings;
+    clone.settings = safeSettings;
+  }
+  return clone;
+}
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -20,7 +35,7 @@ async function getAllCollectionData(collectionName: string): Promise<Record<stri
 
 async function gatherAllData(): Promise<Record<string, unknown>> {
   const userId = uid();
-  const userDoc = await getUserDoc(userId);
+  const userDoc = sanitizeExportedUser(await getUserDoc(userId));
   const habits = await getAllCollectionData("habits");
   const todos = await getAllCollectionData("todos");
   const logs = await getAllCollectionData("logs");
@@ -28,7 +43,7 @@ async function gatherAllData(): Promise<Record<string, unknown>> {
   const stickyNotes = await getAllCollectionData("sticky-notes");
   const dailyNotes = await getLocalNoteHistory();
 
-  return {
+  const unsigned = {
     exportedAt: new Date().toISOString(),
     user: userDoc,
     habits,
@@ -38,6 +53,8 @@ async function gatherAllData(): Promise<Record<string, unknown>> {
     "sticky-notes": stickyNotes,
     dailyNotes,
   };
+  const integritySha256 = await computePayloadSha256(unsigned);
+  return { ...unsigned, integritySha256 };
 }
 
 // ─── Create Backup (Tauri FS) ────────────────────────────────────
@@ -175,61 +192,109 @@ function triggerDownload(content: string, filename: string, mimeType: string) {
 
 export async function restoreBackup(data: any): Promise<void> {
   const userId = uid();
-  
-  if (!data || typeof data !== "object") {
+  const MAX_ITEMS_PER_COLLECTION = 10_000;
+
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
     throw new Error("Invalid backup data format");
   }
 
-  // 1. Restore User Settings Document
-  if (data.user) {
-    const userRef = doc(db, "users", userId);
-    const restoredUser = { ...data.user, uid: userId };
-    await setDoc(userRef, restoredUser);
+  // OWASP A08: Verify cryptographic SHA-256 backup digest when present
+  if ("integritySha256" in data && data.integritySha256 !== undefined) {
+    const { integritySha256, ...unsignedData } = data as Record<string, unknown>;
+    const valid = await verifyPayloadSha256(unsignedData, String(integritySha256));
+    if (!valid) {
+      throw new Error("Backup integrity verification failed: file may be corrupted or modified.");
+    }
   }
 
-  // Helper to batch restore a collection
+  // 1. Restore User Settings Document with strict field allowlist & active UID pinning
+  if (data.user && typeof data.user === "object" && !Array.isArray(data.user)) {
+    const userRef = doc(db, "users", userId);
+    const allowedUserFields = [
+      "settings",
+      "aesthetics",
+      "wallpapers",
+      "strikes",
+      "freeze",
+      "lockdown",
+      "lastActiveDate",
+      "hasOnboarded",
+      "createdAt",
+    ] as const;
+
+    const pickedUser: Record<string, unknown> = {
+      uid: userId,
+      email: auth.currentUser?.email ?? null,
+    };
+
+    for (const field of allowedUserFields) {
+      if (data.user[field] !== undefined) {
+        pickedUser[field] = data.user[field];
+      }
+    }
+
+    if (pickedUser.settings && typeof pickedUser.settings === "object" && !Array.isArray(pickedUser.settings)) {
+      const { groqApiKey: _stripped, ...safeSettings } = pickedUser.settings as Record<string, unknown>;
+      pickedUser.settings = safeSettings;
+    }
+
+    const boundedStrikes = sanitizeStrikesShape(pickedUser.strikes);
+    if (boundedStrikes) {
+      pickedUser.strikes = boundedStrikes;
+    }
+
+    const sanitizedUser = validateDocumentPayload(pickedUser, `users/${userId}`);
+    await setDoc(userRef, sanitizedUser);
+  }
+
+  // Helper to batch restore a collection safely
   async function restoreCollection(collectionName: string, items: any[]) {
     if (!items || !Array.isArray(items)) return;
     let batch = writeBatch(db);
     let count = 0;
-    
-    for (const item of items) {
-      if (!item.id) continue;
+
+    for (const item of items.slice(0, MAX_ITEMS_PER_COLLECTION)) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+      if (typeof item.id !== "string" || !SAFE_DOC_ID_REGEX.test(item.id)) continue;
+
+      const docPath = `users/${userId}/${collectionName}/${item.id}`;
       const docRef = doc(db, "users", userId, collectionName, item.id);
-      
-      const { id, ...docData } = item;
-      
-      // SECURITY: Ensure notes are NEVER written to Firestore logs collection
-      if (collectionName === "logs" && docData.notes) {
+
+      const { id: _id, ...rawDocData } = item;
+      const docData = validateDocumentPayload<Record<string, unknown>>(rawDocData, docPath);
+      docData.uid = userId;
+
+      // SECURITY: Ensure notes are NEVER written to logs collection
+      if (collectionName === "logs" && "notes" in docData) {
         delete docData.notes;
       }
-      
+
       batch.set(docRef, docData, { merge: true });
       count++;
-      
+
       if (count >= 400) {
         await batch.commit();
         batch = writeBatch(db);
         count = 0;
       }
     }
-    
+
     if (count > 0) {
       await batch.commit();
     }
   }
 
-  // 2. Restore Firestore collections
+  // 2. Restore collections
   await restoreCollection("habits", data.habits);
   await restoreCollection("todos", data.todos);
   await restoreCollection("logs", data.logs);
   await restoreCollection("groups", data.groups);
   await restoreCollection("sticky-notes", data["sticky-notes"]);
 
-  // 3. Restore Local Daily Notes to IndexedDB
+  // 3. Restore Local Daily Notes to IndexedDB (only valid ISO calendar dates)
   if (data.dailyNotes && Array.isArray(data.dailyNotes)) {
     for (const note of data.dailyNotes) {
-      if (note.date && note.notes) {
+      if (note && validateIsoDate(note.date) && typeof note.notes === "string") {
         await saveDownloadedNote(note.date, note.notes);
       }
     }
