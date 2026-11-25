@@ -4,21 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Git release tag (e.g. Beta.v.1.0) — the semver for the updater comes from tauri.conf.json, not this tag'
+        description: 'Git release tag (e.g. Beta.v.1.1) — the semver for the updater comes from tauri.conf.json, not this tag'
         required: true
-        default: 'Beta.v.1.0'
+        default: 'Beta.v.1.1'
       changelog:
         description: 'Release changelog / description'
         required: true
         default: |
-          W — Official Beta 1.0 Release
+          W — Beta v1.1 Release
 
-          - Reached official Beta stage with major performance, stability, and UI improvements.
-          - Multi-Monitor Widget Position Persistence: Permanent fix for PC reboot window position reset with dual-storage localStorage + AppData sync.
-          - Desktop Widget Right-Click Hide: Right-click any habit in the desktop widget to temporarily hide it for the day without affecting the main app dashboard.
-          - Custom Todo Strip Colors: Replaced priority system with tactical color swatches and left glowing border accent.
-          - Duolingo-inspired chunky tactile mobile ergonomics with 3D mechanical press feedback.
-          - Silent background sync: fixed phantom audio tick triggers and session expired toast noise.
+          - Hardened Desktop, Web/Mobile, BFF API, and CI/Release pipelines across OWASP Top 10 & API Top 10 controls.
+          - Per-window least-privilege Tauri v2 capabilities, DPAPI vault with TLS 1.2+ zero-redirect token exchange, and rotating security audit logging.
+          - Rotated Tauri updater signing key and hardened Google OAuth PKCE + BFF HttpOnly cookie session flow.
 
 jobs:
   release:
