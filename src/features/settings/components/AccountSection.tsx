@@ -4,8 +4,9 @@ import { GoogleDriveIcon } from "../../../shared/components/GoogleDriveIcon/Goog
 import { useUserStore } from "../../../shared/stores/userStore";
 
 export function AccountSection() {
-  const { user, signIn, signOut, error, signingIn, clearError, isDriveSessionExpired } = useAuthContext();
+  const { user, signIn, signOut, error, signingIn, clearError, isDriveLinked, isDriveSessionExpired } = useAuthContext();
   const { userDoc } = useUserStore();
+  const needsDriveReauth = Boolean(user?.email && (!isDriveLinked || isDriveSessionExpired));
 
   const handleSignOut = async () => {
     if (confirm("Are you sure you want to sign out? This will disconnect your Google Drive sync, clear local session cache, and return to the login screen.")) {
@@ -58,8 +59,8 @@ export function AccountSection() {
         <div className="settings-row">
           <div className="settings-row__label">
             <span className="t-meta" style={{ letterSpacing: "1px", fontWeight: 500 }}>SOVEREIGN CLOUD SYNC</span>
-            <span className="t-meta" style={{ fontSize: "11px", color: isDriveSessionExpired ? "var(--strike-red)" : "var(--text-muted)", marginTop: "2px", display: "block" }}>
-              {isDriveSessionExpired
+            <span className="t-meta" style={{ fontSize: "11px", color: needsDriveReauth ? "var(--strike-red)" : "var(--text-muted)", marginTop: "2px", display: "block" }}>
+              {needsDriveReauth
                 ? "Google Drive session expired or needs re-authentication. Re-link to resume cloud synchronization."
                 : user?.email
                 ? `Directly locked & mirrored to ${user.email}'s personal Google Drive container.`
@@ -67,7 +68,7 @@ export function AccountSection() {
             </span>
           </div>
           <div className="settings-row__action">
-            {user?.email && isDriveSessionExpired ? (
+            {needsDriveReauth ? (
               <button
                 className="settings-btn"
                 style={{ color: "var(--strike-red)", borderColor: "var(--strike-red)" }}

@@ -50,9 +50,10 @@ export function useAuth() {
         const { getValidAccessToken, pullNotesFromDrive } = await import("../../../shared/services/googleDriveService");
         const accessToken = await getValidAccessToken();
         if (accessToken && auth.currentUser) {
-          const { pullAndMergeFromGoogleDrive } = await import("../../../shared/services/localDb");
+          const { pullAndMergeFromGoogleDrive, syncToGoogleDrive } = await import("../../../shared/services/localDb");
           await pullAndMergeFromGoogleDrive(true);
           await pullNotesFromDrive(accessToken);
+          await syncToGoogleDrive();
         }
       } catch (err) {
         console.error("[W Auth Hook] Failed to pull from Google Drive on link:", err);
@@ -61,7 +62,6 @@ export function useAuth() {
     const handleUnlinked = () => {
       console.info("[W Auth Hook] Google Drive unlinked event captured. Synchronizing state to false.");
       setIsDriveLinked(false);
-      setIsDriveSessionExpired(false);
     };
     const handleSessionExpired = () => {
       console.warn("[W Auth Hook] Google Drive session expired event captured.");
@@ -108,6 +108,10 @@ export function useAuth() {
           setUser(restoredUser);
           setIsDriveLinked(true);
           setIsDriveSessionExpired(false);
+        } else if (auth.currentUser?.email || localStorage.getItem("w_auth_user")) {
+          localStorage.setItem("driveLinked", "false");
+          setIsDriveLinked(false);
+          setIsDriveSessionExpired(true);
         }
       })
       .finally(() => {
@@ -173,6 +177,7 @@ export function useAuth() {
       localStorage.removeItem("w-auth-mock");
       await signOut();
       setIsDriveLinked(false);
+      setIsDriveSessionExpired(false);
     } catch (err: unknown) {
       console.error("[W Auth] Sign-out failed:", err);
     }

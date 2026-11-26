@@ -54,8 +54,11 @@ export function Sidebar({
   useEffect(() => {
     const formatBetaVersion = (raw: string) => {
       const clean = raw.replace(/-.*$/, '');
-      if (clean.startsWith('2.0')) {
+      if (clean === '2.0.0' || clean === '2.0') {
         return 'Beta.v.1.0';
+      }
+      if (clean.startsWith('2.0.')) {
+        return `Beta.v.1.${clean.slice(4)}`;
       }
       return `Beta.v.${clean.replace(/\.0$/, '')}`;
     };
