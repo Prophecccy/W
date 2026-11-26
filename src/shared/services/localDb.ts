@@ -815,6 +815,21 @@ function triggerAuthChange() {
   }
 }
 
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === "w_auth_user") {
+      triggerAuthChange();
+      window.dispatchEvent(new CustomEvent("w:auth-changed"));
+    }
+  });
+  if ((window as any).__TAURI_INTERNALS__) {
+    listen("w_auth_changed", () => {
+      triggerAuthChange();
+      window.dispatchEvent(new CustomEvent("w:auth-changed"));
+    }).catch(() => {});
+  }
+}
+
 export async function signInAnonymously(_authInstance: any) {
   if (!import.meta.env.DEV) {
     throw new Error("Anonymous sign-in is disabled outside development builds.");

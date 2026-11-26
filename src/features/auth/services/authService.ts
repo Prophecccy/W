@@ -55,6 +55,11 @@ interface VerifiedUserIdentity {
 function triggerAuthChange() {
   const customEvent = new CustomEvent("w:auth-changed");
   window.dispatchEvent(customEvent);
+  if (isTauri()) {
+    import("@tauri-apps/api/event")
+      .then(({ emit }) => emit("w_auth_changed", {}))
+      .catch(() => {});
+  }
 }
 
 async function purgePreviousAccountIfChanged(nextUid: string, nextEmail: string | null): Promise<void> {
