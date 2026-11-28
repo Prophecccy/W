@@ -17,6 +17,8 @@ import { computePayloadSha256 } from "./integrity";
 import { restoreBackup } from "../../features/settings/services/backupService";
 import { escapeCSV } from "../../features/settings/services/exportService";
 import { doc, updateDoc, db } from "../services/localDb";
+import { isSyncCapableContext } from "./tauri";
+import { clearOAuthTokens, getValidAccessToken } from "../services/googleDriveService";
 
 describe("OWASP Runtime Storage & Restore Hardening", () => {
   const memLocalStorage = new Map<string, string>();
@@ -169,5 +171,23 @@ describe("OWASP Runtime Storage & Restore Hardening", () => {
 
     const restoredHabits = memIdb.get("w_col_users/uid_alice/habits") as Record<string, any>;
     expect(restoredHabits["h_signed"].name).toBe("Verified Habit");
+  });
+
+  it("prevents secondary Tauri windows from touching vault or resetting shared driveLinked", async () => {
+    memLocalStorage.set("driveLinked", "true");
+    vi.stubGlobal("window", {
+      setTimeout: () => 0,
+      clearTimeout: () => {},
+      dispatchEvent: () => true,
+      __TAURI_INTERNALS__: {
+        metadata: { currentWindow: { label: "widget" } },
+      },
+      location: { pathname: "/widget" },
+    });
+
+    expect(isSyncCapableContext()).toBe(false);
+    expect(await getValidAccessToken()).toBeNull();
+    await clearOAuthTokens();
+    expect(memLocalStorage.get("driveLinked")).toBe("true");
   });
 });

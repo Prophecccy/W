@@ -2,6 +2,7 @@ import { get as idbGet, set as idbSet } from "idb-keyval";
 import { emit, listen } from "@tauri-apps/api/event";
 import { decryptNote, resetEncryptionKeyCache } from "../utils/noteCrypto";
 import { computePayloadSha256, sanitizeStrikesShape, verifyPayloadSha256 } from "../utils/integrity";
+import { isSyncCapableContext } from "../utils/tauri";
 import { 
   getValidAccessToken, 
   uploadStateToDrive, 
@@ -892,6 +893,9 @@ export function triggerSync() {
 }
 
 export async function syncToGoogleDrive() {
+  if (!isSyncCapableContext()) {
+    return;
+  }
   if (isSyncing) {
     hasPendingSync = true;
     return;
@@ -971,6 +975,9 @@ export async function syncToGoogleDrive() {
 }
 
 export async function pullAndMergeFromGoogleDrive(force = false): Promise<boolean> {
+  if (!isSyncCapableContext()) {
+    return false;
+  }
   if (isSyncing) {
     if (force) {
       let waitCount = 0;
@@ -1377,7 +1384,7 @@ export function mergeCollection(local: Record<string, any>, remote: Record<strin
 
 // ─── Setup Auto-Sync Listeners ────────────────────────────────────
 
-if (typeof window !== "undefined") {
+if (typeof window !== "undefined" && isSyncCapableContext()) {
   let isSessionExpired = false;
   let pollIntervalMs = 2_500;
   let pollTimer: ReturnType<typeof setTimeout> | null = null;

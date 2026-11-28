@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { auth, LocalUser as FirebaseUser, signInAnonymously } from "../../../shared/config/firebase";
 import { signInWithGoogle, signOut, onAuthStateChanged, restoreWebBffSession } from "../services/authService";
-import { isTauri } from "../../../shared/utils/tauri";
+import { isSyncCapableContext, isTauri } from "../../../shared/utils/tauri";
 
 export function useAuth() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -15,6 +15,7 @@ export function useAuth() {
   const restoringRef = useRef(false);
 
   useEffect(() => {
+    if (!isSyncCapableContext()) return;
     let active = true;
     async function checkInitialToken() {
       if (localStorage.getItem("driveLinked") === "true") {
@@ -38,7 +39,7 @@ export function useAuth() {
       console.info("[W Auth Hook] Google Drive linked event captured. Synchronizing state to true.");
       setIsDriveLinked(true);
       setIsDriveSessionExpired(false);
-      if (auth.currentUser) {
+      if (auth.currentUser && isSyncCapableContext()) {
         try {
           const { updateUserDoc } = await import("../services/userService");
           await updateUserDoc(auth.currentUser.uid, { driveLinked: true } as any);
@@ -46,6 +47,7 @@ export function useAuth() {
           console.error("[W Auth Hook] Failed to update user doc with driveLinked: true:", err);
         }
       }
+      if (!isSyncCapableContext()) return;
       try {
         const { getValidAccessToken, pullNotesFromDrive } = await import("../../../shared/services/googleDriveService");
         const accessToken = await getValidAccessToken();
@@ -131,7 +133,7 @@ export function useAuth() {
       setUser(firebaseUser);
       setLoading(false);
 
-      if (firebaseUser) {
+      if (firebaseUser && isSyncCapableContext()) {
         const syncDriveIfLinked = async () => {
           const isLinked = localStorage.getItem("driveLinked") === "true";
           if (!isLinked) return;

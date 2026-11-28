@@ -7,7 +7,7 @@ import {
 import { getToday } from "../utils/dateUtils";
 import { validateIsoDate } from "../utils/security";
 import { get as idbGet, set as idbSet } from "idb-keyval";
-import { isTauri } from "../utils/tauri";
+import { isSyncCapableContext, isTauri } from "../utils/tauri";
 
 const DRIVE_ID_REGEX = /^[A-Za-z0-9_-]{8,128}$/;
 
@@ -98,6 +98,10 @@ let refreshTokenInFlight: Promise<string | null> | null = null;
 // Helper to asynchronously initialize the session cache from file or localStorage
 async function ensureSessionInitialized(): Promise<void> {
   if (isSessionInitialized) return;
+  if (!isSyncCapableContext()) {
+    isSessionInitialized = true;
+    return;
+  }
 
   if (isTauri()) {
     try {
@@ -187,6 +191,9 @@ export async function saveOAuthTokens(
   expiresIn: number,
   userEmail?: string
 ): Promise<void> {
+  if (!isSyncCapableContext()) {
+    return;
+  }
   const expiresAt = Date.now() + expiresIn * 1000;
   
   const existingSession = await getOAuthSession();
@@ -237,6 +244,9 @@ export function isDriveAuthenticated(): boolean {
  * Clear cached Google Drive credentials (e.g. on logout).
  */
 export async function clearOAuthTokens(): Promise<void> {
+  if (!isSyncCapableContext()) {
+    return;
+  }
   const prevSession = cachedSession;
   cachedSession = null;
   isSessionInitialized = true;
@@ -290,7 +300,7 @@ function isValidTokenString(token: unknown): boolean {
  * Retrieves a valid, unexpired access token. Automatically refreshes it if needed.
  */
 export async function getValidAccessToken(): Promise<string | null> {
-  if (!isDriveAuthenticated()) {
+  if (!isSyncCapableContext() || !isDriveAuthenticated()) {
     return null;
   }
 
@@ -1055,7 +1065,7 @@ let isSyncRunning = false;
  * Exits quietly if the user is not authenticated or offline.
  */
 export async function runBackgroundSync(): Promise<void> {
-  if (!isDriveAuthenticated()) {
+  if (!isSyncCapableContext() || !isDriveAuthenticated()) {
     return;
   }
 

@@ -1,11 +1,41 @@
 import { sanitizeUrl } from './security';
 
+const SECONDARY_TAURI_ROUTES = [
+  "/widget",
+  "/sticky-canvas",
+  "/tray-menu",
+  "/block-overlay",
+  "/todo-creator",
+];
+
 /**
  * Checks if we are inside a Tauri runtime (native desktop).
  * In a browser (npm run dev without Tauri), IPC calls will fail.
  */
 export function isTauri(): boolean {
   return typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__;
+}
+
+/**
+ * Returns true only when executing inside the primary Tauri "main" window.
+ * Secondary windows (widget, sticky-overlay, tray-menu, block-overlay, todo-creator) return false.
+ */
+export function isPrimaryTauriWindow(): boolean {
+  if (!isTauri()) return false;
+  const label = (window as any).__TAURI_INTERNALS__?.metadata?.currentWindow?.label;
+  if (typeof label === 'string' && label.length > 0) {
+    return label === 'main';
+  }
+  const path = typeof window !== 'undefined' ? (window.location?.pathname || '/') : '/';
+  return !SECONDARY_TAURI_ROUTES.some((route) => path === route || path.startsWith(`${route}/`));
+}
+
+/**
+ * True for Web/Mobile browsers and the Tauri "main" window; false for background Tauri sub-windows
+ * that must not touch the DPAPI vault or Google Drive background sync.
+ */
+export function isSyncCapableContext(): boolean {
+  return !isTauri() || isPrimaryTauriWindow();
 }
 
 /**
